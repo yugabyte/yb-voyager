@@ -19,7 +19,9 @@ package tgtdbsuite
 import (
 	"encoding/base64"
 	"encoding/binary"
+	"encoding/json"
 	"fmt"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -50,8 +52,56 @@ func quoteValueIfRequiredWithEscaping(value string, formatIfRequired bool, _ *sc
 	}
 }
 
+func hstoreValueConverter(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
+	fmt.Println(columnValue)
+	//e.g. val - "{""key1"":""value1"",""key2"":""value2""}"  and for empty string val - {}
+	columnValue = fmt.Sprintf(`%s`, columnValue)
+
+	// for the cases where value "{""{\""key1=value1, key2=value2\""}"":""{\\\""key1=value1, key2={\\\""key1=value1, key2=value2\\\""}\\\""}""}"
+	// escaping the \ -> \\ to preserve the escaping while unmarshalling
+	columnValue = strings.Replace(columnValue, `\"`, `\\\"`, -1)
+
+	// unescaping the cases which are already escaped {\\\\\" -> {\\\"
+	columnValue = strings.Replace(columnValue, `\\\\\"`, `\\\"`, -1)
+
+	// Initialize a map to hold the parsed data
+	var result map[string]interface{}
+
+	// Parse the JSON string into the map
+	err := json.Unmarshal([]byte(columnValue), &result)
+	if err != nil {
+		return "", fmt.Errorf("error converting the value to map: %v", err)
+	}
+	// Create a map to store the parsed key-value pairs
+	var transformedMapValue string
+
+	//sorting the keys so that result always have keys in an order
+	keys := lo.Keys(result)
+	slices.Sort(keys)
+
+	// Access key-value pairs to format the string as - "\"{\"\"key1\"\":\"\"value1\"\",\"\"key2\"\":\"\"value2\"\"}\""=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"
+	for _, key := range keys {
+		value := result[key]
+		transformedMapValue = transformedMapValue + fmt.Sprintf(`"%s"=>"%s",`, key, value)
+	}
+
+	if len(transformedMapValue) > 1 {
+		transformedMapValue = transformedMapValue[:len(transformedMapValue)-1] //remove last comma and
+	}
+	return quoteValueIfRequired(transformedMapValue, formatIfRequired, dbzmSchema) // add quotes if required
+}
+
 var YBValueConverterSuite = map[string]ConverterFn{
-	"io.debezium.data.Json":     quoteValueIfRequiredWithEscaping,
+	"io.debezium.data.Json": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
+		if dbzmSchema != nil {
+			colType, ok := dbzmSchema.Parameters["__debezium.source.column.type"]
+			if !ok || colType != "HSTORE" {
+				return quoteValueIfRequiredWithEscaping(columnValue, formatIfRequired, dbzmSchema)
+			}
+			return hstoreValueConverter(columnValue, formatIfRequired, dbzmSchema)
+		}
+		return quoteValueIfRequiredWithEscaping(columnValue, formatIfRequired, dbzmSchema)
+	},
 	"io.debezium.data.Enum":     quoteValueIfRequiredWithEscaping,
 	"io.debezium.time.Interval": quoteValueIfRequired,
 	"io.debezium.data.Uuid":     quoteValueIfRequired,
@@ -172,32 +222,6 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
 		}
 		return string(hexValue), nil
-	},
-	"MAP": func(columnValue string, formatIfRequired bool, colDbzmSchema *schemareg.ColumnSchema) (string, error) {
-		//e.g. val -  {key1=value1, key2=value2}
-		// Remove curly braces from the string
-		input := strings.Trim(columnValue, "{}")
-
-		// Split the string by comma to get key-value pairs
-		pairs := strings.Split(input, ", ")
-
-		// Create a map to store the parsed key-value pairs
-		var transformedMapValue string
-
-		// Iterate over each pair
-		for _, pair := range pairs {
-			// Split the pair by '=' to separate key and value
-			kv := strings.SplitN(pair, "=", 2)
-			if len(kv) == 2 {
-				key := kv[0]
-				value := kv[1]
-				transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
-			}
-		}
-		if len(transformedMapValue) > 1 {
-			transformedMapValue = transformedMapValue[:len(transformedMapValue)-1]//remove last comma and
-		}
-		return quoteValueIfRequired(transformedMapValue, formatIfRequired, colDbzmSchema) // add quotes if required
 	},
 	"STRING": quoteValueIfRequiredWithEscaping,
 }

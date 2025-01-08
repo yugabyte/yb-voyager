@@ -46,4 +46,8 @@ VALUES
      "publisher" => "postgresqltutorial.com",
      "language"  => "English",
      "ISBN-13"   => "978-1449370000",
-     "weight"    => "11.2 ounces"');
+     "weight"    => "11.2 ounces"'),
+    (hstore(ROW(1,'{\"key1=value1, key2=value2\"}'))),
+    (hstore('json_field', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
+    (hstore('{"key1=value1, key2=value2"}', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
+    (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));

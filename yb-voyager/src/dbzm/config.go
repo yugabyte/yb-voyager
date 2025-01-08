@@ -97,7 +97,7 @@ debezium.source.offset.flush.interval.ms=0
 debezium.source.table.include.list=%s
 debezium.source.interval.handling.mode=string
 debezium.source.include.unknown.datatypes=true
-debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*,.*DATE.*,.*INTERVAL.*,.*CHAR.*,.*TIMESTAMP.*,.*LONG.*
+debezium.source.datatype.propagate.source.type=.*BOX.*,.*LINE.*,.*LSEG.*,.*PATH.*,.*POLYGON.*,.*CIRCLE.*,.*DATE.*,.*INTERVAL.*,.*CHAR.*,.*TIMESTAMP.*,.*LONG.*,.*HSTORE.*
 debezium.source.tombstones.on.delete=false
 
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
@@ -123,7 +123,7 @@ debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnect
 debezium.source.database.dbname=%s
 debezium.source.schema.include.list=%s
 debezium.source.plugin.name=pgoutput
-debezium.source.hstore.handling.mode=map
+debezium.source.hstore.handling.mode=json
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.provide.transaction.metadata=true

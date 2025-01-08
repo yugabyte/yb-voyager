@@ -71,3 +71,7 @@ SET data = delete(data, 'key2')
 WHERE id = 8;
 
 DELETE FROM hstore_example WHERE data ? 'key5';
+
+INSERT INTO hstore_example (data) 
+VALUES 
+(hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));
