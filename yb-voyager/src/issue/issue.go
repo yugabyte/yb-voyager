@@ -22,8 +22,9 @@ import (
 
 type Issue struct {
 	Type                   string // (advisory_locks, index_not_supported, etc)
-	TypeName               string // for display
-	TypeDescription        string
+	Name                   string // for display
+	Description            string
+	Impact                 string
 	Suggestion             string
 	GH                     string
 	DocsLink               string
@@ -40,3 +41,36 @@ func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	}
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
+
+/*
+	Dynamic Impact Determination (TODO)
+	- We can define the impact calculator function based on issue type wherever/whenever needed
+	- Map will have functions only for issue type with dynamic impact determination
+
+	For example:
+
+	type ImpactCalcFunc func(issue QueryIssue, stats *PgStats) string
+
+	var impactCalculators = map[string]ImpactCalcFunc{
+		INHERITED_TABLE: inheritedTableImpactCalc,
+		// etc...
+	}
+
+	// Example dynamic function
+	func inheritedTableImpactCalc(i QueryIssue, stats *PgStats) string {
+		usage := stats.GetUsage(i.ObjectName) // e.g. how many reads/writes
+		if usage.WritesPerDay > 1000 {
+			return "LEVEL_2"
+		}
+		return "LEVEL_3"
+	}
+
+	func (i Issue) GetImpact(stats *PgStats) string {
+		if calc, ok := impactCalculators[i.Type]; ok {
+			return calc(i, stats)
+		}
+
+		return lo.Ternary(i.Impact != "", i.Impact, constants.IMPACT_LEVEL_1)
+	}
+
+*/
