@@ -468,15 +468,15 @@ func setTargetSchema(conn *pgx.Conn) {
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
+		utils.ErrExit("schema does not exist in target: %q", tconf.Schema)
 	}
 
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
 	}
 }
 
