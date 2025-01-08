@@ -51,6 +51,11 @@ var endMigrationCmd = &cobra.Command{
 		if utils.IsDirectoryEmpty(exportDir) {
 			utils.ErrExit("export directory is empty, nothing to end")
 		}
+
+		err = retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 	},
 
 	Run: endMigrationCommandFn,
@@ -76,7 +81,6 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
 
-	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory

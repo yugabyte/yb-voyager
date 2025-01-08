@@ -79,13 +79,17 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		validateSourceDBTypeForAssessMigration()
 		setExportFlagsDefaults()
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		err := validateAndSetTargetDbVersionFlag()
+		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
@@ -319,11 +323,6 @@ func assessMigration() (err error) {
 
 	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	err = retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
 
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
@@ -915,10 +914,10 @@ func generateAssessmentReport() (err error) {
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	/*
-	Here we are generating analyze schema report which converts issue instance to analyze schema issue
-	Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
+		Here we are generating analyze schema report which converts issue instance to analyze schema issue
+		Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
 
-	But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
+		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
 	*/
 	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
