@@ -1091,7 +1091,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
-	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 

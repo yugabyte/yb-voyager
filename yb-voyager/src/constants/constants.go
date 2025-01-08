@@ -39,4 +39,9 @@ const (
 	IMPACT_LEVEL_1 = "LEVEL_1" // Represents minimal impact like only the schema ddl
 	IMPACT_LEVEL_2 = "LEVEL_2" // Represents moderate impact like dml queries which might impact a lot of implementation/assumption in app layer
 	IMPACT_LEVEL_3 = "LEVEL_3" // Represent significant impact like TABLE INHERITANCE, which doesn't have any simple workaround but can impact multiple objects/apps
+
+	// constants for migration complexity
+	MIGRATION_COMPLEXITY_LOW    = "LOW"
+	MIGRATION_COMPLEXITY_MEDIUM = "MEDIUM"
+	MIGRATION_COMPLEXITY_HIGH   = "HIGH"
 )

@@ -10,10 +10,6 @@ Database Name                 : {{ .SchemaSummary.DBName }}
 Schema Name(s)                : {{ join .SchemaSummary.SchemaNames ", " }}
 DB Version                    : {{ .SchemaSummary.DBVersion }}
 Target DB Version             : {{ .TargetDBVersion }}
-{{if eq .MigrationComplexity "NOT AVAILABLE"}} 
-{{else}} 
-Migration Complexity          : {{ .MigrationComplexity }}
-{{end}}
 
 
 Schema Summary
