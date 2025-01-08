@@ -23,10 +23,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-
-)
-
 /*
 *
 This function is not concrete yet because of following limitation from parser -

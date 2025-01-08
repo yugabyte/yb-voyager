@@ -292,7 +292,7 @@ func testSQLBodyInFunctionIssue(t *testing.T) {
 		`CREATE OR REPLACE FUNCTION asterisks(n int)
   RETURNS text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
-RETURN repeat('*', n);`: `syntax error at or near "RETURN"`
+RETURN repeat('*', n);`: `syntax error at or near "RETURN"`,
 		`CREATE OR REPLACE FUNCTION asterisks(n int)
   RETURNS SETOF text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
