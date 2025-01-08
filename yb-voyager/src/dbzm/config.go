@@ -27,6 +27,7 @@ import (
 
 	"github.com/google/uuid"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -122,7 +123,6 @@ debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnect
 debezium.source.database.dbname=%s
 debezium.source.schema.include.list=%s
 debezium.source.plugin.name=pgoutput
-debezium.source.hstore.handling.mode=map
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.provide.transaction.metadata=true
