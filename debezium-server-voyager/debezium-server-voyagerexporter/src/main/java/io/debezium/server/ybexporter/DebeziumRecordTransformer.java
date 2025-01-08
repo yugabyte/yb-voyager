@@ -16,6 +16,7 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
 
 /**
  * This class ensures of doing any transformation of the record received from debezium
@@ -70,6 +71,25 @@ public class DebeziumRecordTransformer implements RecordTransformer {
             case BYTES:
             case STRUCT:
                 return toKafkaConnectJsonConverted(fieldValue, field);
+            case MAP:
+		StringBuilder mapString = new StringBuilder();
+                for (Map.Entry<String, String> entry : ((HashMap<String, String>) fieldValue).entrySet()) {
+                    String key = entry.getKey();
+                    String val = entry.getValue();
+                    mapString.append("\"");
+                    mapString.append(key);
+                    mapString.append("\"");
+                    mapString.append(" => ");
+                    mapString.append("\"");
+                    mapString.append(val);
+                    mapString.append("\"");
+                    mapString.append(",");
+                }
+                if(mapString.length() == 0) {
+                    return "";
+                } 
+                return mapString.toString().substring(0, mapString.length() - 1);
+            
         }
         return fieldValue.toString();
     }

@@ -53,7 +53,6 @@ func quoteValueIfRequiredWithEscaping(value string, formatIfRequired bool, _ *sc
 }
 
 func hstoreValueConverter(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
-	fmt.Println(columnValue)
 	//e.g. val - "{""key1"":""value1"",""key2"":""value2""}"  and for empty string val - {}
 	columnValue = fmt.Sprintf(`%s`, columnValue)
 
@@ -222,6 +221,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 			hexValue = fmt.Sprintf("\\x%s", hexString) // in data file need to escape the backslash
 		}
 		return string(hexValue), nil
+	},
+	"MAP": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
+		return columnValue, nil //handled in exporter plugin
 	},
 	"STRING": quoteValueIfRequiredWithEscaping,
 }
