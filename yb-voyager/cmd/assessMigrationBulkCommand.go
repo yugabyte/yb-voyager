@@ -57,14 +57,14 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			packAndSendAssessMigrationBulkPayload(ERROR)
+			// packAndSendAssessMigrationBulkPayload(ERROR)
 			utils.ErrExit("failed assess migration bulk: %s", err)
 		}
-		packAndSendAssessMigrationBulkPayload(COMPLETE)
+		packAndSendAssessMigrationBulkPayload(COMPLETE, "")
 	},
 }
 
-func packAndSendAssessMigrationBulkPayload(status string) {
+func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}

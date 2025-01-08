@@ -97,10 +97,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload(COMPLETE)
+	packAndSendEndMigrationPayload(COMPLETE, "")
 }
 
-func packAndSendEndMigrationPayload(status string) {
+func packAndSendEndMigrationPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}

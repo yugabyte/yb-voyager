@@ -24,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -282,4 +283,8 @@ func SendPayload(payload *Payload) error {
 	log.Infof("callhome: HTTP response after sending diagnostics: %s\n", string(body))
 
 	return nil
+}
+
+func SanitizeErrorMsg(errorMsg string) string {
+	return strings.Split(errorMsg, ":")[0]
 }

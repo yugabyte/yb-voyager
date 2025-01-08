@@ -129,7 +129,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		sendPayloadAsPerExporterRole(COMPLETE)
+		sendPayloadAsPerExporterRole(COMPLETE, "")
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -140,24 +140,24 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		sendPayloadAsPerExporterRole(ERROR)
+		sendPayloadAsPerExporterRole(ERROR, "")
 		atexit.Exit(1)
 	}
 }
 
-func sendPayloadAsPerExporterRole(status string) {
+func sendPayloadAsPerExporterRole(status string, errorMsg string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		packAndSendExportDataPayload(status)
+		packAndSendExportDataPayload(status, errorMsg)
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
-		packAndSendExportDataFromTargetPayload(status)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	}
 }
 
-func packAndSendExportDataPayload(status string) {
+func packAndSendExportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return

@@ -1149,7 +1149,7 @@ func analyzeSchema() {
 		generateAnalyzeSchemaReport(msr, JSON)
 	}
 
-	packAndSendAnalyzeSchemaPayload(COMPLETE)
+	packAndSendAnalyzeSchemaPayload(COMPLETE, "")
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
@@ -1232,7 +1232,7 @@ var reasonsToSendObjectNameToCallhome = []string{
 	UNSUPPORTED_EXTENSION_ISSUE,
 }
 
-func packAndSendAnalyzeSchemaPayload(status string) {
+func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
