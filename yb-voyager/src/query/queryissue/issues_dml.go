@@ -222,12 +222,12 @@ func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement st
 }
 
 var mergeStatementIssue = issue.Issue{
-	Type:            MERGE_STATEMENT,
-	TypeName:        "Merge Statement",
-	TypeDescription: "This statement is not supported in YugabyteDB yet",
-	Suggestion:      "Use PL/pgSQL to write the logic to get this functionality",
-	GH:              "",
-	DocsLink:        "", //TODO
+	Type:        MERGE_STATEMENT,
+	Name:        "Merge Statement",
+	Description: "This statement is not supported in YugabyteDB yet",
+	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
+	GH:          "",
+	DocsLink:    "", //TODO
 }
 
 func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

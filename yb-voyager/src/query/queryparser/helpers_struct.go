@@ -301,7 +301,7 @@ func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFu
 			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
 		*/
 		typeCast := node.GetTypeCast()
-		typeName, _ := getTypeNameAndSchema(typeCast.GetTypeName().GetNames())
+		_, typeName := getSchemaAndObjectName(typeCast.GetTypeName().GetNames())
 		if typeName == "jsonb" {
 			return true
 		}
@@ -313,7 +313,7 @@ func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFu
 			args:{a_const:{ival:{ival:14}  location:227}}
 		*/
 		funcCall := node.GetFuncCall()
-		_, funcName := getFunctionObjectName(funcCall.Funcname)
+		_, funcName := getSchemaAndObjectName(funcCall.Funcname)
 		if slices.Contains(jsonbFunctions, funcName) {
 			return true
 		}
