@@ -1001,6 +1001,43 @@ func (c *Collation) GetSchemaName() string { return c.SchemaName }
 
 func (c *Collation) GetObjectType() string { return COLLATION_OBJECT_TYPE }
 
+// ============================Function Processor =================
+
+type FunctionProcessor struct{}
+
+func NewFunctionProcessor() *FunctionProcessor {
+	return &FunctionProcessor{}
+}
+
+func (mv *FunctionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	funcNode, ok := getCreateFuncStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE FUNCTION statement")
+	}
+
+	funcNameList := funcNode.CreateFunctionStmt.GetFuncname()
+	funcSchemaName, funcName := getSchemaAndObjectName(funcNameList)
+	function := Function{
+		SchemaName: funcSchemaName,
+		FuncName:   funcName,
+		ReturnType: GetReturnTypeOfFunc(parseTree),
+	}
+	return &function, nil
+}
+
+type Function struct {
+	SchemaName string
+	FuncName   string
+	ReturnType string
+}
+
+func (f *Function) GetObjectName() string {
+	return lo.Ternary(f.SchemaName != "", fmt.Sprintf("%s.%s", f.SchemaName, f.FuncName), f.FuncName)
+}
+func (f *Function) GetSchemaName() string { return f.SchemaName }
+
+func (f *Function) GetObjectType() string { return FUNCTION_OBJECT_TYPE }
+
 //=============================No-Op PROCESSOR ==================
 
 //No op Processor for objects we don't have Processor yet
@@ -1053,6 +1090,8 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 			return NewCollationProcessor(), nil
 		}
 		return NewNoOpProcessor(), nil
+	case PG_QUERY_CREATE_FUNCTION_STMT:
+		return NewFunctionProcessor(), nil
 	default:
 		return NewNoOpProcessor(), nil
 	}
@@ -1090,6 +1129,7 @@ const (
 	PG_QUERY_FOREIGN_TABLE_STMT   = "pg_query.CreateForeignTableStmt"
 	PG_QUERY_VIEW_STMT            = "pg_query.ViewStmt"
 	PG_QUERY_CREATE_TABLE_AS_STMT = "pg_query.CreateTableAsStmt"
+	PG_QUERY_CREATE_FUNCTION_STMT = "pg_query.CreateFunctionStmt"
 )
 
 var deferrableConstraintsList = []pg_query.ConstrType{
