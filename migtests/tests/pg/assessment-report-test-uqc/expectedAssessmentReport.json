@@ -153,6 +153,7 @@
 			"SizeInBytes": 8192
 		},
 		{
+			"SchemaName": "sales",
 			"ObjectName": "test_json_chk",
 			"RowCount": 2,
 			"ColumnCount": 5,
