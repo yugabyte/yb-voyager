@@ -154,6 +154,7 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 var jsonbSubscriptingIssue = issue.Issue{
 	Type:        JSONB_SUBSCRIPTING,
 	Name:        JSONB_SUBSCRIPTING_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Jsonb subscripting is not supported in YugabyteDB yet",
 	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
 	GH:          "",

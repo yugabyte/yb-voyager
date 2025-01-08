@@ -107,11 +107,12 @@ const (
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
-	UNSUPPORTED_FEATURES                = "unsupported_features"
-	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
-	UNSUPPORTED_PLPGSQL_OBJECTS         = "unsupported_plpgsql_objects"
-	MIGRATION_CAVEATS                   = "migration_caveats"
-	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
+	UNSUPPORTED_FEATURES_CATEGORY         = "unsupported_features"
+	UNSUPPORTED_DATATYPES_CATEGORY        = "unsupported_datatypes"
+	UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY = "unsupported_query_constructs"
+	UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY  = "unsupported_plpgsql_objects"
+	MIGRATION_CAVEATS_CATEGORY            = "migration_caveats"
+	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS   = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
 
 	HTML = "html"
 	JSON = "json"
@@ -247,18 +248,18 @@ var EVENT_BATCH_MAX_RETRY_COUNT = 50
 // returns the description for a given assessment issue category
 func GetCategoryDescription(category string) string {
 	switch category {
-	case constants.FEATURE:
+	case UNSUPPORTED_FEATURES_CATEGORY, constants.FEATURE:
 		return FEATURE_CATEGORY_DESCRIPTION
-	case constants.DATATYPE:
+	case UNSUPPORTED_DATATYPES_CATEGORY, constants.DATATYPE:
 		return DATATYPE_CATEGORY_DESCRIPTION
-	case constants.QUERY_CONSTRUCT:
+	case UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, constants.QUERY_CONSTRUCT:
 		return UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY_DESCRIPTION
-	case constants.PLPGSQL_OBJECT:
+	case UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, constants.PLPGSQL_OBJECT:
 		return UNSUPPPORTED_PLPGSQL_OBJECT_CATEGORY_DESCRIPTION
-	case constants.MIGRATION_CAVEATS:
+	case MIGRATION_CAVEATS_CATEGORY: // or constants.MIGRATION_CAVEATS (identical)
 		return MIGRATION_CAVEATS_CATEGORY_DESCRIPTION
 	default:
-		utils.ErrExit("unsupported assessment issue category %q", category)
+		utils.ErrExit("ERROR: unsupported assessment issue category %q", category)
 	}
 	return ""
 }
