@@ -18,12 +18,14 @@ import java.util.Collections;
 import java.util.Map;
 import java.util.HashMap;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class ensures of doing any transformation of the record received from debezium
  * before actually writing that record.
  */
 public class DebeziumRecordTransformer implements RecordTransformer {
+	private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumRecordTransformer.class);
 
     private JsonConverter jsonConverter;
     public DebeziumRecordTransformer(){
