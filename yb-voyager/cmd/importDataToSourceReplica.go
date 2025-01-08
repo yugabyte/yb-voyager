@@ -111,6 +111,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

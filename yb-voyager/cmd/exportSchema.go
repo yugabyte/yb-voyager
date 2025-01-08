@@ -203,6 +203,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg string) {
 		AppliedRecommendations: assessmentRecommendationsApplied,
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
+		Error:                  callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)

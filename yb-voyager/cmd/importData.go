@@ -774,6 +774,7 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 		EnableUpsert: bool(tconf.EnableUpsert),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	//Getting the imported snapshot details

@@ -182,6 +182,7 @@ func packAndSendExportDataPayload(status string, errorMsg string) {
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs: int64(source.NumConnections),
 		StartClean:   bool(startClean),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)

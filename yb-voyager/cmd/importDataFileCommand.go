@@ -350,6 +350,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):

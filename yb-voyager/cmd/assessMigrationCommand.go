@@ -214,10 +214,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
 		IopsInterval:     intervalForCapturingIOPS,
+		Error:            callhome.SanitizeErrorMsg(errMsg),
 	}
-	if status == ERROR {
-		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
-	}
+
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
 			DBType:    source.DBType,
@@ -915,10 +914,10 @@ func generateAssessmentReport() (err error) {
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
 	/*
-	Here we are generating analyze schema report which converts issue instance to analyze schema issue
-	Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
+		Here we are generating analyze schema report which converts issue instance to analyze schema issue
+		Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
 
-	But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
+		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
 	*/
 	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
 	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity

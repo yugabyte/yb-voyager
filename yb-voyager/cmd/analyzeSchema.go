@@ -1271,6 +1271,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			dbObject.ObjectNames = ""
 			return dbObject
 		})),
+		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
