@@ -26,6 +26,7 @@ centos_yum_package_requirements=(
 )
 
 ubuntu_apt_package_requirements=(
+  "make|min|0"
   "sqlite3|min|0"
   "perl|min|0"
   "libdbi-perl|min|0"
