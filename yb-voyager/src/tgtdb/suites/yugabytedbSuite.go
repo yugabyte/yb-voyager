@@ -222,8 +222,9 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
-		return columnValue, nil //handled in exporter plugin
+	"MAP": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
+		fmt.Println(columnValue)
+		return quoteValueIfRequiredWithEscaping(columnValue, formatIfRequired, dbzmSchema) //handled in exporter plugin
 	},
 	"STRING": quoteValueIfRequiredWithEscaping,
 }
