@@ -449,3 +449,9 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, 
 
 	return defNames, nil
 }
+
+func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {
+	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
+	aIndirection, ok := protoMsg.(*pg_query.A_Indirection)
+	return aIndirection, ok
+}

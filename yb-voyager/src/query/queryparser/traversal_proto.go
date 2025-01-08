@@ -43,6 +43,7 @@ const (
 	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
 	PG_QUERY_SELECTSTMT_NODE = "pg_query.SelectStmt"
 
+	PG_QUERY_A_INDIRECTION_NODE              = "pg_query.A_Indirection"
 	PG_QUERY_JSON_OBJECT_AGG_NODE            = "pg_query.JsonObjectAgg"
 	PG_QUERY_JSON_ARRAY_AGG_NODE             = "pg_query.JsonArrayAgg"
 	PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE = "pg_query.JsonArrayConstructor"
