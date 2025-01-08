@@ -123,6 +123,7 @@ debezium.source.connector.class=io.debezium.connector.postgresql.PostgresConnect
 debezium.source.database.dbname=%s
 debezium.source.schema.include.list=%s
 debezium.source.plugin.name=pgoutput
+debezium.source.hstore.handling.mode=json
 debezium.source.converters=postgres_to_yb_converter
 debezium.source.postgres_to_yb_converter.type=io.debezium.server.ybexporter.PostgresToYbValueConverter
 debezium.source.provide.transaction.metadata=true
