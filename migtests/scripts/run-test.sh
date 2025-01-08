@@ -119,7 +119,7 @@ main() {
 	        echo "Error: pg_dump version not found in the log file." >&2
 	    fi
 	fi
-	
+
 	step "Fix data."
 	if [ -x "${TEST_DIR}/fix-data" ]
 	then
