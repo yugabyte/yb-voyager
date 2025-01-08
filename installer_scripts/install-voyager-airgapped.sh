@@ -685,8 +685,8 @@ ubuntu_main() {
         # Call the install function with module details
         install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
     done
-    sudo apt install -y -q ./libdbd-mysql-perl*.deb 1>&2
-    sudo apt install -y -q ./libdbd-oracle-perl*.deb 1>&2
+    sudo dpkg -i ./libdbd-mysql-perl*.deb 1>&2
+    sudo dpkg -i ./libdbd-oracle-perl*.deb 1>&2
 
 
     echo "Installing ora2pg..."
