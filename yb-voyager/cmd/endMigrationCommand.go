@@ -43,19 +43,19 @@ var endMigrationCmd = &cobra.Command{
 	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		err := validateEndMigrationFlags(cmd)
-		if err != nil {
-			utils.ErrExit(err.Error())
-		}
-
 		if utils.IsDirectoryEmpty(exportDir) {
 			utils.ErrExit("export directory is empty, nothing to end")
 		}
 
-		err = retrieveMigrationUUID()
+		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
+		err = validateEndMigrationFlags(cmd)
+		if err != nil {
+			utils.ErrExit(err.Error())
+		}
+
 	},
 
 	Run: endMigrationCommandFn,

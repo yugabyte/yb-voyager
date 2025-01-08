@@ -80,6 +80,7 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
@@ -323,8 +324,6 @@ func assessMigration() (err error) {
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
 	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
