@@ -17,8 +17,6 @@ limitations under the License.
 package issue
 
 import (
-	"github.com/samber/lo"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -44,11 +42,6 @@ func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	return v.GreaterThanOrEqual(minVersionFixedInSeries), nil
 }
 
-func (i Issue) GetImpact() string {
-	// Default value as IMPACT_LEVEL_1 if not defined in issue
-	return lo.Ternary(i.Impact != "", i.Impact, constants.IMPACT_LEVEL_1)
-}
-
 /*
 	Dynamic Impact Determination (TODO)
 	- We can define the impact calculator function based on issue type wherever/whenever needed
@@ -72,7 +65,6 @@ func (i Issue) GetImpact() string {
 		return "LEVEL_3"
 	}
 
-	// Update existing GetImpact() method
 	func (i Issue) GetImpact(stats *PgStats) string {
 		if calc, ok := impactCalculators[i.Type]; ok {
 			return calc(i, stats)
