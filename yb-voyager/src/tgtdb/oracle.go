@@ -160,7 +160,7 @@ func (tdb *TargetOracleDB) GetVersion() string {
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
 	err := tdb.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %s", query, err)
 	}
 	return version
 }
@@ -184,7 +184,7 @@ func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlna
 		stmt := fmt.Sprintf("SELECT COUNT(*) FROM %s", table.ForUserQuery())
 		err := tdb.QueryRow(stmt).Scan(&rowCount)
 		if err != nil {
-			utils.ErrExit("run query %q on target: %s", stmt, err)
+			utils.ErrExit("run query: %q on target: %s", stmt, err)
 		}
 		if rowCount > 0 {
 			result = append(result, table)
@@ -439,7 +439,7 @@ func (tdb *TargetOracleDB) setTargetSchema(conn *sql.Conn) {
 	setSchemaQuery := fmt.Sprintf("ALTER SESSION SET CURRENT_SCHEMA = %s", tdb.tconf.Schema)
 	_, err := conn.ExecContext(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q to set schema: %s", setSchemaQuery, tdb.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to set schema: %s", setSchemaQuery, tdb.tconf.Host, err)
 	}
 }
 
@@ -697,7 +697,7 @@ func (tdb *TargetOracleDB) isTableExists(nt sqlname.NameTuple) bool {
 func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := tdb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
 	}
 	defer rows.Close()
 
