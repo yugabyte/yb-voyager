@@ -24,6 +24,7 @@ import (
 	"os"
 	"reflect"
 	"strconv"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -111,7 +112,7 @@ type AssessMigrationPhasePayload struct {
 	UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
 	MigrationCaveats           string               `json:"migration_caveats"`
 	UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-	Error                      string               `json:"error,omitempty"` // Removed it for now, TODO
+	Error                      string               `json:"error"`
 	TableSizingStats           string               `json:"table_sizing_stats"`
 	IndexSizingStats           string               `json:"index_sizing_stats"`
 	SchemaSummary              string               `json:"schema_summary"`
@@ -120,7 +121,8 @@ type AssessMigrationPhasePayload struct {
 }
 
 type AssessMigrationBulkPhasePayload struct {
-	FleetConfigCount int `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+	FleetConfigCount int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+	Error            string `json:"error"`
 }
 
 type ObjectSizingStats struct {
@@ -132,10 +134,11 @@ type ObjectSizingStats struct {
 }
 
 type ExportSchemaPhasePayload struct {
-	StartClean             bool `json:"start_clean"`
-	AppliedRecommendations bool `json:"applied_recommendations"`
-	UseOrafce              bool `json:"use_orafce"`
-	CommentsOnObjects      bool `json:"comments_on_objects"`
+	StartClean             bool   `json:"start_clean"`
+	AppliedRecommendations bool   `json:"applied_recommendations"`
+	UseOrafce              bool   `json:"use_orafce"`
+	CommentsOnObjects      bool   `json:"comments_on_objects"`
+	Error                  string `json:"error"`
 }
 
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
@@ -144,6 +147,7 @@ type AnalyzePhasePayload struct {
 	TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
 	Issues          string               `json:"issues"`
 	DatabaseObjects string               `json:"database_objects"`
+	Error           string               `json:"error"`
 }
 type ExportDataPhasePayload struct {
 	ParallelJobs            int64  `json:"parallel_jobs"`
@@ -156,16 +160,18 @@ type ExportDataPhasePayload struct {
 	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
 	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
+	Error               string `json:"error"`
 }
 
 type ImportSchemaPhasePayload struct {
-	ContinueOnError    bool `json:"continue_on_error"`
-	EnableOrafce       bool `json:"enable_orafce"`
-	IgnoreExist        bool `json:"ignore_exist"`
-	RefreshMviews      bool `json:"refresh_mviews"`
-	ErrorCount         int  `json:"errors"` // changing it to count of errors only
-	PostSnapshotImport bool `json:"post_snapshot_import"`
-	StartClean         bool `json:"start_clean"`
+	ContinueOnError    bool   `json:"continue_on_error"`
+	EnableOrafce       bool   `json:"enable_orafce"`
+	IgnoreExist        bool   `json:"ignore_exist"`
+	RefreshMviews      bool   `json:"refresh_mviews"`
+	ErrorCount         int    `json:"errors"` // changing it to count of errors only
+	PostSnapshotImport bool   `json:"post_snapshot_import"`
+	StartClean         bool   `json:"start_clean"`
+	Error              string `json:"error"`
 }
 
 type ImportDataPhasePayload struct {
@@ -179,6 +185,7 @@ type ImportDataPhasePayload struct {
 	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 	EnableUpsert        bool   `json:"enable_upsert"`
+	Error               string `json:"error"`
 }
 
 type ImportDataFilePhasePayload struct {
@@ -188,6 +195,7 @@ type ImportDataFilePhasePayload struct {
 	FileStorageType    string `json:"file_storage_type"`
 	StartClean         bool   `json:"start_clean"`
 	DataFileParameters string `json:"data_file_parameters"`
+	Error              string `json:"error"`
 }
 
 type DataFileParameters struct {
@@ -200,10 +208,11 @@ type DataFileParameters struct {
 }
 
 type EndMigrationPhasePayload struct {
-	BackupDataFiles      bool `json:"backup_data_files"`
-	BackupLogFiles       bool `json:"backup_log_files"`
-	BackupSchemaFiles    bool `json:"backup_schema_files"`
-	SaveMigrationReports bool `json:"save_migration_reports"`
+	BackupDataFiles      bool   `json:"backup_data_files"`
+	BackupLogFiles       bool   `json:"backup_log_files"`
+	BackupSchemaFiles    bool   `json:"backup_schema_files"`
+	SaveMigrationReports bool   `json:"save_migration_reports"`
+	Error                string `json:"error"`
 }
 
 var DoNotStoreFlags = []string{
@@ -282,4 +291,12 @@ func SendPayload(payload *Payload) error {
 	log.Infof("callhome: HTTP response after sending diagnostics: %s\n", string(body))
 
 	return nil
+}
+
+// We want to ensure that no user-specific information is sent to the call-home service.
+// Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
+// Note: This is a temporary solution. A better solution would be to have
+// properly structured errors and only send the generic error message to callhome.
+func SanitizeErrorMsg(errorMsg string) string {
+	return strings.Split(errorMsg, ":")[0]
 }

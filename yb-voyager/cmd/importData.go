@@ -693,11 +693,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE)
+		packAndSendImportDataPayload(COMPLETE, "")
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE)
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE)
+		packAndSendImportDataToSourcePayload(COMPLETE, "")
 	}
 
 }
@@ -755,7 +755,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string) {
+func packAndSendImportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -774,6 +774,7 @@ func packAndSendImportDataPayload(status string) {
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 		EnableUpsert: bool(tconf.EnableUpsert),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	//Getting the imported snapshot details

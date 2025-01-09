@@ -215,10 +215,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
 		IopsInterval:     intervalForCapturingIOPS,
+		Error:            callhome.SanitizeErrorMsg(errMsg),
 	}
-	if status == ERROR {
-		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
-	}
+
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
 			DBType:    source.DBType,

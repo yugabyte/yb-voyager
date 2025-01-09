@@ -175,7 +175,7 @@ func exportSchema() error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	packAndSendExportSchemaPayload(COMPLETE)
+	packAndSendExportSchemaPayload(COMPLETE, "")
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -185,7 +185,7 @@ func exportSchema() error {
 	return nil
 }
 
-func packAndSendExportSchemaPayload(status string) {
+func packAndSendExportSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -203,6 +203,7 @@ func packAndSendExportSchemaPayload(status string) {
 		AppliedRecommendations: assessmentRecommendationsApplied,
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
+		Error:                  callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
