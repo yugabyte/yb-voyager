@@ -163,14 +163,18 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	WITH (security_invoker = true) AS
 	SELECT employee_id, first_name
 	FROM public.employees;`
-	stmt21 = `CREATE TABLE public.products (
+	stmt21 = `CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`
+	stmt22 = `CREATE COLLATION new_schema.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);`
+	stmt23 = `CREATE COLLATION upperfirst (provider = icu, locale = 'en-u-kf-upper', deterministic = true);`
+	stmt24 = `CREATE COLLATION special (provider = icu, locale = 'en-u-kf-upper-kr-grek-latn');`
+	stmt25 = `CREATE TABLE public.products (
     id INTEGER PRIMARY KEY,
     product_name VARCHAR(100),
     serial_number TEXT,
     UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
 	);`
-	stmt22 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
-	stmt23 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
+	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
+	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -295,13 +299,23 @@ func TestDDLIssues(t *testing.T) {
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
 		},
 		stmt21: []QueryIssue{
-			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt21),
+			NewDeterministicOptionCollationIssue("COLLATION", "case_insensitive", stmt21),
 		},
 		stmt22: []QueryIssue{
-			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt22),
+			NewDeterministicOptionCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
 		},
 		stmt23: []QueryIssue{
-			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt23),
+			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),
+		},
+		stmt24: []QueryIssue{},
+		stmt25: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt25),
+		},
+		stmt26: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt26),
+		},
+		stmt27: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
 	}
 	for _, stmt := range requiredDDLs {

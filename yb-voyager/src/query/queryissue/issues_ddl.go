@@ -500,6 +500,19 @@ func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatem
 	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
+var deterministicOptionCollationIssue = issue.Issue{
+	Type:       DETERMINISTIC_OPTION_WITH_COLLATION,
+	Name:       DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
+	Suggestion: "This feature is not supported in YugabyteDB yet",
+	GH:         "", // TODO
+	DocsLink:   "", // TODO
+}
+
+func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Type:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	Name:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,

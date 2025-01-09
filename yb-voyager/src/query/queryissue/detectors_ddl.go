@@ -611,6 +611,27 @@ func (v *MViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return nil, nil
 }
 
+//===============COLLATION ISSUE DETECTOR ====================
+
+type CollationIssueDetector struct{}
+
+func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
+	collation, ok := obj.(*queryparser.Collation)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected Collation")
+	}
+	issues := make([]QueryIssue, 0)
+	if slices.Contains(collation.Options, "deterministic") {
+		// deterministic attribute is itself not supported in YB either true or false so checking only whether option is present or not
+		issues = append(issues, NewDeterministicOptionCollationIssue(
+			collation.GetObjectType(),
+			collation.GetObjectName(),
+			"",
+		))
+	}
+	return issues, nil
+}
+
 //=============NO-OP ISSUE DETECTOR ===========================
 
 // Need to handle all the cases for which we don't have any issues detector
@@ -646,6 +667,8 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
 		return &MViewIssueDetector{}, nil
+	case *queryparser.Collation:
+		return &CollationIssueDetector{}, nil
 	default:
 		return &NoOpIssueDetector{}, nil
 	}

@@ -112,6 +112,26 @@
         },
         {
             "IssueType": "unsupported_features",
+            "ObjectType": "COLLATION",
+            "ObjectName": "special1",
+            "Reason": "Deterministic attribute in collation",
+            "SqlStatement": "CREATE COLLATION special1 (provider = icu, locale = 'en@colCaseFirst=upper;colReorder=grek-latn', deterministic = true);",
+            "Suggestion": "This feature is not supported in YugabyteDB yet",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "COLLATION",
+            "ObjectName": "ignore_accents",
+            "Reason": "Deterministic attribute in collation",
+            "SqlStatement": "CREATE COLLATION ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);",
+            "Suggestion": "This feature is not supported in YugabyteDB yet",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "XML Functions",

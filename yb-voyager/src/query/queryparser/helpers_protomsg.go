@@ -427,7 +427,7 @@ func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
 	}
 	indexStmtNode, ok := protoMsg.(*pg_query.IndexStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEXSTMT_NODE)
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
 	}
 	return indexStmtNode, nil
 }

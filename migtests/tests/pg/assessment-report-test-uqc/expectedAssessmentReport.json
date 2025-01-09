@@ -25,9 +25,16 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 5,
+				"TotalCount": 7,
 				"InvalidCount": 2,
-				"ObjectNames": "analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data"
+				"ObjectNames": "analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
+			},
+			{
+				"ObjectType": "SEQUENCE",
+				"TotalCount": 1,
+				"InvalidCount":0,
+				"ObjectNames": "sales.recent_transactions_transaction_id_seq"
+
 			},
 			{
 				"ObjectType": "VIEW",
@@ -48,11 +55,13 @@
 			"ColocatedTables": [
 				"sales.orders",
 				"analytics.metrics",
+				"sales.customer_account",
+				"sales.recent_transactions",
 				"sales.events",
 				"sales.json_data",
 				"sales.test_json_chk"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 5 objects (5 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 7 objects (7 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -115,6 +124,34 @@
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
+		{
+			"SchemaName": "sales",
+			"ObjectName": "customer_account",
+			"RowCount": 4,
+			"ColumnCount": 2,
+			"Reads": 7,
+			"Writes": 6,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "recent_transactions",
+			"RowCount": 3,
+			"ColumnCount": 3,
+			"Reads": 3,
+			"Writes": 3,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 8192
+		},
 		{
 			"SchemaName": "sales",
 			"ObjectName": "test_json_chk",
@@ -214,6 +251,13 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"ConstructTypeName": "Merge Statement",
+			"Query": "MERGE INTO sales.customer_account ca\nUSING sales.recent_transactions t      \nON t.customer_id = ca.customer_id\nWHEN MATCHED THEN\n  UPDATE SET balance = balance + transaction_value\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, balance)\n  VALUES (t.customer_id, t.transaction_value)",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			
 			"ConstructTypeName": "Jsonb Subscripting",
 			"Query": "SELECT \n    data,\n    data[$1] AS name, \n    (data[$2]) as active\nFROM sales.test_json_chk",
 			"DocsLink": "",

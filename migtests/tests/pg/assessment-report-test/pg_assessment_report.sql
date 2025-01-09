@@ -430,6 +430,9 @@ WITH (security_invoker = true) AS
     SELECT employee_id, first_name
     FROM public.employees;
 
+CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
+
+ CREATE COLLATION public.numeric (provider = icu, locale = 'en@colNumeric=yes');
 -- Testing tables with unique nulls not distinct constraints
 
 -- Control case

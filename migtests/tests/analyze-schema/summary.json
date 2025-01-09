@@ -12,6 +12,12 @@
                 "ObjectNames": "hollywood"
             },
             {
+                "ObjectType": "COLLATION",
+                "TotalCount": 3,
+                "InvalidCount": 3,
+                "ObjectNames": "special1, ignore_accents, schema2.upperfirst"
+            },
+            {
                 "ObjectType": "EXTENSION",
                 "TotalCount": 7,
                 "InvalidCount": 3,
