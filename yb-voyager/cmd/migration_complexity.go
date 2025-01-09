@@ -240,7 +240,7 @@ const explainTemplateHTML = `
 <p>
 	Level-1 Impact: Resolutions are available with minimal effort.<br/>
 	Level-2 Impact: Resolutions are available requiring moderate effort.<br/>
-	Level-3 Impact: Resolutions may not be available or are highly complex.
+	Level-3 Impact: Resolutions may not be available or are complex.
 </p>
 
 <p>
@@ -250,12 +250,12 @@ const explainTemplateHTML = `
 
 const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
 
-type ExplanationData struct {
-	Summaries           []CategorySummary
+type MigrationComplexityExplanationData struct {
+	Summaries           []MigrationComplexityCategorySummary
 	ComplexityRationale string // short reasoning or explanation text
 }
 
-type CategorySummary struct {
+type MigrationComplexityCategorySummary struct {
 	Category        string
 	TotalIssueCount int
 	ImpactCounts    map[string]int // e.g. {"Level-1": 3, "Level-2": 5, "Level-3": 2}
@@ -266,7 +266,7 @@ func buildMigrationComplexityExplanation(sourceDBType string, assessmentReport A
 		return "", nil
 	}
 
-	var explanation ExplanationData
+	var explanation MigrationComplexityExplanationData
 	explanation.ComplexityRationale = migrationComplexityRationale
 
 	explanation.Summaries = buildCategorySummary(assessmentReport.Issues)
@@ -302,15 +302,15 @@ func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count in
 	return ""
 }
 
-func buildCategorySummary(issues []AssessmentIssue) []CategorySummary {
-	summaryMap := make(map[string]*CategorySummary)
+func buildCategorySummary(issues []AssessmentIssue) []MigrationComplexityCategorySummary {
+	summaryMap := make(map[string]*MigrationComplexityCategorySummary)
 	for _, issue := range issues {
 		if issue.Category == "" {
 			continue // skipping unknown category issues
 		}
 
 		if _, ok := summaryMap[issue.Category]; !ok {
-			summaryMap[issue.Category] = &CategorySummary{
+			summaryMap[issue.Category] = &MigrationComplexityCategorySummary{
 				Category:        issue.Category,
 				TotalIssueCount: 0,
 				ImpactCounts:    make(map[string]int),
@@ -321,9 +321,9 @@ func buildCategorySummary(issues []AssessmentIssue) []CategorySummary {
 		summaryMap[issue.Category].ImpactCounts[issue.Impact]++
 	}
 
-	var result []CategorySummary
+	var result []MigrationComplexityCategorySummary
 	for _, summary := range summaryMap {
-		summary.Category = utils.ToTitleCase(summary.Category)
+		summary.Category = utils.SnakeCaseToTitleCase(summary.Category)
 		result = append(result, *summary)
 	}
 	return result
