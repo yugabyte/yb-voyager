@@ -94,6 +94,7 @@
         <!-- Do nothing -->
         {{else}} 
         <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
+        <p><strong>Migration Complexity Explainability:</strong> {{ .MigrationComplexityExplainability }}</p>
         {{end}}
 
         <h2>Database Objects</h2>

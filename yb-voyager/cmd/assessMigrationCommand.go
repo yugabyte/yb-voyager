@@ -1602,6 +1602,14 @@ func postProcessingOfAssessmentReport() {
 func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplainability, err = buildMigrationComplexityExplainability(assessmentReport, "text")
+	if err != nil {
+		utils.PrintAndLog("ERROR: unable to build migration complexity explainability for json report: %v", err)
+	}
+	log.Info(assessmentReport.MigrationComplexityExplainability)
+
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -1619,6 +1627,12 @@ func generateAssessmentReportJson(reportDir string) error {
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplainability, err = buildMigrationComplexityExplainability(assessmentReport, "html")
+	if err != nil {
+		utils.PrintAndLog("ERROR: unable to build migration complexity explainability for html report: %v", err)
+	}
 
 	file, err := os.Create(htmlReportFilePath)
 	if err != nil {
