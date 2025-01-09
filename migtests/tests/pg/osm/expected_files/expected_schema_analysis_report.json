@@ -1,6 +1,5 @@
 {
     "VoyagerVersion": "IGNORED",
-    "MigrationComplexity": "LOW",
     "Summary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "test_osm",

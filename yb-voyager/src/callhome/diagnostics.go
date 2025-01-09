@@ -293,6 +293,10 @@ func SendPayload(payload *Payload) error {
 	return nil
 }
 
+// We want to ensure that no user-specific information is sent to the call-home service.
+// Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
+// Note: This is a temporary solution. A better solution would be to have
+// properly structured errors and only send the generic error message to callhome.
 func SanitizeErrorMsg(errorMsg string) string {
 	return strings.Split(errorMsg, ":")[0]
 }

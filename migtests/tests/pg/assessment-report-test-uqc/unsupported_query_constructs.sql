@@ -27,6 +27,17 @@ SELECT
         any_value(name) AS any_employee
     FROM employees;
 
+SELECT (sales.get_user_info(2))['name'] AS user_info;
+
+SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 17, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;
+
+SELECT 
+    data,
+    data['name'] AS name, 
+    (data['active']) as active
+FROM sales.test_json_chk;
+
+SELECT ('{"a": { "b": {"c": "1"}}}' :: jsonb)['a']['b'] as b;
 --PG15
 SELECT range_agg(event_range) AS union_of_ranges
 FROM sales.events;

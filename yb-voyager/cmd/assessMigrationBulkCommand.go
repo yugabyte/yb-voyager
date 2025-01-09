@@ -57,7 +57,6 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			// packAndSendAssessMigrationBulkPayload(ERROR)
 			utils.ErrExit("failed assess migration bulk: %s", err)
 		}
 		packAndSendAssessMigrationBulkPayload(COMPLETE, "")

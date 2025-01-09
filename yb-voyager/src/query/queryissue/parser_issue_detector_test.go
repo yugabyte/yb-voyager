@@ -163,6 +163,14 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	WITH (security_invoker = true) AS
 	SELECT employee_id, first_name
 	FROM public.employees;`
+	stmt21 = `CREATE TABLE public.products (
+    id INTEGER PRIMARY KEY,
+    product_name VARCHAR(100),
+    serial_number TEXT,
+    UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
+	);`
+	stmt22 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
+	stmt23 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -286,6 +294,15 @@ func TestDDLIssues(t *testing.T) {
 		stmt20: []QueryIssue{
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
 		},
+		stmt21: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt21),
+		},
+		stmt22: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt22),
+		},
+		stmt23: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt23),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -300,7 +317,7 @@ func TestDDLIssues(t *testing.T) {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+			assert.True(t, found, "Expected issue not found: %v in statement: %s. \nFound: %v", expectedIssue, stmt, issues)
 		}
 	}
 }
@@ -573,7 +590,7 @@ JSON_TABLE(data, '$.skills[*]'
     )
 ) AS jt;`,
 		`SELECT JSON_ARRAY($1, 12, TRUE, $2) AS json_array;`,
-`CREATE TABLE sales.json_data (
+		`CREATE TABLE sales.json_data (
     id int PRIMARY KEY,
     array_column TEXT CHECK (array_column IS JSON ARRAY),
     unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
@@ -654,6 +671,120 @@ JSON_TABLE(data, '$.skills[*]'
 	}
 }
 
+func TestJsonbSubscriptingIssue(t *testing.T) {
+	ddlSqls := []string{
+		`CREATE TABLE test_jsonb1 (                                                                                                                                                                         
+    id SERIAL PRIMARY KEY,
+    data JSONB
+);`,
+		`CREATE TABLE users (
+    id SERIAL PRIMARY KEY,
+    name TEXT,
+    email TEXT,
+    active BOOLEAN
+);`,
+		`CREATE TABLE test_json_chk (
+    id int,
+    data1 jsonb,
+    CHECK (data1['key']<>'')
+);`,
+		`CREATE OR REPLACE FUNCTION get_user_info(user_id INT)
+RETURNS JSONB AS $$
+BEGIN
+    RETURN (
+        SELECT jsonb_build_object(
+            'id', id,
+            'name', name,
+            'email', email,
+            'active', active
+        )
+        FROM users
+        WHERE id = user_id
+    );
+END;
+$$ LANGUAGE plpgsql;`,
+	}
+	sqls := []string{
+
+		`CREATE TABLE test_json_chk (
+    id int,
+    data1 jsonb,
+    CHECK (data1['key']<>'')
+);`,
+		`SELECT 
+    data->>'name' AS name, 
+    data['scores'][1] AS second_score
+FROM test_jsonb1;`,
+		`SELECT ('[{"key": "value1"}, {"key": "value2"}]'::jsonb)[1]['key'] AS object_in_array; `,
+		`SELECT (JSON_OBJECT(
+  'movie' VALUE JSON_OBJECT('code' VALUE 'P123', 'title' VALUE 'Jaws'),
+  'director' VALUE 'Steven Spielberg'
+)::JSONB)['movie'] AS nested_json_object;`,
+		`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE))['name'] AS json_obj;`,
+		`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;`,
+		`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}')['key'] AS object_in_array;`,
+		`SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;`,
+		`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE))['name'] AS json_obj;`,
+		`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;`,
+		`SELECT (ROW('Alice', 'Smith', 25))['0'] ;`,
+		`SELECT (get_user_info(2))['name'] AS user_info;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewJsonbSubscriptingIssue(TABLE_OBJECT_TYPE, "test_json_chk", sqls[0]),
+		},
+		sqls[1]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
+		},
+		sqls[2]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
+		},
+		sqls[3]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3]),
+			NewJsonConstructorFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3], []string{JSON_OBJECT}),
+		},
+		sqls[4]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[4]),
+		},
+		sqls[5]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[5]),
+		},
+		sqls[6]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[6]),
+		},
+		sqls[7]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[7]),
+		},
+		sqls[8]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[8]),
+		},
+		sqls[9]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[9]),
+		},
+		sqls[10]: []QueryIssue{},
+		sqls[11]: []QueryIssue{
+			NewJsonbSubscriptingIssue(DML_QUERY_OBJECT_TYPE, "", sqls[11]),
+		},
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+	for _, stmt := range ddlSqls {
+		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
+	}
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
 func TestAggregateFunctions(t *testing.T) {
 	sqls := []string{
 		`SELECT
@@ -710,6 +841,7 @@ $$ LANGUAGE plpgsql;`,
 		}
 	}
 }
+
 func TestRegexFunctionsIssue(t *testing.T) {
 	dmlStmts := []string{
 		`SELECT regexp_count('This is an example. Another example. Example is a common word.', 'example')`,

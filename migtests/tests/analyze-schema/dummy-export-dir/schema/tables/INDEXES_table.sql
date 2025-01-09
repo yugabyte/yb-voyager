@@ -104,3 +104,8 @@ CREATE INDEX idx_udt1 on test_udt(home_address1);
 CREATE INDEX idx_enum on test_udt(some_field);
 
 CREATE INDEX "idx&_enum2" on test_udt((some_field::non_public.enum_test));
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT;
