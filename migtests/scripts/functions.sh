@@ -1077,10 +1077,10 @@ normalize_and_export_vars() {
     local test_suffix=$1
 
     # Normalize TEST_NAME
-    export NORMALIZED_TEST_NAME="$(echo "${TEST_NAME}_${test_suffix}" | tr '/-' '_')"
+    export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
 
     # Set EXPORT_DIR
-    export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_export-dir"}
+    export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_${test_suffix}_export-dir"}
     if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
         EXPORT_DIR="${EXPORT_DIR}_ssl"
     fi
@@ -1088,11 +1088,11 @@ normalize_and_export_vars() {
     # Set database-specific variables
     case "${SOURCE_DB_TYPE}" in
         postgresql|mysql)
-            export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}"}
+            export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_${test_suffix}"}
             ;;
         oracle)
             # Limit schema name to 10 characters for Oracle/Debezium due to 30 character limit
-            export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}"}
+            export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_${test_suffix}"}
             export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
             ;;
         *)
