@@ -224,6 +224,7 @@ func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement st
 var mergeStatementIssue = issue.Issue{
 	Type:        MERGE_STATEMENT,
 	Name:        "Merge Statement",
+	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "This statement is not supported in YugabyteDB yet",
 	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
 	GH:          "",

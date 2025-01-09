@@ -503,6 +503,7 @@ func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatem
 var deterministicOptionCollationIssue = issue.Issue{
 	Type:       DETERMINISTIC_OPTION_WITH_COLLATION,
 	Name:       DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "This feature is not supported in YugabyteDB yet",
 	GH:         "", // TODO
 	DocsLink:   "", // TODO

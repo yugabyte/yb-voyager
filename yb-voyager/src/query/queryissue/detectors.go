@@ -317,7 +317,7 @@ func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsup
 // Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
 func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
 	// Check if the message is a COPY statement
-	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
+	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPY_STMT_NODE {
 		return nil // Not a COPY statement, nothing to detect
 	}
 
