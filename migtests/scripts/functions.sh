@@ -1077,6 +1077,7 @@ normalize_and_export_vars() {
     local test_suffix=$1
 
     # Normalize TEST_NAME
+	# Keeping the full name for PG and MySQL to test out large schema/export dir names
     export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
 
     # Set EXPORT_DIR
@@ -1092,6 +1093,7 @@ normalize_and_export_vars() {
             ;;
         oracle)
             # Limit schema name to 10 characters for Oracle/Debezium due to 30 character limit
+			# Since test_suffix is the unique identifying factor, we need to add it post all the normalization 
             export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_${test_suffix}"}
             export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
             ;;
