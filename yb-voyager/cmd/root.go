@@ -319,7 +319,7 @@ func validateExportDirFlag() {
 		utils.ErrExit(`ERROR: required flag "export-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir %q doesn't exists.\n", exportDir)
+		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -327,7 +327,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}

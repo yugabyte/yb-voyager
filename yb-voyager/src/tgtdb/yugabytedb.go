@@ -404,7 +404,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
 		}
 		result = append(result, table)
 	}
@@ -1048,7 +1048,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
+		utils.ErrExit("error while creating connection for checking session parameter support: %q: %v", sqlStmt, err)
 	}
 	defer conn.Close(context.Background())
 
@@ -1062,7 +1062,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 				}
 				return true
 			}
-			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
+			utils.ErrExit("error while executing sqlStatement: %q: %v", sqlStmt, err)
 		} else {
 			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
 		}
@@ -1075,7 +1075,7 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
 	}
 
 	// append oracle schema in the search_path for orafce
@@ -1214,7 +1214,7 @@ func (yb *TargetYugabyteDB) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := yb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+		utils.ErrExit("error checking if query is empty: [%s]: %v", query, err)
 	}
 	defer rows.Close()
 

@@ -102,7 +102,7 @@ func runImportDataStatusCmd() error {
 		reportFile := jsonfile.NewJsonFile[[]*tableMigStatusOutputRow](reportFilePath)
 		err := reportFile.Create(&rows)
 		if err != nil {
-			utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
+			utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil

@@ -38,7 +38,7 @@ func createClientIfNotExists(dataDir string) {
 	var err error
 	url, err := url.Parse(dataDir)
 	if err != nil {
-		utils.ErrExit("parse azure blob url for dataDir %s: %w", dataDir, err)
+		utils.ErrExit("parse azure blob url: for dataDir %s: %w", dataDir, err)
 	}
 	serviceUrl := "https://" + url.Host
 	// cred represents the default Oauth token used to authenticate the account in the url.

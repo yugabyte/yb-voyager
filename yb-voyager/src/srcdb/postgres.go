@@ -160,7 +160,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query for approx row count of table: %q: %q: %s", tableName.String(), query, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -195,7 +195,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	WHERE nspname IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(chkSchemaExistsQuery)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
+		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %v\n", chkSchemaExistsQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -216,7 +216,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 
 	schemaNotPresent := utils.SetDifference(trimmedSchemaList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
+		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
 	}
 	return trimmedSchemaList
 }
@@ -281,7 +281,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
+		utils.ErrExit("error in querying source database for table names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -467,7 +467,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
+		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -593,7 +593,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 			if err == sql.ErrNoRows {
 				empty = true
 			} else {
-				utils.ErrExit("error in querying table %v: %v", tableName, err)
+				utils.ErrExit("error in querying table LIMIT 1: %v: %v", tableName, err)
 			}
 		}
 		if !empty {
@@ -686,7 +686,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
-		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
+		utils.ErrExit("Error in query: %s for parent tablename of table=%s: %v", query, table, err)
 	}
 
 	return parentTable
@@ -704,7 +704,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		rows, err := pg.db.Query(query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
+			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -715,7 +715,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		for rows.Next() {
 			err := rows.Scan(&columeName, &sequenceName, &schemaName)
 			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
+				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
@@ -723,7 +723,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
 		}
 	}
 
@@ -785,7 +785,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
-		utils.ErrExit("failed to find the partitions for table %s: %v", tableName, err)
+		utils.ErrExit("failed to find the partitions for table: %s: %v", tableName, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -797,12 +797,12 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		var childSchema, childTable string
 		err := rows.Scan(&childSchema, &childTable)
 		if err != nil {
-			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
+			utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, err)
 		}
 		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
-		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
+		utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, rows.Err())
 	}
 	return partitions
 }
@@ -1433,7 +1433,7 @@ func (pg *PostgreSQL) checkWalLevel() (msg string) {
 	var walLevel string
 	err := pg.db.QueryRow(query).Scan(&walLevel)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for wal_level: %v\n", query, err)
+		utils.ErrExit("error in querying source database for wal_level: %q %v\n", query, err)
 	}
 	if walLevel != "logical" {
 		msg = fmt.Sprintf("\n%s Current wal_level: %s; Required wal_level: logical", color.RedString("ERROR"), walLevel)

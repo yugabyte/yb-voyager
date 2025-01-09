@@ -70,7 +70,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 func readSchemaFile(path string) []string {
 	file, err := os.Open(path)
 	if err != nil {
-		utils.ErrExit("error in opening schema file %s: %v", path, err)
+		utils.ErrExit("error in opening schema file: %s: %v", path, err)
 	}
 	defer file.Close()
 	var lines []string
@@ -83,7 +83,7 @@ func readSchemaFile(path string) []string {
 	}
 
 	if scanner.Err() != nil {
-		utils.ErrExit("error in reading schema file %s: %v", path, scanner.Err())
+		utils.ErrExit("error in reading schema file: %s: %v", path, scanner.Err())
 	}
 
 	return lines

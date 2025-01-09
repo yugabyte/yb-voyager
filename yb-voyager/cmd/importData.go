@@ -306,7 +306,7 @@ func startExportDataFromTargetIfRequired() {
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -419,7 +419,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			}
 		}
 		if len(unqualifiedTables) > 0 {
-			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
+			utils.ErrExit("Qualify following table names in the %s list with schema-name: %v", listName, unqualifiedTables)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result, unknownTables
@@ -846,7 +846,7 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 	for _, table := range tables {
 		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table, identityType)
 		if err != nil {
-			utils.ErrExit("error in getting identity(%s) columns for table %s: %w", identityType, table, err)
+			utils.ErrExit("error in getting identity(%s) columns for table: %s: %w", identityType, table, err)
 		}
 		if len(identityColumns) > 0 {
 			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
@@ -868,13 +868,13 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	if reportProgressInBytes {
 		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported byte count for table: %s: %s", task.TableNameTup, err)
 		}
 		return byteCount
 	} else {
 		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported row count for table: %s: %s", task.TableNameTup, err)
 		}
 		return rowCount
 	}
@@ -950,7 +950,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		err := state.Clean(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableNameTup, err)
+			utils.ErrExit("failed to clean import data state for table: %q: %s", task.TableNameTup, err)
 		}
 	}
 
@@ -958,7 +958,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	if utils.FileOrFolderExists(sqlldrDir) {
 		err := os.RemoveAll(sqlldrDir)
 		if err != nil {
-			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
+			utils.ErrExit("failed to remove sqlldr directory: %q: %s", sqlldrDir, err)
 		}
 	}
 
@@ -1013,7 +1013,7 @@ func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn f
 	log.Infof("Collect all interrupted/remaining splits.")
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		utils.ErrExit("recovering state for table %q: %s", task.TableNameTup, err)
+		utils.ErrExit("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
 	for _, batch := range pendingBatches {
 		submitBatch(batch, updateProgressFn, importBatchArgsProto)
@@ -1031,12 +1031,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 
 	reader, err := dataStore.Open(filePath)
 	if err != nil {
-		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
+		utils.ErrExit("preparing reader for split generation on file: %q: %v", filePath, err)
 	}
 
 	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
-		utils.ErrExit("open datafile %q: %v", filePath, err)
+		utils.ErrExit("open datafile: %q: %v", filePath, err)
 	}
 	defer dataFile.Close()
 
@@ -1060,13 +1060,13 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 		batchWriter = state.NewBatchWriter(filePath, t, batchNum)
 		err := batchWriter.Init()
 		if err != nil {
-			utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+			utils.ErrExit("initializing batch writer for table: %q: %s", t, err)
 		}
 		// Write the header if necessary
 		if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
 			err = batchWriter.WriteHeader(header)
 			if err != nil {
-				utils.ErrExit("writing header for table %q: %s", t, err)
+				utils.ErrExit("writing header for table: %q: %s", t, err)
 			}
 		}
 	}
@@ -1104,14 +1104,14 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			utils.ErrExit("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(t)
 			line, err = valueConverter.ConvertRow(t, columnNames, line)
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
+				utils.ErrExit("transforming line number=%d for table: %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
 			}
 
 			// Check if adding this record exceeds the max batch size
@@ -1140,7 +1140,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			finalizeBatch(true, numLinesTaken, dataFile.GetBytesRead())
 			dataFile.ResetBytesRead(0)
 		} else if readLineErr != nil {
-			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
+			utils.ErrExit("read line from data file: %q: %s", filePath, readLineErr)
 		}
 	}
 
@@ -1177,7 +1177,7 @@ func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProt
 func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	err := batch.MarkPending()
 	if err != nil {
-		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
+		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
 	}
 	log.Infof("Importing %q", batch.FilePath)
 
@@ -1204,11 +1204,11 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 	}
 	err = batch.MarkDone()
 	if err != nil {
-		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
+		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
 	}
 }
 
@@ -1238,7 +1238,7 @@ func getTargetSchemaName(tableName string) string {
 	if tconf.TargetDBType == POSTGRESQL {
 		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
-			utils.ErrExit("no default schema for table %q ", tableName)
+			utils.ErrExit("no default schema for table: %q ", tableName)
 		}
 		return defaultSchema
 	}
@@ -1255,11 +1255,11 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
 			if err != nil {
-				utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+				utils.ErrExit("datastore.Open: %q: %v", task.FilePath, err)
 			}
 			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
 			if err != nil {
-				utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+				utils.ErrExit("opening datafile: %q: %v", task.FilePath, err)
 			}
 			header := df.GetHeader()
 			columns = strings.Split(header, dataFileDescriptor.Delimiter)
@@ -1280,7 +1280,7 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
-			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
+			utils.ErrExit("lookup table in name registry: %q: %v", tableNameRaw, err)
 		}
 		result.Put(nt, columnList)
 	}

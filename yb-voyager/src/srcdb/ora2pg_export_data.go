@@ -118,7 +118,7 @@ func getIdentityColumnSequences(exportDir string) []string {
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
+		utils.ErrExit("unable to read file: %q: %v\n", filePath, err)
 	}
 
 	lines := strings.Split(string(bytes), "\n")
@@ -137,7 +137,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("unable to read file %q: %v\n", filePath, err)
+		utils.ErrExit("unable to read file: %q: %v\n", filePath, err)
 	}
 
 	lines := strings.Split(string(bytes), "\n")
@@ -160,7 +160,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 
 	err = os.WriteFile(filePath, bytesToWrite, 0644)
 	if err != nil {
-		utils.ErrExit("unable to write file %q: %v\n", filePath, err)
+		utils.ErrExit("unable to write file: %q: %v\n", filePath, err)
 	}
 }
 
@@ -180,7 +180,7 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
 			err := os.Rename(oldFilePath, newFilePath)
 			if err != nil {
-				utils.ErrExit("renaming data file for table %q after data export: %v", tblNameQuoted, err)
+				utils.ErrExit("renaming data file for table after data export: %q: %v", tblNameQuoted, err)
 			}
 			tableProgressMetadata.FinalFilePath = newFilePath
 		} else {
@@ -214,7 +214,7 @@ func getOra2pgExportedColumnsListForTable(exportDir, tableName, filePath string)
 		return false // stop reading file
 	})
 	if err != nil {
-		utils.ErrExit("error in reading file %q: %v", filePath, err)
+		utils.ErrExit("error in reading file: %q: %v", filePath, err)
 	}
 	log.Infof("columns list for table %s: %v", tableName, columnsList)
 	return columnsList

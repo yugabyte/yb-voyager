@@ -90,7 +90,7 @@ func (yb *YugabyteDB) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := yb.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query: %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -106,7 +106,7 @@ func (yb *YugabyteDB) GetVersion() string {
 	query := "SELECT setting from pg_settings where name = 'server_version'"
 	err := yb.db.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %s", query, err)
 	}
 	yb.source.DBVersion = version
 	return version
@@ -131,7 +131,7 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
 	rows, err := yb.db.Query(chkSchemaExistsQuery)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
+		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %v\n", chkSchemaExistsQuery, err)
 	}
 	var listOfSchemaPresent []string
 	var tableSchemaName string
@@ -152,7 +152,7 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 
 	schemaNotPresent := utils.SetDifference(trimmedList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
+		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
 	}
 	return trimmedList
 }
@@ -217,7 +217,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) YB database for table names: %v\n", query, err)
+		utils.ErrExit("error in querying YB database for table names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -347,7 +347,7 @@ func (yb *YugabyteDB) GetAllSequences() []string {
 	query := fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
+		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -434,7 +434,7 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 						);`, schemaName, schemaName, schemaName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for enum types: %v\n", query, err)
+		utils.ErrExit("error in querying source database for enum types: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -461,7 +461,7 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 						AND data_type = 'ARRAY';`, schemaName, tableName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for array types: %v\n", query, err)
+		utils.ErrExit("error in querying source database for array types: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -541,7 +541,7 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 			if err == sql.ErrNoRows {
 				empty = true
 			} else {
-				utils.ErrExit("error in querying table %v: %v", tableName, err)
+				utils.ErrExit("error in querying table: %v: %v", tableName, err)
 			}
 		}
 		if !empty {
@@ -602,7 +602,7 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 		a.attnum;`, tname, sname)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for user defined columns: %v\n", query, err)
+		utils.ErrExit("error in querying source database for user defined columns: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -670,7 +670,7 @@ func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 	err := yb.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
-		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
+		utils.ErrExit("Error in query for parent tablename of table: %q: %s: %v", query, table, err)
 	}
 
 	return parentTable
@@ -688,7 +688,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		rows, err := yb.db.Query(query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
+			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -699,7 +699,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		for rows.Next() {
 			err := rows.Scan(&columeName, &sequenceName, &schemaName)
 			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
+				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
@@ -707,7 +707,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query: %q: %s", table.String(), query, err)
 		}
 	}
 
@@ -720,7 +720,7 @@ func (yb *YugabyteDB) GetServers() []string {
 	YB_SERVERS_QUERY := "SELECT host FROM yb_servers()"
 	rows, err := yb.db.Query(YB_SERVERS_QUERY)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for yb_servers: %v\n", YB_SERVERS_QUERY, err)
+		utils.ErrExit("error in querying source database for yb_servers: %q: %v\n", YB_SERVERS_QUERY, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -756,7 +756,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	rows, err := yb.db.Query(query)
 	if err != nil {
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
-		utils.ErrExit("failed to find the partitions for table %s: %v", tableName, err)
+		utils.ErrExit("failed to find the partitions for table: %s: %v", tableName, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -768,12 +768,12 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		var childSchema, childTable string
 		err := rows.Scan(&childSchema, &childTable)
 		if err != nil {
-			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
+			utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, err)
 		}
 		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
-		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
+		utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, rows.Err())
 	}
 	return partitions
 }
@@ -887,7 +887,7 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	query := fmt.Sprintf(PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK, querySchemaList)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for primary key: %v\n", query, err)
+		utils.ErrExit("error in querying source database for primary key: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()

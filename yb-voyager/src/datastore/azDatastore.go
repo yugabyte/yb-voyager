@@ -35,7 +35,7 @@ type AzDataStore struct {
 func NewAzDataStore(dataDir string) *AzDataStore {
 	url, err := url.Parse(dataDir)
 	if err != nil {
-		utils.ErrExit("invalid azure resource URL %v", dataDir)
+		utils.ErrExit("invalid azure resource URL: %v", dataDir)
 	}
 	return &AzDataStore{url: url}
 }
@@ -80,7 +80,7 @@ func (ds *AzDataStore) Open(objectPath string) (io.ReadCloser, error) {
 	// if objectPath is hidden underneath a symlink for az blobs...
 	objectPath, err := os.Readlink(objectPath)
 	if err != nil {
-		utils.ErrExit("unable to resolve symlink %v to gcs resource: %w", objectPath, err)
+		utils.ErrExit("unable to resolve symlink: %v to gcs resource: %w", objectPath, err)
 	}
 	return az.NewObjectReader(objectPath)
 }

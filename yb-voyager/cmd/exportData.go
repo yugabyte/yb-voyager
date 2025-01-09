@@ -237,7 +237,7 @@ func exportData() bool {
 
 	res := source.DB().CheckSchemaExists()
 	if !res {
-		utils.ErrExit("schema %q does not exist", source.Schema)
+		utils.ErrExit("schema does not exist : %q", source.Schema)
 	}
 
 	if source.RunGuardrailsChecks {
@@ -301,7 +301,7 @@ func exportData() bool {
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
-				utils.ErrExit("lookup table name %s: %v", renamedTable, err)
+				utils.ErrExit("lookup table name: %s: %v", renamedTable, err)
 			}
 			currPartitions, ok := leafPartitions.Get(tuple)
 			if !ok {
@@ -759,7 +759,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		if parent == "" {
 			tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", schema, table))
 			if err != nil {
-				utils.ErrExit("lookup for table name %s failed err: %v", table, err)
+				utils.ErrExit("lookup for table name failed err: %s: %v", table, err)
 			}
 		}
 		fullTableList = append(fullTableList, tuple)
@@ -868,8 +868,8 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 			log.Infoln("Cancel() being called, within exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
-			utils.ErrExit("yb-voyager encountered internal error. "+
-				"Check %s/logs/yb-voyager-export-data.log for more details.", exportDir)
+			utils.ErrExit("yb-voyager encountered internal error: "+
+				"Check: %s/logs/yb-voyager-export-data.log for more details.", exportDir)
 		}
 	}()
 
@@ -896,7 +896,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		for _, seq := range sequenceList {
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {
-				utils.ErrExit("lookup for sequence %s failed err: %v", seq, err)
+				utils.ErrExit("lookup for sequence failed: %s: err: %v", seq, err)
 			}
 			finalTableList = append(finalTableList, seqTuple)
 		}
@@ -1019,7 +1019,7 @@ func clearMigrationStateIfRequired() {
 				dbzm.IsMigrationInStreamingMode(exportDir) {
 				utils.PrintAndLog("Continuing streaming from where we left off...")
 			} else {
-				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+				utils.ErrExit("data directory is not empty, use --start-clean flag to clean the directories and start: %s", exportDir)
 			}
 		}
 	}
@@ -1047,7 +1047,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+				utils.ErrExit("Invalid table name pattern: %q: %s", pattern, err)
 			}
 			return ok
 		})
@@ -1064,7 +1064,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 	}
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
-		utils.ErrExit("Valid table names are %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+		utils.ErrExit("Valid table names are: %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
 			return tableName.ForOutput()
 		}))
 	}
@@ -1143,13 +1143,13 @@ func startFallBackSetupIfRequired() {
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", err)
+		utils.ErrExit("could not find yb-voyager: %w", err)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to source - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 

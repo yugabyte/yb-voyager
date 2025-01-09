@@ -73,7 +73,7 @@ func (ora *Oracle) CheckSchemaExists() bool {
 	if err == sql.ErrNoRows {
 		return false
 	} else if err != nil {
-		utils.ErrExit("error in querying source database for schema %q: %v\n", schemaName, err)
+		utils.ErrExit("error in querying source database for schema: %q: %v\n", schemaName, err)
 	}
 	return true
 }
@@ -101,7 +101,7 @@ func (ora *Oracle) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ora.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query: %q for approx row count of %q: %s", query, tableName.String(), err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -118,7 +118,7 @@ func (ora *Oracle) GetVersion() string {
 	// query sample output: Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production
 	err := ora.db.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %s", query, err)
 	}
 	ora.source.DBVersion = version
 	return version
@@ -325,13 +325,13 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	log.Infof("query for queue tables: %q\n", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		utils.ErrExit("failed to query %q for filtering unsupported queue tables: %v", query, err)
+		utils.ErrExit("failed to query for filtering unsupported queue tables:%q: %v", query, err)
 	}
 	for rows.Next() {
 		var tableName string
 		err := rows.Scan(&tableName)
 		if err != nil {
-			utils.ErrExit("failed to scan tableName from output of query %q: %v", query, err)
+			utils.ErrExit("failed to scan tableName from output of query: %q: %v", query, err)
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
@@ -394,7 +394,7 @@ func (ora *Oracle) IsNestedTable(tableName sqlname.NameTuple) bool {
 	isNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isNestedTable)
 	if err != nil && err != sql.ErrNoRows {
-		utils.ErrExit("error in query to check if table %v is a nested table: %v", tableName, err)
+		utils.ErrExit("check if table is a nested table: %v: %v", tableName, err)
 	}
 	return isNestedTable == 1
 }
@@ -407,7 +407,7 @@ func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 	isParentNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isParentNestedTable)
 	if err != nil && err != sql.ErrNoRows {
-		utils.ErrExit("error in query to check if table %v is parent of nested table: %v", tableName, err)
+		utils.ErrExit("check if table is parent of nested table: %v: %v", tableName, err)
 	}
 	return isParentNestedTable == 1
 }
@@ -420,7 +420,7 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	if err == sql.ErrNoRows {
 		return ""
 	} else if err != nil {
-		utils.ErrExit("failed to query %q for finding identity sequence table and column: %v", query, err)
+		utils.ErrExit("failed to query for finding identity sequence table and column: %q: %v", query, err)
 	}
 
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
@@ -442,7 +442,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 		query := fmt.Sprintf("SELECT column_name FROM all_tab_identity_cols WHERE owner = '%s' AND table_name = '%s'", sname, tname)
 		rows, err := ora.db.Query(query)
 		if err != nil {
-			utils.ErrExit("failed to query %q for finding identity column: %v", query, err)
+			utils.ErrExit("failed to query for finding identity column: %q: %v", query, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -454,14 +454,14 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 			var columnName string
 			err := rows.Scan(&columnName)
 			if err != nil {
-				utils.ErrExit("failed to scan columnName from output of query %q: %v", query, err)
+				utils.ErrExit("failed to scan columnName from output of query: %q: %v", query, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", tname, columnName)
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
 		}
 	}
 

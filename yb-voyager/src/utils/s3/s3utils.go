@@ -95,7 +95,7 @@ func ListAllObjects(dataDir string) ([]string, error) {
 		i++
 		page, err := p.NextPage(context.TODO())
 		if err != nil {
-			utils.ErrExit("failed to get page %v, %w", i, err)
+			utils.ErrExit("failed to get page %v: %w", i, err)
 		}
 		// Log the objects found
 		for _, obj := range page.Contents {

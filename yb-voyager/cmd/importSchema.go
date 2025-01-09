@@ -307,7 +307,7 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	query := "SELECT yb_is_database_colocated();"
 	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
 	if err != nil {
-		utils.ErrExit("failed to check if Target DB '%s' is colocated or not: %v", tconf.DBName, err)
+		utils.ErrExit("failed to check if Target DB  is colocated or not: %q: %v", tconf.DBName, err)
 	}
 	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
 	return isColocated
@@ -341,7 +341,7 @@ func dumpStatements(stmts []string, filePath string) {
 	for i := 0; i < len(stmts); i++ {
 		_, err = file.WriteString(stmts[i] + "\n\n")
 		if err != nil {
-			utils.ErrExit("failed writing in file %s: %v", filePath, err)
+			utils.ErrExit("failed writing in file: %s: %v", filePath, err)
 		}
 	}
 
@@ -377,7 +377,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialized view %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view: %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
@@ -386,7 +386,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("SELECT * from %s LIMIT 1;", mViewName)
 		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
-			utils.ErrExit("error in checking whether mview %s is refreshed or not: %v", mViewName, err)
+			utils.ErrExit("error in checking whether mview  is refreshed or not: %q: %v", mViewName, err)
 		}
 		if !rows.Next() {
 			mviewsNotRefreshed = append(mviewsNotRefreshed, mViewName)
@@ -448,7 +448,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLog("dropping schema '%s' in target database", targetSchema)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
 				}
 			} else {
 				utils.PrintAndLog("schema '%s' already present in target database, continuing with it..\n", targetSchema)
@@ -465,7 +465,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 			utils.PrintAndLog("creating schema '%s' in target database...", tconf.Schema)
 			_, err := conn.Exec(context.Background(), createSchemaQuery)
 			if err != nil {
-				utils.ErrExit("Failed to create %q schema in the target DB: %s", tconf.Schema, err)
+				utils.ErrExit("Failed to create schema in the target DB: %q: %s", tconf.Schema, err)
 			}
 		}
 
@@ -485,7 +485,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
 		return false
 	} else if err != nil {
-		utils.ErrExit("Failed to check if schema %q exists: %s", targetSchema, err)
+		utils.ErrExit("Failed to check if schema exists: %q: %s", targetSchema, err)
 	}
 
 	return fetchedSchema == targetSchema
