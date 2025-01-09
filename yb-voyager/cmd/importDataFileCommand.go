@@ -185,7 +185,7 @@ func prepareImportFileTasks() []*ImportFileTask {
 		for _, filePath := range filePaths {
 			fileSize, err := dataStore.FileSize(filePath)
 			if err != nil {
-				utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
+				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
 			}
 			task := &ImportFileTask{
 				ID:           i,
@@ -247,12 +247,12 @@ func checkDataDirFlag() {
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for data-dir(%q): %v", dataDir, err)
+		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %v", dataDir, err)
 	}
 
 	exportDirAbs, err := filepath.Abs(exportDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for export-dir(%q): %v", exportDir, err)
+		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %v", exportDir, err)
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {

@@ -262,7 +262,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 				time.Sleep(100 * time.Millisecond)
 				break
 			} else if err != nil { //error other than EOF
-				utils.ErrExit("Error while reading file %s: %v", tableDataFile.Name(), err)
+				utils.ErrExit("Error while reading file: %s: %v", tableDataFile.Name(), err)
 			}
 			if isDataLine(line, source.DBType, &insideCopyStmt) {
 				tableMetadata.CountLiveRows += 1

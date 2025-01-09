@@ -50,7 +50,7 @@ var assessMigrationBulkCmd = &cobra.Command{
 	PreRun: func(cmd *cobra.Command, args []string) {
 		err := validateFleetConfigFile(fleetConfigPath)
 		if err != nil {
-			utils.ErrExit("%s", err.Error())
+			utils.ErrExit("validating fleet config file: %s", err.Error())
 		}
 	},
 
@@ -458,7 +458,7 @@ func validateBulkAssessmentDirFlag() {
 		utils.ErrExit(`ERROR: required flag "bulk-assessment-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
-		utils.ErrExit("bulk-assessment-dir %q doesn't exists.\n", bulkAssessmentDir)
+		utils.ErrExit("bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
 	} else {
 		if bulkAssessmentDir == "." {
 			fmt.Println("Note: Using current directory as bulk-assessment-dir")
@@ -466,7 +466,7 @@ func validateBulkAssessmentDirFlag() {
 		var err error
 		bulkAssessmentDir, err = filepath.Abs(bulkAssessmentDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for bulk-assessment-dir %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for bulk-assessment-dir: %q: %v\n", exportDir, err)
 		}
 		bulkAssessmentDir = filepath.Clean(bulkAssessmentDir)
 	}

@@ -82,7 +82,7 @@ func IsMigrationInStreamingMode(exportDir string) bool {
 	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := ReadExportStatus(statusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", statusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
 	}
 	return status != nil && status.Mode == MODE_STREAMING
 }

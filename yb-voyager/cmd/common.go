@@ -165,7 +165,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 			table, err := namereg.NameReg.LookupTableName(fullTableName)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", fullTableName, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", fullTableName, err)
 			}
 			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
@@ -173,7 +173,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
+		utils.ErrExit("Failed to read file: %q: %v", tocTextFilePath, err)
 	}
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
@@ -208,7 +208,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("read file %q: %s", filePath, err)
+		utils.ErrExit("read file: %q: %s", filePath, err)
 	}
 
 	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
@@ -294,7 +294,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", key, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
 			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
@@ -328,7 +328,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 		if err != nil {
-			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
+			utils.ErrExit("lookup table  in name registry : %q: %v", tableStatus.TableName, err)
 		}
 		displayTableName := table.CurrentName.Unqualified.MinQuoted
 		partitions := leafPartitions[table.ForOutput()]
@@ -388,7 +388,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		for _, tableName := range tableList {
 			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
 			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+				utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
 			}
 			snapshotRowCount.Put(tableName, tableRowCount)
 		}
@@ -441,7 +441,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", projectDirPath, err)
 		}
 	}
 
@@ -458,7 +458,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", schemaDir, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", schemaDir, err)
 		}
 	}
 
@@ -929,7 +929,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	}
 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table %s", table)
+		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
@@ -937,7 +937,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	if renameTablesMap[fromTable] != "" {
 		tableTup, err := namereg.NameReg.LookupTableName(renameTablesMap[fromTable])
 		if err != nil {
-			utils.ErrExit("lookup failed for the table  %s", renameTablesMap[fromTable])
+			utils.ErrExit("lookup failed for the table:  %s", renameTablesMap[fromTable])
 		}
 
 		return tableTup.ForMinOutput(), true
