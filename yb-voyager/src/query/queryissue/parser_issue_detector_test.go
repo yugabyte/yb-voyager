@@ -167,6 +167,14 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt22 = `CREATE COLLATION new_schema.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);`
 	stmt23 = `CREATE COLLATION upperfirst (provider = icu, locale = 'en-u-kf-upper', deterministic = true);`
 	stmt24 = `CREATE COLLATION special (provider = icu, locale = 'en-u-kf-upper-kr-grek-latn');`
+	stmt25 = `CREATE TABLE public.products (
+    id INTEGER PRIMARY KEY,
+    product_name VARCHAR(100),
+    serial_number TEXT,
+    UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
+	);`
+	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
+	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -300,6 +308,15 @@ func TestDDLIssues(t *testing.T) {
 			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),
 		},
 		stmt24: []QueryIssue{},
+		stmt25: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt25),
+		},
+		stmt26: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("TABLE", "public.products", stmt26),
+		},
+		stmt27: []QueryIssue{
+			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseRequiredDDLs(stmt)
@@ -314,7 +331,7 @@ func TestDDLIssues(t *testing.T) {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+			assert.True(t, found, "Expected issue not found: %v in statement: %s. \nFound: %v", expectedIssue, stmt, issues)
 		}
 	}
 }

@@ -299,7 +299,7 @@ func validateSSLMode() {
 	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
 		return
 	} else {
-		utils.ErrExit("Error: Invalid sslmode: %q. Valid SSL modes are %v", validSSLModes[source.DBType])
+		utils.ErrExit("Error: Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, validSSLModes[source.DBType])
 	}
 }
 

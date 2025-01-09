@@ -1091,7 +1091,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
-	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 
@@ -1152,7 +1151,7 @@ func analyzeSchema() {
 		generateAnalyzeSchemaReport(msr, JSON)
 	}
 
-	packAndSendAnalyzeSchemaPayload(COMPLETE)
+	packAndSendAnalyzeSchemaPayload(COMPLETE, "")
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
@@ -1235,7 +1234,7 @@ var reasonsToSendObjectNameToCallhome = []string{
 	UNSUPPORTED_EXTENSION_ISSUE,
 }
 
-func packAndSendAnalyzeSchemaPayload(status string) {
+func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -1274,6 +1273,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 			dbObject.ObjectNames = ""
 			return dbObject
 		})),
+		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status

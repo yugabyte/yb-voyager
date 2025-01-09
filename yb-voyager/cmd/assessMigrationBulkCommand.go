@@ -57,14 +57,13 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			packAndSendAssessMigrationBulkPayload(ERROR)
 			utils.ErrExit("failed assess migration bulk: %s", err)
 		}
-		packAndSendAssessMigrationBulkPayload(COMPLETE)
+		packAndSendAssessMigrationBulkPayload(COMPLETE, "")
 	},
 }
 
-func packAndSendAssessMigrationBulkPayload(status string) {
+func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -77,6 +76,7 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 	}
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
 		FleetConfigCount: len(bulkAssessmentDBConfigs),
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)

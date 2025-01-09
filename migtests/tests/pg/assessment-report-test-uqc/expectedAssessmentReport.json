@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"TargetDBVersion": "IGNORED",
-	"MigrationComplexity": "LOW",
+	"MigrationComplexity": "MEDIUM",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report_uqc",
