@@ -424,6 +424,7 @@ func assessMigration() (err error) {
 	}
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
+
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
@@ -1603,6 +1604,14 @@ func postProcessingOfAssessmentReport() {
 func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
+	if err != nil {
+		return fmt.Errorf("unable to build migration complexity explanation for json report: %w", err)
+	}
+	log.Info(assessmentReport.MigrationComplexityExplanation)
+
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -1620,6 +1629,12 @@ func generateAssessmentReportJson(reportDir string) error {
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "html")
+	if err != nil {
+		return fmt.Errorf("unable to build migration complexity explanation for html report: %w", err)
+	}
 
 	file, err := os.Create(htmlReportFilePath)
 	if err != nil {

@@ -166,6 +166,11 @@
             {{ end }}
         {{end}}
 
+        {{if ne .MigrationComplexity "NOT AVAILABLE"}}
+            <h2>Migration Complexity Explanation</h2>
+            <p>{{ .MigrationComplexityExplanation }}</p>
+        {{end}}
+
         <h2>Unsupported Data Types</h2>
         <p>{{.UnsupportedDataTypesDesc}}</p>
         {{ if .UnsupportedDataTypes }}

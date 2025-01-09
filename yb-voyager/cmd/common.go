@@ -1051,14 +1051,15 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
-	VoyagerVersion      string                                `json:"VoyagerVersion"`
-	TargetDBVersion     *ybversion.YBVersion                  `json:"TargetDBVersion"`
-	MigrationComplexity string                                `json:"MigrationComplexity"`
-	SchemaSummary       utils.SchemaSummary                   `json:"SchemaSummary"`
-	Sizing              *migassessment.SizingAssessmentReport `json:"Sizing"`
-	Issues              []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
-	TableIndexStats     *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes               []string                              `json:"Notes"`
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                          []string                              `json:"Notes"`
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`

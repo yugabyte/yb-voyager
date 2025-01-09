@@ -38,6 +38,8 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var DoNotPrompt bool
@@ -743,4 +745,15 @@ func CheckTools(tools ...string) []string {
 
 func BuildObjectName(schemaName, objName string) string {
 	return lo.Ternary(schemaName != "", schemaName+"."+objName, objName)
+}
+
+// SnakeCaseToTitleCase converts a snake_case string to a title case string with spaces.
+func SnakeCaseToTitleCase(snake string) string {
+	words := strings.Split(snake, "_")
+	c := cases.Title(language.English)
+	for i, word := range words {
+		words[i] = c.String(word)
+	}
+
+	return strings.Join(words, " ")
 }
