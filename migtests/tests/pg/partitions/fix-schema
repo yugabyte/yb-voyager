@@ -3,15 +3,15 @@
 set -e
 set -x
 
-sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
-sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
-sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/table.sql
+sed -i  's/p2\.boston/p2.boston_region/g' ${EXPORT_DIR}/schema/tables/table.sql
+sed -i  's/p2\.london/p2.london_region/g' ${EXPORT_DIR}/schema/tables/table.sql
+sed -i  's/p2\.sydney/p2.sydney_region/g' ${EXPORT_DIR}/schema/tables/table.sql
 
-sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
-sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
-sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/schema/tables/INDEXES_table.sql
+sed -i  's/p2\.boston/p2.boston_region/g' ${EXPORT_DIR}/schema/tables/INDEXES_table.sql
+sed -i  's/p2\.london/p2.london_region/g' ${EXPORT_DIR}/schema/tables/INDEXES_table.sql
+sed -i  's/p2\.sydney/p2.sydney_region/g' ${EXPORT_DIR}/schema/tables/INDEXES_table.sql
 
 # Added so that the validations work(to check the recommendations in target YB applied or not)
-sed -i  's/p2\.boston/p2.boston_region/g' $TEST_DIR/export-dir/assessment/reports/migration_assessment_report.json
-sed -i  's/p2\.london/p2.london_region/g' $TEST_DIR/export-dir/assessment/reports/migration_assessment_report.json
-sed -i  's/p2\.sydney/p2.sydney_region/g' $TEST_DIR/export-dir/assessment/reports/migration_assessment_report.json
+sed -i  's/p2\.boston/p2.boston_region/g' ${EXPORT_DIR}/assessment/reports/migration_assessment_report.json
+sed -i  's/p2\.london/p2.london_region/g' ${EXPORT_DIR}/assessment/reports/migration_assessment_report.json
+sed -i  's/p2\.sydney/p2.sydney_region/g' ${EXPORT_DIR}/assessment/reports/migration_assessment_report.json

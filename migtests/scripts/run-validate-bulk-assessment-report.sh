@@ -54,6 +54,7 @@ main() {
 
 	echo "Assigning permissions to the export-dir to execute init-db, cleanup-db scripts"
 	chmod +x ${TEST_DIR}/init-db
+	chmod +x ${TEST_DIR}/cleanup-db
 
 	step "START: ${TEST_NAME}"
 	print_env
@@ -109,6 +110,8 @@ main() {
 	fi
 
 	step "Clean up"
+	./cleanup-db
+
 	rm -rf "${BULK_ASSESSMENT_DIR}"
 }
 

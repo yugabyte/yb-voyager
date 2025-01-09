@@ -18,9 +18,7 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export QUEUE_SEGMENT_MAX_BYTES=400
-
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 # Order of env.sh import matters.
@@ -37,9 +35,11 @@ else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
 
-source ${SCRIPTS}/yugabytedb/env.sh
-
 source ${SCRIPTS}/functions.sh
+
+normalize_and_export_vars "fallb"
+
+source ${SCRIPTS}/yugabytedb/env.sh
 
 main() {
 
@@ -56,6 +56,10 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		create_source_db ${SOURCE_DB_SCHEMA}
+	fi
 	./init-db
 
 	step "Grant source database user permissions for live migration"	
@@ -169,7 +173,11 @@ main() {
 	import_schema --post-snapshot-import true --refresh-mviews=true
 
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true'
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true' || {
+			tail_log_file "yb-voyager-import-data.log"
+			tail_log_file "yb-voyager-export-data-from-source.log"
+			exit 1
+		} 
 
 	step "Inserting new events"
 	run_sql_file source_delta.sql
@@ -264,7 +272,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

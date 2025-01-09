@@ -139,7 +139,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

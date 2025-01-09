@@ -7,7 +7,10 @@ export TARGET_DB_ADMIN_PASSWORD=${TARGET_DB_ADMIN_PASSWORD:-''}
 export TARGET_DB_SCHEMA=${TARGET_DB_SCHEMA:-'public'}
 
 # The PG driver, used to connect to YB, is case-sensitive about database name.
-if [ "${TARGET_DB_NAME}" == "" ]
-then
-	export TARGET_DB_NAME=`echo ${SOURCE_DB_NAME} | tr [A-Z] [a-z]`
+if [ "${TARGET_DB_NAME}" == "" ]; then
+    if [ "${SOURCE_DB_TYPE}" == "oracle" ]; then
+        export TARGET_DB_NAME=$(echo ${SOURCE_DB_SCHEMA} | tr [A-Z] [a-z])
+    else
+        export TARGET_DB_NAME=$(echo ${SOURCE_DB_NAME} | tr [A-Z] [a-z])
+    fi
 fi
