@@ -37,6 +37,7 @@ insert into null_and_default VALUES(2, NULL, NULL, NULL);
 INSERT INTO hstore_example (data) 
 VALUES 
     ('"key1"=>"value1", "key2"=>"value2"'),
+    (hstore('a"b', 'd"a')),
     (NULL),
     (''),
     ('key1 => value1, key2 => value2'),
@@ -50,4 +51,5 @@ VALUES
     (hstore(ROW(1,'{\"key1=value1, key2=value2\"}'))),
     (hstore('json_field', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
     (hstore('{"key1=value1, key2=value2"}', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
-    (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));
+    (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
+    (hstore('"{key1:value1,key2:value2}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));

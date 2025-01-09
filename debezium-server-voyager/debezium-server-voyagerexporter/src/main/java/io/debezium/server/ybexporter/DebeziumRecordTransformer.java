@@ -79,6 +79,10 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                 for (Map.Entry<String, String> entry : ((HashMap<String, String>) fieldValue).entrySet()) {
                     String key = entry.getKey();
                     String val = entry.getValue();
+                    key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "\"a"b\"" -> "\\"a\"b\\"" )
+                    val = val.replace("\"", "\\\""); 
+                    key = key.replace("\\\\", "\\"); // fixing \\-> \ ( "\\"a\"b\\"" -> "\"a\\"b\"" )
+                    val = val.replace("\\\\", "\\");
                     mapString.append("\"");
                     mapString.append(key);
                     mapString.append("\"");
