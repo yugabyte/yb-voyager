@@ -517,12 +517,12 @@ func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName 
 }
 
 var uniqueNullsNotDistinctIssue = issue.Issue{
-	Type:            UNIQUE_NULLS_NOT_DISTINCT,
-	TypeName:        "UNIQUE NULLS NOT DISTINCT",
-	TypeDescription: "",
-	Suggestion:      "",
-	GH:              "",
-	DocsLink:        "",
+	Type:       UNIQUE_NULLS_NOT_DISTINCT,
+	Name:       UNIQUE_NULLS_NOT_DISTINCT_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
+	Suggestion: "",
+	GH:         "",
+	DocsLink:   "",
 }
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
