@@ -744,3 +744,13 @@ func CheckTools(tools ...string) []string {
 func BuildObjectName(schemaName, objName string) string {
 	return lo.Ternary(schemaName != "", schemaName+"."+objName, objName)
 }
+
+// ToTitleCase converts a snake_case string to a title case string with spaces.
+func ToTitleCase(snake string) string {
+	words := strings.Split(snake, "_")
+	for i, word := range words {
+		words[i] = strings.Title(word)
+	}
+	
+	return strings.Join(words, " ")
+}

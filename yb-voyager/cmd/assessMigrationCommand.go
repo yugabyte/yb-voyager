@@ -425,6 +425,7 @@ func assessMigration() (err error) {
 	}
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
+
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
@@ -1604,11 +1605,11 @@ func generateAssessmentReportJson(reportDir string) error {
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 
 	var err error
-	assessmentReport.MigrationComplexityExplainability, err = buildMigrationComplexityExplainability(assessmentReport, "text")
+	assessmentReport.MigrationComplexityExplaination, err = buildMigrationComplexityExplaination(source.DBType, assessmentReport, "")
 	if err != nil {
-		utils.PrintAndLog("ERROR: unable to build migration complexity explainability for json report: %v", err)
+		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for json report: %v", err)
 	}
-	log.Info(assessmentReport.MigrationComplexityExplainability)
+	log.Info(assessmentReport.MigrationComplexityExplaination)
 
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1629,9 +1630,9 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	var err error
-	assessmentReport.MigrationComplexityExplainability, err = buildMigrationComplexityExplainability(assessmentReport, "html")
+	assessmentReport.MigrationComplexityExplaination, err = buildMigrationComplexityExplaination(source.DBType, assessmentReport, "html")
 	if err != nil {
-		utils.PrintAndLog("ERROR: unable to build migration complexity explainability for html report: %v", err)
+		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for html report: %v", err)
 	}
 
 	file, err := os.Create(htmlReportFilePath)

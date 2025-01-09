@@ -211,9 +211,9 @@ func getComplexityForLevel(level string, count int) string {
 	}
 }
 
-// ======================================= Migration Complexity Explainability ==========================================
+// ======================================= Migration Complexity Explanation ==========================================
 
-const explainabilityTemplateHTML = `
+const explainTemplateHTML = `
 <pre>
 |--------------------------------|---------|---------|---------|----------|
 | Category                       | Level-1 | Level-2 | Level-3 | Total    |
@@ -223,44 +223,19 @@ const explainabilityTemplateHTML = `
 {{- end }}
 |--------------------------------|---------|---------|---------|----------|
 
+Level-1 Impact: Resolutions are available with minimal effort.
+Level-2 Impact: Resolutions are available requiring moderate effort.
+Level-3 Impact: Complex cases where resolutions may not be available or are highly complex.
+
 Final Migration Complexity: {{ .MigrationComplexity }}
 
 Reasoning: {{ .ComplexityRationale }}
 </pre>
 `
 
-const explainabilityTemplateText = `
-Migration Complexity Explainability
+const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
 
-Categories and Issues:
-{{- range .Summaries }}
-Category: {{ .Category }}
-	Level-1 Issues: {{ index .ImpactCounts "LEVEL_1" }}
-	Level-2 Issues: {{ index .ImpactCounts "LEVEL_2" }}
-	Level-3 Issues: {{ index .ImpactCounts "LEVEL_3" }}
-	Total Issues: {{ .TotalIssueCount }}
-{{- end }}
-
-Final Migration Complexity: {{ .MigrationComplexity }}
-Reasoning: {{ .ComplexityRationale }}
-`
-
-/*
-{{ range .Summaries }}
----------------------------------------------------------------------
-Category: {{ .Category }}
-	Highest Impact: {{ .HighestImpact }}
-	{{- if gt (len .HighestImpactIssues) 0 }}
-	Examples of highest-impact issues ({{ len .HighestImpactIssues }}):
-		{{- range .HighestImpactIssues }}
-		- {{ .Name }}
-		{{- end }}
-	{{- end }}
-{{ end }}
-{{ end }}
-*/
-
-type ExplainabilityData struct {
+type ExplainationData struct {
 	Summaries           []CategorySummary
 	MigrationComplexity string
 	ComplexityRationale string // short reasoning or explanation text
@@ -272,27 +247,31 @@ type CategorySummary struct {
 	ImpactCounts    map[string]int // e.g. {"Level-1": 3, "Level-2": 5, "Level-3": 2}
 }
 
-func buildMigrationComplexityExplainability(assessmentReport AssessmentReport, reportFormat string) (string, error) {
-	var explainability ExplainabilityData
-	explainability.MigrationComplexity = assessmentReport.MigrationComplexity
-	explainability.ComplexityRationale = migrationComplexityRationale
+func buildMigrationComplexityExplaination(sourceDBType string, assessmentReport AssessmentReport, reportFormat string) (string, error) {
+	if sourceDBType != POSTGRESQL {
+		return "", nil
+	}
 
-	explainability.Summaries = buildCategorySummary(assessmentReport.Issues)
+	var explaination ExplainationData
+	explaination.MigrationComplexity = assessmentReport.MigrationComplexity
+	explaination.ComplexityRationale = migrationComplexityRationale
+
+	explaination.Summaries = buildCategorySummary(assessmentReport.Issues)
 
 	var tmpl *template.Template
 	var err error
 	if reportFormat == "html" {
-		tmpl, err = template.New("Explainability").Parse(explainabilityTemplateHTML)
+		tmpl, err = template.New("Explain").Parse(explainTemplateHTML)
 	} else {
-		tmpl, err = template.New("Explainability").Parse(explainabilityTemplateText)
+		tmpl, err = template.New("Explain").Parse(explainTemplateText)
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("failed creating the explainability template: %w", err)
+		return "", fmt.Errorf("failed creating the explaination template: %w", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, explainability); err != nil {
+	if err := tmpl.Execute(&buf, explaination); err != nil {
 		return "", fmt.Errorf("failed executing the template with data: %w", err)
 	}
 	return buf.String(), nil
@@ -331,6 +310,7 @@ func buildCategorySummary(issues []AssessmentIssue) []CategorySummary {
 
 	var result []CategorySummary
 	for _, summary := range summaryMap {
+		summary.Category = utils.ToTitleCase(summary.Category)
 		result = append(result, *summary)
 	}
 	return result

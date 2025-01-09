@@ -1054,7 +1054,7 @@ type AssessmentReport struct {
 	VoyagerVersion                    string                                `json:"VoyagerVersion"`
 	TargetDBVersion                   *ybversion.YBVersion                  `json:"TargetDBVersion"`
 	MigrationComplexity               string                                `json:"MigrationComplexity"`
-	MigrationComplexityExplainability string                                `json:"MigrationComplexityExplainability"`
+	MigrationComplexityExplaination string                                `json:"MigrationComplexityExplaination"`
 	SchemaSummary                     utils.SchemaSummary                   `json:"SchemaSummary"`
 	Sizing                            *migassessment.SizingAssessmentReport `json:"Sizing"`
 	Issues                            []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)

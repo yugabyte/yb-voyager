@@ -94,7 +94,6 @@
         <!-- Do nothing -->
         {{else}} 
         <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
-        <p><strong>Migration Complexity Explainability:</strong> {{ .MigrationComplexityExplainability }}</p>
         {{end}}
 
         <h2>Database Objects</h2>
@@ -166,6 +165,10 @@
                 {{else}}
                     <p>Could not perform sizing assessment:  {{ .FailureReasoning }}</p>
             {{ end }}
+        {{end}}
+
+        {{if ne .MigrationComplexity "NOT AVAILABLE"}}
+            <p><strong>Migration Complexity Explaination:</strong> {{ .MigrationComplexityExplaination }}</p>
         {{end}}
 
         <h2>Unsupported Data Types</h2>
