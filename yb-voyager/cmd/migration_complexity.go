@@ -214,30 +214,44 @@ func getComplexityForLevel(level string, count int) string {
 // ======================================= Migration Complexity Explanation ==========================================
 
 const explainTemplateHTML = `
-<pre>
-|--------------------------------|---------|---------|---------|----------|
-| Category                       | Level-1 | Level-2 | Level-3 | Total    |
-|--------------------------------|---------|---------|---------|----------|
-{{- range .Summaries }}
-| {{ printf "%-30s" .Category }} | {{ printf "%-7d" (index .ImpactCounts "LEVEL_1") }} | {{ printf "%-7d" (index .ImpactCounts "LEVEL_2") }} | {{ printf "%-7d" (index .ImpactCounts "LEVEL_3") }} | {{ printf "%-8d" (.TotalIssueCount) }} |
-{{- end }}
-|--------------------------------|---------|---------|---------|----------|
+<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+    <thead>
+        <tr>
+            <th>Category</th>
+            <th>Level-1</th>
+            <th>Level-2</th>
+            <th>Level-3</th>
+            <th>Total</th>
+        </tr>
+    </thead>
+    <tbody>
+    {{- range .Summaries }}
+        <tr>
+            <td>{{ .Category }}</td>
+            <td>{{ index .ImpactCounts "LEVEL_1" }}</td>
+            <td>{{ index .ImpactCounts "LEVEL_2" }}</td>
+            <td>{{ index .ImpactCounts "LEVEL_3" }}</td>
+            <td>{{ .TotalIssueCount }}</td>
+        </tr>
+    {{- end }}
+    </tbody>
+</table>
 
-Level-1 Impact: Resolutions are available with minimal effort.
-Level-2 Impact: Resolutions are available requiring moderate effort.
-Level-3 Impact: Complex cases where resolutions may not be available or are highly complex.
+<p>
+	Level-1 Impact: Issues where resolutions are available with minimal effort.<br/>
+	Level-2 Impact: Issues where resolutions are available requiring moderate effort.<br/>
+	Level-3 Impact: Issues where resolutions may not be available or are highly complex.
+</p>
 
-Final Migration Complexity: {{ .MigrationComplexity }}
-
-Reasoning: {{ .ComplexityRationale }}
-</pre>
+<p>
+	<strong>Reasoning:</strong> {{ .ComplexityRationale }}
+</p>
 `
 
 const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
 
 type ExplainationData struct {
 	Summaries           []CategorySummary
-	MigrationComplexity string
 	ComplexityRationale string // short reasoning or explanation text
 }
 
@@ -253,7 +267,6 @@ func buildMigrationComplexityExplaination(sourceDBType string, assessmentReport 
 	}
 
 	var explaination ExplainationData
-	explaination.MigrationComplexity = assessmentReport.MigrationComplexity
 	explaination.ComplexityRationale = migrationComplexityRationale
 
 	explaination.Summaries = buildCategorySummary(assessmentReport.Issues)
@@ -280,11 +293,11 @@ func buildMigrationComplexityExplaination(sourceDBType string, assessmentReport 
 func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count int) string {
 	switch finalComplexity {
 	case constants.MIGRATION_COMPLEXITY_HIGH:
-		return fmt.Sprintf("Found %d Level-2 issue(s) and %d Level-3 issue(s), resulting in HIGH complexity", l2Count, l3Count)
+		return fmt.Sprintf("Found %d Level-2 issue(s) and %d Level-3 issue(s), resulting in HIGH migration complexity", l2Count, l3Count)
 	case constants.MIGRATION_COMPLEXITY_MEDIUM:
-		return fmt.Sprintf("Found %d Level-1 issue(s), %d Level-2 issue(s) and %d Level-3 issue(s), resulting in MEDIUM complexity", l1Count, l2Count, l3Count)
+		return fmt.Sprintf("Found %d Level-1 issue(s), %d Level-2 issue(s) and %d Level-3 issue(s), resulting in MEDIUM migration complexity", l1Count, l2Count, l3Count)
 	case constants.MIGRATION_COMPLEXITY_LOW:
-		return fmt.Sprintf("Found %d Level-1 issue(s) and %d Level-2 issue(s), resulting in LOW complexity", l1Count, l2Count)
+		return fmt.Sprintf("Found %d Level-1 issue(s) and %d Level-2 issue(s), resulting in LOW migration complexity", l1Count, l2Count)
 	}
 	return ""
 }

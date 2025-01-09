@@ -168,7 +168,8 @@
         {{end}}
 
         {{if ne .MigrationComplexity "NOT AVAILABLE"}}
-            <p><strong>Migration Complexity Explaination:</strong> {{ .MigrationComplexityExplaination }}</p>
+            <h2>Migration Complexity Explaination</h2>
+            <p>{{ .MigrationComplexityExplaination }}</p>
         {{end}}
 
         <h2>Unsupported Data Types</h2>
