@@ -160,7 +160,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query for approx row count of %q: %q: %s", tableName.String(), query, err)
+		utils.ErrExit("Failed to query for approx row count of table: %q: %q: %s", tableName.String(), query, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)

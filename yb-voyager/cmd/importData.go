@@ -419,7 +419,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			}
 		}
 		if len(unqualifiedTables) > 0 {
-			utils.ErrExit("Qualify following table names: %v in the %s list with schema-name.", unqualifiedTables, listName)
+			utils.ErrExit("Qualify following table names in the %s list with schema-name: %v", listName, unqualifiedTables)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result, unknownTables
@@ -1104,7 +1104,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			utils.ErrExit("record larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			utils.ErrExit("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
