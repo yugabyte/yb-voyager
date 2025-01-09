@@ -220,3 +220,18 @@ var fetchWithTiesIssue = issue.Issue{
 func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var mergeStatementIssue = issue.Issue{
+	Type:        MERGE_STATEMENT,
+	Name:        "Merge Statement",
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: "This statement is not supported in YugabyteDB yet",
+	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
+	GH:          "",
+	DocsLink:    "", //TODO
+}
+
+func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	//MERGE STATEMENT is PG15 feature but  MERGE .... RETURNING clause is PG17 feature so need to report it separately later.
+	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

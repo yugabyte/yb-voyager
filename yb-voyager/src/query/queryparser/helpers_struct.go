@@ -45,6 +45,22 @@ func IsMviewObject(parseTree *pg_query.ParseResult) bool {
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
+func getDefineStmtNode(parseTree *pg_query.ParseResult) (*pg_query.DefineStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_DefineStmt)
+	return node.DefineStmt, ok
+}
+
+func IsCollationObject(parseTree *pg_query.ParseResult) bool {
+	collation, ok := getDefineStmtNode(parseTree)
+	/*
+		stmts:{stmt:{define_stmt:{kind:OBJECT_COLLATION  defnames:{string:{sval:"ignore_accents"}}  definition:{def_elem:{defname:"provider"
+		arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:48}}  defaction:DEFELEM_UNSPEC  location:37}}  definition:{def_elem:{defname:"locale"
+		arg:{string:{sval:"und-u-ks-level1-kc-true"}}  defaction:DEFELEM_UNSPEC  location:55}}  definition:{def_elem:{defname:"deterministic"
+		arg:{string:{sval:"false"}}  defaction:DEFELEM_UNSPEC  location:91}}}}  stmt_len:113}
+	*/
+	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
+}
+
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
 	createFuncNode, isCreateFunc := getCreateFuncStmtNode(parseTree)
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
@@ -69,7 +85,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		funcSchemaName, funcName := getFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := getSchemaAndObjectName(funcNameList)
 		return objectType, utils.BuildObjectName(funcSchemaName, funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
@@ -104,29 +120,16 @@ func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	return utils.BuildObjectName(schema, name)
 }
 
-func getFunctionObjectName(funcNameList []*pg_query.Node) (string, string) {
-	funcName := ""
-	funcSchemaName := ""
-	if len(funcNameList) > 0 {
-		funcName = funcNameList[len(funcNameList)-1].GetString_().Sval // func name can be qualified / unqualifed or native / non-native proper func name will always be available at last index
+func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
+	objName := ""
+	schemaName := ""
+	if len(nameList) > 0 {
+		objName = nameList[len(nameList)-1].GetString_().Sval // obj name can be qualified / unqualifed or native / non-native proper func name will always be available at last index
 	}
-	if len(funcNameList) >= 2 { // Names list will have all the parts of qualified func name
-		funcSchemaName = funcNameList[len(funcNameList)-2].GetString_().Sval // // func name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+	if len(nameList) >= 2 { // Names list will have all the parts of qualified func name
+		schemaName = nameList[len(nameList)-2].GetString_().Sval // // obj name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
-	return funcSchemaName, funcName
-}
-
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
-	typeName := ""
-	typeSchemaName := ""
-	if len(typeNames) > 0 {
-		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-	}
-	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-	}
-
-	return typeName, typeSchemaName
+	return schemaName, objName
 }
 
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
@@ -298,7 +301,7 @@ func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFu
 			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
 		*/
 		typeCast := node.GetTypeCast()
-		typeName, _ := getTypeNameAndSchema(typeCast.GetTypeName().GetNames())
+		_, typeName := getSchemaAndObjectName(typeCast.GetTypeName().GetNames())
 		if typeName == "jsonb" {
 			return true
 		}
@@ -310,7 +313,7 @@ func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFu
 			args:{a_const:{ival:{ival:14}  location:227}}
 		*/
 		funcCall := node.GetFuncCall()
-		_, funcName := getFunctionObjectName(funcCall.Funcname)
+		_, funcName := getSchemaAndObjectName(funcCall.Funcname)
 		if slices.Contains(jsonbFunctions, funcName) {
 			return true
 		}

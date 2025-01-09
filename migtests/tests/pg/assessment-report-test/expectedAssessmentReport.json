@@ -100,6 +100,12 @@
 				"TotalCount": 4,
 				"InvalidCount": 2,
 				"ObjectNames": "policy_test_fine ON public.test_exclude_basic, policy_test_fine_2 ON public.employees2, policy_test_report ON public.test_xml_type, policy_test_report ON schema2.test_xml_type"
+			},
+			{
+				"ObjectType": "COLLATION",
+				"TotalCount": 2,
+				"InvalidCount": 1,
+				"ObjectNames": "schema2.ignore_accents, public.\"numeric\""
 			}
 		]
 	},
@@ -582,6 +588,16 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 		    "MinimumVersionsFixedIn": null
         },
+		{
+			"FeatureName": "Deterministic attribute in collation",
+			"Objects": [
+				{
+					"ObjectName": "schema2.ignore_accents",
+					"SqlStatement": "CREATE COLLATION schema2.ignore_accents (provider = icu, deterministic = false, locale = 'und-u-kc-ks-level1');"
+				}
+			],
+			"MinimumVersionsFixedIn": null
+		},
 		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
 			"Objects": [
