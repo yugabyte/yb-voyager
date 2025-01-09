@@ -1605,11 +1605,11 @@ func generateAssessmentReportJson(reportDir string) error {
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 
 	var err error
-	assessmentReport.MigrationComplexityExplaination, err = buildMigrationComplexityExplaination(source.DBType, assessmentReport, "")
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
 	if err != nil {
 		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for json report: %v", err)
 	}
-	log.Info(assessmentReport.MigrationComplexityExplaination)
+	log.Info(assessmentReport.MigrationComplexityExplanation)
 
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
@@ -1630,7 +1630,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
 
 	var err error
-	assessmentReport.MigrationComplexityExplaination, err = buildMigrationComplexityExplaination(source.DBType, assessmentReport, "html")
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "html")
 	if err != nil {
 		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for html report: %v", err)
 	}

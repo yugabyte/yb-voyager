@@ -250,7 +250,7 @@ const explainTemplateHTML = `
 
 const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
 
-type ExplainationData struct {
+type ExplanationData struct {
 	Summaries           []CategorySummary
 	ComplexityRationale string // short reasoning or explanation text
 }
@@ -261,15 +261,15 @@ type CategorySummary struct {
 	ImpactCounts    map[string]int // e.g. {"Level-1": 3, "Level-2": 5, "Level-3": 2}
 }
 
-func buildMigrationComplexityExplaination(sourceDBType string, assessmentReport AssessmentReport, reportFormat string) (string, error) {
+func buildMigrationComplexityExplanation(sourceDBType string, assessmentReport AssessmentReport, reportFormat string) (string, error) {
 	if sourceDBType != POSTGRESQL {
 		return "", nil
 	}
 
-	var explaination ExplainationData
-	explaination.ComplexityRationale = migrationComplexityRationale
+	var explanation ExplanationData
+	explanation.ComplexityRationale = migrationComplexityRationale
 
-	explaination.Summaries = buildCategorySummary(assessmentReport.Issues)
+	explanation.Summaries = buildCategorySummary(assessmentReport.Issues)
 
 	var tmpl *template.Template
 	var err error
@@ -280,11 +280,11 @@ func buildMigrationComplexityExplaination(sourceDBType string, assessmentReport 
 	}
 
 	if err != nil {
-		return "", fmt.Errorf("failed creating the explaination template: %w", err)
+		return "", fmt.Errorf("failed creating the explanation template: %w", err)
 	}
 
 	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, explaination); err != nil {
+	if err := tmpl.Execute(&buf, explanation); err != nil {
 		return "", fmt.Errorf("failed executing the template with data: %w", err)
 	}
 	return buf.String(), nil
