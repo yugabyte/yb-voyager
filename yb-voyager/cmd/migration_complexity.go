@@ -215,29 +215,31 @@ func getComplexityForLevel(level string, count int) string {
 
 // TODO: discuss if the html should be in main report or here
 const explainTemplateHTML = `
-<p>Below is a detailed breakdown of issues by category, showing the count for each impact level.</p>
-<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-    <thead>
-        <tr>
-            <th>Category</th>
-            <th>Level-1</th>
-            <th>Level-2</th>
-            <th>Level-3</th>
-            <th>Total</th>
-        </tr>
-    </thead>
-    <tbody>
-    {{- range .Summaries }}
-        <tr>
-            <td>{{ .Category }}</td>
-            <td>{{ index .ImpactCounts "LEVEL_1" }}</td>
-            <td>{{ index .ImpactCounts "LEVEL_2" }}</td>
-            <td>{{ index .ImpactCounts "LEVEL_3" }}</td>
-            <td>{{ .TotalIssueCount }}</td>
-        </tr>
-    {{- end }}
-    </tbody>
-</table>
+{{- if .Summaries }}
+	<p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+	<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+		<thead>
+			<tr>
+				<th>Category</th>
+				<th>Level-1</th>
+				<th>Level-2</th>
+				<th>Level-3</th>
+				<th>Total</th>
+			</tr>
+		</thead>
+		<tbody>
+		{{- range .Summaries }}
+			<tr>
+				<td>{{ .Category }}</td>
+				<td>{{ index .ImpactCounts "LEVEL_1" }}</td>
+				<td>{{ index .ImpactCounts "LEVEL_2" }}</td>
+				<td>{{ index .ImpactCounts "LEVEL_3" }}</td>
+				<td>{{ .TotalIssueCount }}</td>
+			</tr>
+		{{- end }}
+		</tbody>
+	</table>
+{{- end }}
 
 <p>
 	<strong>Complexity:</strong> {{ .Complexity }}</br>
@@ -309,6 +311,11 @@ func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count in
 }
 
 func buildCategorySummary(issues []AssessmentIssue) []MigrationComplexityCategorySummary {
+	if len(issues) == 0 {
+		return nil
+
+	}
+
 	summaryMap := make(map[string]*MigrationComplexityCategorySummary)
 	for _, issue := range issues {
 		if issue.Category == "" {
