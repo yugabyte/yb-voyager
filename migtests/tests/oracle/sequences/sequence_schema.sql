@@ -61,7 +61,7 @@ CREATE  TABLE empty_identity_def  (
     description VARCHAR2(100) not null
   );
 
-  drop table "Case_Sensitive_always";
+drop table "Case_Sensitive_always";
 
 CREATE  TABLE "Case_Sensitive_always"  (
     id NUMBER GENERATED ALWAYS AS IDENTITY NOCACHE PRIMARY KEY,
