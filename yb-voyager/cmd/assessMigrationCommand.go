@@ -1607,7 +1607,7 @@ func generateAssessmentReportJson(reportDir string) error {
 	var err error
 	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
 	if err != nil {
-		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for json report: %v", err)
+		return fmt.Errorf("unable to build migration complexity explanation for json report: %w", err)
 	}
 	log.Info(assessmentReport.MigrationComplexityExplanation)
 
@@ -1632,7 +1632,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 	var err error
 	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "html")
 	if err != nil {
-		utils.PrintAndLog("ERROR: unable to build migration complexity explanation for html report: %v", err)
+		return fmt.Errorf("unable to build migration complexity explanation for html report: %w", err)
 	}
 
 	file, err := os.Create(htmlReportFilePath)
