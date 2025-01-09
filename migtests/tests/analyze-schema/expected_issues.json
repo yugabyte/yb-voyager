@@ -2060,5 +2060,45 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "users_unique_nulls_not_distinct",
+            "Reason": "Unique Nulls Not Distinct",
+            "SqlStatement": "CREATE TABLE users_unique_nulls_not_distinct (\n    id SERIAL PRIMARY KEY,\n    email TEXT,\n    UNIQUE NULLS NOT DISTINCT (email)\n);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales_unique_nulls_not_distinct",
+            "Reason": "Unique Nulls Not Distinct",
+            "SqlStatement": "CREATE TABLE sales_unique_nulls_not_distinct (\n    store_id INT,\n    product_id INT,\n    sale_date DATE,\n    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)\n);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "sales_unique_nulls_not_distinct_alter",
+            "Reason": "Unique Nulls Not Distinct",
+            "SqlStatement": "ALTER TABLE sales_unique_nulls_not_distinct_alter\n\tADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "INDEX",
+            "ObjectName": "users_unique_nulls_not_distinct_index_email ON users_unique_nulls_not_distinct_index",
+            "Reason": "Unique Nulls Not Distinct",
+            "SqlStatement": "CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email\n    ON users_unique_nulls_not_distinct_index (email)\n    NULLS NOT DISTINCT;",
+            "Suggestion": "",
+            "GH": "",
+            "MinimumVersionsFixedIn": null
         }
 ]
