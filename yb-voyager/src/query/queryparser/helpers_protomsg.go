@@ -427,7 +427,7 @@ func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
 	}
 	indexStmtNode, ok := protoMsg.(*pg_query.IndexStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEXSTMT_NODE)
 	}
 	return indexStmtNode, nil
 }
@@ -439,7 +439,7 @@ func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, err
 	}
 	constraintNode, ok := proto.(*pg_query.Constraint)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_TABLECONSTRAINT_NODE)
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
 	}
 	return constraintNode, nil
 }
