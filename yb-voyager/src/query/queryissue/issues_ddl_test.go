@@ -287,6 +287,23 @@ func testForeignKeyReferencesPartitionedTableIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `cannot reference partitioned table "abc1"`, foreignKeyReferencesPartitionedTableIssue)
 }
 
+func testUniqueNullsNotDistinctIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.products (
+    id INTEGER PRIMARY KEY,
+    product_name VARCHAR(100),
+    serial_number TEXT,
+    UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
+	);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", uniqueNullsNotDistinctIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -347,5 +364,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "foreign key referenced partitioned table", ybVersion), testForeignKeyReferencesPartitionedTableIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "unique nulls not distinct", ybVersion), testUniqueNullsNotDistinctIssue)
 	assert.True(t, success)
 }

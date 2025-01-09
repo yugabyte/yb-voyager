@@ -429,3 +429,39 @@ CREATE TABLE timestamptz_multirange_table (
     global_event_times tstzmultirange
 );
 
+-- Testing tables with unique nulls not distinct constraints
+
+-- Control case
+CREATE TABLE users_unique_nulls_distinct (
+    id SERIAL PRIMARY KEY,
+    email TEXT,
+    UNIQUE (email)
+);
+
+CREATE TABLE users_unique_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+);
+
+ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);

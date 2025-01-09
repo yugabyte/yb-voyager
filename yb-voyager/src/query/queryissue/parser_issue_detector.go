@@ -394,6 +394,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
+		NewUniqueNullsNotDistinctDetector(query),
 		NewJsonPredicateExprDetector(query),
 	}
 
