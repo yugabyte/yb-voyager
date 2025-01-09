@@ -97,10 +97,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload(COMPLETE)
+	packAndSendEndMigrationPayload(COMPLETE, "")
 }
 
-func packAndSendEndMigrationPayload(status string) {
+func packAndSendEndMigrationPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -115,6 +115,7 @@ func packAndSendEndMigrationPayload(status string) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
+		Error:                callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status

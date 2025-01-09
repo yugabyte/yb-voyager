@@ -279,12 +279,9 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n")) //trimming the prefix of `/*\n` from parts[0] (the error msg)
 	}
-	if status == ERROR {
-		errorsList = append(errorsList, errMsg)
-	} else {
-		if len(errorsList) > 0 && status != EXIT {
-			payload.Status = COMPLETE_WITH_ERRORS
-		}
+
+	if len(errorsList) > 0 && status != EXIT {
+		payload.Status = COMPLETE_WITH_ERRORS
 	}
 
 	//import-schema specific payload details
@@ -296,6 +293,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		ErrorCount:         len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
+		Error:              callhome.SanitizeErrorMsg(errMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)

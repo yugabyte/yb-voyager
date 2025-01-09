@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		importData(importFileTasks)
-		packAndSendImportDataFilePayload(COMPLETE)
+		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -330,7 +330,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string) {
+func packAndSendImportDataFilePayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -350,6 +350,7 @@ func packAndSendImportDataFilePayload(status string) {
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):

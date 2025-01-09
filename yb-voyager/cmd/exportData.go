@@ -129,7 +129,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		sendPayloadAsPerExporterRole(COMPLETE)
+		sendPayloadAsPerExporterRole(COMPLETE, "")
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -140,24 +140,24 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		sendPayloadAsPerExporterRole(ERROR)
+		sendPayloadAsPerExporterRole(ERROR, "")
 		atexit.Exit(1)
 	}
 }
 
-func sendPayloadAsPerExporterRole(status string) {
+func sendPayloadAsPerExporterRole(status string, errorMsg string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		packAndSendExportDataPayload(status)
+		packAndSendExportDataPayload(status, errorMsg)
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
-		packAndSendExportDataFromTargetPayload(status)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	}
 }
 
-func packAndSendExportDataPayload(status string) {
+func packAndSendExportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -182,6 +182,7 @@ func packAndSendExportDataPayload(status string) {
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs: int64(source.NumConnections),
 		StartClean:   bool(startClean),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
@@ -1046,7 +1047,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", err)
+				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
 			}
 			return ok
 		})

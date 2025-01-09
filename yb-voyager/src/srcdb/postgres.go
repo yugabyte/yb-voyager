@@ -785,7 +785,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
-		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
+		utils.ErrExit("failed to find the partitions for table %s: %v", tableName, err)
 	}
 	defer func() {
 		closeErr := rows.Close()

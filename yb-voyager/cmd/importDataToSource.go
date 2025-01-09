@@ -87,7 +87,7 @@ func initTargetConfFromSourceConf() error {
 	return nil
 }
 
-func packAndSendImportDataToSourcePayload(status string) {
+func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -107,6 +107,7 @@ func packAndSendImportDataToSourcePayload(status string) {
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	importDataPayload.Phase = importPhase

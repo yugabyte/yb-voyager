@@ -1413,31 +1413,41 @@ func PackAndSendCallhomePayloadOnExit() {
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
+
+	var errorMsg string
+	var status string
+	if utils.ErrExitErr != nil {
+		errorMsg = utils.ErrExitErr.Error()
+		status = ERROR
+	} else {
+		status = EXIT
+	}
+
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+		packAndSendAssessMigrationPayload(status, errorMsg)
 	case assessMigrationBulkCmd.CommandPath():
-		packAndSendAssessMigrationBulkPayload(EXIT)
+		packAndSendAssessMigrationBulkPayload(status, errorMsg)
 	case exportSchemaCmd.CommandPath():
-		packAndSendExportSchemaPayload(EXIT)
+		packAndSendExportSchemaPayload(status, errorMsg)
 	case analyzeSchemaCmd.CommandPath():
-		packAndSendAnalyzeSchemaPayload(EXIT)
+		packAndSendAnalyzeSchemaPayload(status, errorMsg)
 	case importSchemaCmd.CommandPath():
-		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+		packAndSendImportSchemaPayload(status, errorMsg)
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		packAndSendExportDataPayload(EXIT)
+		packAndSendExportDataPayload(status, errorMsg)
 	case exportDataFromTargetCmd.CommandPath():
-		packAndSendExportDataFromTargetPayload(EXIT)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(EXIT)
+		packAndSendImportDataPayload(status, errorMsg)
 	case importDataToSourceCmd.CommandPath():
-		packAndSendImportDataToSourcePayload(EXIT)
+		packAndSendImportDataToSourcePayload(status, errorMsg)
 	case importDataToSourceReplicaCmd.CommandPath():
-		packAndSendImportDataToSrcReplicaPayload(EXIT)
+		packAndSendImportDataToSrcReplicaPayload(status, errorMsg)
 	case endMigrationCmd.CommandPath():
-		packAndSendEndMigrationPayload(EXIT)
+		packAndSendEndMigrationPayload(status, errorMsg)
 	case importDataFileCmd.CommandPath():
-		packAndSendImportDataFilePayload(EXIT)
+		packAndSendImportDataFilePayload(status, errorMsg)
 	}
 }
 
@@ -1499,17 +1509,17 @@ func sendCallhomePayloadAtIntervals() {
 		time.Sleep(15 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-			packAndSendExportDataPayload(INPROGRESS)
+			packAndSendExportDataPayload(INPROGRESS, "")
 		case exportDataFromTargetCmd.CommandPath():
-			packAndSendExportDataFromTargetPayload(INPROGRESS)
+			packAndSendExportDataFromTargetPayload(INPROGRESS, "")
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS)
+			packAndSendImportDataPayload(INPROGRESS, "")
 		case importDataToSourceCmd.CommandPath():
-			packAndSendImportDataToSourcePayload(INPROGRESS)
+			packAndSendImportDataToSourcePayload(INPROGRESS, "")
 		case importDataToSourceReplicaCmd.CommandPath():
-			packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
+			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, "")
 		case importDataFileCmd.CommandPath():
-			packAndSendImportDataFilePayload(INPROGRESS)
+			packAndSendImportDataFilePayload(INPROGRESS, "")
 		}
 	}
 }

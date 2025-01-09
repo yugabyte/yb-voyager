@@ -92,7 +92,7 @@ func TestCallhomeStructs(t *testing.T) {
 				UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
 				MigrationCaveats           string               `json:"migration_caveats"`
 				UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-				Error                      string               `json:"error,omitempty"`
+				Error                      string               `json:"error"`
 				TableSizingStats           string               `json:"table_sizing_stats"`
 				IndexSizingStats           string               `json:"index_sizing_stats"`
 				SchemaSummary              string               `json:"schema_summary"`
@@ -104,7 +104,8 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationBulkPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationBulkPhasePayload{}),
 			expectedType: struct {
-				FleetConfigCount int `json:"fleet_config_count"`
+				FleetConfigCount int    `json:"fleet_config_count"`
+				Error            string `json:"error"`
 			}{},
 		},
 		{
@@ -122,10 +123,11 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ExportSchemaPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ExportSchemaPhasePayload{}),
 			expectedType: struct {
-				StartClean             bool `json:"start_clean"`
-				AppliedRecommendations bool `json:"applied_recommendations"`
-				UseOrafce              bool `json:"use_orafce"`
-				CommentsOnObjects      bool `json:"comments_on_objects"`
+				StartClean             bool   `json:"start_clean"`
+				AppliedRecommendations bool   `json:"applied_recommendations"`
+				UseOrafce              bool   `json:"use_orafce"`
+				CommentsOnObjects      bool   `json:"comments_on_objects"`
+				Error                  string `json:"error"`
 			}{},
 		},
 		{
@@ -135,6 +137,7 @@ func TestCallhomeStructs(t *testing.T) {
 				TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
 				Issues          string               `json:"issues"`
 				DatabaseObjects string               `json:"database_objects"`
+				Error           string               `json:"error"`
 			}{},
 		},
 		{
@@ -150,19 +153,21 @@ func TestCallhomeStructs(t *testing.T) {
 				TotalExportedEvents     int64  `json:"total_exported_events,omitempty"`
 				EventsExportRate        int64  `json:"events_export_rate_3m,omitempty"`
 				LiveWorkflowType        string `json:"live_workflow_type,omitempty"`
+				Error                   string `json:"error"`
 			}{},
 		},
 		{
 			name:       "Validate ImportSchemaPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportSchemaPhasePayload{}),
 			expectedType: struct {
-				ContinueOnError    bool `json:"continue_on_error"`
-				EnableOrafce       bool `json:"enable_orafce"`
-				IgnoreExist        bool `json:"ignore_exist"`
-				RefreshMviews      bool `json:"refresh_mviews"`
-				ErrorCount         int  `json:"errors"`
-				PostSnapshotImport bool `json:"post_snapshot_import"`
-				StartClean         bool `json:"start_clean"`
+				ContinueOnError    bool   `json:"continue_on_error"`
+				EnableOrafce       bool   `json:"enable_orafce"`
+				IgnoreExist        bool   `json:"ignore_exist"`
+				RefreshMviews      bool   `json:"refresh_mviews"`
+				ErrorCount         int    `json:"errors"`
+				PostSnapshotImport bool   `json:"post_snapshot_import"`
+				StartClean         bool   `json:"start_clean"`
+				Error              string `json:"error"`
 			}{},
 		},
 		{
@@ -178,6 +183,7 @@ func TestCallhomeStructs(t *testing.T) {
 				EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
 				LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 				EnableUpsert        bool   `json:"enable_upsert"`
+				Error               string `json:"error"`
 			}{},
 		},
 		{
@@ -190,6 +196,7 @@ func TestCallhomeStructs(t *testing.T) {
 				FileStorageType    string `json:"file_storage_type"`
 				StartClean         bool   `json:"start_clean"`
 				DataFileParameters string `json:"data_file_parameters"`
+				Error              string `json:"error"`
 			}{},
 		},
 		{
@@ -208,10 +215,11 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate EndMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(EndMigrationPhasePayload{}),
 			expectedType: struct {
-				BackupDataFiles      bool `json:"backup_data_files"`
-				BackupLogFiles       bool `json:"backup_log_files"`
-				BackupSchemaFiles    bool `json:"backup_schema_files"`
-				SaveMigrationReports bool `json:"save_migration_reports"`
+				BackupDataFiles      bool   `json:"backup_data_files"`
+				BackupLogFiles       bool   `json:"backup_log_files"`
+				BackupSchemaFiles    bool   `json:"backup_schema_files"`
+				SaveMigrationReports bool   `json:"save_migration_reports"`
+				Error                string `json:"error"`
 			}{},
 		},
 	}
