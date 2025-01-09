@@ -238,9 +238,9 @@ const explainTemplateHTML = `
 </table>
 
 <p>
-	Level-1 Impact: Issues where resolutions are available with minimal effort.<br/>
-	Level-2 Impact: Issues where resolutions are available requiring moderate effort.<br/>
-	Level-3 Impact: Issues where resolutions may not be available or are highly complex.
+	Level-1 Impact: Resolutions are available with minimal effort.<br/>
+	Level-2 Impact: Resolutions are available requiring moderate effort.<br/>
+	Level-3 Impact: Resolutions may not be available or are highly complex.
 </p>
 
 <p>
