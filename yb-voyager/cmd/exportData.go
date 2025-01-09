@@ -1047,7 +1047,7 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+				utils.ErrExit("Invalid table name pattern: %q: %s", pattern, err)
 			}
 			return ok
 		})
