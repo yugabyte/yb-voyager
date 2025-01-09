@@ -213,6 +213,7 @@ func getComplexityForLevel(level string, count int) string {
 
 // ======================================= Migration Complexity Explanation ==========================================
 
+// TODO: discuss if the html should be in main report or here
 const explainTemplateHTML = `
 <p>Below is a detailed breakdown of issues by category, showing the count for each impact level.</p>
 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
@@ -246,8 +247,7 @@ const explainTemplateHTML = `
 <p>
 <strong>Impact Levels:</strong></br>
 	Level-1: Resolutions are available with minimal effort.<br/>
-	Level-2
-	: Resolutions are available requiring moderate effort.<br/>
+	Level-2: Resolutions are available requiring moderate effort.<br/>
 	Level-3: Resolutions may not be available or are complex.
 </p>
 `
