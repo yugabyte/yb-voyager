@@ -214,6 +214,7 @@ func getComplexityForLevel(level string, count int) string {
 // ======================================= Migration Complexity Explanation ==========================================
 
 const explainTemplateHTML = `
+<p>Below is a detailed breakdown of issues by category, showing the count for each impact level.</p>
 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
     <thead>
         <tr>
@@ -238,13 +239,16 @@ const explainTemplateHTML = `
 </table>
 
 <p>
-	Level-1 Impact: Resolutions are available with minimal effort.<br/>
-	Level-2 Impact: Resolutions are available requiring moderate effort.<br/>
-	Level-3 Impact: Resolutions may not be available or are complex.
+	<strong>Complexity:</strong> {{ .Complexity }}</br>
+	<strong>Reasoning:</strong> {{ .ComplexityRationale }}
 </p>
 
 <p>
-	<strong>Reasoning:</strong> {{ .ComplexityRationale }}
+<strong>Impact Levels:</strong></br>
+	Level-1: Resolutions are available with minimal effort.<br/>
+	Level-2
+	: Resolutions are available requiring moderate effort.<br/>
+	Level-3: Resolutions may not be available or are complex.
 </p>
 `
 
@@ -252,6 +256,7 @@ const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
 
 type MigrationComplexityExplanationData struct {
 	Summaries           []MigrationComplexityCategorySummary
+	Complexity          string
 	ComplexityRationale string // short reasoning or explanation text
 }
 
@@ -267,6 +272,7 @@ func buildMigrationComplexityExplanation(sourceDBType string, assessmentReport A
 	}
 
 	var explanation MigrationComplexityExplanationData
+	explanation.Complexity = assessmentReport.MigrationComplexity
 	explanation.ComplexityRationale = migrationComplexityRationale
 
 	explanation.Summaries = buildCategorySummary(assessmentReport.Issues)
