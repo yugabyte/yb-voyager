@@ -48,8 +48,8 @@ VALUES
      "language"  => "English",
      "ISBN-13"   => "978-1449370000",
      "weight"    => "11.2 ounces"'),
-    (hstore(ROW(1,'{\"key1=value1, key2=value2\"}'))),
-    (hstore('json_field', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
-    (hstore('{"key1=value1, key2=value2"}', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
-    (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')),
-    (hstore('"{key1:value1,key2:value2}"', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));
+    (hstore(ROW(1,'{"key1=value1, key2=value2"}'))),
+    (hstore('json_field', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')), --hstore() key and values need no extra processing
+    ('"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'), --single quotes string need to escaped properly
+    (hstore('"{""key1"":""value1"",""key2"":""value2""}"', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')),
+    (hstore('"{key1:value1,key2:value2}"', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));

@@ -56,8 +56,12 @@ SET data = data || 'key3 => value3'
 WHERE id = 1;
 
 UPDATE hstore_example 
-SET data = hstore('{"key1=value1, key2=value2"}', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}')
+SET data = hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}')
 WHERE id = 3;
+
+UPDATE hstore_example 
+SET data = '"{\"key1=value1, key2=value2\"}"=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'
+WHERE id = 7;
 
 INSERT INTO hstore_example (data) 
 VALUES 
@@ -65,4 +69,4 @@ VALUES
 
 INSERT INTO hstore_example (data) 
 VALUES 
-    (hstore('{"key1=value1, key2=value2"}', '{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}'));
+    (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
