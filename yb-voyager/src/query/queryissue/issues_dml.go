@@ -122,7 +122,7 @@ var jsonQueryFunctionIssue = issue.Issue{
 	Description: "Postgresql 17 features not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/##postgresql-12-and-later-features", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 }
 
 func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
