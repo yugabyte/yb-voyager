@@ -273,7 +273,7 @@
         "final_row_count": 2
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "public.\"hstore_example\"",
         "db_type": "source",
         "exported_snapshot_rows": 13,
         "imported_snapshot_rows": 0,
@@ -286,10 +286,10 @@
         "final_row_count": 15
     },
     {
-        "table_name": "public.\"null_and_default\"",
-        "db_type": "source-replica",
-        "exported_snapshot_rows": 0,
-        "imported_snapshot_rows": 13,
+        "table_name": "public.\"hstore_example\"",
+        "db_type": "target",
+        "exported_snapshot_rows": 13,
+        "imported_snapshot_rows": 0,
         "imported_inserts": 2,
         "imported_updates": 3,
         "imported_deletes": 0,
@@ -299,7 +299,7 @@
         "final_row_count": 15
     },
     {
-        "table_name": "public.\"null_and_default\"",
+        "table_name": "public.\"hstore_example\"",
         "db_type": "target",
         "exported_snapshot_rows": 13,
         "imported_snapshot_rows": 0,
