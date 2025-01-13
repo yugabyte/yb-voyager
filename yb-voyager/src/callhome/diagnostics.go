@@ -24,7 +24,6 @@ import (
 	"os"
 	"reflect"
 	"strconv"
-	"strings"
 
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -298,5 +297,6 @@ func SendPayload(payload *Payload) error {
 // Note: This is a temporary solution. A better solution would be to have
 // properly structured errors and only send the generic error message to callhome.
 func SanitizeErrorMsg(errorMsg string) string {
-	return strings.Split(errorMsg, ":")[0]
+	return "" // For now, returning empty string. After thorough testing, we can return the specific error message.
+	// return strings.Split(errorMsg, ":")[0]
 }
