@@ -596,6 +596,7 @@
 					"SqlStatement": "CREATE COLLATION schema2.ignore_accents (provider = icu, deterministic = false, locale = 'und-u-kc-ks-level1');"
 				}
 			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -658,6 +659,7 @@
 					"SqlStatement": "CREATE TRIGGER t_raster BEFORE DELETE OR UPDATE ON public.combined_tbl FOR EACH ROW EXECUTE FUNCTION public.lo_manage('raster');"
 				}
 			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -668,6 +670,7 @@
 					"SqlStatement": "ALTER TABLE ONLY public.test_jsonb\n    ADD CONSTRAINT test_jsonb_id_region_fkey FOREIGN KEY (id, region) REFERENCES public.sales_region(id, region);"
 				}
 			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -678,6 +681,7 @@
 					"SqlStatement": "CREATE TABLE public.ordersentry (\n    order_id integer NOT NULL,\n    customer_name text NOT NULL,\n    product_name text NOT NULL,\n    quantity integer NOT NULL,\n    price numeric(10,2) NOT NULL,\n    processed_at timestamp without time zone,\n    r integer DEFAULT regexp_count('This is an example. Another example. Example is a common word.'::text, 'example'::text)\n);"
 				}
 			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -692,6 +696,7 @@
 					"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM schema2.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
 				}
 			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -702,6 +707,7 @@
 					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employee_id,\n    first_name\n   FROM public.employees;"
 				}
 			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -740,6 +746,7 @@
 					"SqlStatement": "ALTER TABLE ONLY schema2.users_unique_nulls_not_distinct\n    ADD CONSTRAINT users_unique_nulls_not_distinct_email_key UNIQUE NULLS NOT DISTINCT (email);"
 				}
 			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 			"MinimumVersionsFixedIn": null
 		}
 	],
@@ -2860,19 +2867,19 @@
 		{
 			"ConstructTypeName": "Large Object Functions",
 			"Query": "SELECT lo_create($1)",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
 			"ConstructTypeName": "COPY FROM ... WHERE",
 			"Query": "COPY employeesCopyFromWhere (id, name, age)\nFROM STDIN WITH (FORMAT csv)\nWHERE age \u003e 30",
-			"DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
 			"ConstructTypeName": "COPY ... ON_ERROR",
 			"Query": "COPY employeesCopyOnError (id, name, age)\nFROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE )",
-			"DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		}
 	],
@@ -2886,6 +2893,7 @@
 					"SqlStatement": "SELECT lo_unlink(loid);"
 				}
 			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
