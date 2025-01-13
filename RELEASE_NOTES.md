@@ -4,6 +4,31 @@
 
 Included here are the release notes for the [YugabyteDB Voyager](https://docs.yugabyte.com/preview/migrate/) v1 release series. Content will be added as new notable features and changes are available in the patch releases of the YugabyteDB v1 series.
 
+## v1.8.8 - December 24, 2024
+
+### Enhancements
+
+- Assessment and Schema Analysis Reports
+  - You can now specify the target version of YugabyteDB when running `assess-migration` and `analyze-schema`. Specify the version using the flag `--target-db-version`. The default is the latest stable release (currently 2024.2.0.0).
+  - Assessment and schema analysis now detect and report the presence of advisory locks, XML functions, and system columns in DDLs.
+  - Assessment and schema analysis now detect the presence of large objects (and their functions) in DDLs/DMLs.
+  - In the Schema analysis report (html/text), changed the following field names to improve readability: Invalid Count to Objects with Issues; Total Count to Total Objects; and Valid Count to Objects without Issues. The logic determining when an object is considered to have issues or not has also been improved.
+  - Stop reporting Unlogged tables as an issue in assessment and schema analysis reports by default, as UNLOGGED no longer results in a syntax error in YugabyteDB v2024.2.0.0.
+  - Stop reporting ALTER PARTITIONED TABLE ADD PRIMARY KEY as an issue in assessment and schema analysis reports, as the issue has been fixed in YugabyteDB v2024.1.0.0 and later.
+  - In the assessment report, only statements from `pg_stat_statements` that belong to the schemas provided by the user will be processed for detecting and reporting issues.
+
+- Data Migration
+  - `import data file` and `import data to source replica` now accept a new flag `truncate-tables` (in addition to `import data`), which, when used with `start-clean true`, truncates all the tables in the target/source-replica database before importing data into the tables.
+
+- Miscellaneous
+  - Enhanced guardrail checks in `import-schema` for YugabyteDB Aeon.
+  
+
+### Bug Fixes
+- Skip Unsupported Query Constructs detection if `pg_stat_statements` is not loaded via `shared_preloaded_libraries`.
+- Prevent Voyager from panicking/erroring out in case of `analyze-schema` and `import data` when `export-dir` is empty.
+
+
 ## v1.8.7 - December 10, 2024
 
 ### New Features
