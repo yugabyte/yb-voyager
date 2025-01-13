@@ -1073,7 +1073,7 @@ type AssessmentReport struct {
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
+	Category              string // expected values: feature, query_constructs, migration_caveats, plpgsql_objects, datatype
 	CategoryDescription   string
 	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
 	Name                  string // Ex: "Stored generated columns are not supported."
@@ -1193,6 +1193,19 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 
 func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
 	ar.Issues = append(ar.Issues, issues...)
+}
+
+// Sort AssessmentIssue by Category and Impact
+func (ar *AssessmentReport) SortIssuesByCategory() {
+	sort.Slice(ar.Issues, func(i, j int) bool {
+		if ar.Issues[i].Category < ar.Issues[j].Category {
+			return true
+		} else if ar.Issues[i].Category > ar.Issues[j].Category {
+			return false
+		}
+		// If categories are same, sort by Impact (higher first)
+		return ar.Issues[i].Impact > ar.Issues[j].Impact
+	})
 }
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {

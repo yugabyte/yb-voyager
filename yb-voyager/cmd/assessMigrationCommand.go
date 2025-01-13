@@ -857,7 +857,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed templates/migration_assessment_report.template
+//go:embed templates/migration_assessment_report_new.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
@@ -908,6 +908,7 @@ func generateAssessmentReport() (err error) {
 	addNotesToAssessmentReport()
 	postProcessingOfAssessmentReport()
 
+	assessmentReport.SortIssuesByCategory()
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
@@ -1013,7 +1014,6 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, minVersionsFixedIn}
 }
 
-// Q: do we no need of displayDDLInHTML in this approach? DDL can always be there for issues in the table if present.
 func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
 	return AssessmentIssue{
 		Category:              analyzeSchemaIssue.IssueType,
