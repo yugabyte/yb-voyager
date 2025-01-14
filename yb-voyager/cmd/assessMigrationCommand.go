@@ -857,7 +857,7 @@ func populateMetadataCSVIntoAssessmentDB() error {
 	return nil
 }
 
-//go:embed templates/migration_assessment_report_new.template
+//go:embed templates/migration_assessment_report.template
 var bytesTemplate []byte
 
 func generateAssessmentReport() (err error) {
@@ -1655,6 +1655,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"groupByObjectName":                groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
+		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
