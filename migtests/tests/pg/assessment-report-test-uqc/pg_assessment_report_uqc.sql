@@ -135,7 +135,7 @@ CREATE TABLE sales.json_data (
     unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
 );
 
-INSERT INTO public.json_data (
+INSERT INTO sales.json_data (
     id, data_column, object_column, array_column, scalar_column, unique_keys_column
 ) VALUES (
     1, '{"key": "value"}',
@@ -143,4 +143,11 @@ INSERT INTO public.json_data (
     3, '[1, 2, 3, 4]',
     4, '"hello"',
     5, '{"uniqueKey1": "value1", "uniqueKey2": "value2"}'
+);
+
+CREATE TABLE sales.big_table (                                                               
+    key INT,
+    ref INT,
+    other_column_1 TEXT,
+    other_column_2 TEXT
 );

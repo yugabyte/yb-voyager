@@ -59,3 +59,21 @@ FROM sales.events;
 SELECT * 
 FROM sales.json_data
 WHERE array_column IS JSON ARRAY;
+
+WITH w AS NOT MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;
+
+WITH w AS MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;
+
+WITH w AS (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;
