@@ -310,7 +310,7 @@ RETURN repeat('*', n);`: `syntax error at or near "RETURN"`,
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 BEGIN ATOMIC
 SELECT repeat('*', g) FROM generate_series (1, n) g;
-END;`: `syntax error at or near "BEGIN"`
+END;`: `syntax error at or near "BEGIN"`,
 	}
 	for sql, errMsg := range sqls {
 		ctx := context.Background()

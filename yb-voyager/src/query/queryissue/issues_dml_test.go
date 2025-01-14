@@ -281,7 +281,7 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 		RETURNING *
 	)
 	INSERT INTO products_log
-	SELECT * FROM moved_rows;`: `syntax error at or near "MATERIALIZED"`
+	SELECT * FROM moved_rows;`: `syntax error at or near "MATERIALIZED"`,
 	}
 	for sql, errMsg := range sqls {
 		ctx := context.Background()
