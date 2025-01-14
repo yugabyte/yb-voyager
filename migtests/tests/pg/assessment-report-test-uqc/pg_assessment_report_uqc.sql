@@ -47,6 +47,28 @@ create view sales.employ_depart_view AS  SELECT
         any_value(name) AS any_employee
     FROM employees;
 
+CREATE TABLE sales.customer_account (
+    customer_id INT PRIMARY KEY,
+    balance NUMERIC(10, 2) NOT NULL
+);
+
+INSERT INTO sales.customer_account (customer_id, balance)
+VALUES
+    (1, 100.00),
+    (2, 200.00),
+    (3, 300.00);
+
+CREATE TABLE sales.recent_transactions (
+    transaction_id SERIAL PRIMARY KEY,
+    customer_id INT NOT NULL,
+    transaction_value NUMERIC(10, 2) NOT NULL
+);
+
+INSERT INTO sales.recent_transactions (customer_id, transaction_value)
+VALUES
+    (1, 50.00),
+    (3, -25.00),
+    (4, 150.00);
 CREATE TABLE sales.test_json_chk (
     id int,
     name text,

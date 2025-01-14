@@ -5,21 +5,20 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
-echo "Deleting existing data in source database"
-run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
+export SOURCE_DB_SCHEMA="TEST_SCHEMA"
+
+create_source_db ${SOURCE_DB_SCHEMA}
+
+./cleanup-db
 
 echo "Initialising source database 1 & inserting data"
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TEST_DIR}/../assessment-report-test/oracle_assessment_report.sql
 
 echo "Initialising source database 2 & inserting data"
 
-cat > create-schema2.sql << EOF
-		CREATE USER TEST_SCHEMA2 identified by "password";
-        GRANT ALL PRIVILEGES TO TEST_SCHEMA2;
-EOF
-	run_sqlplus_as_sys ${SOURCE_DB_NAME} "create-schema2.sql"
+export SOURCE_DB_SCHEMA="TEST_SCHEMA2"
 
-export SOURCE_DB_USER_SCHEMA_OWNER="TEST_SCHEMA2"
+create_source_db ${SOURCE_DB_SCHEMA}
 
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TEST_DIR}/../partitions/partition_schema.sql
 run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TEST_DIR}/../partitions/partition_data.sql

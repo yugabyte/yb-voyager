@@ -97,10 +97,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload(COMPLETE)
+	packAndSendEndMigrationPayload(COMPLETE, "")
 }
 
-func packAndSendEndMigrationPayload(status string) {
+func packAndSendEndMigrationPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -115,6 +115,7 @@ func packAndSendEndMigrationPayload(status string) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
+		Error:                callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status
@@ -663,7 +664,7 @@ func cleanupExportDir() {
 	for _, subdir := range subdirs {
 		err := os.RemoveAll(filepath.Join(exportDir, subdir))
 		if err != nil {
-			utils.ErrExit("removing %s directory: %v", subdir, err)
+			utils.ErrExit("removing directory: %q: %v", subdir, err)
 		}
 	}
 }
@@ -784,7 +785,7 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
@@ -810,7 +811,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
@@ -829,7 +830,7 @@ func areOnDifferentFileSystems(path1 string, path2 string) bool {
 	err2 := syscall.Stat(path2, &stat2)
 
 	if err1 != nil || err2 != nil {
-		utils.ErrExit("getting file system info for %s and %s: %v, %v", path1, path2, err1, err2)
+		utils.ErrExit("getting file system info: for %s and %s: %v, %v", path1, path2, err1, err2)
 	}
 
 	return stat1.Dev != stat2.Dev

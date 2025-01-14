@@ -419,9 +419,37 @@ func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error)
 	}
 	cteNode, ok := protoMsg.(*pg_query.CommonTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CTE_NODE)
 	}
 	return cteNode, nil
+}
+
+func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+	protoMsg, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
+
+	indexStmtNode, ok := protoMsg.(*pg_query.IndexStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+	}
+
+	return indexStmtNode, nil
+}
+
+func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
+	protoMsg, ok := msg.Interface().(proto.Message)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+	}
+
+	consNode, ok := protoMsg.(*pg_query.Constraint)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
+	}
+
+	return consNode, nil
 }
 
 /*

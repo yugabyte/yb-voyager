@@ -215,10 +215,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
 		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
 		IopsInterval:     intervalForCapturingIOPS,
+		Error:            callhome.SanitizeErrorMsg(errMsg),
 	}
-	if status == ERROR {
-		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
-	}
+
 	if assessmentMetadataDirFlag == "" {
 		sourceDBDetails := callhome.SourceDBDetails{
 			DBType:    source.DBType,
@@ -425,6 +424,7 @@ func assessMigration() (err error) {
 	}
 
 	log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
+
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
 	controlPlane.MigrationAssessmentCompleted(completedEvent)
@@ -649,7 +649,7 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 				utils.ErrExit("failed to start clean: %v", err)
 			}
 		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 		}
 	}
 }
@@ -896,6 +896,9 @@ func generateAssessmentReport() (err error) {
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
+	// calculating migration complexity after collecting all assessment issues
+	assessmentReport.MigrationComplexity = calculateMigrationComplexity(source.DBType, schemaDir, assessmentReport)
+
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
@@ -926,7 +929,6 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
 	*/
 	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
-	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
 
@@ -1066,6 +1068,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.AGGREGATION_FUNCTIONS_NAME, "", queryissue.AGGREGATE_FUNCTION, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.DETERMINISTIC_OPTION_WITH_COLLATION_NAME, "", queryissue.DETERMINISTIC_OPTION_WITH_COLLATION, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.UNIQUE_NULLS_NOT_DISTINCT_NAME, "", queryissue.UNIQUE_NULLS_NOT_DISTINCT, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSONB_SUBSCRIPTING_NAME, "", queryissue.JSONB_SUBSCRIPTING, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME, "", queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_TYPE_PREDICATE_NAME, "", queryissue.JSON_TYPE_PREDICATE, schemaAnalysisReport, false, ""))
@@ -1600,6 +1604,14 @@ func postProcessingOfAssessmentReport() {
 func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
+	if err != nil {
+		return fmt.Errorf("unable to build migration complexity explanation for json report: %w", err)
+	}
+	log.Info(assessmentReport.MigrationComplexityExplanation)
+
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -1617,6 +1629,12 @@ func generateAssessmentReportJson(reportDir string) error {
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
+
+	var err error
+	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "html")
+	if err != nil {
+		return fmt.Errorf("unable to build migration complexity explanation for html report: %w", err)
+	}
 
 	file, err := os.Create(htmlReportFilePath)
 	if err != nil {
@@ -1711,7 +1729,7 @@ func validateSourceDBTypeForAssessMigration() {
 func validateAssessmentMetadataDirFlag() {
 	if assessmentMetadataDirFlag != "" {
 		if !utils.FileOrFolderExists(assessmentMetadataDirFlag) {
-			utils.ErrExit("assessment metadata directory %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
+			utils.ErrExit("assessment metadata directory: %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
 		} else {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}

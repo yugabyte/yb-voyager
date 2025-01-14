@@ -17,10 +17,10 @@ limitations under the License.
 package datastore
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"os"
-	"fmt"
 	"regexp"
 	"strings"
 
@@ -36,7 +36,7 @@ type S3DataStore struct {
 func NewS3DataStore(resourceName string) *S3DataStore {
 	url, err := url.Parse(resourceName)
 	if err != nil {
-		utils.ErrExit("invalid s3 resource URL %v", resourceName)
+		utils.ErrExit("invalid s3 resource URL: %v", resourceName)
 	}
 	return &S3DataStore{url: url, bucketName: url.Host}
 }
@@ -80,7 +80,7 @@ func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
 	// if resourceName is hidden underneath a symlink for s3 objects...
 	objectPath, err := os.Readlink(resourceName)
 	if err != nil {
-		utils.ErrExit("unable to resolve symlink %v to s3 resource: %w", resourceName, err)
+		utils.ErrExit("unable to resolve symlink to s3 resource: %v: %w", resourceName, err)
 	}
 	return s3.NewObjectReader(objectPath)
 }

@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 			utils.ErrExit("failed to get migration UUID: %w", err)
 		}
 		importData(importFileTasks)
-		packAndSendImportDataFilePayload(COMPLETE)
+		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -185,7 +185,7 @@ func prepareImportFileTasks() []*ImportFileTask {
 		for _, filePath := range filePaths {
 			fileSize, err := dataStore.FileSize(filePath)
 			if err != nil {
-				utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
+				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
 			}
 			task := &ImportFileTask{
 				ID:           i,
@@ -247,12 +247,12 @@ func checkDataDirFlag() {
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for data-dir(%q): %v", dataDir, err)
+		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %v", dataDir, err)
 	}
 
 	exportDirAbs, err := filepath.Abs(exportDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for export-dir(%q): %v", exportDir, err)
+		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %v", exportDir, err)
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {
@@ -330,7 +330,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string) {
+func packAndSendImportDataFilePayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -350,6 +350,7 @@ func packAndSendImportDataFilePayload(status string) {
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):

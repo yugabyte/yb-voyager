@@ -94,7 +94,7 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query for approx row count of table: %q: %q %s", tableName.String(), query, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -110,7 +110,7 @@ func (ms *MySQL) GetVersion() string {
 	query := "SELECT VERSION()"
 	err := ms.db.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %s", query, err)
 	}
 	ms.source.DBVersion = version
 	return version
@@ -388,7 +388,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		var columnName string
 		rows, err := ms.db.Query(query)
 		if err != nil {
-			utils.ErrExit("Failed to query %q for auto increment column of %q: %s", query, table.String(), err)
+			utils.ErrExit("Failed to query for auto increment column: query:%q table: %q: %s", query, table.String(), err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -399,7 +399,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		if rows.Next() {
 			err = rows.Scan(&columnName)
 			if err != nil {
-				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
+				utils.ErrExit("Failed to scan for auto increment column: query: %q table: %q: %s", query, table.String(), err)
 			}
 			qualifiedColumeName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			// sequence name as per PG naming convention for bigserial datatype's sequence
@@ -408,7 +408,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
 		}
 	}
 	return columnToSequenceMap

@@ -463,7 +463,7 @@ var loDatatypeIssue = issue.Issue{
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "Large objects are not yet supported in YugabyteDB, no workaround available currently",
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25318",
-	DocsLink:   "", // TODO
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
 }
 
 func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
@@ -477,8 +477,8 @@ var multiRangeDatatypeIssue = issue.Issue{
 	Name:       "Unsupported datatype",
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "", //TODO
-	DocsLink:   "", //TODO
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
@@ -492,12 +492,25 @@ var securityInvokerViewIssue = issue.Issue{
 	Name:       "Security Invoker Views not supported yet",
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "", // TODO
-	DocsLink:   "", // TODO
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var deterministicOptionCollationIssue = issue.Issue{
+	Type:       DETERMINISTIC_OPTION_WITH_COLLATION,
+	Name:       DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
+	Suggestion: "This feature is not supported in YugabyteDB yet",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
@@ -505,8 +518,8 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Name:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "No workaround available ",
-	GH:         "", // TODO
-	DocsLink:   "", // TODO
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
@@ -521,10 +534,23 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	Name:       SQL_BODY_IN_FUNCTION_NAME,
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "No workaround available",
-	GH:         "",
-	DocsLink:   "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(sqlBodyInFunctionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var uniqueNullsNotDistinctIssue = issue.Issue{
+	Type:       UNIQUE_NULLS_NOT_DISTINCT,
+	Name:       UNIQUE_NULLS_NOT_DISTINCT_NAME,
+	Impact:     constants.IMPACT_LEVEL_1,
+	Suggestion: "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

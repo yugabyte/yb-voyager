@@ -329,14 +329,14 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		}
 		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
 		if err != nil {
-			utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		if parserIssueDetector.IsGinIndexPresentInSchema {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
-			utils.ErrExit("error getting ddl issues for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
@@ -852,7 +852,7 @@ func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
 	reportNextSql := 0
 	file, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("Error while reading %q: %s", path, err)
+		utils.ErrExit("Error while reading file: %q: %s", path, err)
 	}
 
 	lines := strings.Split(string(file), "\n")
@@ -1091,7 +1091,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
-	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 
@@ -1099,7 +1098,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
 		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+			utils.ErrExit("failed to parse the stmt: %v: %v", sqlStmtInfo.stmt, err)
 		}
 
 		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
@@ -1152,7 +1151,7 @@ func analyzeSchema() {
 		generateAnalyzeSchemaReport(msr, JSON)
 	}
 
-	packAndSendAnalyzeSchemaPayload(COMPLETE)
+	packAndSendAnalyzeSchemaPayload(COMPLETE, "")
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
@@ -1203,7 +1202,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		utils.ErrExit("Error while opening %q: %s", reportPath, err)
+		utils.ErrExit("Error while opening: %q: %s", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1213,7 +1212,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
+		utils.ErrExit("failed to write report to: %q: %s", reportPath, err)
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 	return nil
@@ -1235,7 +1234,7 @@ var reasonsToSendObjectNameToCallhome = []string{
 	UNSUPPORTED_EXTENSION_ISSUE,
 }
 
-func packAndSendAnalyzeSchemaPayload(status string) {
+func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -1274,6 +1273,7 @@ func packAndSendAnalyzeSchemaPayload(status string) {
 			dbObject.ObjectNames = ""
 			return dbObject
 		})),
+		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status

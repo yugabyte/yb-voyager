@@ -274,6 +274,18 @@ func testSecurityInvokerView(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unrecognized parameter", securityInvokerViewIssue)
 }
 
+func testDeterministicCollationIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, securityInvokerViewIssue)
+}
+
 func testForeignKeyReferencesPartitionedTableIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -310,6 +322,23 @@ END;`: `syntax error at or near "BEGIN"`
 
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, sqlBodyInFunctionIssue)
 	}
+}
+
+func testUniqueNullsNotDistinctIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE public.products (
+    id INTEGER PRIMARY KEY,
+    product_name VARCHAR(100),
+    serial_number TEXT,
+    UNIQUE NULLS NOT DISTINCT (product_name, serial_number)
+	);`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", uniqueNullsNotDistinctIssue)
 }
 
 func TestDDLIssuesInYBVersion(t *testing.T) {
@@ -371,9 +400,15 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "security invoker view", ybVersion), testSecurityInvokerView)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "deterministic attribute in collation", ybVersion), testDeterministicCollationIssue)
+	assert.True(t, success)
+
 	success = t.Run(fmt.Sprintf("%s-%s", "foreign key referenced partitioned table", ybVersion), testForeignKeyReferencesPartitionedTableIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "sql body in function", ybVersion), testSQLBodyInFunctionIssue)
+	assert.True(t, success)
+	
+	success = t.Run(fmt.Sprintf("%s-%s", "unique nulls not distinct", ybVersion), testUniqueNullsNotDistinctIssue)
 	assert.True(t, success)
 }

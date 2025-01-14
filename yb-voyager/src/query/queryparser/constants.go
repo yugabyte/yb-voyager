@@ -39,6 +39,7 @@ const (
 	INDEX_OBJECT_TYPE             = "INDEX"
 	POLICY_OBJECT_TYPE            = "POLICY"
 	TRIGGER_OBJECT_TYPE           = "TRIGGER"
+	COLLATION_OBJECT_TYPE         = "COLLATION"
 	PG_QUERY_CREATE_STMT          = "pg_query.CreateStmt"
 	PG_QUERY_INDEX_STMT           = "pg_query.IndexStmt"
 	PG_QUERY_ALTER_TABLE_STMT     = "pg_query.AlterTableStmt"
@@ -82,6 +83,11 @@ const (
 	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
 	PG_QUERY_CONSTRAINT_NODE                 = "pg_query.Constraint"
 	PG_QUERY_CTE_NODE                        = "pg_query.CommonTableExpr"
+	PG_QUERY_VIEW_STMT_NODE                  = "pg_query.ViewStmt"
+	PG_QUERY_COPY_STMT_NODE                  = "pg_query.CopyStmt"
+	PG_QUERY_DEFINE_STMT_NODE                = "pg_query.DefineStmt"
+	PG_QUERY_MERGE_STMT_NODE                 = "pg_query.MergeStmt"
+	PG_QUERY_INDEX_STMT_NODE                 = "pg_query.IndexStmt"
 
 	LIMIT_OPTION_WITH_TIES   = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
 	CTE_MATERIALIZED_DEFAULT = pg_query.CTEMaterialize_CTEMaterializeDefault
