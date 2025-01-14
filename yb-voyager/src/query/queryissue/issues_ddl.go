@@ -30,7 +30,7 @@ var generatedColumnsIssue = issue.Issue{
 	Name:       "Stored generated columns are not supported.",
 	Impact:     constants.IMPACT_LEVEL_1,
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/10695",
-	Suggestion: "Use Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+	Suggestion: "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 }
 
