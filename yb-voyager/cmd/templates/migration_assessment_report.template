@@ -250,8 +250,8 @@
             </div>
             <!-- Right area: buttons -->
             <div class="buttons">
-                <button class="rounded-button" onclick="expandAllIssues()">Expand All Issues</button>
-                <button class="rounded-button" onclick="collapseAllIssues()">Collapse All Issues</button>
+                <button class="rounded-button" onclick="expandAllIssues()">Expand All</button>
+                <button class="rounded-button" onclick="collapseAllIssues()">Collapse All</button>
             </div>
         </div>
         <table class="table-highlight">

@@ -30,7 +30,7 @@ var generatedColumnsIssue = issue.Issue{
 	Name:       "Stored generated columns are not supported.",
 	Impact:     constants.IMPACT_LEVEL_1,
 	GH:         "https://github.com/yugabyte/yugabyte-db/issues/10695",
-	Suggestion: "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+	Suggestion: "Use Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
 	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 }
 
@@ -477,8 +477,8 @@ var multiRangeDatatypeIssue = issue.Issue{
 	Name:       "Unsupported datatype",
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575", 
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
@@ -492,8 +492,8 @@ var securityInvokerViewIssue = issue.Issue{
 	Name:       "Security Invoker Views not supported yet",
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575", 
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -505,8 +505,8 @@ var deterministicOptionCollationIssue = issue.Issue{
 	Name:       DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "This feature is not supported in YugabyteDB yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575", 
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -518,8 +518,8 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Name:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
 	Impact:     constants.IMPACT_LEVEL_1,
 	Suggestion: "No workaround available ",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575", 
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {

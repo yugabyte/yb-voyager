@@ -663,10 +663,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
 	*/
 	displayObjectName := issueInstance.ObjectName
-
-	constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]
-	if slices.Contains(constraintIssues, issueInstance.Type) && ok {
-		//In case of constraint issues we add constraint name to the object name as well
+	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(constraintIssues, issueInstance.Type) && ok {
+		//In case of constraint issues we add constraint name to the object name to achieve the uniqueness
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
 
@@ -676,8 +674,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
-		Reason:                 issueInstance.Name,
 		Type:                   issueInstance.Type,
+		Reason:                 issueInstance.Name,
 		Impact:                 issueInstance.Impact,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
