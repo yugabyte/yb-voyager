@@ -91,6 +91,38 @@ const (
 	UNIQUE_NULLS_NOT_DISTINCT_NAME = "Unique Nulls Not Distinct"
 )
 
+// Issues Description
+const (
+	STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION                        = "Stored generated columns are not supported in YugabyteDB.\nGenerated columns can be either VIRTUAL or STORED. YugabyteDB supports VIRTUAL generated columns but does not support STORED generated columns."
+	UNLOGGED_TABLE_ISSUE_DESCRIPTION                                  = "UNLOGGED tables are not yet supported in YugabyteDB"
+	UNSUPPORTED_INDEX_METHOD_DESCRIPTION                              = "The schema contains an index with an access method(gist, spgist, brin) which is not supported in YugabyteDB."
+	STORAGE_PARAMETER_ISSUE_DESCRIPTION                               = "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB"
+	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_DESCRIPTION                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value ) is not yet supported in YugabyteDB"
+	ALTER_TABLE_CLUSTER_ON_ISSUE_DESCRIPTION                          = "ALTER TABLE CLUSTER is not yet supported in YugabyteDB"
+	ALTER_TABLE_DISABLE_RULE_ISSUE_DESCRIPTION                        = "ALTER TABLE name DISABLE RULE is not yet supported in YugabyteDB"
+	EXCLUSION_CONSTRAINT_ISSUE_DESCRIPTION                            = "Exclusion constraints are not yet supported in YugabyteDB"
+	DEFERRABLE_CONSTRAINT_ISSUE_DESCRIPTION                           = "Deferrable constraints are not yet supported in YugabyteDB"
+	MULTI_COLUMN_GIN_INDEX_ISSUE_DESCRIPTION                          = "GIN indexes on multiple columns are not supported in YugabyteDB"
+	ORDERED_GIN_INDEX_ISSUE_DESCRIPTION                               = "GIN indexes on columns with ASC/DESC/HASH clause are not yet supported in YugabyteDB"
+	POLICY_ROLE_ISSUE_DESCRIPTION                                     = "Policies require roles to be created in the target database but the roles are not migrated during schema migration. Therefore, they should be manually created before running import schema."
+	CONSTRAINT_TRIGGER_ISSUE_DESCRIPTION                              = "CONSTRAINT TRIGGER is not yet supported in YugabyteDB"
+	REFERENCING_CLAUSE_IN_TRIGGER_ISSUE_DESCRIPTION                   = "REFERENCING clause (transition tables) in triggers is not yet supported in YugabyteDB"
+	BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_DESCRIPTION           = "BEFORE ROW triggers on partitioned tables are not yet supported in YugabyteDB"
+	ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_DESCRIPTION                 = "Adding primary key using ALTER TABLE to a partitioned table is not yet supported in YugabyteDB. After export schema, the ALTER table should be merged with CREATE table for partitioned tables"
+	EXPRESSION_PARTITION_ISSUE_DESCRIPTION                            = "Tables partitioned using expressions cannot contain primary or unique keys in YugabyteDB"
+	MULTI_COLUMN_LIST_PARTITION_ISSUE_DESCRIPTION                     = "Multi-column partition by list i.e. PARTITION BY LIST (col1, col2) is not supported in YugabyteDB"
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION        = "Partition key columns(partially or fully) not part of Primary Key columns is not supported in YugabyteDB"
+	XML_DATATYPE_ISSUE_DESCRIPTION                                    = "XML datatype is not yet supported in YugabyteDB"
+	XID_DATATYPE_ISSUE_DESCRIPTION                                    = "XID datatype is not yet supported in YugabyteDB"
+	POSTGIS_DATATYPE_ISSUE_DESCRIPTION                                = "PostGIS datatypes are not yet supported in YugabyteDB"
+	UNSUPPORTED_DATATYPES_ISSUE_DESCRIPTION                           = "Datatypes not yet supported in YugabyteDB"
+	UNSUPPORTED_DATATYPES_LIVE_MIGRATION_ISSUE_DESCRIPTION            = "Datatypes not yet supported by voyager in live migration. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION = "Datatypes not yet supported by voyager in live migration with fall-forward/fallback. These columns will be excluded when exporting and importing data in live migration workflows."
+	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                       = "Primary key and Unique constraints on columns with complex data types are not yet supported in YugabyteDB"
+	INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                       = "Indexes on columns with complex data types are not yet supported in YugabyteDB"
+	FOREIGN_TABLE_ISSUE_DESCRIPTION                                   = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. These should be manually created to make the foreign tables work."
+)
+
 // Object types
 const (
 	CONSTRAINT_NAME           = "ConstraintName"
