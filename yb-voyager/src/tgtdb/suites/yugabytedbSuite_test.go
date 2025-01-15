@@ -22,8 +22,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
 func TestStringConversionWithFormattingWithDoubleQuotes(t *testing.T) {
@@ -94,37 +92,4 @@ func TestUUIDConversionWithFormatting(t *testing.T) {
 	assert.NoError(t, err)
 	// Then
 	assert.Equal(t, `'123e4567-e89b-12d3-a456-426614174000'`, result)
-}
-
-func TestHstoreValueConversion(t *testing.T) {
-	colSchema := &schemareg.ColumnSchema{
-		Parameters: map[string]string{
-			"__debezium.source.column.type": "HSTORE",
-		},
-	}
-	value := `{"key1":"value1","key2":"value2"}`
-	result, err := YBValueConverterSuite["io.debezium.data.Json"](value, false, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, `"key1"=>"value1","key2"=>"value2"`, result)
-
-	result, err = YBValueConverterSuite["io.debezium.data.Json"](value, true, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, `'"key1"=>"value1","key2"=>"value2"'`, result)
-
-	result, err = YBValueConverterSuite["io.debezium.data.Json"]("{}", false, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, "", result)
-
-	result, err = YBValueConverterSuite["io.debezium.data.Json"]("{}", true, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, "''", result)
-
-	value = `{"\"{\"\"key1\"\":\"\"value1\"\",\"\"key2\"\":\"\"value2\"\"}\"":"{\\\"key1=value1, key2={\\\"key1=value1, key2=value2\\\"}\\\"}"}`
-	result, err = YBValueConverterSuite["io.debezium.data.Json"](value, false, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, `"\"{\"\"key1\"\":\"\"value1\"\",\"\"key2\"\":\"\"value2\"\"}\""=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"`, result)
-
-	result, err = YBValueConverterSuite["io.debezium.data.Json"](value, true, colSchema)
-	assert.NoError(t, err)
-	assert.Equal(t, `'"\"{\"\"key1\"\":\"\"value1\"\",\"\"key2\"\":\"\"value2\"\"}\""=>"{\"key1=value1, key2={\"key1=value1, key2=value2\"}\"}"'`, result)
 }

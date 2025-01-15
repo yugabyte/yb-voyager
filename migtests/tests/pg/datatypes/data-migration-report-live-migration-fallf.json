@@ -288,8 +288,8 @@
     {
         "table_name": "public.\"hstore_example\"",
         "db_type": "target",
-        "exported_snapshot_rows": 13,
-        "imported_snapshot_rows": 0,
+        "exported_snapshot_rows": 0,
+        "imported_snapshot_rows": 13,
         "imported_inserts": 3,
         "imported_updates": 5,
         "imported_deletes": 0,
@@ -300,9 +300,9 @@
     },
     {
         "table_name": "public.\"hstore_example\"",
-        "db_type": "target",
-        "exported_snapshot_rows": 13,
-        "imported_snapshot_rows": 0,
+        "db_type": "source-replica",
+        "exported_snapshot_rows": 0,
+        "imported_snapshot_rows": 13,
         "imported_inserts": 3,
         "imported_updates": 5,
         "imported_deletes": 0,
