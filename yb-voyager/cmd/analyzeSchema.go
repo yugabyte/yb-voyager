@@ -921,6 +921,9 @@ sqlParsingLoop:
 			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
 				dollarQuoteFlag = 1 //denotes start of the code/body part
 				codeBlockDelimiter = matches[0]
+			} else if strings.Contains(currLine, "BEGIN ATOMIC") {
+				dollarQuoteFlag = 1 //denotes start of the sql body part https://www.postgresql.org/docs/15/sql-createfunction.html#:~:text=a%20new%20session.-,sql_body,-The%20body%20of
+				codeBlockDelimiter = "END"
 			}
 		case CODE_BLOCK_STARTED:
 			if strings.Contains(currLine, codeBlockDelimiter) {

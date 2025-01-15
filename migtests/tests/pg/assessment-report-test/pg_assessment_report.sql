@@ -482,6 +482,7 @@ CREATE OR REPLACE FUNCTION asterisks(n int)
 BEGIN ATOMIC
 SELECT repeat('*', g) FROM generate_series (1, n) g;
 END;
+-- BEGIN ATOMIC syntax is not working with regex parser we have for functions TODO: fix 
 
 CREATE OR REPLACE FUNCTION asterisks1(n int)
   RETURNS text
