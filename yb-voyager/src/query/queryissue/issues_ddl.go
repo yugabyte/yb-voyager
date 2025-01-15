@@ -200,7 +200,7 @@ var policyRoleIssue = issue.Issue{
 	Type:        POLICY_WITH_ROLES,
 	Name:        "Policy with Roles",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "Policies require roles to be created in the target database but the roles are not migrated during schema migration.",
+	Description: "Policies require roles to be created in the target database but the roles are not migrated during schema migration. Therefore, they should be manually created before running import schema.",
 	Suggestion:  "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1655",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
@@ -257,7 +257,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	Type:        ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	Name:        "Adding Primary Key to a partitioned table",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "Adding primary key using ALTER TABLE to a partitioned table is not yet supported in YugabyteDB",
+	Description: "Adding primary key using ALTER TABLE to a partitioned table is not yet supported in YugabyteDB. After export schema, the ALTER table should be merged with CREATE table for partitioned tables",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10074",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -367,7 +367,7 @@ var unsupportedDatatypesIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPES,
 	Name:        "Unsupported datatype",
 	Impact:      constants.IMPACT_LEVEL_1, // Ques: Should it be IMPACT_LEVEL_3 like other unsupported datatypes?
-	Description: "%s datatype is not yet supported in YugabyteDB",
+	Description: "Datatypes not yet supported in YugabyteDB",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
@@ -375,7 +375,6 @@ var unsupportedDatatypesIssue = issue.Issue{
 func NewUnsupportedDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesIssue
 	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -383,7 +382,7 @@ var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
 	Name:        "Unsupported datatype for Live migration",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "%s datatype is not yet supported by voyager for Live Migration",
+	Description: "Datatypes not yet supported by voyager in live migration. These columns will be excluded when exporting and importing data in live migration workflows.",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
@@ -391,7 +390,6 @@ var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
 func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationIssue
 	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -399,7 +397,7 @@ var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "%s datatype is not yet supported by voyager for Live Migration with fall-forward/fallback",
+	Description: "Datatypes not yet supported by voyager in live migration with fall-forward/fallback. These columns will be excluded when exporting and importing data in live migration workflows.",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
@@ -407,7 +405,6 @@ var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
 func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationWithFFOrFBIssue
 	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -450,7 +447,7 @@ var foreignTableIssue = issue.Issue{
 	Type:        FOREIGN_TABLE,
 	Name:        "Foreign Table",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by Voyager",
+	Description: "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. These should be manually created to make the foreign tables work.",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1627",
 	Suggestion:  "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",

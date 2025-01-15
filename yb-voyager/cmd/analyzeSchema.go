@@ -626,7 +626,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
-		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
+		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
 		return strings.Contains(issueInstance.Type, i)
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
@@ -668,7 +668,6 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	}
 
 	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
-
 	return utils.AnalyzeSchemaIssue{
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
@@ -676,6 +675,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Type:                   issueInstance.Type,
 		Reason:                 issueInstance.Name,
 		Impact:                 issueInstance.Impact,
+		Description:            issueInstance.Description,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,

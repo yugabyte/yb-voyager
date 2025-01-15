@@ -1017,7 +1017,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		CategoryDescription:   GetCategoryDescription(analyzeSchemaIssue.IssueType),
 		Type:                  analyzeSchemaIssue.Type,
 		Name:                  analyzeSchemaIssue.Reason, // in convertIssueInstanceToAnalyzeIssue() we assign Issue.Name to AnalyzeSchemaIssue.Reason field
-		Description:           issueDescription,          // TODO: verify
+		Description:           lo.Ternary(issueDescription != "", issueDescription, analyzeSchemaIssue.Description),
 		Impact:                analyzeSchemaIssue.Impact,
 		ObjectType:            analyzeSchemaIssue.ObjectType,
 		ObjectName:            analyzeSchemaIssue.ObjectName,
@@ -1227,6 +1227,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				Type:                  issue.Type,
 				Name:                  reason,
 				Impact:                issue.Impact, // TODO: verify(expected already there since underlying issues are assigned)
+				Description:           issue.Description,
 				ObjectType:            issue.ObjectType,
 				ObjectName:            issue.ObjectName,
 				SqlStatement:          issue.SqlStatement,
@@ -1314,6 +1315,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 				Type:                  issue.Type,
 				Name:                  issue.Name,
 				Impact:                issue.Impact,
+				Description:           issue.Description,
 				SqlStatement:          issue.SqlStatement,
 				DocsLink:              issue.DocsLink,
 				MinimumVersionFixedIn: issue.MinimumVersionsFixedIn,
@@ -1419,6 +1421,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			CategoryDescription:   GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
 			Type:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
 			Name:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Description:           "",               // TODO
 			Impact:                constants.IMPACT_LEVEL_3,
 			ObjectType:            constants.COLUMN,
 			ObjectName:            qualifiedColName,
@@ -1533,7 +1536,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: "",                                        // TODO
+					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
 					Type:                UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, // TODO add object type in type name
 					Name:                "",                                        // TODO
 					Impact:              constants.IMPACT_LEVEL_1,                  // Caveat - we don't know the migration is offline/online;
@@ -1554,7 +1557,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: "",                                                   // TODO
+					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
 					Type:                UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, // TODO add object type in type name
 					Name:                "",                                                   // TODO
 					Impact:              constants.IMPACT_LEVEL_1,
