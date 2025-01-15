@@ -35,7 +35,7 @@
         th {
             background-color: #f2f2f2;
         }
-        tr:nth-child(even){background-color: #f9f9f9;}
+        .formatted_table tr:nth-child(even){background-color: #f9f9f9;}
         ul {
             padding-left: 20px;
         }
@@ -59,6 +59,16 @@
         .list_item {
             margin-bottom: 15px;
         }
+        pre {
+            width: 100%; /* Ensure the pre/code content takes full width of the container */
+            word-wrap: break-word; /* Break long lines into multiple lines */
+            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
+            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+            word-break: break-all; /* Prevents long words from overflowing */
+            margin: 0; /* Remove default margins */
+            padding: 0; /* Remove default padding */
+            font-family: monospace; /* Optional: ensure a monospaced font */
+        }
 
     </style>
 </head>
@@ -78,6 +88,8 @@
         <p><strong>Database Version:</strong> {{.}}</p>
         {{end}}
 
+        <p><strong>Target YB Version:</strong> {{.TargetDBVersion}} </p>
+
         {{if eq .MigrationComplexity "NOT AVAILABLE"}}
         <!-- Do nothing -->
         {{else}} 
@@ -89,7 +101,7 @@
         <table>
             <tr>
                 <th>Object Type</th>
-                <th>Total Count</th>
+                <th>Total Objects</th>
                 <th>Object Names</th>
             </tr>
             {{range .SchemaSummary.DBObjects}}
@@ -155,11 +167,16 @@
             {{ end }}
         {{end}}
 
+        {{if ne .MigrationComplexity "NOT AVAILABLE"}}
+            <h2>Migration Complexity Explanation</h2>
+            <p>{{ .MigrationComplexityExplanation }}</p>
+        {{end}}
+
         <h2>Unsupported Data Types</h2>
         <p>{{.UnsupportedDataTypesDesc}}</p>
         {{ if .UnsupportedDataTypes }}
             <div class="scrollable-div">
-                <table>
+                <table class="formatted_table">
                     <tr>
                         <th>Schema</th>
                         <th>Table</th>
@@ -188,6 +205,10 @@
                 {{ $hasUnsupportedFeatures = true }}
                 {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                     <h4>{{.FeatureName}}</h4>
+                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                    {{ end }}
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -197,6 +218,10 @@
                     </div>
                 {{else}}
                     <h4>{{.FeatureName}}</h4>
+                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                    {{ end }}
                     <div class="scrollable-div">
                         <ul>
                             {{range .Objects}}
@@ -214,23 +239,10 @@
             <p>No unsupported features were present among the ones assessed.</p>
         {{end}}
 
-        {{if .Notes}}
-            <br>
-            <hr>
-            <div>
-                <h4>Notes</h4>
-                    <ul>
-                        {{range .Notes}}
-                            <li>{{.}}</li>
-                        {{end}}
-                    </ul>
-            </div>
-        {{end}}
-
         <h2>Unsupported Query Constructs</h2>
         {{ if .UnsupportedQueryConstructs}}
             <p>Source database queries not supported in YugabyteDB, identified by scanning system tables:</p>
-            <table>
+            <table class="formatted_table">
                 <tr>
                     <th>Construct Type</th>
                     <th>Queries</th>
@@ -238,15 +250,18 @@
                 </tr>
                 {{ $currentType := "" }}
                 {{ $docsLink := "" }}
+                {{ $supporterVerStr := "" }}
                 {{ range $i, $construct := .UnsupportedQueryConstructs }}
                     {{ if ne $construct.ConstructTypeName $currentType }}
                         {{ if ne $currentType "" }}
                                 </ul>
                             </div>
                         </td>
-                        <td>
+                        <td>{{ if $supporterVerStr }}
+                            Supported in Versions: {{ $supporterVerStr }}
+                            {{ end }}
                             {{ if $docsLink }}
-                                <a href="{{ $docsLink }}" target="_blank">Link</a>
+                                <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                             {{ else }}
                                 N/A
                             {{ end }}
@@ -254,6 +269,7 @@
                         </tr>
                         {{ end }}
                         {{ $docsLink = $construct.DocsLink }}
+                        {{ $supporterVerStr = getSupportedVersionString $construct.MinimumVersionsFixedIn }}
                         <tr>
                             <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
                             <td>
@@ -269,10 +285,13 @@
                     </div>
                 </td>
                 <td>
+                    {{ if $supporterVerStr }}
+                    Supported in Versions: {{ $supporterVerStr }} <br>
+                    {{ end }}
                     {{ if $docsLink }}
-                        <a href="{{ $docsLink }}" target="_blank">Link</a>
+                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
                     {{ else }}
-                        Not Available
+                        N/A
                     {{ end }}
                 </td>
                 </tr>
@@ -280,6 +299,71 @@
             </table>
         {{ else }}
             <p>No unsupported query constructs found in the source database for target YugabyteDB.</p>
+        {{ end }}
+
+        <h2>Unsupported PL/pgSQL objects</h2>
+        {{ if .UnsupportedPlPgSqlObjects}}
+            <p>Source schema objects having unsupported statements in PL/pgSQL code block: </p>
+            <table>
+                <tr>
+                    <th>Feature Name</th>
+                    <th>Object type</th>
+                    <th>Object name</th>
+                    <th>Statement</th>
+                    <th>Details</th>
+                </tr>
+                {{ range  .UnsupportedPlPgSqlObjects }}
+                    <!-- Feature Row with rowspan for grouping -->
+                    <tr>
+                    {{ $objectsGroupByObjectType := groupByObjectType .Objects }}
+                    {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType }}
+                    {{ $docsLink := .DocsLink }}
+                    {{ $supportedVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                    <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><strong>{{ .FeatureName }}</strong></td>
+                    {{ $isNextRowRequiredForObjectType := false }}
+                    {{ range $type, $objectsByType := $objectsGroupByObjectType }}
+                        {{ $objectGroupByObjectName := groupByObjectName $objectsByType }}
+                        {{ $numUniqueObjectNames := numKeysInMapStringObjectInfo $objectGroupByObjectName }}
+                        {{ if $isNextRowRequiredForObjectType }}
+                            <tr>
+                        {{ end }}
+                        <td rowspan={{ $numUniqueObjectNames }} >{{ $type }}</td>
+                        {{ $isNextRowRequiredForObjectName := false }}
+                        {{ range $name, $objectsByName := $objectGroupByObjectName }}
+                            {{ if $isNextRowRequiredForObjectName }}
+                                <tr>
+                            {{ end }}
+                            <td>{{ $name }}</td>
+                            <td>
+                                <div class="scrollable-div">
+                                    <ul>
+                                    {{ range $objectsByName }}
+                                        <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
+                                    {{ end }}
+                                    </ul>
+                                </div>
+                            </td>
+                            {{ if not $isNextRowRequiredForObjectType }}
+                                <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}>
+                                    {{ if $supportedVerStr }}
+                                        Supported in Versions: {{ $supportedVerStr }} <br>
+                                    {{ end }}
+                                    {{ if $docsLink }}
+                                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
+                                    {{ else }}
+                                        N/A
+                                    {{ end }}
+                                </td>
+                            {{ end }}
+                            {{ $isNextRowRequiredForObjectName = true }}
+                            {{ $isNextRowRequiredForObjectType = true }}
+                            </tr>
+                        {{ end }}
+                    {{ end }}
+                {{ end }}
+            </table>
+        {{ else }}
+            <p>No unsupported PL/pgSQL objects found in the source database for target YugabyteDB.</p>
         {{ end }}
 
         {{ if .MigrationCaveats}}
@@ -290,6 +374,10 @@
                     {{ $hasMigrationCaveats = true }}
                     {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
                         <h4>{{.FeatureName}}</h4>
+                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                        {{ if $supporterVerStr }}
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                        {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">
                             <ul>
@@ -300,6 +388,10 @@
                         </div>
                     {{else}}
                         <h4>{{.FeatureName}}</h4>
+                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+                        {{ if $supporterVerStr }}
+                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
+                        {{ end }}
                         <p>{{.FeatureDescription}}</p>
                         <div class="scrollable-div">
                             <ul>
@@ -317,6 +409,20 @@
             {{if not $hasMigrationCaveats}} <!-- Check if no migration caveats were found -->
                 <p>No migration caveats were found in the schema.</p>
             {{end}}
+        {{end}}
+
+
+        {{if .Notes}}
+            <br>
+            <hr>
+            <div>
+                <h4>Notes</h4>
+                    <ul>
+                        {{range .Notes}}
+                            <li>{{.}}</li>
+                        {{end}}
+                    </ul>
+            </div>
         {{end}}
 
     </div>

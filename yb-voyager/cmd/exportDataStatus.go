@@ -101,6 +101,13 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 			Status:                   utils.TableMetadataStatusMap[tablesProgressMetadata[key].Status],
 			ExportedRowCountSnapshot: int64(0),
 		}
+		if source.DBType == POSTGRESQL {
+			//for Postgresql rename the table leaf table names to root table
+			renamedTable, isRenamed := renameTableIfRequired(key)
+			if isRenamed {
+				exportSnapshotStatus.Tables[key].TableName = renamedTable
+			}
+		}
 	}
 	err := exportSnapshotStatusFile.Create(exportSnapshotStatus)
 	if err != nil {
@@ -196,7 +203,11 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 
 	// parallel goroutine to calculate and set total to actual row count
 	go func() {
-		actualRowCount := source.DB().GetTableRowCount(tableMetadata.TableName)
+		actualRowCount, err := source.DB().GetTableRowCount(tableMetadata.TableName)
+		if err != nil {
+			log.Warnf("could not get actual row count for table=%s: %v", tableMetadata.TableName, err)
+			return
+		}
 		log.Infof("Replacing actualRowCount=%d inplace of expectedRowCount=%d for table=%s",
 			actualRowCount, tableMetadata.CountTotalRows, tableMetadata.TableName.ForUserQuery())
 		pbr.SetTotalRowCount(actualRowCount, false)
@@ -251,7 +262,7 @@ func startExportPB(progressContainer *mpb.Progress, mapKey string, quitChan chan
 				time.Sleep(100 * time.Millisecond)
 				break
 			} else if err != nil { //error other than EOF
-				utils.ErrExit("Error while reading file %s: %v", tableDataFile, err)
+				utils.ErrExit("Error while reading file: %s: %v", tableDataFile.Name(), err)
 			}
 			if isDataLine(line, source.DBType, &insideCopyStmt) {
 				tableMetadata.CountLiveRows += 1

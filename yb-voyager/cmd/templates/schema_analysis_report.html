@@ -44,6 +44,16 @@
             font-weight: bold;
             background-color: #f9f9f9;
         }
+        pre {
+            width: 100%; /* Ensure the pre/code content takes full width of the container */
+            word-wrap: break-word; /* Break long lines into multiple lines */
+            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
+            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
+            word-break: break-all; /* Prevents long words from overflowing */
+            margin: 0; /* Remove default margins */
+            padding: 0; /* Remove default padding */
+            font-family: Arial, Helvetica, sans-serif; /* Optional: ensure a monospaced font */
+        }
     </style>
 </head>
 <body>
@@ -53,23 +63,19 @@
         <h3>Migration Information</h3>
         <table>
             <tr><th>Voyager Version</th><td>{{ .VoyagerVersion }}</td></tr>
+            <tr><th>Target DB Version</th><td>{{ .TargetDBVersion }}</td></tr>
             <tr><th>Database Name</th><td>{{ .SchemaSummary.DBName }}</td></tr>
             {{if .SchemaSummary.SchemaNames }}
                 <tr><th>Schema Name</th><td>{{ join .SchemaSummary.SchemaNames ", " }}</td></tr>
             {{end}}
             <tr><th>DB Version</th><td>{{ .SchemaSummary.DBVersion }}</td></tr>
-            {{if eq .MigrationComplexity "NOT AVAILABLE"}}
-            <!-- Do nothing -->
-            {{else}} 
-            <tr><th>Migration Complexity:</th><td> {{ .MigrationComplexity }}</td></tr>
-            {{end}}
         </table>
     </div>
 
     <div class="section">
         <h3>Schema Summary</h3>
         <table width='100%' table-layout='fixed'>
-            <tr><th>Object</th><th>Total Count</th><th>Valid Count</th><th>Invalid Count</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>
+            <tr><th>Object</th><th>Total Objects</th><th>Objects Without Issues</th><th>Objects With Issues</th><th width='40%'>Object Names</th><th width='30%'>Details</th></tr>
             {{ range .SchemaSummary.DBObjects }}
             {{ if .TotalCount }}
             <tr>
@@ -109,8 +115,12 @@
                     <li><strong>Issue Type:</strong> {{ $issue.IssueType }}</li>
                     <li><strong>Object Name:</strong> {{ $issue.ObjectName }}</li>
                     <li><strong>Reason:</strong> {{ $issue.Reason }}</li>
-                    <li><strong>SQL Statement:</strong> {{ $issue.SqlStatement }}</li>
+                    <li><strong>SQL Statement:</strong> <pre>{{ $issue.SqlStatement }}</pre></li>
                     <li><strong>File Path:</strong> {{ $issue.FilePath }}<a href='{{ $issue.FilePath }}'> [Preview]</a></li>
+                    {{ $supporterVerStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                    {{ if $supporterVerStr }}
+                    <li><strong>Fixed in Versions:</strong> {{ $supporterVerStr }}</li>
+                    {{ end }}
                     {{ if $issue.Suggestion }}
                     <li><strong>Suggestion:</strong> {{ $issue.Suggestion }}</li>
                     {{ end }}

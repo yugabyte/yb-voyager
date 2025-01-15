@@ -24,6 +24,36 @@ CREATE TABLE Mixed_Data_Types_Table2 (
     path_data PATH
 );
 
+CREATE TABLE int_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int4multirange
+);
+
+CREATE TABLE bigint_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int8multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id SERIAL PRIMARY KEY,
+    price_ranges nummultirange
+);
+
+CREATE TABLE timestamp_multirange_table (
+    id SERIAL PRIMARY KEY,
+    event_times tsmultirange
+);
+
+CREATE TABLE timestamptz_multirange_table (
+    id SERIAL PRIMARY KEY,
+    global_event_times tstzmultirange
+);
+
+CREATE TABLE date_multirange_table (
+    id SERIAL PRIMARY KEY,
+    project_dates datemultirange
+);
+
 -- GIST Index on point_data column
 CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data);
 
@@ -114,7 +144,9 @@ WITH CHECK OPTION;
 CREATE TABLE public.test_jsonb (
     id integer,
     data jsonb,
-	data2 text
+	data2 text,
+    region text,
+    FOREIGN KEY (id, region) REFERENCES sales_region(id, region)
 );
 
 CREATE TABLE public.inet_type (
@@ -173,6 +205,7 @@ CREATE TYPE public.address_type AS (
     zip_code VARCHAR(10)
 );
 
+CREATE EXTENSION lo;
 --other misc types
 create table public.combined_tbl (
 	id int, 
@@ -180,11 +213,18 @@ create table public.combined_tbl (
 	maddr macaddr, 
 	maddr8 macaddr8,
 	lsn pg_lsn, 
+    inds3 INTERVAL DAY TO SECOND(3),
+    d daterange,
 	bitt bit (13),
-	bittv bit varying(15),
+	bittv bit varying(15) UNIQUE,
     address address_type,
-    arr_enum enum_kind[]
+    raster lo,
+    arr_enum enum_kind[],
+    PRIMARY KEY (id, arr_enum)
 );
+
+ALTER TABLE public.combined_tbl 
+        ADD CONSTRAINT uk UNIQUE(lsn);
 
 CREATE index idx1 on public.combined_tbl (c);
 
@@ -199,6 +239,10 @@ CREATE INDEX idx5 on public.combined_tbl (bitt);
 CREATE INDEX idx6 on public.combined_tbl (bittv);
 
 CREATE INDEX idx7 on public.combined_tbl (address);
+
+CREATE INDEX idx8 on public.combined_tbl (d);
+
+CREATE INDEX idx9 on public.combined_tbl (inds3);
 
 CREATE UNLOGGED TABLE tbl_unlogged (id int, val text);
 
@@ -222,3 +266,212 @@ CREATE TRIGGER before_sales_region_insert_update
 BEFORE INSERT OR UPDATE ON public.sales_region
 FOR EACH ROW
 EXECUTE FUNCTION public.check_sales_region();
+
+
+ CREATE TABLE public.ordersentry (
+    order_id SERIAL PRIMARY KEY,
+    customer_name TEXT NOT NULL,
+    product_name TEXT NOT NULL,
+    quantity INT NOT NULL,
+    price NUMERIC(10, 2) NOT NULL,
+    processed_at timestamp,
+    r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
+);
+
+INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
+VALUES
+    ('Alice', 'Laptop', 1, 1200.00),
+    ('Bob', 'Smartphone', 2, 800.00),
+    ('Charlie', 'Tablet', 1, 500.00);
+
+CREATE VIEW public.ordersentry_view AS
+SELECT
+    order_id,
+    customer_name,
+    product_name,
+    quantity,
+    price,
+    xmlelement(
+        name "OrderDetails",
+        xmlelement(name "Customer", customer_name),
+        xmlelement(name "Product", product_name),
+        xmlelement(name "Quantity", quantity),
+        xmlelement(name "TotalPrice", price * quantity)
+    ) AS order_xml,
+    xmlconcat(
+        xmlelement(name "Customer", customer_name),
+        xmlelement(name "Product", product_name)
+    ) AS summary_xml,
+    pg_try_advisory_lock(hashtext(customer_name || product_name)) AS lock_acquired,
+    ctid AS row_ctid,
+    xmin AS transaction_id
+FROM
+    ordersentry;
+
+CREATE OR REPLACE FUNCTION process_order(orderid INT) RETURNS VOID AS $$
+DECLARE
+    lock_acquired BOOLEAN;
+BEGIN
+    lock_acquired := pg_try_advisory_lock(orderid); -- not able to report this as it is an assignment statement TODO: fix when support this 
+
+    IF NOT lock_acquired THEN
+        RAISE EXCEPTION 'Order % already being processed by another session', orderid;
+    END IF;
+
+    UPDATE orders
+    SET processed_at = NOW()
+    WHERE orders.order_id = orderid;
+
+    RAISE NOTICE 'Order % processed successfully', orderid;
+
+    PERFORM pg_advisory_unlock(orderid);
+END;
+$$ LANGUAGE plpgsql;
+
+select process_order(1);
+
+-- In PG migration from pg_dump the function parameters and return will never have the %TYPE syntax, instead they have the actual type in the DDLs
+-- e.g. for the below function this will be the export one `CREATE FUNCTION public.process_combined_tbl(p_id integer, p_c cidr, p_bitt bit, p_inds3 interval) RETURNS macaddr`
+CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+    p_id public.combined_tbl.id%TYPE,        
+    p_c public.combined_tbl.c%TYPE,          
+    p_bitt public.combined_tbl.bitt%TYPE,    
+    p_inds3 public.combined_tbl.inds3%TYPE  
+)
+RETURNS public.combined_tbl.maddr%TYPE AS  
+$$
+DECLARE
+    v_maddr public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example logic: Assigning local variable using passed-in parameter
+    v_maddr := p_c::text;  -- Example conversion (cidr to macaddr), just for illustration
+
+    -- Processing the passed parameters
+    RAISE NOTICE 'Processing: ID = %, CIDR = %, BIT = %, Interval = %, MAC = %',
+        p_id, p_c, p_bitt, p_inds3, v_maddr;
+
+    -- Returning a value of the macaddr type (this could be more meaningful logic)
+    RETURN v_maddr;  -- Returning a macaddr value
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE PROCEDURE public.update_combined_tbl_data(
+    p_id public.combined_tbl.id%TYPE,           
+    p_c public.combined_tbl.c%TYPE,             
+    p_bitt public.combined_tbl.bitt%TYPE,       
+    p_d public.combined_tbl.d%TYPE              
+)
+AS
+$$
+DECLARE
+    v_new_mac public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example: Using a local variable to store a macaddr value (for illustration)
+    v_new_mac := '00:14:22:01:23:45'::macaddr;
+
+    -- Updating the table with provided parameters
+    UPDATE public.combined_tbl
+    SET 
+        c = p_c,              -- Updating cidr type column
+        bitt = p_bitt,        -- Updating bit column
+        d = p_d,              -- Updating daterange column
+        maddr = v_new_mac     -- Using the local macaddr variable in update
+    WHERE id = p_id;
+
+    RAISE NOTICE 'Updated record with ID: %, CIDR: %, BIT: %, Date range: %', 
+        p_id, p_c, p_bitt, p_d;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON public.combined_tbl
+    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);
+
+CREATE OR REPLACE FUNCTION public.manage_large_object(loid OID) RETURNS VOID AS $$
+BEGIN
+    IF loid IS NOT NULL THEN
+        -- Unlink the large object to free up storage
+        PERFORM lo_unlink(loid);
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- for FETCH .. WITH TIES
+CREATE TABLE employeesForView (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+);
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employeesForView
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
+
+-- SECURITY INVOKER VIEW
+CREATE TABLE public.employees (
+    employee_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    department VARCHAR(50)
+);
+
+INSERT INTO public.employees (first_name, last_name, department)
+VALUES
+    ('Alice', 'Smith', 'HR'),
+    ('Bob', 'Jones', 'Finance'),
+    ('Charlie', 'Brown', 'IT'),
+    ('Diana', 'Prince', 'HR'),
+    ('Ethan', 'Hunt', 'Security');
+
+CREATE VIEW public.view_explicit_security_invoker
+WITH (security_invoker = true) AS
+    SELECT employee_id, first_name
+    FROM public.employees;
+
+CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
+
+ CREATE COLLATION public.numeric (provider = icu, locale = 'en@colNumeric=yes');
+-- Testing tables with unique nulls not distinct constraints
+
+-- Control case
+CREATE TABLE users_unique_nulls_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE (email)
+);
+
+CREATE TABLE users_unique_nulls_not_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+);
+
+ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);
+
+CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT;
+
+

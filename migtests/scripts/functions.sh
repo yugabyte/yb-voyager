@@ -134,7 +134,8 @@ grant_user_permission_oracle(){
 	*/
 	GRANT FLASHBACK ANY TABLE TO ybvoyager;
 EOF
-	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"	
+	run_sqlplus_as_sys ${db_name} "oracle-inputs.sql"
+	rm oracle-inputs.sql
 
 }
 
@@ -149,13 +150,15 @@ EOF
 	run_sqlplus_as_sys ${pdb_name} "create-pdb-tablespace.sql"
 	cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
+	rm create-pdb-tablespace.sql
+	rm oracle-inputs.sql
 }
 
 grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v original_owner_of_tables="${SOURCE_DB_ADMIN_USER}" -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 grant_permissions() {
@@ -191,7 +194,7 @@ run_sqlplus_as_sys() {
 run_sqlplus_as_schema_owner() {
     db_name=$1
     sql=$2
-    conn_string="${SOURCE_DB_USER_SCHEMA_OWNER}/${SOURCE_DB_USER_SCHEMA_OWNER_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
+    conn_string="${SOURCE_DB_SCHEMA}/${SOURCE_DB_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
     echo exit | sqlplus -f "${conn_string}" @"${sql}"
 }
 
@@ -236,7 +239,6 @@ export_schema() {
  		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
-		--start-clean t
 	"
 	if [ "${source_db_schema}" != "" ]
 	then
@@ -280,7 +282,6 @@ export_data() {
 		--disable-pb=true
 		--send-diagnostics=false
 		--yes
-		--start-clean 1
 	"
 	if [ "${TABLE_LIST}" != "" ]
 	then
@@ -371,7 +372,6 @@ import_schema() {
 		--target-db-name ${TARGET_DB_NAME}	
 		--yes
 		--send-diagnostics=false
-		--start-clean 1
 		"
 
 		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
@@ -392,7 +392,6 @@ import_data() {
 		--target-db-name ${TARGET_DB_NAME}
 		--disable-pb true
 		--send-diagnostics=false 
-		--start-clean 1
 		--truncate-splits true
 		--max-retries 1
 		"
@@ -436,7 +435,6 @@ import_data_to_source_replica() {
 	--source-replica-db-user ${SOURCE_REPLICA_DB_USER} 
 	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
 	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
-	--start-clean true
 	--disable-pb true
 	--send-diagnostics=false
 	--parallel-jobs 3
@@ -532,37 +530,38 @@ get_data_migration_report(){
 }
 
 verify_report() {
-	expected_report=$1
-	actual_report=$2
-	if [ -f "${actual_report}" ]
-	then
-		echo "Printing ${actual_report} file"
-		cat "${actual_report}"
-		 # Parse JSON data
-        actual_data=$(jq -c '.' "${actual_report}")
+    expected_report=$1
+    actual_report=$2
+
+    if [ -f "${actual_report}" ]; then        
+        # Parse and sort JSON data
+        actual_data=$(jq -c '.' "${actual_report}" | jq -S 'sort_by(.table_name)')
         
-        if [ -f "${expected_report}" ]
-        then
-            expected_data=$(jq -c '.' "${expected_report}")
+        if [ -f "${expected_report}" ]; then
+            expected_data=$(jq -c '.' "${expected_report}" | jq -S 'sort_by(.table_name)')
             
-            # Compare data
-			actual_data=$(echo $actual_data | jq -S 'sort_by(.table_name)')
-			expected_data=$(echo $expected_data | jq -S 'sort_by(.table_name)')
-            if [ "$actual_data" == "$expected_data" ]
-            then
-                echo "Data matches expected report."
-            else
-                echo "Data does not match expected report."
-				exit 1
+            # Save the sorted JSON data to temporary files
+            temp_actual=$(mktemp)
+            temp_expected=$(mktemp)
+            echo "$actual_data" > "$temp_actual"
+            echo "$expected_data" > "$temp_expected"
+
+            compare_files "$temp_actual" "$temp_expected"
+            
+            # Clean up temporary files
+            rm "$temp_actual" "$temp_expected"
+            
+            # If files do not match, exit
+            if [ $? -ne 0 ]; then
+                exit 1
             fi
         else
             echo "No ${expected_report} found."
-			# exit 1 
         fi
-	else
-		echo "No ${actual_report} found."
-		exit 1
-	fi
+    else
+        echo "No ${actual_report} found."
+        exit 1
+    fi
 }
 
 
@@ -627,16 +626,6 @@ get_value_from_msr(){
   echo $val
 }
 
-create_ff_schema(){
-	db_name=$1
-
-	cat > create-ff-schema.sql << EOF
-	CREATE USER FF_SCHEMA IDENTIFIED BY "password";
-	GRANT all privileges to FF_SCHEMA;
-EOF
-	run_sqlplus_as_sys ${db_name} "create-ff-schema.sql"
-}
-
 set_replica_identity(){
 	db_schema=$1
     cat > alter_replica_identity.sql <<EOF
@@ -651,6 +640,7 @@ set_replica_identity(){
     END \$CUSTOM\$;
 EOF
     run_psql ${SOURCE_DB_NAME} "$(cat alter_replica_identity.sql)"
+	rm alter_replica_identity.sql
 }
 
 grant_permissions_for_live_migration() {
@@ -677,15 +667,89 @@ grant_permissions_for_live_migration() {
 setup_fallback_environment() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
-		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/fall_back_prep.sql
-	elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
-		cat > alter_user_superuser.sql <<EOF
-    	ALTER ROLE ybvoyager WITH SUPERUSER;
-EOF
-    run_psql ${SOURCE_DB_NAME} "$(cat alter_user_superuser.sql)"
-	
-	fi
 
+		TEMP_SCRIPT="/tmp/fall_back_prep.sql"
+
+		sed "s/TEST_SCHEMA/${SOURCE_DB_SCHEMA}/g" ${SCRIPTS}/oracle/fall_back_prep.sql > $TEMP_SCRIPT
+
+		run_sqlplus_as_sys ${SOURCE_DB_NAME} $TEMP_SCRIPT
+
+		# Clean up the temporary file after execution
+		rm -f $TEMP_SCRIPT
+		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
+		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+
+		disable_triggers_sql=$(mktemp)
+        drop_constraints_sql=$(mktemp)
+		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
+
+		# Disabling Triggers
+		cat <<EOF > "${disable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' DISABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+
+        # Dropping Fkeys
+        cat <<EOF > "${drop_constraints_sql}"
+DO \$\$
+DECLARE
+    fk RECORD;
+BEGIN
+    FOR fk IN
+        SELECT conname, conrelid::regclass AS table_name
+        FROM pg_constraint
+        JOIN pg_class ON conrelid = pg_class.oid
+        JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE contype = 'f'
+        AND pg_namespace.nspname IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || fk.table_name || ' DROP CONSTRAINT ' || fk.conname;
+    END LOOP;
+END \$\$;
+EOF
+
+        psql_import_file "${SOURCE_DB_NAME}" "${disable_triggers_sql}"
+        psql_import_file "${SOURCE_DB_NAME}" "${drop_constraints_sql}"
+
+        rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
+	fi
+}
+
+reenable_triggers_fkeys() {
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		enable_triggers_sql=$(mktemp)
+		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
+
+		cat <<EOF > "${enable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' ENABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+		psql_import_file "${SOURCE_DB_NAME}" "${enable_triggers_sql}"
+	fi
+#TODO: Add re-creating FKs
 }
 
 assess_migration() {
@@ -695,7 +759,6 @@ assess_migration() {
 		--source-db-password ${SOURCE_DB_PASSWORD}
 		--source-db-name ${SOURCE_DB_NAME}
 		--send-diagnostics=false --yes
-		--start-clean t
 		--iops-capture-interval 0
 	"
 	if [ "${SOURCE_DB_SCHEMA}" != "" ]
@@ -816,17 +879,32 @@ normalize_json() {
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
         if type == "object" then
-            .ObjectNames? |= (if type == "string" then split(", ") | sort | join(", ") else . end) |
+            .ObjectNames? |= (
+				if type == "string" then
+					split(", ") | sort | join(", ")
+				else
+					.
+				end
+			) |
             .VoyagerVersion? = "IGNORED" |
+			.TargetDBVersion? = "IGNORED" |
             .DbVersion? = "IGNORED" |
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
             .RowCount? = "IGNORED" |
-            .SqlStatement? |= (if type == "string" then gsub("\\n"; " ") else . end)
+			.MigrationComplexityExplanation?= "IGNORED" |
+            # Replace newline characters in SqlStatement with spaces
+			.SqlStatement? |= (
+				if type == "string" then
+					gsub("\\n"; " ")
+				else
+					.
+				end
+			)
         elif type == "array" then
-            sort_by(tostring)
-        else
+			sort_by(tostring)
+		else
             .
         end
     )' "$input_file" > "$temp_file"
@@ -870,7 +948,7 @@ compare_files() {
         return 0
     else
         echo "Data does not match expected report."
-        diff_output=$(diff "$file1" "$file2")
+        diff_output=$(diff --context "$file1" "$file2")
         echo "$diff_output"
         return 1
     fi
@@ -981,4 +1059,61 @@ cutover_to_target() {
     fi
     
     yb-voyager initiate cutover to target ${args} $*
+}
+
+create_source_db() {
+	source_db=$1
+	case ${SOURCE_DB_TYPE} in
+		postgresql)
+			run_psql postgres "DROP DATABASE IF EXISTS ${source_db};"
+			run_psql postgres "CREATE DATABASE ${source_db};"
+			;;
+		mysql)
+			run_mysql mysql "DROP DATABASE IF EXISTS ${source_db};"
+			run_mysql mysql "CREATE DATABASE ${source_db};"
+			;;
+		oracle)
+			cat > create-oracle-schema.sql << EOF
+			CREATE USER ${source_db} IDENTIFIED BY "password";
+			GRANT all privileges to ${source_db};
+EOF
+			run_sqlplus_as_sys ${SOURCE_DB_NAME} "create-oracle-schema.sql"
+			rm create-oracle-schema.sql
+			;;
+		*)
+			echo "ERROR: Source DB not created for ${SOURCE_DB_TYPE}"
+			exit 1
+			;;
+	esac
+}
+
+normalize_and_export_vars() {
+    local test_suffix=$1
+
+    # Normalize TEST_NAME
+	# Keeping the full name for PG and MySQL to test out large schema/export dir names
+    export NORMALIZED_TEST_NAME="$(echo "$TEST_NAME" | tr '/-' '_')"
+
+    # Set EXPORT_DIR
+    export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/${NORMALIZED_TEST_NAME}_${test_suffix}_export-dir"}
+    if [ -n "${SOURCE_DB_SSL_MODE}" ]; then
+        EXPORT_DIR="${EXPORT_DIR}_ssl"
+    fi
+
+    # Set database-specific variables
+    case "${SOURCE_DB_TYPE}" in
+        postgresql|mysql)
+            export SOURCE_DB_NAME=${SOURCE_DB_NAME:-"${NORMALIZED_TEST_NAME}_${test_suffix}"}
+            ;;
+        oracle)
+            # Limit schema name to 10 characters for Oracle/Debezium due to 30 character limit
+			# Since test_suffix is the unique identifying factor, we need to add it post all the normalization 
+            export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"${NORMALIZED_TEST_NAME:0:10}_${test_suffix}"}
+            export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA^^}
+            ;;
+        *)
+            echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+            exit 1
+            ;;
+    esac
 }

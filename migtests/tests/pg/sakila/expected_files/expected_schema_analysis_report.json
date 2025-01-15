@@ -1,6 +1,5 @@
 {
     "VoyagerVersion": "IGNORED",
-    "MigrationComplexity": "HIGH",
     "Summary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "pg_sakila",
@@ -87,7 +86,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "migration_caveats",
@@ -98,7 +98,8 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -109,7 +110,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -120,7 +122,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -131,7 +134,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -142,7 +146,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -153,7 +158,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -164,7 +170,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }

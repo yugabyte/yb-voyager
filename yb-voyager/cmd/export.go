@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -32,6 +34,8 @@ import (
 // source struct will be populated by CLI arguments parsing
 var source srcdb.Source
 
+const MIN_REQUIRED_JAVA_VERSION = 17
+
 // to disable progress bar during data export and import
 var disablePb utils.BoolStr
 var exportType string
@@ -39,7 +43,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var pgExportDependencies = []string{"pg_dump", "pg_restore", "psql"}
+var pgExportCommands = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -295,7 +299,7 @@ func validateSSLMode() {
 	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
 		return
 	} else {
-		utils.ErrExit("Error: Invalid sslmode: %q. Valid SSL modes are %v", validSSLModes[source.DBType])
+		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, validSSLModes[source.DBType])
 	}
 }
 
@@ -388,32 +392,125 @@ func saveExportTypeInMSR() {
 }
 
 func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
-	if source.DBType == POSTGRESQL {
+	var missingTools []string
+	switch source.DBType {
+	case POSTGRESQL:
 		sourceDBVersion := source.DB().GetVersion()
-		for _, binary := range pgExportDependencies {
+		for _, binary := range pgExportCommands {
 			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
 				return nil, err
 			} else if binaryCheckIssue != "" {
-
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
-		if len(binaryCheckIssues) > 0 {
-			binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again\n")
+
+		missingTools = utils.CheckTools("strings")
+
+	case MYSQL:
+		// TODO: For mysql and oracle, we can probably remove the ora2pg check in case it is a live migration
+		// Issue Link: https://github.com/yugabyte/yb-voyager/issues/2102
+		missingTools = utils.CheckTools("ora2pg")
+
+	case ORACLE:
+		missingTools = utils.CheckTools("ora2pg", "sqlplus")
+
+	case YUGABYTEDB:
+		missingTools = utils.CheckTools("strings")
+
+	default:
+		return nil, fmt.Errorf("unknown source database type %q", source.DBType)
+	}
+
+	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
+
+	if changeStreamingIsEnabled(exportType) || useDebezium {
+		// Check for java
+		javaIssue, err := checkJavaVersion()
+		if err != nil {
+			return nil, err
 		}
+		if javaIssue != "" {
+			binaryCheckIssues = append(binaryCheckIssues, javaIssue)
+		}
+	}
+
+	if len(binaryCheckIssues) > 0 {
+		binaryCheckIssues = append(binaryCheckIssues, "Install or Add the required dependencies to PATH and try again")
 	}
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for debezium
 		// FindDebeziumDistribution returns an error only if the debezium distribution is not found
 		// So its error mesage will be added to problems
-		err := dbzm.FindDebeziumDistribution(source.DBType, false)
+		err = dbzm.FindDebeziumDistribution(source.DBType, false)
 		if err != nil {
+			if len(binaryCheckIssues) > 0 {
+				binaryCheckIssues = append(binaryCheckIssues, "")
+			}
 			binaryCheckIssues = append(binaryCheckIssues, strings.ToUpper(err.Error()[:1])+err.Error()[1:])
 			binaryCheckIssues = append(binaryCheckIssues, "Please check your Voyager installation and try again")
 		}
 	}
 
 	return binaryCheckIssues, nil
+}
+
+func checkJavaVersion() (binaryCheckIssue string, err error) {
+	javaBinary := "java"
+	if javaHome := os.Getenv("JAVA_HOME"); javaHome != "" {
+		javaBinary = javaHome + "/bin/java"
+	}
+
+	// Execute `java -version` to get the version
+	cmd := exec.Command(javaBinary, "-version")
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Sprintf("java: required version >= %d", MIN_REQUIRED_JAVA_VERSION), nil
+	}
+
+	// Example output
+	// java version "11.0.16" 2022-07-19 LTS
+	// Java(TM) SE Runtime Environment (build 11.0.16+8-LTS-211)
+	// Java HotSpot(TM) 64-Bit Server VM (build 11.0.16+8-LTS-211, mixed mode, sharing)
+
+	// Convert output to string
+	versionOutput := string(output)
+
+	// Extract the line with the version
+	var versionLine string
+	lines := strings.Split(versionOutput, "\n")
+	for _, line := range lines {
+		if strings.Contains(line, "version") {
+			versionLine = line
+			break
+		}
+	}
+	if versionLine == "" {
+		return "", fmt.Errorf("unable to find java version in output: %s", versionOutput)
+	}
+
+	// Extract version string from the line (mimics awk -F '"' '/version/ {print $2}')
+	startIndex := strings.Index(versionLine, "\"")
+	endIndex := strings.LastIndex(versionLine, "\"")
+	if startIndex == -1 || endIndex == -1 || startIndex >= endIndex {
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+	}
+	version := versionLine[startIndex+1 : endIndex]
+
+	// Extract major version
+	versionNumbers := strings.Split(version, ".")
+	if len(versionNumbers) < 1 {
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+	}
+	majorVersion, err := strconv.Atoi(versionNumbers[0])
+	if err != nil {
+		return "", fmt.Errorf("unexpected java version output: %s", versionOutput)
+	}
+
+	if majorVersion < MIN_REQUIRED_JAVA_VERSION {
+		return fmt.Sprintf("java: required version >= %d; current version: %s", MIN_REQUIRED_JAVA_VERSION, version), nil
+	}
+
+	return "", nil
 }

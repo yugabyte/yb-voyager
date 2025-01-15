@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"io/fs"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -53,7 +55,7 @@ var exportDataStatusCmd = &cobra.Command{
 			utils.ErrExit("\nNote: Run the following command to get the current report of live migration:\n" +
 				color.CyanString("yb-voyager get data-migration-report --export-dir %q\n", exportDir))
 		}
-		err = InitNameRegistry(exportDir, SOURCE_DB_EXPORTER_ROLE, nil, nil, nil, nil, false)
+		err = InitNameRegistry(exportDir, namereg.SOURCE_DB_EXPORTER_STATUS_ROLE, nil, nil, nil, nil, false)
 		if err != nil {
 			utils.ErrExit("initializing name registry: %v", err)
 		}
@@ -61,12 +63,24 @@ var exportDataStatusCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Failed to get migration status record: %s", err)
 		}
+		if msr == nil {
+			color.Cyan(exportDataStatusMsg)
+			return
+		}
 		useDebezium = msr.IsSnapshotExportedViaDebezium()
+
+		if msr.SourceDBConf == nil {
+			utils.ErrExit("export data has not started yet. Try running after export has started")
+		}
+		source = *msr.SourceDBConf
+		sqlname.SourceDBType = source.DBType
+		leafPartitions := getLeafPartitionsFromRootTable()
+
 		var rows []*exportTableMigStatusOutputRow
 		if useDebezium {
-			rows, err = runExportDataStatusCmdDbzm(streamChanges)
+			rows, err = runExportDataStatusCmdDbzm(streamChanges, leafPartitions, msr)
 		} else {
-			rows, err = runExportDataStatusCmd()
+			rows, err = runExportDataStatusCmd(msr, leafPartitions)
 		}
 		if err != nil {
 			utils.ErrExit("error: %s\n", err)
@@ -77,7 +91,7 @@ var exportDataStatusCmd = &cobra.Command{
 			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
 			err := reportFile.Create(&rows)
 			if err != nil {
-				utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
+				utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
 			}
 			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
 			return
@@ -105,33 +119,35 @@ var InProgressTableSno int
 
 // Note that the `export data status` is running in a separate process. It won't have access to the in-memory state
 // held in the main `export data` process.
-func runExportDataStatusCmdDbzm(streamChanges bool) ([]*exportTableMigStatusOutputRow, error) {
+func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]string, msr *metadb.MigrationStatusRecord) ([]*exportTableMigStatusOutputRow, error) {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
 	}
 	if status == nil {
-		return nil, nil
+		return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
 	}
 	InProgressTableSno = status.InProgressTableSno()
 	var rows []*exportTableMigStatusOutputRow
 	var row *exportTableMigStatusOutputRow
 
 	for _, tableStatus := range status.Tables {
-		row = getSnapshotExportStatusRow(&tableStatus)
+		row = getSnapshotExportStatusRow(&tableStatus, leafPartitions, msr)
 		rows = append(rows, row)
 	}
 	return rows, nil
 }
 
-func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTableMigStatusOutputRow {
+func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartitions map[string][]string, msr *metadb.MigrationStatusRecord) *exportTableMigStatusOutputRow {
 	nt, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 	if err != nil {
-		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
+		utils.ErrExit("lookup in name registry: %s: %v", tableStatus.TableName, err)
 	}
+	//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
+	displayTableName := getDisplayName(nt, leafPartitions[nt.ForOutput()], msr.IsExportTableListSet)
 	row := &exportTableMigStatusOutputRow{
-		TableName:     nt.ForMinOutput(),
+		TableName:     displayTableName,
 		Status:        "DONE",
 		ExportedCount: tableStatus.ExportedRowCountSnapshot,
 	}
@@ -145,23 +161,29 @@ func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus) *exportTabl
 	return row
 }
 
-func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("error while getting migration status record: %v", err)
+func getDisplayName(nt sqlname.NameTuple, partitions []string, isTableListSet bool) string {
+	displayTableName := nt.ForMinOutput()
+	//Changing the display of the partition tables in case table-list is set because there can be case where user has passed a subset of leaft tables in the list
+	if source.DBType == POSTGRESQL && partitions != nil && isTableListSet {
+		slices.Sort(partitions)
+		partitions := strings.Join(partitions, ", ")
+		displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
 	}
+
+	return displayTableName
+}
+
+func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions map[string][]string) ([]*exportTableMigStatusOutputRow, error) {
 	tableList := msr.TableListExportedFromSource
-	source = *msr.SourceDBConf
-	sqlname.SourceDBType = source.DBType
 	var outputRows []*exportTableMigStatusOutputRow
 	exportSnapshotStatusFilePath := filepath.Join(exportDir, "metainfo", "export_snapshot_status.json")
 	exportSnapshotStatusFile = jsonfile.NewJsonFile[ExportSnapshotStatus](exportSnapshotStatusFilePath)
 	exportStatusSnapshot, err := exportSnapshotStatusFile.Read()
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
-			return nil, nil
+			return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
 		}
-		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
 	}
 
 	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)
@@ -169,20 +191,17 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 		return nil, fmt.Errorf("error while getting exported snapshot rows map: %v", err)
 	}
 
-	leafPartitions := getLeafPartitionsFromRootTable()
-
 	for _, tableName := range tableList {
 		finalFullTableName, err := namereg.NameReg.LookupTableName(tableName)
 		if err != nil {
 			return nil, fmt.Errorf("lookup %s in name registry: %v", tableName, err)
 		}
-		displayTableName := finalFullTableName.ForMinOutput()
-		partitions := leafPartitions[finalFullTableName.ForOutput()]
-		if source.DBType == POSTGRESQL && partitions != nil {
-			partitions := strings.Join(partitions, ", ")
-			displayTableName = fmt.Sprintf("%s (%s)", displayTableName, partitions)
+		//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
+		displayTableName := getDisplayName(finalFullTableName, leafPartitions[finalFullTableName.ForOutput()], msr.IsExportTableListSet)
+		snapshotStatus, ok := exportedSnapshotStatus.Get(finalFullTableName)
+		if !ok {
+			return nil, fmt.Errorf("snapshot status for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
 		}
-		snapshotStatus, _ := exportedSnapshotStatus.Get(finalFullTableName)
 		finalStatus := snapshotStatus[0]
 		if len(snapshotStatus) > 1 { // status for root partition wrt leaf partitions
 			exportingLeaf := 0
@@ -199,13 +218,18 @@ func runExportDataStatusCmd() ([]*exportTableMigStatusOutputRow, error) {
 			}
 			if exportingLeaf > 0 {
 				finalStatus = "EXPORTING"
-			} else if doneLeaf == len(snapshotStatus) {
-				finalStatus = "DONE"
 			} else if not_started == len(snapshotStatus) {
-				finalStatus = "NOT_STARTED"
+				//In case of partition tables in PG, we are clubbing the status of all leafs and then returning the status
+				//For root table we are sending NOT_STARTED and if only all leaf partitions will have NOT_STARTED else EXPORTING/DONE
+				finalStatus = "NOT-STARTED"
+			} else {
+				finalStatus = "DONE"
 			}
 		}
-		exportedCount, _ := exportedSnapshotRow.Get(finalFullTableName)
+		exportedCount, ok := exportedSnapshotRow.Get(finalFullTableName)
+		if !ok {
+			return nil, fmt.Errorf("snapshot row count for table %s is not populated in %q file", finalFullTableName.ForMinOutput(), exportSnapshotStatusFilePath)
+		}
 		row := &exportTableMigStatusOutputRow{
 			TableName:     displayTableName,
 			Status:        finalStatus,

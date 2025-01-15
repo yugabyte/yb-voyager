@@ -47,8 +47,12 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		sourceDBType = GetSourceDBTypeFromMSR()
-		err := validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
+		err = validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
 		}
@@ -79,10 +83,6 @@ var flagRefreshMViews utils.BoolStr
 var invalidTargetIndexesCache map[string]bool
 
 func importSchema() error {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
 
 	tconf.Schema = strings.ToLower(tconf.Schema)
 
@@ -93,7 +93,7 @@ func importSchema() error {
 		// available always and this is just for initialisation of tdb and marking it nil again back.
 		tconf.Schema = "public"
 		tdb = tgtdb.NewTargetDB(&tconf)
-		err = tdb.Init()
+		err := tdb.Init()
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
@@ -225,8 +225,14 @@ func importSchema() error {
 		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
-	if flagPostSnapshotImport && flagRefreshMViews {
-		refreshMViews(conn)
+	if flagPostSnapshotImport {
+		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
+		if err != nil {
+			return err
+		}
+		if flagRefreshMViews {
+			refreshMViews(conn)
+		}
 	} else {
 		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
 	}
@@ -273,12 +279,9 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		parts := strings.Split(stmt, "*/\n")
 		errorsList = append(errorsList, strings.Trim(parts[0], "/*\n")) //trimming the prefix of `/*\n` from parts[0] (the error msg)
 	}
-	if status == ERROR {
-		errorsList = append(errorsList, errMsg)
-	} else {
-		if len(errorsList) > 0 && status != EXIT {
-			payload.Status = COMPLETE_WITH_ERRORS
-		}
+
+	if len(errorsList) > 0 && status != EXIT {
+		payload.Status = COMPLETE_WITH_ERRORS
 	}
 
 	//import-schema specific payload details
@@ -290,6 +293,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		ErrorCount:         len(errorsList),
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
+		Error:              callhome.SanitizeErrorMsg(errMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)
@@ -303,7 +307,7 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	query := "SELECT yb_is_database_colocated();"
 	err := conn.QueryRow(context.Background(), query).Scan(&isColocated)
 	if err != nil {
-		utils.ErrExit("failed to check if Target DB '%s' is colocated or not: %v", tconf.DBName, err)
+		utils.ErrExit("failed to check if Target DB  is colocated or not: %q: %v", tconf.DBName, err)
 	}
 	log.Infof("target DB '%s' colocoated='%t'", tconf.DBName, isColocated)
 	return isColocated
@@ -337,7 +341,7 @@ func dumpStatements(stmts []string, filePath string) {
 	for i := 0; i < len(stmts); i++ {
 		_, err = file.WriteString(stmts[i] + "\n\n")
 		if err != nil {
-			utils.ErrExit("failed writing in file %s: %v", filePath, err)
+			utils.ErrExit("failed writing in file: %s: %v", filePath, err)
 		}
 	}
 
@@ -373,7 +377,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("REFRESH MATERIALIZED VIEW %s", mViewName)
 		_, err := conn.Exec(context.Background(), query)
 		if err != nil && !strings.Contains(strings.ToLower(err.Error()), "has not been populated") {
-			utils.ErrExit("error in refreshing the materialized view %s: %v", mViewName, err)
+			utils.ErrExit("error in refreshing the materialized view: %s: %v", mViewName, err)
 		}
 	}
 	log.Infof("Checking if mviews are refreshed or not - %v", mViewNames)
@@ -382,7 +386,7 @@ func refreshMViews(conn *pgx.Conn) {
 		query := fmt.Sprintf("SELECT * from %s LIMIT 1;", mViewName)
 		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
-			utils.ErrExit("error in checking whether mview %s is refreshed or not: %v", mViewName, err)
+			utils.ErrExit("error in checking whether mview  is refreshed or not: %q: %v", mViewName, err)
 		}
 		if !rows.Next() {
 			mviewsNotRefreshed = append(mviewsNotRefreshed, mViewName)
@@ -411,7 +415,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 	schemaAnalysisReport := analyzeSchemaInternal(
 		&srcdb.Source{
 			DBType: sourceDBType,
-		})
+		}, false)
 
 	switch sourceDBType {
 	case "postgresql": // in case of postgreSQL as source, there can be multiple schemas present in a database
@@ -444,7 +448,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 				utils.PrintAndLog("dropping schema '%s' in target database", targetSchema)
 				_, err := conn.Exec(context.Background(), dropSchemaQuery)
 				if err != nil {
-					utils.ErrExit("Failed to drop schema %q: %s", targetSchema, err)
+					utils.ErrExit("Failed to drop schema: %q: %s", targetSchema, err)
 				}
 			} else {
 				utils.PrintAndLog("schema '%s' already present in target database, continuing with it..\n", targetSchema)
@@ -461,7 +465,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 			utils.PrintAndLog("creating schema '%s' in target database...", tconf.Schema)
 			_, err := conn.Exec(context.Background(), createSchemaQuery)
 			if err != nil {
-				utils.ErrExit("Failed to create %q schema in the target DB: %s", tconf.Schema, err)
+				utils.ErrExit("Failed to create schema in the target DB: %q: %s", tconf.Schema, err)
 			}
 		}
 
@@ -473,7 +477,7 @@ func createTargetSchemas(conn *pgx.Conn) {
 }
 
 func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
-	checkSchemaExistQuery := fmt.Sprintf("SELECT schema_name FROM information_schema.schemata WHERE schema_name = '%s'", targetSchema)
+	checkSchemaExistQuery := fmt.Sprintf("select nspname from pg_namespace n where n.nspname = '%s'", targetSchema)
 
 	var fetchedSchema string
 	err := conn.QueryRow(context.Background(), checkSchemaExistQuery).Scan(&fetchedSchema)
@@ -481,7 +485,7 @@ func checkIfTargetSchemaExists(conn *pgx.Conn, targetSchema string) bool {
 	if err != nil && (strings.Contains(err.Error(), "no rows in result set") && fetchedSchema == "") {
 		return false
 	} else if err != nil {
-		utils.ErrExit("Failed to check if schema %q exists: %s", targetSchema, err)
+		utils.ErrExit("Failed to check if schema exists: %q: %s", targetSchema, err)
 	}
 
 	return fetchedSchema == targetSchema

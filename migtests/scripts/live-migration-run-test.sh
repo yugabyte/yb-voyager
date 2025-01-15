@@ -18,7 +18,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 export QUEUE_SEGMENT_MAX_BYTES=400
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
@@ -37,9 +36,11 @@ else
 	source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
 
-source ${SCRIPTS}/yugabytedb/env.sh
-
 source ${SCRIPTS}/functions.sh
+
+normalize_and_export_vars "live"
+
+source ${SCRIPTS}/yugabytedb/env.sh
 
 main() {
 
@@ -56,6 +57,10 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
+	then
+		create_source_db ${SOURCE_DB_SCHEMA}
+	fi
 	./init-db
 
 	step "Grant source database user permissions for live migration"
@@ -218,7 +223,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

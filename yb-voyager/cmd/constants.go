@@ -15,6 +15,11 @@ limitations under the License.
 */
 package cmd
 
+import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+)
+
 const (
 	KB                              = 1024
 	MB                              = 1024 * 1024
@@ -57,9 +62,6 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
-	LOW                             = "LOW"
-	MEDIUM                          = "MEDIUM"
-	HIGH                            = "HIGH"
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
@@ -93,15 +95,21 @@ const (
 	CUTOVER_TO_SOURCE         = "cutover-to-source"
 	CUTOVER_TO_SOURCE_REPLICA = "cutover-to-source-replica"
 
+	CLIENT_MESSAGES_SESSION_VAR     = "SET CLIENT_MIN_MESSAGES"
+	TRANSACTION_TIMEOUT_SESSION_VAR = "SET TRANSACTION_TIMEOUT"
+
 	// unsupported features of assess migration
 	VIRTUAL_COLUMN      = "VIRTUAL COLUMN"
 	INHERITED_TYPE      = "INHERITED TYPE"
 	REFERENCE_PARTITION = "REFERENCE PARTITION"
 	SYSTEM_PARTITION    = "SYSTEM PARTITION"
 
-	UNSUPPORTED_FEATURES                = "unsupported_features"
-	UNSUPPORTED_DATATYPES               = "unsupported_datatypes"
-	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
+	UNSUPPORTED_FEATURES_CATEGORY         = "unsupported_features"
+	UNSUPPORTED_DATATYPES_CATEGORY        = "unsupported_datatypes"
+	UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY = "unsupported_query_constructs"
+	UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY  = "unsupported_plpgsql_objects"
+	MIGRATION_CAVEATS_CATEGORY            = "migration_caveats"
+	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS   = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
 
 	HTML = "html"
 	JSON = "json"
@@ -156,6 +164,7 @@ const (
 	PARTITION_KEY_NOT_PK_DOC_LINK                 = DOCS_LINK_PREFIX + ORACLE_PREFIX + "#partition-key-column-not-part-of-primary-key-columns"
 	DROP_TEMP_TABLE_DOC_LINK                      = DOCS_LINK_PREFIX + MYSQL_PREFIX + "#drop-temporary-table-statements-are-not-supported"
 	INDEX_ON_UNSUPPORTED_TYPE                     = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported"
+	PK_UK_CONSTRAINT_ON_UNSUPPORTED_TYPE          = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#indexes-on-some-complex-data-types-are-not-supported" //Keeping it similar for now, will see if we need to a separate issue on docs
 	UNLOGGED_TABLE_DOC_LINK                       = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unlogged-table-is-not-supported"
 	XID_DATATYPE_DOC_LINK                         = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xid-functions-is-not-supported"
 	UNSUPPORTED_DATATYPES_DOC_LINK                = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#unsupported-datatypes-by-yugabytedb"
@@ -168,19 +177,14 @@ const (
 List of all the features we are reporting as part of Unsupported features and Migration caveats
 */
 const (
-	// Types for AssessmentIssue
-	FEATURE           = "feature"
-	DATATYPE          = "datatype"
-	QUERY_CONSTRUCT   = "query_construct" // confused: in json for some values we are using space separated and for some snake_case
-	MIGRATION_CAVEATS = "migration_caveats"
-
 	// Description
-	FEATURE_ISSUE_TYPE_DESCRIPTION          = "Features of the source database that are not supported on the target YugabyteDB."
-	DATATYPE_ISSUE_TYPE_DESCRIPTION         = "Data types of the source database that are not supported on the target YugabyteDB."
-	MIGRATION_CAVEATS_TYPE_DESCRIPTION      = "Migration Caveats highlights the current limitations with the migration workflow."
-	UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
-	SCHEMA_SUMMARY_DESCRIPTION              = "Objects that will be created on the target YugabyteDB."
-	SCHEMA_SUMMARY_DESCRIPTION_ORACLE       = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
+	FEATURE_CATEGORY_DESCRIPTION                      = "Features of the source database that are not supported on the target YugabyteDB."
+	DATATYPE_CATEGORY_DESCRIPTION                     = "Data types of the source database that are not supported on the target YugabyteDB."
+	MIGRATION_CAVEATS_CATEGORY_DESCRIPTION            = "Migration Caveats highlights the current limitations with the migration workflow."
+	UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
+	UNSUPPPORTED_PLPGSQL_OBJECT_CATEGORY_DESCRIPTION  = "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block"
+	SCHEMA_SUMMARY_DESCRIPTION                        = "Objects that will be created on the target YugabyteDB."
+	SCHEMA_SUMMARY_DESCRIPTION_ORACLE                 = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
 
 	//Unsupported Features
 
@@ -208,20 +212,23 @@ const (
 	UNLOGGED_TABLE_FEATURE                                    = "Unlogged tables"
 	REFERENCING_TRIGGER_FEATURE                               = "REFERENCING clause for triggers"
 	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE = "BEFORE ROW triggers on Partitioned tables"
+	PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE             = "Primary / Unique key constraints on complex datatypes"
+	REGEX_FUNCTIONS_FEATURE                                   = "Regex Functions"
+	FETCH_WITH_TIES_FEATURE                                   = "FETCH .. WITH TIES Clause"
 
 	// Migration caveats
 
 	//POSTGRESQL
-	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE                     = "Alter partitioned tables to add Primary Key"
-	FOREIGN_TABLE_CAVEAT_FEATURE                              = "Foreign tables"
-	POLICIES_CAVEAT_FEATURE                                   = "Policies"
-	UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE                 = "Unsupported Data Types for Live Migration"
-	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE      = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
-	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE                     = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
-	DESCRIPTION_FOREIGN_TABLES                                = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
-	DESCRIPTION_POLICY_ROLE_ISSUE                             = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
-	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+	ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE                           = "Alter partitioned tables to add Primary Key"
+	FOREIGN_TABLE_CAVEAT_FEATURE                                    = "Foreign tables"
+	POLICIES_CAVEAT_FEATURE                                         = "Policies"
+	UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE                       = "Unsupported Data Types for Live Migration"
+	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE            = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
+	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
+	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE                           = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
+	DESCRIPTION_FOREIGN_TABLES                                      = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
+	DESCRIPTION_POLICY_ROLE_DESCRIPTION                             = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
@@ -234,3 +241,22 @@ var validSSLModes = map[string][]string{
 }
 
 var EVENT_BATCH_MAX_RETRY_COUNT = 50
+
+// returns the description for a given assessment issue category
+func GetCategoryDescription(category string) string {
+	switch category {
+	case UNSUPPORTED_FEATURES_CATEGORY, constants.FEATURE:
+		return FEATURE_CATEGORY_DESCRIPTION
+	case UNSUPPORTED_DATATYPES_CATEGORY, constants.DATATYPE:
+		return DATATYPE_CATEGORY_DESCRIPTION
+	case UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, constants.QUERY_CONSTRUCT:
+		return UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY_DESCRIPTION
+	case UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, constants.PLPGSQL_OBJECT:
+		return UNSUPPPORTED_PLPGSQL_OBJECT_CATEGORY_DESCRIPTION
+	case MIGRATION_CAVEATS_CATEGORY: // or constants.MIGRATION_CAVEATS (identical)
+		return MIGRATION_CAVEATS_CATEGORY_DESCRIPTION
+	default:
+		utils.ErrExit("ERROR: unsupported assessment issue category %q", category)
+	}
+	return ""
+}

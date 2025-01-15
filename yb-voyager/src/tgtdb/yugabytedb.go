@@ -33,11 +33,14 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -77,6 +80,12 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 
 	res, err := yb.db.Exec(query)
 	if err != nil {
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Hint != "" || pgErr.Detail != "" {
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, yb.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+			}
+		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, yb.tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
@@ -234,7 +243,9 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	log.Info("Initialized connection pool with settings: ", spew.Sdump(params))
+	redactedParams := params
+	redactedParams.ConnUriList = utils.GetRedactedURLs(redactedParams.ConnUriList)
+	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
 }
 
@@ -332,6 +343,9 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN data_file_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
@@ -349,6 +363,7 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			num_deletes BIGINT,
 			num_updates BIGINT,
 			PRIMARY KEY (migration_uuid, table_name, channel_no));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -389,12 +404,25 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
 		}
 		result = append(result, table)
 	}
 	log.Infof("non empty tables: %v", result)
 	return result
+}
+
+func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
+	tableNames := lo.Map(tables, func(nt sqlname.NameTuple, _ int) string {
+		return nt.ForUserQuery()
+	})
+	commaSeparatedTableNames := strings.Join(tableNames, ", ")
+	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
+	_, err := yb.Exec(query)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
@@ -1020,7 +1048,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("error while creating connection for checking session parameter(%q) support: %v", sqlStmt, err)
+		utils.ErrExit("error while creating connection for checking session parameter support: %q: %v", sqlStmt, err)
 	}
 	defer conn.Close(context.Background())
 
@@ -1034,7 +1062,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 				}
 				return true
 			}
-			utils.ErrExit("error while executing sqlStatement=%q: %v", sqlStmt, err)
+			utils.ErrExit("error while executing sqlStatement: %q: %v", sqlStmt, err)
 		} else {
 			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
 		}
@@ -1047,7 +1075,7 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
 	}
 
 	// append oracle schema in the search_path for orafce
@@ -1186,7 +1214,7 @@ func (yb *TargetYugabyteDB) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := yb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+		utils.ErrExit("error checking if query is empty: [%s]: %v", query, err)
 	}
 	defer rows.Close()
 
@@ -1299,7 +1327,7 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.YUGABYTEDB, "", parts[0], parts[1])
+		objName := sqlname.NewObjectName(constants.YUGABYTEDB, "", parts[0], parts[1])
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,
@@ -1369,24 +1397,55 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 	}
 	defer conn.Close(context.Background())
 
-	query := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
-	rows, err := conn.Query(context.Background(), query)
-	if err != nil {
-		return false, fmt.Errorf("querying if user is superuser: %w", err)
-	}
-	defer rows.Close()
-
-	var isSuperUser bool
-	if rows.Next() {
-		err = rows.Scan(&isSuperUser)
+	runQueryAndCheckPrivilege := func(query string) (bool, error) {
+		rows, err := conn.Query(context.Background(), query)
 		if err != nil {
-			return false, fmt.Errorf("scanning row for superuser: %w", err)
+			return false, fmt.Errorf("querying if user is superuser: %w", err)
 		}
-	} else {
-		return false, fmt.Errorf("no current user found in pg_roles")
+		defer rows.Close()
+
+		var isProperUser bool
+		if rows.Next() {
+			err = rows.Scan(&isProperUser)
+			if err != nil {
+				return false, fmt.Errorf("scanning row for query: %w", err)
+			}
+		} else {
+			return false, fmt.Errorf("no current user found in pg_roles")
+		}
+		return isProperUser, nil
 	}
 
-	return isSuperUser, nil
+	//This rolsuper is set to true in the pg_roles if a user is super user
+	isSuperUserquery := "SELECT rolsuper FROM pg_roles WHERE rolname=current_user"
+
+	isSuperUser, err := runQueryAndCheckPrivilege(isSuperUserquery)
+	if err != nil {
+		return false, fmt.Errorf("error checking super user privilege: %w", err)
+	}
+	if isSuperUser {
+		return true, nil
+	}
+	//In case of YugabyteDB Aeon deployment of target database we need to verify if yb_superuser is granted or not
+	isYbSuperUserQuery := `SELECT 
+    CASE 
+        WHEN EXISTS (
+            SELECT 1
+            FROM pg_auth_members m
+            JOIN pg_roles grantee ON m.member = grantee.oid
+            JOIN pg_roles granted ON m.roleid = granted.oid
+            WHERE grantee.rolname = CURRENT_USER AND granted.rolname = 'yb_superuser'
+        ) 
+        THEN TRUE 
+        ELSE FALSE 
+    END AS is_yb_superuser;`
+
+	isYBSuperUser, err := runQueryAndCheckPrivilege(isYbSuperUserQuery)
+	if err != nil {
+		return false, fmt.Errorf("error checking yb_superuser privilege: %w", err)
+	}
+
+	return isYBSuperUser, nil
 }
 
 func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {

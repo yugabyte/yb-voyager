@@ -108,7 +108,7 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("parsing tocfile %q: %v", tocFilePath, err)
+		utils.ErrExit("parsing tocfile: %q: %v", tocFilePath, err)
 	}
 
 	//Put the data into a toc.txt file
@@ -146,7 +146,7 @@ func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetad
 			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
 			err := os.Rename(oldFilePath, newFilePath)
 			if err != nil {
-				utils.ErrExit("renaming data file for table %q after data export: %v", tableProgressMetadata.TableName, err)
+				utils.ErrExit("renaming data file: for table %q after data export: %v", tableProgressMetadata.TableName, err)
 			}
 		} else {
 			log.Infof("File %q to rename doesn't exists!", oldFilePath)

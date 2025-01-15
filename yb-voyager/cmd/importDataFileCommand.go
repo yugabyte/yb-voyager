@@ -72,10 +72,13 @@ var importDataFileCmd = &cobra.Command{
 		sourceDBType = POSTGRESQL // dummy value - this command is not affected by it
 		sqlname.SourceDBType = sourceDBType
 		CreateMigrationProjectIfNotExists(sourceDBType, exportDir)
-
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		tconf.Schema = strings.ToLower(tconf.Schema)
 		tdb = tgtdb.NewTargetDB(&tconf)
-		err := tdb.Init()
+		err = tdb.Init()
 		if err != nil {
 			utils.ErrExit("Failed to initialize the target DB: %s", err)
 		}
@@ -92,7 +95,7 @@ var importDataFileCmd = &cobra.Command{
 		importFileTasks := prepareImportFileTasks()
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
-		packAndSendImportDataFilePayload(COMPLETE)
+		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -181,7 +184,7 @@ func prepareImportFileTasks() []*ImportFileTask {
 		for _, filePath := range filePaths {
 			fileSize, err := dataStore.FileSize(filePath)
 			if err != nil {
-				utils.ErrExit("calculating file size of %q in bytes: %v", filePath, err)
+				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
 			}
 			task := &ImportFileTask{
 				ID:           i,
@@ -243,12 +246,12 @@ func checkDataDirFlag() {
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for data-dir(%q): %v", dataDir, err)
+		utils.ErrExit("unable to resolve absolute path for data-dir: (%q): %v", dataDir, err)
 	}
 
 	exportDirAbs, err := filepath.Abs(exportDir)
 	if err != nil {
-		utils.ErrExit("unable to resolve absolute path for export-dir(%q): %v", exportDir, err)
+		utils.ErrExit("unable to resolve absolute path for export-dir: (%q): %v", exportDir, err)
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {
@@ -326,7 +329,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string) {
+func packAndSendImportDataFilePayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -346,6 +349,7 @@ func packAndSendImportDataFilePayload(status string) {
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
@@ -488,6 +492,8 @@ func init() {
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag (default false)`)
+
+	BoolVar(importDataFileCmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")

@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -32,10 +33,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var DoNotPrompt bool
@@ -430,7 +434,8 @@ func GetRedactedURLs(urlList []string) []string {
 	for _, u := range urlList {
 		obj, err := url.Parse(u)
 		if err != nil {
-			ErrExit("invalid URL: %q", u)
+			log.Error("error redacting connection url: invalid connection URL")
+			fmt.Printf("error redacting connection url: invalid connection URL: %v", u)
 		}
 		result = append(result, obj.Redacted())
 	}
@@ -445,11 +450,15 @@ func GetSqlStmtToPrint(stmt string) string {
 	}
 }
 
-func PrintSqlStmtIfDDL(stmt string, fileName string) {
+func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	setOrSelectStmt := strings.HasPrefix(strings.ToUpper(stmt), "SET ") ||
 		strings.HasPrefix(strings.ToUpper(stmt), "SELECT ")
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
+		if noticeMsg != "" {
+			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
+		}
 	}
 }
 
@@ -683,4 +692,68 @@ func ChangeFileExtension(filePath string, newExt string) string {
 	}
 
 	return filePath + newExt
+}
+
+// Port 0 generally returns port number in range 30xxx - 60xxx but it also depends on OS and network configuration
+func GetFreePort() (int, error) {
+	// Listen on port 0, which tells the OS to assign an available port
+	listener, err := net.Listen("tcp", ":0")
+	if err != nil {
+		return 0, fmt.Errorf("failed to listen on a port: %v", err)
+	}
+	defer listener.Close()
+
+	// Retrieve the assigned port
+	addr := listener.Addr().(*net.TCPAddr)
+	return addr.Port, nil
+}
+
+func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string, error) {
+	// RC version will be like 0rc1.1.8.6
+	// We need to extract 1.8.6 from it
+	// Compring with this 1.8.6 should be enough to check if the version is compatible with the current version
+	// Split the string at "rc" to isolate the part after it
+	parts := strings.Split(msrVoyagerFinalVersion, "rc")
+	if len(parts) > 1 {
+		// Further split the remaining part by '.' and remove the first segment
+		versionParts := strings.Split(parts[1], ".")
+		if len(versionParts) > 1 {
+			msrVoyagerFinalVersion = strings.Join(versionParts[1:], ".") // Join the parts after the first one
+		} else {
+			return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+		}
+	} else {
+		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
+	}
+	return msrVoyagerFinalVersion, nil
+}
+
+// Return list of missing tools from the provided list of tools
+func CheckTools(tools ...string) []string {
+	var missingTools []string
+	for _, tool := range tools {
+		execPath, err := exec.LookPath(tool)
+		if err != nil {
+			missingTools = append(missingTools, tool)
+		} else {
+			log.Infof("Found %s at %s", tool, execPath)
+		}
+	}
+
+	return missingTools
+}
+
+func BuildObjectName(schemaName, objName string) string {
+	return lo.Ternary(schemaName != "", schemaName+"."+objName, objName)
+}
+
+// SnakeCaseToTitleCase converts a snake_case string to a title case string with spaces.
+func SnakeCaseToTitleCase(snake string) string {
+	words := strings.Split(snake, "_")
+	c := cases.Title(language.English)
+	for i, word := range words {
+		words[i] = c.String(word)
+	}
+
+	return strings.Join(words, " ")
 }

@@ -269,7 +269,7 @@ main() {
         run_command "$ora2pg_cmd"
     done
 
-    ora2pg_report_cmd="ora2pg -t show_report  --estimate_cost -c $OUTPUT_FILE_PATH --dump_as_sheet --quiet > $assessment_metadata_dir/schema/ora2pg_report.csv"
+    ora2pg_report_cmd="ora2pg -t show_report --estimate_cost -c $OUTPUT_FILE_PATH --dump_as_sheet --quiet > $assessment_metadata_dir/schema/ora2pg_report.csv"
     log "INFO" "executing ora2pg command for report: $ora2pg_report_cmd"
     run_command "$ora2pg_report_cmd"
 

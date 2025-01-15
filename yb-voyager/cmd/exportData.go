@@ -112,6 +112,11 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	err := retrieveMigrationUUID()
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
+
 	ExitIfAlreadyCutover(exporterRole)
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
@@ -122,14 +127,9 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
 
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
-
 	success := exportData()
 	if success {
-		sendPayloadAsPerExporterRole(COMPLETE)
+		sendPayloadAsPerExporterRole(COMPLETE, "")
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -140,24 +140,24 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		sendPayloadAsPerExporterRole(ERROR)
+		sendPayloadAsPerExporterRole(ERROR, "")
 		atexit.Exit(1)
 	}
 }
 
-func sendPayloadAsPerExporterRole(status string) {
+func sendPayloadAsPerExporterRole(status string, errorMsg string) {
 	if !callhome.SendDiagnostics {
 		return
 	}
 	switch exporterRole {
 	case SOURCE_DB_EXPORTER_ROLE:
-		packAndSendExportDataPayload(status)
+		packAndSendExportDataPayload(status, errorMsg)
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
-		packAndSendExportDataFromTargetPayload(status)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	}
 }
 
-func packAndSendExportDataPayload(status string) {
+func packAndSendExportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -182,6 +182,7 @@ func packAndSendExportDataPayload(status string) {
 	exportDataPayload := callhome.ExportDataPhasePayload{
 		ParallelJobs: int64(source.NumConnections),
 		StartClean:   bool(startClean),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)
@@ -222,8 +223,8 @@ func exportData() bool {
 		if err != nil {
 			utils.ErrExit("check dependencies for export: %v", err)
 		} else if len(binaryCheckIssues) > 0 {
-			color.Red("\nMissing dependencies for export data:")
-			utils.PrintAndLog("\n%s", strings.Join(binaryCheckIssues, "\n"))
+			headerStmt := color.RedString("Missing dependencies for export data:")
+			utils.PrintAndLog("\n%s\n%s", headerStmt, strings.Join(binaryCheckIssues, "\n"))
 			utils.ErrExit("")
 		}
 	}
@@ -236,17 +237,15 @@ func exportData() bool {
 
 	res := source.DB().CheckSchemaExists()
 	if !res {
-		utils.ErrExit("schema %q does not exist", source.Schema)
+		utils.ErrExit("schema does not exist : %q", source.Schema)
 	}
 
-	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
-		checkExportDataPermissions()
+		checkIfSchemasHaveUsagePermissions()
 	}
 
 	clearMigrationStateIfRequired()
 	checkSourceDBCharset()
-	source.DB().CheckRequiredToolsAreInstalled()
 	saveSourceDBConfInMSR()
 	saveExportTypeInMSR()
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
@@ -257,7 +256,16 @@ func exportData() bool {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var partitionsToRootTableMap map[string]string
-	partitionsToRootTableMap, finalTableList, tablesColumnList := getFinalTableColumnList()
+	// get initial table list
+	partitionsToRootTableMap, finalTableList := getInitialTableList()
+
+	// Check if source DB has required permissions for export data
+	if source.RunGuardrailsChecks {
+		checkExportDataPermissions(finalTableList)
+	}
+
+	// finalize table list and column list
+	finalTableList, tablesColumnList := finalizeTableColumnList(finalTableList)
 
 	if len(finalTableList) == 0 {
 		utils.PrintAndLog("no tables present to export, exiting...")
@@ -293,7 +301,7 @@ func exportData() bool {
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
-				utils.ErrExit("lookup table name %s: %v", renamedTable, err)
+				utils.ErrExit("lookup table name: %s: %v", renamedTable, err)
 			}
 			currPartitions, ok := leafPartitions.Get(tuple)
 			if !ok {
@@ -340,10 +348,6 @@ func exportData() bool {
 			// 2. export snapshot corresponding to replication slot by passing it to pg_dump
 			// 3. start debezium with configration to read changes from the created replication slot, publication.
 
-			err := source.DB().ValidateTablesReadyForLiveMigration(finalTableList)
-			if err != nil {
-				utils.ErrExit("error: validate if tables are ready for live migration: %v", err)
-			}
 			if !dataIsExported() { // if snapshot is not already done...
 				err = exportPGSnapshotWithPGdump(ctx, cancel, finalTableList, tablesColumnList, leafPartitions)
 				if err != nil {
@@ -437,7 +441,7 @@ func exportData() bool {
 	}
 }
 
-func checkExportDataPermissions() {
+func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 	// If source is PostgreSQL or YB, check if the number of existing replicaton slots is less than the max allowed
 	if (source.DBType == POSTGRESQL && changeStreamingIsEnabled(exportType)) ||
 		(source.DBType == YUGABYTEDB && !bool(useYBgRPCConnector)) {
@@ -455,7 +459,7 @@ func checkExportDataPermissions() {
 		}
 	}
 
-	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType)
+	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
 		utils.ErrExit("get missing export data permissions: %v", err)
 	}
@@ -480,6 +484,24 @@ func checkExportDataPermissions() {
 	} else {
 		// TODO: Print this message on the console too once the code is stable
 		log.Info("All required permissions are present for the source database.")
+	}
+}
+
+func checkIfSchemasHaveUsagePermissions() {
+	schemasMissingUsage, err := source.DB().GetSchemasMissingUsagePermissions()
+	if err != nil {
+		utils.ErrExit("get schemas missing usage permissions: %v", err)
+	}
+	if len(schemasMissingUsage) > 0 {
+		utils.PrintAndLog("\n%s[%s]", color.RedString(fmt.Sprintf("Missing USAGE permission for user %s on Schemas: ", source.User)), strings.Join(schemasMissingUsage, ", "))
+
+		var link string
+		if changeStreamingIsEnabled(exportType) {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-source-database"
+		} else {
+			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+		}
+		utils.ErrExit("\nCheck the documentation to prepare the database for migration: %s", color.BlueString(link))
 	}
 }
 
@@ -713,10 +735,10 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
+func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	var tableList []sqlname.NameTuple
 	// store table list after filtering unsupported or unnecessary tables
-	var finalTableList, skippedTableList []sqlname.NameTuple
+	var finalTableList []sqlname.NameTuple
 	tableListFromDB := source.DB().GetAllTableNames()
 	var err error
 	var fullTableList []sqlname.NameTuple
@@ -737,7 +759,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		if parent == "" {
 			tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", schema, table))
 			if err != nil {
-				utils.ErrExit("lookup for table name %s failed err: %v", table, err)
+				utils.ErrExit("lookup for table name failed err: %s: %v", table, err)
 			}
 		}
 		fullTableList = append(fullTableList, tuple)
@@ -766,11 +788,23 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 			}
 		})
 	}
+	var partitionsToRootTableMap map[string]string
+	isTableListSet := source.TableList != ""
+	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
+	if err != nil {
+		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
+	}
+
+	return partitionsToRootTableMap, finalTableList
+}
+
+func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
 	if changeStreamingIsEnabled(exportType) {
 		reportUnsupportedTables(finalTableList)
 	}
-	log.Infof("initial all tables table list for data export: %v", tableList)
+	log.Infof("initial all tables table list for data export: %v", finalTableList)
 
+	var skippedTableList []sqlname.NameTuple
 	if !changeStreamingIsEnabled(exportType) {
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
@@ -785,13 +819,6 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
 			return table.ForMinOutput()
 		}))
-	}
-
-	var partitionsToRootTableMap map[string]string
-	isTableListSet := source.TableList != ""
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
 	}
 
 	tablesColumnList, unsupportedTableColumnsMap, err := source.DB().GetColumnsWithSupportedTypes(finalTableList, useDebezium, changeStreamingIsEnabled(exportType))
@@ -823,7 +850,7 @@ func getFinalTableColumnList() (map[string]string, []sqlname.NameTuple, *utils.S
 
 		finalTableList = filterTableWithEmptySupportedColumnList(finalTableList, tablesColumnList)
 	}
-	return partitionsToRootTableMap, finalTableList, tablesColumnList
+	return finalTableList, tablesColumnList
 }
 
 func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], snapshotName string) error {
@@ -841,8 +868,8 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 			log.Infoln("Cancel() being called, within exportDataOffline()")
 			cancel()                    //will cancel/stop both dump tool and progress bar
 			time.Sleep(time.Second * 5) //give sometime for the cancel to complete before this function returns
-			utils.ErrExit("yb-voyager encountered internal error. "+
-				"Check %s/logs/yb-voyager-export-data.log for more details.", exportDir)
+			utils.ErrExit("yb-voyager encountered internal error: "+
+				"Check: %s/logs/yb-voyager-export-data.log for more details.", exportDir)
 		}
 	}()
 
@@ -869,7 +896,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		for _, seq := range sequenceList {
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {
-				utils.ErrExit("lookup for sequence %s failed err: %v", seq, err)
+				utils.ErrExit("lookup for sequence failed: %s: err: %v", seq, err)
 			}
 			finalTableList = append(finalTableList, seqTuple)
 		}
@@ -900,11 +927,6 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 	if source.DBType == POSTGRESQL {
 		//Make leaf partitions data files entry under the name of root table
 		renameDatafileDescriptor(exportDir)
-		//Similarly for the export snapshot status file
-		err = renameExportSnapshotStatus(exportSnapshotStatusFile)
-		if err != nil {
-			return fmt.Errorf("rename export snapshot status: %w", err)
-		}
 	}
 	displayExportedRowCountSnapshot(false)
 
@@ -997,7 +1019,7 @@ func clearMigrationStateIfRequired() {
 				dbzm.IsMigrationInStreamingMode(exportDir) {
 				utils.PrintAndLog("Continuing streaming from where we left off...")
 			} else {
-				utils.ErrExit("%s/data directory is not empty, use --start-clean flag to clean the directories and start", exportDir)
+				utils.ErrExit("data directory is not empty, use --start-clean flag to clean the directories and start: %s", exportDir)
 			}
 		}
 	}
@@ -1025,14 +1047,13 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
 			ok, err := tableName.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", err)
+				utils.ErrExit("Invalid table name pattern: %q: %s", pattern, err)
 			}
 			return ok
 		})
 		return result
 	}
 	tableList := utils.CsvStringToSlice(flagTableList)
-	var unqualifiedTables []string
 	var unknownTableNames []string
 	for _, pattern := range tableList {
 		tables := findPatternMatchingTables(pattern)
@@ -1041,12 +1062,9 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		}
 		result = append(result, tables...)
 	}
-	if len(unqualifiedTables) > 0 {
-		utils.ErrExit("Qualify following table names %v in the %s list with schema name", unqualifiedTables, listName)
-	}
 	if len(unknownTableNames) > 0 {
 		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
-		utils.ErrExit("Valid table names are %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+		utils.ErrExit("Valid table names are: %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
 			return tableName.ForOutput()
 		}))
 	}
@@ -1125,13 +1143,13 @@ func startFallBackSetupIfRequired() {
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", err)
+		utils.ErrExit("could not find yb-voyager: %w", err)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager import data to source - %w\n Please re-run with command :\n%s", err, cmdStr)
+		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)
 	}
 }
 

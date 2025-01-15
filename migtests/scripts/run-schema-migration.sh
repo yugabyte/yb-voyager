@@ -118,7 +118,8 @@ main() {
         mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
         #replace_files
         replace_files "${TEST_DIR}/replacement_dir" "${EXPORT_DIR}/schema"
-        import_schema
+		# --start-clean is required here since we are running the import command for the second time
+        import_schema --start-clean t
 
         if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
         then
@@ -138,7 +139,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

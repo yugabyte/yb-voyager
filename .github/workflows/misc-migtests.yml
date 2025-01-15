@@ -12,9 +12,9 @@ jobs:
     
     services:
         postgres:
-          image: postgres:13
+          image: postgres:17
           env:
-            POSTGRES_PASSWORD: secret
+            POSTGRES_PASSWORD: postgres
           # Set health checks to wait until postgres has started
           options: >-
             --health-cmd pg_isready
@@ -55,27 +55,32 @@ jobs:
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
 
+      #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
         run: |
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
+          sudo apt-get -y install postgresql-17
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
       - name: "TEST: Assessment Report Test"
-        if: always()
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+      
+      - name: "TEST: Assessment Report Test (Schema list UQC)"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-uqc
 
       - name: "TEST: analyze-schema"
-        if: always()
+        if: ${{ !cancelled() }}
         run: migtests/tests/analyze-schema/run-analyze-schema-test
 
       - name: Run import data file tests on different YugabyteDB versions
@@ -85,15 +90,17 @@ jobs:
           GCS_REFRESH_TOKEN: ${{ secrets.PGUPTA_GCS_REFRESH_TOKEN }}
           AWS_ACCESS_KEY_ID: ${{ secrets.RAHULB_S3_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
-        if: always()
+        if: ${{ !cancelled() }}
         run: |
-          versions=("2.20.5.0-b72" "2.21.1.0-b271" "2024.1.1.0-b137")
+          versions=("2024.2.0.0-b145" "2.20.8.0-b53" "2024.1.3.1-b8" "2.23.1.0-b220")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 
             echo "Start YugabyteDB cluster"
-            docker pull yugabytedb/yugabyte:$version
-            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml up -d
+            docker run -d --name yugabytedb-$version \
+            -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
+            yugabytedb/yugabyte:$version \
+            bin/yugabyted start --background=false --ui=false
             sleep 20
           
             echo "Test YugabyteDB connection"
@@ -114,8 +121,8 @@ jobs:
             migtests/tests/import-file/run-import-file-test
 
             echo "Stop the cluster before the next iteration"
-            VERSION=$version docker compose -f migtests/setup/yb-docker-compose.yaml down --volumes
-            docker network prune -f
+            docker stop yugabytedb-$version
+            docker remove yugabytedb-$version
           done
         shell: bash
 

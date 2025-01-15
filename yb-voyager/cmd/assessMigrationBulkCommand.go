@@ -48,23 +48,26 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Long:  "Bulk Assessment of multiple schemas across one or more Oracle database instances",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		err := validateFleetConfigFile(fleetConfigPath)
+		err := retrieveMigrationUUID()
 		if err != nil {
-			utils.ErrExit("%s", err.Error())
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
+		err = validateFleetConfigFile(fleetConfigPath)
+		if err != nil {
+			utils.ErrExit("validating fleet config file: %s", err.Error())
 		}
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			packAndSendAssessMigrationBulkPayload(ERROR)
 			utils.ErrExit("failed assess migration bulk: %s", err)
 		}
-		packAndSendAssessMigrationBulkPayload(COMPLETE)
+		packAndSendAssessMigrationBulkPayload(COMPLETE, "")
 	},
 }
 
-func packAndSendAssessMigrationBulkPayload(status string) {
+func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -77,6 +80,7 @@ func packAndSendAssessMigrationBulkPayload(status string) {
 	}
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
 		FleetConfigCount: len(bulkAssessmentDBConfigs),
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)
@@ -154,11 +158,6 @@ func assessMigrationBulk() error {
 	bulkAssessmentDBConfigs, err = parseFleetConfigFile(fleetConfigPath)
 	if err != nil {
 		return fmt.Errorf("failed to parse fleet config file: %w", err)
-	}
-
-	err = retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
 
 	for _, dbConfig := range bulkAssessmentDBConfigs {
@@ -458,7 +457,7 @@ func validateBulkAssessmentDirFlag() {
 		utils.ErrExit(`ERROR: required flag "bulk-assessment-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
-		utils.ErrExit("bulk-assessment-dir %q doesn't exists.\n", bulkAssessmentDir)
+		utils.ErrExit("bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
 	} else {
 		if bulkAssessmentDir == "." {
 			fmt.Println("Note: Using current directory as bulk-assessment-dir")
@@ -466,7 +465,7 @@ func validateBulkAssessmentDirFlag() {
 		var err error
 		bulkAssessmentDir, err = filepath.Abs(bulkAssessmentDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for bulk-assessment-dir %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for bulk-assessment-dir: %q: %v\n", exportDir, err)
 		}
 		bulkAssessmentDir = filepath.Clean(bulkAssessmentDir)
 	}

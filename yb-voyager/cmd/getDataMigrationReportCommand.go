@@ -16,7 +16,9 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 
 	"github.com/fatih/color"
@@ -135,7 +137,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
+	}
+	if dbzmStatus == nil {
+		utils.ErrExit("Export data has not started yet. Try running after export has started.")
 	}
 	dbzmNameTupToRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
 
@@ -150,7 +155,10 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	if source.DBType == POSTGRESQL {
 		exportSnapshotStatus, err = exportSnapshotStatusFile.Read()
 		if err != nil {
-			utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+			if errors.Is(err, fs.ErrNotExist) {
+				utils.ErrExit("Export data has not started yet. Try running after export has started.")
+			}
+			utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
 		}
 		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
 		if err != nil {
@@ -161,7 +169,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
 			nt, err := namereg.NameReg.LookupTableName(tableName)
 			if err != nil {
-				utils.ErrExit("lookup %s in name registry: %v", tableName, err)
+				utils.ErrExit("lookup in name registry: %s: %v", tableName, err)
 			}
 			dbzmNameTupToRowCount.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
 		}
@@ -298,7 +306,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 		err := reportFile.Create(&reportData)
 		if err != nil {
-			utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
+			utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
 		return

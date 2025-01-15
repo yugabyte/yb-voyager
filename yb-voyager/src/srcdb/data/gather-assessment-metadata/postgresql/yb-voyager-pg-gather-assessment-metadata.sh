@@ -35,12 +35,13 @@ Arguments:
   assessment_metadata_dir     The directory path where the assessment metadata will be stored.
                               This script will attempt to create the directory if it does not exist.
 
-  iops_capture_interval   This argument is used to configure the interval for measuring the IOPS 
-                               metadata on source (in seconds). (Default 120)
-                            
+  pgss_enabled                Determine whether the pg_stat_statements extension is correctly installed, 
+                              configured, and enabled on the source database.
+
+  iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -52,20 +53,12 @@ if [ "$1" == "--help" ]; then
 fi
 
 # Check if all required arguments are provided
-if [ "$#" -lt 3 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> [iops_capture_interval]"
+if [ "$#" -lt 4 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
-elif [ "$#" -gt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> [iops_capture_interval]"
+elif [ "$#" -gt 5 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
-fi
-
-# Set default iops interval
-iops_capture_interval=120
-# Override default sleep interval if a fourth argument is provided
-if [ "$#" -eq 4 ]; then
-    iops_capture_interval=$4
-    echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
 pg_connection_string=$1
@@ -76,6 +69,16 @@ if [ ! -d "$assessment_metadata_dir" ]; then
     echo "Directory $assessment_metadata_dir does not exist. Please create the directory and try again."
     exit 1
 fi
+
+pgss_enabled=$4
+iops_capture_interval=120 # default sleep for calculating iops
+# Override default sleep interval if a fifth argument is provided
+if [ "$#" -eq 5 ]; then
+    iops_capture_interval=$5
+    echo "sleep interval for calculating iops: $iops_capture_interval seconds"
+fi
+
+
 
 LOG_FILE=$assessment_metadata_dir/yb-voyager-assessment.log
 log() {
@@ -118,6 +121,29 @@ run_command() {
     fi
 }
 
+
+# Function to convert schema list to an array and ensure 'public' is included
+prepare_schema_array() {
+    local schema_list=$1
+    local -a schema_array
+
+    # Convert the schema list (pipe-separated) to an array
+    IFS='|' read -r -a schema_array <<< "$schema_list"
+    local public_found=false
+    for schema in "${schema_array[@]}"; do
+        if [[ "$schema" == "public" ]]; then
+            public_found=true
+            break
+        fi
+    done
+
+    if [[ $public_found == false ]]; then
+        schema_array+=("public")
+    fi
+
+    echo "${schema_array[*]}"
+}
+
 main() {
     # Resolve the absolute path of assessment_metadata_dir
     assessment_metadata_dir=$(cd "$assessment_metadata_dir" && pwd)
@@ -147,45 +173,61 @@ main() {
     fi
 
     # checking before quoting connection_string
-    pg_stat_available=$(psql -A -t -q $pg_connection_string -c "SELECT 1 FROM pg_extension WHERE extname = 'pg_stat_statements'")
+    pgss_ext_schema=$(psql -A -t -q $pg_connection_string -c "SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = 'pg_stat_statements'")
+    log "INFO" "pg_stat_statements extension is available in schema: $pgss_ext_schema"
+
+    schema_array=$(prepare_schema_array $schema_list)
+    log "INFO" "schema_array for checking pgss_ext_schema: $schema_array"
 
     # quote the required shell variables
     pg_connection_string=$(quote_string "$pg_connection_string")
     schema_list=$(quote_string "$schema_list")
 
-    print_and_log "INFO" "Assessment metadata collection started for '$schema_list' schemas"
+    print_and_log "INFO" "Assessment metadata collection started for $schema_list schema(s)"
     for script in $SCRIPT_DIR/*.psql; do
         script_name=$(basename "$script" .psql)
         script_action=$(basename "$script" .psql | sed 's/-/ /g')
-        if [[ "$script_name" == "db-queries-summary" ]]; then
-            if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
-                continue
-            fi
-            if [[ "$pg_stat_available" != "1" ]]; then
-                print_and_log "INFO" "Skipping $script_action: pg_stat_statements is unavailable."
-                continue
-            fi
-        fi
+        
         print_and_log "INFO" "Collecting $script_action..."
-        if [ $script_name == "table-index-iops" ]; then
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
-            log "INFO" "Executing initial IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-initial.csv
-            
-            log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
-            # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
-            sleep $iops_capture_interval 
-            
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
-            log "INFO" "Executing final IOPS collection: $psql_command"
-            run_command "$psql_command"
-            mv table-index-iops.csv table-index-iops-final.csv
-        else
-            psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
-            log "INFO" "Executing script: $psql_command"
-            run_command "$psql_command"
-        fi
+        
+        case $script_name in
+            "table-index-iops")
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=initial"
+                log "INFO" "Executing initial IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-initial.csv
+
+                log "INFO" "Sleeping for $iops_capture_interval seconds to capture IOPS data"
+                # sleeping to calculate the iops reading two different time intervals, to calculate reads_per_second and writes_per_second
+                sleep $iops_capture_interval
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on -v measurement_type=final"
+                log "INFO" "Executing final IOPS collection: $psql_command"
+                run_command "$psql_command"
+                mv table-index-iops.csv table-index-iops-final.csv
+            ;;
+            "db-queries-summary")
+                if [[ "$REPORT_UNSUPPORTED_QUERY_CONSTRUCTS" == "false" ]]; then
+                    print_and_log "INFO" "Skipping $script_action: Reporting of unsupported query constructs is disabled."
+                    continue
+                fi
+
+                log "INFO" "argument pgss_enabled=$pgss_enabled"
+                if [[ "$pgss_enabled" == "false" ]]; then
+                    print_and_log "WARN" "Skipping $script_action: argument pgss_enabled is set as false"
+                    continue
+                fi
+
+                psql_command="psql -q $pg_connection_string -f $script -v schema_name=$pgss_ext_schema -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+            *)
+                psql_command="psql -q $pg_connection_string -f $script -v schema_list=$schema_list -v ON_ERROR_STOP=on"
+                log "INFO" "Executing script: $psql_command"
+                run_command "$psql_command"
+            ;;
+        esac
     done
 
     # check for pg_dump version

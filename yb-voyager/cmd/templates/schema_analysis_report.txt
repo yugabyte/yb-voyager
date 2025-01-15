@@ -9,21 +9,18 @@ Voyager Version               : {{ .VoyagerVersion }}
 Database Name                 : {{ .SchemaSummary.DBName }}
 Schema Name(s)                : {{ join .SchemaSummary.SchemaNames ", " }}
 DB Version                    : {{ .SchemaSummary.DBVersion }}
-{{if eq .MigrationComplexity "NOT AVAILABLE"}} 
-{{else}} 
-Migration Complexity          : {{ .MigrationComplexity }}
-{{end}}
+Target DB Version             : {{ .TargetDBVersion }}
 
 
 Schema Summary
 --------------- 
 {{ range .SchemaSummary.DBObjects }}
-Object Type         : {{ .ObjectType }}
-  - Total Count     : {{ .TotalCount }}
-  - Valid Count     : {{ sub .TotalCount .InvalidCount }}
-  - Invalid Count   : {{ .InvalidCount }}
-  - Object Names    : {{ .ObjectNames }}{{ if .Details }}  
-  - Details         : {{ .Details }}
+Object Type                    : {{ .ObjectType }}
+  - Total Objects              : {{ .TotalCount }}
+  - Objects Without Issues     : {{ sub .TotalCount .InvalidCount }}
+  - Objects With Issues        : {{ .InvalidCount }}
+  - Object Names               : {{ .ObjectNames }}{{ if .Details }}  
+  - Details                    : {{ .Details }}
 {{ end }}
 {{ end }}
 
@@ -38,6 +35,10 @@ Issues
   - Suggestion      : {{ .Suggestion }} {{ end }}{{ if .GH }}
   - Github Issue    : {{ .GH }}{{ end }}{{ if .DocsLink }}
   - Docs Link       : {{ .DocsLink }}{{ end }}
+{{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
+{{ if $supporterVerStr }}
+  - Fixed in Versions: {{ $supporterVerStr }}
+{{ end }}
 {{ end }}{{ else }}
 No issues found.{{ end }}
 

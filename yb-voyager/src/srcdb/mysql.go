@@ -47,7 +47,7 @@ func newMySQL(s *Source) *MySQL {
 
 func (ms *MySQL) Connect() error {
 	db, err := sql.Open("mysql", ms.getConnectionUri())
-	db.SetMaxOpenConns(1)
+	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
 	return err
@@ -71,21 +71,17 @@ func (ms *MySQL) CheckSchemaExists() bool {
 	return true
 }
 
-func (ms *MySQL) CheckRequiredToolsAreInstalled() {
-	checkTools("ora2pg")
-}
-
-func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) int64 {
+func (ms *MySQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.AsQualifiedCatalogName())
 
 	log.Infof("Querying row count of table %s", tableName)
 	err := ms.db.QueryRow(query).Scan(&rowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for row count of %q: %s", query, tableName, err)
+		return 0, fmt.Errorf("query %q for row count of %q: %w", query, tableName, err)
 	}
 	log.Infof("Table %q has %v rows.", tableName, rowCount)
-	return rowCount
+	return rowCount, nil
 }
 
 func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
@@ -98,7 +94,7 @@ func (ms *MySQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 {
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := ms.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query for approx row count of table: %q: %q %s", tableName.String(), query, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -114,7 +110,7 @@ func (ms *MySQL) GetVersion() string {
 	query := "SELECT VERSION()"
 	err := ms.db.QueryRow(query).Scan(&version)
 	if err != nil {
-		utils.ErrExit("run query %q on source: %s", query, err)
+		utils.ErrExit("run query: %q on source: %s", query, err)
 	}
 	ms.source.DBVersion = version
 	return version
@@ -375,10 +371,6 @@ func (ms *MySQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 	panic("not implemented")
 }
 
-func (ms *MySQL) ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error {
-	panic("not implemented")
-}
-
 /*
 Only valid case is when the table has a auto increment column
 Note: a mysql table can have only one auto increment column
@@ -396,7 +388,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		var columnName string
 		rows, err := ms.db.Query(query)
 		if err != nil {
-			utils.ErrExit("Failed to query %q for auto increment column of %q: %s", query, table.String(), err)
+			utils.ErrExit("Failed to query for auto increment column: query:%q table: %q: %s", query, table.String(), err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -407,7 +399,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		if rows.Next() {
 			err = rows.Scan(&columnName)
 			if err != nil {
-				utils.ErrExit("Failed to scan %q for auto increment column of %q: %s", query, table.String(), err)
+				utils.ErrExit("Failed to scan for auto increment column: query: %q table: %q: %s", query, table.String(), err)
 			}
 			qualifiedColumeName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			// sequence name as per PG naming convention for bigserial datatype's sequence
@@ -416,7 +408,7 @@ func (ms *MySQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[strin
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
 		}
 	}
 	return columnToSequenceMap
@@ -534,11 +526,11 @@ func (ms *MySQL) CheckSourceDBVersion(exportType string) error {
 	return nil
 }
 
-func (ms *MySQL) GetMissingExportSchemaPermissions() ([]string, error) {
+func (ms *MySQL) GetMissingExportSchemaPermissions(queryTableList string) ([]string, error) {
 	return nil, nil
 }
 
-func (ms *MySQL) GetMissingExportDataPermissions(exportType string) ([]string, error) {
+func (ms *MySQL) GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error) {
 	return nil, nil
 }
 
@@ -546,6 +538,10 @@ func (ms *MySQL) CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCo
 	return false, 0, 0, nil
 }
 
-func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+func (ms *MySQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
+	return nil, false, nil
+}
+
+func (ms *MySQL) GetSchemasMissingUsagePermissions() ([]string, error) {
 	return nil, nil
 }

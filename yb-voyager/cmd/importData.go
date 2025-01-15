@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"io"
 	"os"
@@ -29,7 +28,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -82,8 +80,12 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		sourceDBType = GetSourceDBTypeFromMSR()
-		err := validateImportFlags(cmd, importerRole)
+		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
 		}
@@ -217,11 +219,12 @@ func checkImportDataPermissions() {
 		utils.PrintAndLog(output)
 
 		var link string
-		if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+		switch importerRole {
+		case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/#prepare-source-replica-database"
-		} else if importerRole == SOURCE_DB_IMPORTER_ROLE {
+		case SOURCE_DB_IMPORTER_ROLE:
 			link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-back/#prepare-the-source-database"
-		} else {
+		default:
 			if changeStreamingIsEnabled(importType) {
 				link = "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-migrate/#prepare-the-target-database"
 			} else {
@@ -231,15 +234,18 @@ func checkImportDataPermissions() {
 		fmt.Println("\nCheck the documentation to prepare the database for migration:", color.BlueString(link))
 
 		// Prompt user to continue if missing permissions only if fk and triggers check did not fail
-		if !fkAndTriggersCheckFailed {
-			if !utils.AskPrompt("\nDo you want to continue anyway") {
-				utils.ErrExit("Please grant the required permissions and retry the import.")
-			}
-		} else {
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("Please grant the required permissions and retry the import.")
+		} else if !utils.AskPrompt("\nDo you want to continue anyway") {
 			utils.ErrExit("Please grant the required permissions and retry the import.")
 		}
 	} else {
-		log.Info("The target database has the required permissions for importing data.")
+		// If only fk and triggers check failed just simply error out
+		if fkAndTriggersCheckFailed {
+			utils.ErrExit("")
+		} else {
+			log.Info("The target database has the required permissions for importing data.")
+		}
 	}
 }
 
@@ -299,7 +305,7 @@ func startExportDataFromTargetIfRequired() {
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -412,7 +418,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			}
 		}
 		if len(unqualifiedTables) > 0 {
-			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
+			utils.ErrExit("Qualify following table names in the %s list with schema-name: %v", listName, unqualifiedTables)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result, unknownTables
@@ -468,10 +474,6 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
@@ -690,11 +692,11 @@ func importData(importFileTasks []*ImportFileTask) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE)
+		packAndSendImportDataPayload(COMPLETE, "")
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE)
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE)
+		packAndSendImportDataToSourcePayload(COMPLETE, "")
 	}
 
 }
@@ -752,7 +754,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string) {
+func packAndSendImportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -771,6 +773,7 @@ func packAndSendImportDataPayload(status string) {
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 		EnableUpsert: bool(tconf.EnableUpsert),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	//Getting the imported snapshot details
@@ -842,7 +845,7 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 	for _, table := range tables {
 		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table, identityType)
 		if err != nil {
-			utils.ErrExit("error in getting identity(%s) columns for table %s: %w", identityType, table, err)
+			utils.ErrExit("error in getting identity(%s) columns for table: %s: %w", identityType, table, err)
 		}
 		if len(identityColumns) > 0 {
 			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
@@ -864,13 +867,13 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	if reportProgressInBytes {
 		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported byte count for table: %s: %s", task.TableNameTup, err)
 		}
 		return byteCount
 	} else {
 		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported row count for table: %s: %s", task.TableNameTup, err)
 		}
 		return rowCount
 	}
@@ -924,18 +927,29 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
-		utils.PrintAndLog("The above list of tables on target DB are not empty. ")
-		yes := utils.AskPrompt("Are you sure you want to start afresh without truncating tables")
-		if !yes {
-			utils.ErrExit("Aborting import. Manually truncate the tables on target DB before continuing.")
+		if truncateTables {
+			// truncate tables only supported for import-data-to-target.
+			utils.PrintAndLog("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
+			err := tdb.TruncateTables(nonEmptyNts)
+			if err != nil {
+				utils.ErrExit("failed to truncate tables: %s", err)
+			}
+		} else {
+			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
+			utils.PrintAndLog("The above list of tables on DB are not empty.")
+			utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
+			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
+			if !yes {
+				utils.ErrExit("Aborting import.")
+			}
 		}
+
 	}
 
 	for _, task := range tasks {
 		err := state.Clean(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableNameTup, err)
+			utils.ErrExit("failed to clean import data state for table: %q: %s", task.TableNameTup, err)
 		}
 	}
 
@@ -943,7 +957,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	if utils.FileOrFolderExists(sqlldrDir) {
 		err := os.RemoveAll(sqlldrDir)
 		if err != nil {
-			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
+			utils.ErrExit("failed to remove sqlldr directory: %q: %s", sqlldrDir, err)
 		}
 	}
 
@@ -998,7 +1012,7 @@ func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn f
 	log.Infof("Collect all interrupted/remaining splits.")
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		utils.ErrExit("recovering state for table %q: %s", task.TableNameTup, err)
+		utils.ErrExit("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
 	for _, batch := range pendingBatches {
 		submitBatch(batch, updateProgressFn, importBatchArgsProto)
@@ -1016,12 +1030,12 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 
 	reader, err := dataStore.Open(filePath)
 	if err != nil {
-		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
+		utils.ErrExit("preparing reader for split generation on file: %q: %v", filePath, err)
 	}
 
 	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
 	if err != nil {
-		utils.ErrExit("open datafile %q: %v", filePath, err)
+		utils.ErrExit("open datafile: %q: %v", filePath, err)
 	}
 	defer dataFile.Close()
 
@@ -1045,13 +1059,13 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 		batchWriter = state.NewBatchWriter(filePath, t, batchNum)
 		err := batchWriter.Init()
 		if err != nil {
-			utils.ErrExit("initializing batch writer for table %q: %s", t, err)
+			utils.ErrExit("initializing batch writer for table: %q: %s", t, err)
 		}
 		// Write the header if necessary
 		if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
 			err = batchWriter.WriteHeader(header)
 			if err != nil {
-				utils.ErrExit("writing header for table %q: %s", t, err)
+				utils.ErrExit("writing header for table: %q: %s", t, err)
 			}
 		}
 	}
@@ -1089,14 +1103,14 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			utils.ErrExit("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(t)
 			line, err = valueConverter.ConvertRow(t, columnNames, line)
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
+				utils.ErrExit("transforming line number=%d for table: %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
 			}
 
 			// Check if adding this record exceeds the max batch size
@@ -1125,7 +1139,7 @@ func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameT
 			finalizeBatch(true, numLinesTaken, dataFile.GetBytesRead())
 			dataFile.ResetBytesRead(0)
 		} else if readLineErr != nil {
-			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
+			utils.ErrExit("read line from data file: %q: %s", filePath, readLineErr)
 		}
 	}
 
@@ -1162,7 +1176,7 @@ func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProt
 func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	err := batch.MarkPending()
 	if err != nil {
-		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
+		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
 	}
 	log.Infof("Importing %q", batch.FilePath)
 
@@ -1189,70 +1203,11 @@ func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 	}
 	err = batch.MarkDone()
 	if err != nil {
-		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
-	}
-}
-
-func newTargetConn() *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
-	if err != nil {
-		utils.WaitChannel <- 1
-		<-utils.WaitChannel
-		utils.ErrExit("connect to target db: %s", err)
-	}
-
-	setTargetSchema(conn)
-
-	if sourceDBType == ORACLE && enableOrafce {
-		setOrafceSearchPath(conn)
-	}
-
-	return conn
-}
-
-// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
-func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
-		// For PG, schema name is already included in the object name.
-		// No need to set schema if importing in the default schema.
-		return
-	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
-	var cntSchemaName int
-
-	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
-	}
-
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
-	_, err := conn.Exec(context.Background(), setSchemaQuery)
-	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
-	}
-}
-
-func dropIdx(conn *pgx.Conn, idxName string) error {
-	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
-	log.Infof("Dropping index: %q", dropIdxQuery)
-	_, err := conn.Exec(context.Background(), dropIdxQuery)
-	if err != nil {
-		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
-	}
-	return nil
-}
-
-func setOrafceSearchPath(conn *pgx.Conn) {
-	// append oracle schema in the search_path for orafce
-	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
-	_, err := conn.Exec(context.Background(), updateSearchPath)
-	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
 	}
 }
 
@@ -1273,63 +1228,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
 }
 
-// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
-func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
-	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
-		return nil
-	}
-
-	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
-	if err != nil {
-		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
-	}
-	if invalidTargetIndexesCache == nil {
-		invalidTargetIndexesCache, err = getInvalidIndexes(conn)
-		if err != nil {
-			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
-		}
-	}
-
-	// check index valid or not
-	if invalidTargetIndexesCache[fullyQualifiedObjName] {
-		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
-		err = dropIdx(*conn, fullyQualifiedObjName)
-		if err != nil {
-			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
-		}
-	}
-
-	// print the index name as index creation takes time and user can see the progress
-	color.Yellow("creating index %s ...", fullyQualifiedObjName)
-	return nil
-}
-
-func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
-	var result = make(map[string]bool)
-	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
-	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
-
-	rows, err := (*conn).Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("querying invalid indexes: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fullyQualifiedIndexName string
-		err := rows.Scan(&fullyQualifiedIndexName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
-		}
-		// if schema is not provided by catalog table, then it is public schema
-		if !strings.Contains(fullyQualifiedIndexName, ".") {
-			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
-		}
-		result[fullyQualifiedIndexName] = true
-	}
-	return result, nil
-}
-
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
@@ -1339,7 +1237,7 @@ func getTargetSchemaName(tableName string) string {
 	if tconf.TargetDBType == POSTGRESQL {
 		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
-			utils.ErrExit("no default schema for table %q ", tableName)
+			utils.ErrExit("no default schema for table: %q ", tableName)
 		}
 		return defaultSchema
 	}
@@ -1356,11 +1254,11 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
 			if err != nil {
-				utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+				utils.ErrExit("datastore.Open: %q: %v", task.FilePath, err)
 			}
 			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
 			if err != nil {
-				utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+				utils.ErrExit("opening datafile: %q: %v", task.FilePath, err)
 			}
 			header := df.GetHeader()
 			columns = strings.Split(header, dataFileDescriptor.Delimiter)
@@ -1381,7 +1279,7 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
-			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
+			utils.ErrExit("lookup table in name registry: %q: %v", tableNameRaw, err)
 		}
 		result.Put(nt, columnList)
 	}
@@ -1422,8 +1320,8 @@ func init() {
 	registerTargetDBConnFlags(importDataToTargetCmd)
 	registerImportDataCommonFlags(importDataCmd)
 	registerImportDataCommonFlags(importDataToTargetCmd)
-	registerImportDataFlags(importDataCmd)
-	registerImportDataFlags(importDataToTargetCmd)
+	registerImportDataToTargetFlags(importDataCmd)
+	registerImportDataToTargetFlags(importDataToTargetCmd)
 }
 
 func createSnapshotImportStartedEvent() cp.SnapshotImportStartedEvent {

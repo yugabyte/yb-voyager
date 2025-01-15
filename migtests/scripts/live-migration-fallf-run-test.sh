@@ -18,7 +18,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
@@ -38,11 +37,13 @@ else
     source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 fi
 
+source ${SCRIPTS}/functions.sh
+
+normalize_and_export_vars "fallf"
+
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
-
-source ${SCRIPTS}/functions.sh
 
 main() {
 
@@ -62,7 +63,9 @@ main() {
 
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]
 	then
-		create_ff_schema ${SOURCE_REPLICA_DB_NAME}
+		create_source_db ${SOURCE_DB_SCHEMA}
+		# TODO: Add dynamic Fall Forward schema creation. Currently using the same name for all tests.
+		create_source_db ${SOURCE_REPLICA_DB_SCHEMA}
 		run_sqlplus_as_sys ${SOURCE_REPLICA_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql
 	fi
 	./init-db
@@ -206,7 +209,12 @@ main() {
 	import_schema --post-snapshot-import true --refresh-mviews true
 	
 	step "Run snapshot validations."
-	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false'
+	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {
+			tail_log_file "yb-voyager-import-data.log"
+			tail_log_file "yb-voyager-export-data-from-source.log"
+			tail_log_file "yb-voyager-import-data-to-source-replica.log"
+			exit 1
+		}
 
 	step "Inserting new events to source"
 	run_sql_file source_delta.sql
@@ -286,7 +294,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

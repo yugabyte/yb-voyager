@@ -16,7 +16,36 @@ CREATE OR REPLACE view test AS (
                             FROM test1
                             where t = '1DAY' group by x
                             );
-
+CREATE VIEW view_name AS SELECT * from test_arr_enum;
 --Unsupported PG Syntax
 --For this case we will have two issues reported one by regex and other by Unsupported PG syntax with error msg
 ALTER VIEW view_name TO select * from test;
+
+CREATE VIEW public.orders_view AS
+ SELECT orders.order_id,
+    orders.customer_name,
+    orders.product_name,
+    orders.quantity,
+    orders.price,
+    XMLELEMENT(NAME "OrderDetails", XMLELEMENT(NAME "Customer", orders.customer_name), XMLELEMENT(NAME "Product", orders.product_name), XMLELEMENT(NAME "Quantity", orders.quantity), XMLELEMENT(NAME "TotalPrice", (orders.price * (orders.quantity)::numeric))) AS order_xml,
+    XMLCONCAT(XMLELEMENT(NAME "Customer", orders.customer_name), XMLELEMENT(NAME "Product", orders.product_name)) AS summary_xml,
+    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,
+    orders.ctid AS row_ctid,
+    orders.xmin AS transaction_id
+   FROM public.orders;
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employees
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
+CREATE VIEW public.my_films_view AS 
+SELECT jt.* FROM
+ my_films,
+ JSON_TABLE ( js, '$.favorites[*]'
+   COLUMNS (
+    id FOR ORDINALITY,
+    kind text PATH '$.kind',
+    NESTED PATH '$.films[*]' COLUMNS (
+      title text FORMAT JSON PATH '$.title' OMIT QUOTES,
+      director text PATH '$.director' KEEP QUOTES))) AS jt;

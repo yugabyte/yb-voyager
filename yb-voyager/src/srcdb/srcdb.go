@@ -31,9 +31,8 @@ type SourceDB interface {
 	Disconnect()
 	CheckSchemaExists() bool
 	GetConnectionUriWithoutPassword() string
-	GetTableRowCount(tableName sqlname.NameTuple) int64
+	GetTableRowCount(tableName sqlname.NameTuple) (int64, error)
 	GetTableApproxRowCount(tableName sqlname.NameTuple) int64
-	CheckRequiredToolsAreInstalled()
 	GetVersion() string
 	GetAllTableNames() []*sqlname.SourceName
 	GetAllTableNamesRaw(schemaName string) ([]string, error)
@@ -54,13 +53,13 @@ type SourceDB interface {
 	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error)
 	ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error
 	GetNonPKTables() ([]string, error)
-	ValidateTablesReadyForLiveMigration(tableList []sqlname.NameTuple) error
 	GetDatabaseSize() (int64, error)
 	CheckSourceDBVersion(exportType string) error
-	GetMissingExportSchemaPermissions() ([]string, error)
-	GetMissingExportDataPermissions(exportType string) ([]string, error)
-	GetMissingAssessMigrationPermissions() ([]string, error)
+	GetMissingExportSchemaPermissions(queryTableList string) ([]string, error)
+	GetMissingExportDataPermissions(exportType string, finalTableList []sqlname.NameTuple) ([]string, error)
+	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
+	GetSchemasMissingUsagePermissions() ([]string, error)
 }
 
 func newSourceDB(source *Source) SourceDB {
@@ -85,7 +84,7 @@ func IsTableEmpty(db *sql.DB, query string) bool {
 		return true
 	}
 	if err != nil {
-		utils.ErrExit("Failed to query %q to check table is empty: %s", query, err)
+		utils.ErrExit("Failed to query: %q to check table is empty: %s", query, err)
 	}
 	return false
 }

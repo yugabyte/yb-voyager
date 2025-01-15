@@ -8,16 +8,10 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-)
-
-const (
-	YUGABYTEDB = sqlname.YUGABYTEDB
-	POSTGRESQL = sqlname.POSTGRESQL
-	ORACLE     = sqlname.ORACLE
-	MYSQL      = sqlname.MYSQL
 )
 
 const (
@@ -25,6 +19,7 @@ const (
 	SOURCE_DB_IMPORTER_ROLE         = "source_db_importer"         // Fallback.
 	SOURCE_REPLICA_DB_IMPORTER_ROLE = "source_replica_db_importer" // Fall-forward.
 	SOURCE_DB_EXPORTER_ROLE         = "source_db_exporter"
+	SOURCE_DB_EXPORTER_STATUS_ROLE  = "source_db_exporter_status"
 	TARGET_DB_EXPORTER_FF_ROLE      = "target_db_exporter_ff"
 	TARGET_DB_EXPORTER_FB_ROLE      = "target_db_exporter_fb"
 	IMPORT_FILE_ROLE                = "import_file"
@@ -129,7 +124,7 @@ func (reg *NameRegistry) registerNames() (bool, error) {
 		return reg.registerYBNames()
 	case reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE && reg.DefaultSourceReplicaDBSchemaName == "":
 		log.Infof("setting default source replica schema name in the name registry: %s", reg.DefaultSourceDBSchemaName)
-		defaultSchema := lo.Ternary(reg.SourceDBType == POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.params.TargetDBSchema)
+		defaultSchema := lo.Ternary(reg.SourceDBType == constants.POSTGRESQL, reg.DefaultSourceDBSchemaName, reg.params.TargetDBSchema)
 		reg.setDefaultSourceReplicaDBSchemaName(defaultSchema)
 		return true, nil
 	}
@@ -147,6 +142,9 @@ func (reg *NameRegistry) UnRegisterYBNames() error {
 }
 
 func (reg *NameRegistry) registerSourceNames() (bool, error) {
+	if reg.params.SDB == nil {
+		return false, fmt.Errorf("source db connection is not available")
+	}
 	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
@@ -158,7 +156,7 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 		m[schemaName] = tableNames
 		seqNames, err := reg.params.SDB.GetAllSequencesRaw(schemaName)
 		if err != nil {
-			return false, fmt.Errorf("get all table names: %w", err)
+			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
 	}
@@ -170,11 +168,11 @@ func (reg *NameRegistry) initSourceDBSchemaNames() {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.
 	switch reg.params.SourceDBType {
-	case ORACLE:
+	case constants.ORACLE:
 		reg.SourceDBSchemaNames = []string{strings.ToUpper(reg.params.SourceDBSchema)}
-	case MYSQL:
+	case constants.MYSQL:
 		reg.SourceDBSchemaNames = []string{reg.params.SourceDBName}
-	case POSTGRESQL:
+	case constants.POSTGRESQL:
 		reg.SourceDBSchemaNames = lo.Map(strings.Split(reg.params.SourceDBSchema, "|"), func(s string, _ int) string {
 			return strings.ToLower(s)
 		})
@@ -194,11 +192,11 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 
 	m := make(map[string][]string)
 	reg.DefaultYBSchemaName = reg.params.TargetDBSchema
-	if reg.SourceDBTableNames != nil && reg.SourceDBType == POSTGRESQL {
+	if reg.SourceDBTableNames != nil && reg.SourceDBType == constants.POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
 	}
 	switch reg.SourceDBType {
-	case POSTGRESQL:
+	case constants.POSTGRESQL:
 		reg.YBSchemaNames = reg.SourceDBSchemaNames
 	default:
 		reg.YBSchemaNames = []string{reg.params.TargetDBSchema}
@@ -211,7 +209,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 		m[schemaName] = tableNames
 		seqNames, err := yb.GetAllSequencesRaw(schemaName)
 		if err != nil {
-			return false, fmt.Errorf("get all table names: %w", err)
+			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
 	}
@@ -290,9 +288,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 			if errors.As(err, &errObj) {
 				// Case insensitive match.
 				caseInsensitiveName := tableName
-				if reg.SourceDBType == POSTGRESQL || reg.SourceDBType == YUGABYTEDB {
+				if reg.SourceDBType == constants.POSTGRESQL || reg.SourceDBType == constants.YUGABYTEDB {
 					caseInsensitiveName = strings.ToLower(tableName)
-				} else if reg.SourceDBType == ORACLE {
+				} else if reg.SourceDBType == constants.ORACLE {
 					caseInsensitiveName = strings.ToUpper(tableName)
 				}
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
@@ -308,14 +306,14 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 	}
 	if reg.YBTableNames != nil { // nil in `export` mode.
 		targetName, err = reg.lookup(
-			YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
+			constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
 				// A special case.
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
 					targetName, err = reg.lookup(
-						YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
+						constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
 				}
 			}
 			if err != nil {
@@ -403,7 +401,7 @@ func NewNameTuple(role string, sourceName *sqlname.ObjectName, targetName *sqlna
 		t.CurrentName = t.SourceName
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		t.CurrentName = t.SourceName
-	case SOURCE_DB_EXPORTER_ROLE:
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_EXPORTER_STATUS_ROLE:
 		t.CurrentName = t.SourceName
 	case TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_EXPORTER_FB_ROLE:
 		t.CurrentName = t.TargetName

@@ -39,17 +39,19 @@ drop table if exists check_test;
 CREATE TABLE check_test (
     ID serial primary key,
     first_name varchar(255) NOT NULL,
+    middle_name varchar(255) not null,
     last_name varchar(255),
     Age int,
     CHECK (Age>=18)
 );
-insert into check_test (first_name, last_name, age) values ('Modestine', 'MacMeeking', 20);
-insert into check_test (first_name, last_name, age) values ('Genna', 'Kaysor', 50);
-insert into check_test (first_name, last_name, age) values ('Tess', 'Wesker', 56);
-insert into check_test (first_name, last_name, age) values ('Magnum', 'Danzelman', 89);
-insert into check_test (first_name, last_name, age) values ('Mitzi', 'Pidwell', 34);
-insert into check_test (first_name, last_name, age) values ('Milzie', 'Rohlfing', 70);
+insert into check_test (first_name, middle_name, last_name, age) values ('Modestine', '', 'MacMeeking', 20);
+insert into check_test (first_name, middle_name, last_name, age) values ('Genna', '', 'Kaysor', 50);
+insert into check_test (first_name, middle_name, last_name, age) values ('Tess', '', 'Wesker', 56);
+insert into check_test (first_name, middle_name, last_name, age) values ('Magnum', '', 'Danzelman', 89);
+insert into check_test (first_name, middle_name, last_name, age) values ('Mitzi', '', 'Pidwell', 34);
+insert into check_test (first_name, middle_name, last_name, age) values ('Milzie', '', 'Rohlfing', 70);
 
+ALTER TABLE check_test ADD CONSTRAINT not_valid_cons CHECK(middle_name<>'') NOT VALID;
 
 
 drop table if exists default_test;

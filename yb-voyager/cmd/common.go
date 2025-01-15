@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -46,6 +45,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/hashicorp/go-version"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -58,12 +58,15 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var (
-	metaDB               *metadb.MetaDB
-	PARENT_COMMAND_USAGE = "Parent command. Refer to the sub-commands for usage help."
-	startTime            time.Time
+	metaDB                 *metadb.MetaDB
+	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
+	startTime              time.Time
+	targetDbVersionStrFlag string
+	targetDbVersion        *ybversion.YBVersion
 )
 
 func PrintElapsedDuration() {
@@ -162,7 +165,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 			table, err := namereg.NameReg.LookupTableName(fullTableName)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", fullTableName, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", fullTableName, err)
 			}
 			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
@@ -170,7 +173,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
+		utils.ErrExit("Failed to read file: %q: %v", tocTextFilePath, err)
 	}
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
@@ -205,7 +208,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("read file %q: %s", filePath, err)
+		utils.ErrExit("read file: %q: %s", filePath, err)
 	}
 
 	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
@@ -236,11 +239,13 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
-	if !msr.IsExportTableListSet || msr.SourceDBConf.DBType != POSTGRESQL {
+	if msr.SourceDBConf.DBType != POSTGRESQL {
 		return leafPartitions
 	}
 	tables := msr.TableListExportedFromSource
 	for leaf, root := range msr.SourceRenameTablesMap {
+		//Using the SQLName here to avoid creating the NameTuples manually for leafTable case as in a case partition names changes on target
+		//NameRegistry won't be able to figure out the map of source->target tuples.
 		leafTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(leaf))
 		rootTable := sqlname.NewSourceNameFromQualifiedName(getQuotedFromUnquoted(root))
 		leaf = leafTable.Qualified.MinQuoted
@@ -251,6 +256,7 @@ func getLeafPartitionsFromRootTable() map[string][]string {
 		if !lo.Contains(tables, root) {
 			continue
 		}
+		//Adding a Qualified.MinQuoted to key and values which is similar to NameTuple.ForOutput();
 		leafPartitions[root] = append(leafPartitions[root], leaf)
 	}
 
@@ -268,6 +274,10 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 	fmt.Printf("snapshot export report\n")
 	uitable := uitable.New()
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
 	leafPartitions := getLeafPartitionsFromRootTable()
 	if !snapshotViaDebezium {
 		exportedRowCount := getExportedRowCountSnapshot(exportDir)
@@ -284,11 +294,12 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", key, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
+			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 			partitions := leafPartitions[table.ForOutput()]
-			if source.DBType == POSTGRESQL && partitions != nil {
+			if source.DBType == POSTGRESQL && partitions != nil && msr.IsExportTableListSet {
 				partitions := strings.Join(partitions, ", ")
 				displayTableName = fmt.Sprintf("%s (%s)", table.CurrentName.Unqualified.MinQuoted, partitions)
 			}
@@ -317,7 +328,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 		if err != nil {
-			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
+			utils.ErrExit("lookup table  in name registry : %q: %v", tableStatus.TableName, err)
 		}
 		displayTableName := table.CurrentName.Unqualified.MinQuoted
 		partitions := leafPartitions[table.ForOutput()]
@@ -353,21 +364,6 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func renameExportSnapshotStatus(exportSnapshotStatusFile *jsonfile.JsonFile[ExportSnapshotStatus]) error {
-	err := exportSnapshotStatusFile.Update(func(exportSnapshotStatus *ExportSnapshotStatus) {
-		for i, tableStatus := range exportSnapshotStatus.Tables {
-			renamedTable, isRenamed := renameTableIfRequired(tableStatus.TableName)
-			if isRenamed {
-				exportSnapshotStatus.Tables[i].TableName = renamedTable
-			}
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("update export snapshot status: %w", err)
-	}
-	return nil
-}
-
 func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
@@ -392,7 +388,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		for _, tableName := range tableList {
 			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
 			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+				utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
 			}
 			snapshotRowCount.Put(tableName, tableRowCount)
 		}
@@ -445,7 +441,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", projectDirPath, err)
 		}
 	}
 
@@ -462,7 +458,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", schemaDir, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", schemaDir, err)
 		}
 	}
 
@@ -482,22 +478,78 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	if err != nil {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
-	msr, err := metaDBInstance.GetMigrationStatusRecord()
+
+	return metaDBInstance
+}
+
+func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportDir string) {
+	// If the msr VoyagerVersion is less than the PREVIOUS_BREAKING_CHANGE_VERSION, then the export-dir is not compatible with the current Voyager version.
+	// This version will always be a final release version and never "main" or "rc" version.
+	previousBreakingChangeVersion, err := version.NewVersion(utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("could not create version from %q: %v", utils.PREVIOUS_BREAKING_CHANGE_VERSION, err)
 	}
-	if msr.VoyagerVersion != utils.YB_VOYAGER_VERSION {
-		userFacingMsg := fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
-			"The export-dir %q was created using version %q and the current version is %q. Either use Voyager %q to continue the migration or start afresh "+
-			"with a new export-dir.", migrationExportDir, msr.VoyagerVersion, utils.YB_VOYAGER_VERSION, msr.VoyagerVersion)
-		if msr.VoyagerVersion == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
-			userFacingMsg = fmt.Sprintf("Voyager requires the entire migration workflow to be executed using a single Voyager version.\n"+
-				"The export-dir %q was created using older version and the current version is %q. Either use older version to continue the migration or start afresh "+
-				"with a new export-dir.", migrationExportDir, utils.YB_VOYAGER_VERSION)
+
+	var versionCheckFailed bool
+
+	if msrVoyagerVersionString == "main" {
+		// If the export-dir was created using the main branch, then the current version should also be the main branch.
+		if utils.YB_VOYAGER_VERSION != "main" {
+			versionCheckFailed = true
+		}
+	} else if msrVoyagerVersionString != "" {
+		msrVoyagerFinalVersion := msrVoyagerVersionString
+		if strings.Contains(msrVoyagerFinalVersion, "rc") {
+			msrVoyagerFinalVersion, err = utils.GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion)
+			if err != nil {
+				utils.ErrExit("could not get final release version from rc version %q: %v", msrVoyagerFinalVersion, err)
+			}
+		}
+
+		msrVoyagerVersion, err := version.NewVersion(msrVoyagerFinalVersion)
+		if err != nil {
+			utils.ErrExit("could not create version from %q: %v", msrVoyagerFinalVersion, err)
+		}
+
+		if msrVoyagerVersion.LessThan(previousBreakingChangeVersion) {
+			versionCheckFailed = true
+		} else {
+			// If the export-dir was created using a version greater than or equal to the PREVIOUS_BREAKING_CHANGE_VERSION,
+			// then if the current voyager version does not match the export-dir version, then just print a note warning the user.
+			noteString := fmt.Sprintf(color.YellowString("Note: The export-dir %q was created using voyager version %q. "+
+				"The current version is %q."),
+				migrationExportDir, msrVoyagerVersionString, utils.YB_VOYAGER_VERSION)
+
+			if utils.YB_VOYAGER_VERSION == "main" {
+				// In this case we won't be able to convert the version using version.NewVersion() as "main" is not a valid version.
+				// Moreover, we know here that the msrVoyagerVersion is not "main" as we have already handled that case above.
+				// Therefore, the current version and the msrVoyagerVersion will not be equal.
+				utils.PrintAndLog("%s", noteString)
+			} else {
+				currentVersion, err := version.NewVersion(utils.YB_VOYAGER_VERSION)
+				if err != nil {
+					utils.ErrExit("could not create version from %q: %v", utils.YB_VOYAGER_VERSION, err)
+				}
+				if !currentVersion.Equal(msrVoyagerVersion) {
+					utils.PrintAndLog("%s", noteString)
+				}
+			}
+		}
+	}
+
+	if versionCheckFailed {
+		userFacingMsg := fmt.Sprintf("\nThe export-dir %q was created using voyager version %q. "+
+			"However, the current version %q requires the export-dir to be created using version %q or later. "+
+			"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
+			migrationExportDir, msrVoyagerVersionString, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
+		if msrVoyagerVersionString == "" { //In case the export dir is already started from older version that will not have VoyagerVersion field in MSR
+			userFacingMsg = fmt.Sprintf("\nThe export-dir %q was created using older version. "+
+				"However, the current version %q requires the export-dir to be created using version %q or later. "+
+				"Either use a compatible version to continue the migration or start afresh with a new export-dir. ",
+				migrationExportDir, utils.YB_VOYAGER_VERSION, utils.PREVIOUS_BREAKING_CHANGE_VERSION)
 		}
 		utils.ErrExit(userFacingMsg)
 	}
-	return metaDBInstance
 }
 
 func initAssessmentDB() {
@@ -877,7 +929,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	}
 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table %s", table)
+		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
@@ -885,7 +937,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	if renameTablesMap[fromTable] != "" {
 		tableTup, err := namereg.NameReg.LookupTableName(renameTablesMap[fromTable])
 		if err != nil {
-			utils.ErrExit("lookup failed for the table  %s", renameTablesMap[fromTable])
+			utils.ErrExit("lookup failed for the table:  %s", renameTablesMap[fromTable])
 		}
 
 		return tableTup.ForMinOutput(), true
@@ -898,10 +950,6 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	snapshotStatusMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
 	for _, tableStatus := range exportSnapshotStatus.Tables {
-		if tableStatus.FileName == "" {
-			//in case of root table as well in the tablelist during export an entry with empty file name is there
-			continue
-		}
 		nt, err := namereg.NameReg.LookupTableName(tableStatus.TableName)
 		if err != nil {
 			return nil, nil, fmt.Errorf("lookup table [%s] from name registry: %v", tableStatus.TableName, err)
@@ -999,157 +1047,56 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
-var (
-	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
-	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
-	APP_CHANGES_HIGH_THRESHOLD      = 5
-	APP_CHANGES_MEDIUM_THRESHOLD    = 1
-	SCHEMA_CHANGES_HIGH_THRESHOLD   = math.MaxInt32
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
-)
-
-var appChanges = []string{
-	INHERITANCE_ISSUE_REASON,
-	CONVERSION_ISSUE_REASON,
-	DEFERRABLE_CONSTRAINT_ISSUE,
-	UNSUPPORTED_DATATYPE_XML_ISSUE,
-	UNSUPPORTED_DATATYPE_XID_ISSUE,
-	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
-}
-
-func readEnvForAppOrSchemaCounts() {
-	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
-	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
-	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
-}
-
-// Migration complexity calculation from the conversion issues
-func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysisReport utils.SchemaReport) string {
-	if analysisReport.MigrationComplexity != "" {
-		return analysisReport.MigrationComplexity
-	}
-
-	if sourceDBType == ORACLE {
-		mc, err := getMigrationComplexityForOracle(schemaDirectory)
-		if err != nil {
-			log.Errorf("failed to get migration complexity for oracle: %v", err)
-			return "NOT AVAILABLE"
-		}
-		return mc
-	} else if sourceDBType != POSTGRESQL {
-		return "NOT AVAILABLE"
-	}
-
-	log.Infof("Calculating migration complexity..")
-	readEnvForAppOrSchemaCounts()
-	appChangesCount := 0
-	for _, issue := range schemaAnalysisReport.Issues {
-		for _, appChange := range appChanges {
-			if strings.Contains(issue.Reason, appChange) {
-				appChangesCount++
-			}
-		}
-	}
-	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
-
-	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
-		return HIGH
-	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
-		return MEDIUM
-	}
-	//LOW in case appChanges == 0 or schemaChanges [0-20]
-	return LOW
-}
-
-// This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
-// Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
-func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
-	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
-	if !utils.FileOrFolderExists(ora2pgReportPath) {
-		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
-	}
-	file, err := os.Open(ora2pgReportPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
-		}
-	}()
-	// Sample file contents
-
-	// "dbi:Oracle:(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = xyz)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = DMS)))";
-	// "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0";"ASSESS_MIGRATION";"261.62 MB";"1 person-day(s)";"A-2";
-	// "0/0/0.00";"0/0/0";"0/0/0";"25/0/6.50";"0/0/0.00";"0/0/0";"0/0/0";"0/0/0";"0/0/0";"3/0/1.00";"3/0/1.00";
-	// "44/0/4.90";"27/0/2.70";"9/0/1.80";"4/0/16.00";"5/0/3.00";"2/0/2.00";"125/0/58.90"
-	//
-	// X/Y/Z - total/invalid/cost for each type of objects(table,function,etc). Last data element is the sum total.
-	// total cost = 58.90 units (1 unit = 5 minutes). Therefore total cost is approx 1 person-days.
-	// column 6 is Migration level.
-	//  Migration levels:
-	//     A - Migration that might be run automatically
-	//     B - Migration with code rewrite and a human-days cost up to 5 days
-	//     C - Migration with code rewrite and a human-days cost above 5 days
-	// 	Technical levels:
-	//     1 = trivial: no stored functions and no triggers
-	//     2 = easy: no stored functions but with triggers, no manual rewriting
-	//     3 = simple: stored functions and/or triggers, no manual rewriting
-	//     4 = manual: no stored functions but with triggers or views with code rewriting
-	//     5 = difficult: stored functions and/or triggers with code rewriting
-	reader := csv.NewReader(file)
-	reader.Comma = ';'
-	rows, err := reader.ReadAll()
-	if err != nil {
-		log.Errorf("error reading csv file %s: %v", ora2pgReportPath, err)
-		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
-	}
-	if len(rows) > 1 {
-		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
-	}
-	reportData := rows[0]
-	migrationLevel := strings.Split(reportData[5], "-")[0]
-
-	switch migrationLevel {
-	case "A":
-		return LOW, nil
-	case "B":
-		return MEDIUM, nil
-	case "C":
-		return HIGH, nil
-	default:
-		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
-	}
-}
-
 // =====================================================================
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
-	VoyagerVersion             string                                `json:"VoyagerVersion"`
-	MigrationComplexity        string                                `json:"MigrationComplexity"`
-	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
-	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
-	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
-	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
-	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes                      []string                              `json:"Notes"`
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                          []string                              `json:"Notes"`
+
+	// fields going to be deprecated
+	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`
+	UnsupportedDataTypesDesc   string                            `json:"UnsupportedDataTypesDesc"`
+	UnsupportedFeatures        []UnsupportedFeature              `json:"UnsupportedFeatures"`
+	UnsupportedFeaturesDesc    string                            `json:"UnsupportedFeaturesDesc"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct `json:"UnsupportedQueryConstructs"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature              `json:"UnsupportedPlPgSqlObjects"`
+	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
+}
+
+// Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
+type AssessmentIssue struct {
+	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
+	CategoryDescription   string
+	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                  string // Ex: "Stored generated columns are not supported."
+	Description           string
+	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
+	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
+	ObjectName            string
+	SqlStatement          string
+	DocsLink              string
+	MinimumVersionFixedIn map[string]*ybversion.YBVersion
 }
 
 type UnsupportedFeature struct {
-	FeatureName        string       `json:"FeatureName"`
-	Objects            []ObjectInfo `json:"Objects"`
-	DisplayDDL         bool         `json:"-"` // just used by html format to display the DDL for some feature and object names for other
-	DocsLink           string       `json:"DocsLink,omitempty"`
-	FeatureDescription string       `json:"FeatureDescription,omitempty"`
+	FeatureName            string                          `json:"FeatureName"`
+	Objects                []ObjectInfo                    `json:"Objects"`
+	DisplayDDL             bool                            `json:"-"` // just used by html format to display the DDL for some feature and object names for other
+	DocsLink               string                          `json:"DocsLink,omitempty"`
+	FeatureDescription     string                          `json:"FeatureDescription,omitempty"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
 type ObjectInfo struct {
+	ObjectType   string `json:"ObjectType,omitempty"`
 	ObjectName   string
 	SqlStatement string
 }
@@ -1184,24 +1131,26 @@ type AssessMigrationDBConfig struct {
 type AssessMigrationPayload struct {
 	PayloadVersion        string
 	VoyagerVersion        string
+	TargetDBVersion       *ybversion.YBVersion
 	MigrationComplexity   string
 	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssuePayload
+	AssessmentIssues      []AssessmentIssueYugabyteD
 	SourceSizeDetails     SourceDBSizeDetails
 	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.Issue
+	ConversionIssues      []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReport
 }
 
-type AssessmentIssuePayload struct {
-	Type               string `json:"Type"`               // Feature, DataType, MigrationCaveat, UQC
-	TypeDescription    string `json:"TypeDescription"`    // Based on AssessmentIssue type
-	Subtype            string `json:"Subtype"`            // GIN Indexes, Advisory Locks etc
-	SubtypeDescription string `json:"SubtypeDescription"` // description based on subtype
-	ObjectName         string `json:"ObjectName"`         // Fully qualified object name(empty if NA, eg UQC)
-	SqlStatement       string `json:"SqlStatement"`       // DDL or DML(UQC)
-	DocsLink           string `json:"DocsLink"`           // docs link based on the subtype
+type AssessmentIssueYugabyteD struct {
+	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
+	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
+	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc
+	SubtypeDescription     string                          `json:"SubtypeDescription"`     // description based on subtype
+	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
+	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
+	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 
 	// Store Type-specific details - extensible, can refer any struct
 	Details json.RawMessage `json:"Details,omitempty"`
@@ -1228,7 +1177,7 @@ type TargetSizingRecommendations struct {
 	TotalShardedSize   int64
 }
 
-var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.0"
+var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.1"
 
 //====== AssesmentReport struct methods ======//
 
@@ -1240,6 +1189,10 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	}
 
 	return &report, nil
+}
+
+func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
+	ar.Issues = append(ar.Issues, issues...)
 }
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
@@ -1461,31 +1414,41 @@ func PackAndSendCallhomePayloadOnExit() {
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
+
+	var errorMsg string
+	var status string
+	if utils.ErrExitErr != nil {
+		errorMsg = utils.ErrExitErr.Error()
+		status = ERROR
+	} else {
+		status = EXIT
+	}
+
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+		packAndSendAssessMigrationPayload(status, errorMsg)
 	case assessMigrationBulkCmd.CommandPath():
-		packAndSendAssessMigrationBulkPayload(EXIT)
+		packAndSendAssessMigrationBulkPayload(status, errorMsg)
 	case exportSchemaCmd.CommandPath():
-		packAndSendExportSchemaPayload(EXIT)
+		packAndSendExportSchemaPayload(status, errorMsg)
 	case analyzeSchemaCmd.CommandPath():
-		packAndSendAnalyzeSchemaPayload(EXIT)
+		packAndSendAnalyzeSchemaPayload(status, errorMsg)
 	case importSchemaCmd.CommandPath():
-		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+		packAndSendImportSchemaPayload(status, errorMsg)
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		packAndSendExportDataPayload(EXIT)
+		packAndSendExportDataPayload(status, errorMsg)
 	case exportDataFromTargetCmd.CommandPath():
-		packAndSendExportDataFromTargetPayload(EXIT)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(EXIT)
+		packAndSendImportDataPayload(status, errorMsg)
 	case importDataToSourceCmd.CommandPath():
-		packAndSendImportDataToSourcePayload(EXIT)
+		packAndSendImportDataToSourcePayload(status, errorMsg)
 	case importDataToSourceReplicaCmd.CommandPath():
-		packAndSendImportDataToSrcReplicaPayload(EXIT)
+		packAndSendImportDataToSrcReplicaPayload(status, errorMsg)
 	case endMigrationCmd.CommandPath():
-		packAndSendEndMigrationPayload(EXIT)
+		packAndSendEndMigrationPayload(status, errorMsg)
 	case importDataFileCmd.CommandPath():
-		packAndSendImportDataFilePayload(EXIT)
+		packAndSendImportDataFilePayload(status, errorMsg)
 	}
 }
 
@@ -1547,17 +1510,17 @@ func sendCallhomePayloadAtIntervals() {
 		time.Sleep(15 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-			packAndSendExportDataPayload(INPROGRESS)
+			packAndSendExportDataPayload(INPROGRESS, "")
 		case exportDataFromTargetCmd.CommandPath():
-			packAndSendExportDataFromTargetPayload(INPROGRESS)
+			packAndSendExportDataFromTargetPayload(INPROGRESS, "")
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS)
+			packAndSendImportDataPayload(INPROGRESS, "")
 		case importDataToSourceCmd.CommandPath():
-			packAndSendImportDataToSourcePayload(INPROGRESS)
+			packAndSendImportDataToSourcePayload(INPROGRESS, "")
 		case importDataToSourceReplicaCmd.CommandPath():
-			packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
+			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, "")
 		case importDataFileCmd.CommandPath():
-			packAndSendImportDataFilePayload(INPROGRESS)
+			packAndSendImportDataFilePayload(INPROGRESS, "")
 		}
 	}
 }

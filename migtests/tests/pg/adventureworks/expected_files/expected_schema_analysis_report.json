@@ -1,6 +1,5 @@
 {
     "VoyagerVersion": "IGNORED",
-    "MigrationComplexity": "HIGH",
     "Summary": {
         "Description": "Objects that will be created on the target YugabyteDB.",
         "DbName": "adventureworks",
@@ -46,8 +45,7 @@
             {
                 "ObjectType": "TABLE",
                 "TotalCount": 68,
-                "InvalidCount": 0,
-                "InvalidCount": 5,
+                "InvalidCount": 68,
                 "ObjectNames": "humanresources.department, humanresources.employee, humanresources.employeedepartmenthistory, humanresources.employeepayhistory, humanresources.jobcandidate, humanresources.shift, person.address, person.businessentityaddress, person.countryregion, person.emailaddress, person.person, person.personphone, person.phonenumbertype, person.stateprovince, person.addresstype, person.businessentity, person.businessentitycontact, person.contacttype, person.password, production.billofmaterials, production.culture, production.document, production.illustration, production.location, production.product, production.productcategory, production.productcosthistory, production.productdescription, production.productdocument, production.productinventory, production.productlistpricehistory, production.productmodel, production.productmodelillustration, production.productmodelproductdescriptionculture, production.productphoto, production.productproductphoto, production.productreview, production.productsubcategory, production.scrapreason, production.transactionhistory, production.transactionhistoryarchive, production.unitmeasure, production.workorder, production.workorderrouting, purchasing.purchaseorderdetail, purchasing.purchaseorderheader, purchasing.productvendor, purchasing.shipmethod, purchasing.vendor, sales.customer, sales.creditcard, sales.currencyrate, sales.countryregioncurrency, sales.currency, sales.personcreditcard, sales.store, sales.shoppingcartitem, sales.specialoffer, sales.salesorderdetail, sales.salesorderheader, sales.salesorderheadersalesreason, sales.specialofferproduct, sales.salesperson, sales.salespersonquotahistory, sales.salesreason, sales.salesterritory, sales.salesterritoryhistory, sales.salestaxrate"
             },
             {
@@ -59,7 +57,7 @@
             {
                 "ObjectType": "VIEW",
                 "TotalCount": 87,
-                "InvalidCount": 0,
+                "InvalidCount": 8,
                 "ObjectNames": "hr.d, hr.e, hr.edh, hr.eph, hr.jc, hr.s, humanresources.vemployee, humanresources.vemployeedepartment, humanresources.vemployeedepartmenthistory, humanresources.vjobcandidate, humanresources.vjobcandidateeducation, humanresources.vjobcandidateemployment, pe.a, pe.at, pe.be, pe.bea, pe.bec, pe.cr, pe.ct, pe.e, pe.p, pe.pa, pe.pnt, pe.pp, pe.sp, person.vadditionalcontactinfo, pr.bom, pr.c, pr.d, pr.i, pr.l, pr.p, pr.pc, pr.pch, pr.pd, pr.pdoc, pr.pi, pr.plph, pr.pm, pr.pmi, pr.pmpdc, pr.pp, pr.ppp, pr.pr, pr.psc, pr.sr, pr.th, pr.tha, pr.um, pr.w, pr.wr, production.vproductmodelcatalogdescription, production.vproductmodelinstructions, pu.pod, pu.poh, pu.pv, pu.sm, pu.v, purchasing.vvendorwithaddresses, purchasing.vvendorwithcontacts, sa.c, sa.cc, sa.cr, sa.crc, sa.cu, sa.pcc, sa.s, sa.sci, sa.so, sa.sod, sa.soh, sa.sohsr, sa.sop, sa.sp, sa.spqh, sa.sr, sa.st, sa.sth, sa.tr, sales.vindividualcustomer, sales.vpersondemographics, sales.vsalesperson, sales.vsalespersonsalesbyfiscalyears, sales.vsalespersonsalesbyfiscalyearsdata, sales.vstorewithaddresses, sales.vstorewithcontacts, sales.vstorewithdemographics"
             },
             {
@@ -80,7 +78,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -91,7 +90,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -102,7 +102,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -113,7 +114,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -124,7 +126,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -135,7 +138,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -146,7 +150,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -157,7 +162,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -168,7 +174,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -179,7 +186,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -190,7 +198,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -201,7 +210,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -212,7 +222,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -223,7 +234,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -234,7 +246,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -245,7 +258,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -256,7 +270,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -267,7 +282,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -278,7 +294,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -289,7 +306,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -300,7 +318,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -311,7 +330,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -322,7 +342,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -333,7 +354,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -344,7 +366,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -355,7 +378,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -366,7 +390,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -377,7 +402,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -388,7 +414,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -399,7 +426,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -410,7 +438,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -421,7 +450,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -432,7 +462,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -443,7 +474,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -454,7 +486,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -465,7 +498,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -476,7 +510,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -487,7 +522,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -498,7 +534,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -509,7 +546,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -520,7 +558,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -531,7 +570,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -542,7 +582,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -553,7 +594,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -564,7 +606,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -575,7 +618,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -586,7 +630,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -597,7 +642,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -608,7 +654,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -619,7 +666,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -630,7 +678,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -641,7 +690,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -652,7 +702,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -663,7 +714,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -674,7 +726,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -685,7 +738,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -696,7 +750,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -707,7 +762,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -718,7 +774,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -729,7 +786,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -740,7 +798,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -751,7 +810,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -762,7 +822,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -773,7 +834,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -784,7 +846,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -795,7 +858,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -806,7 +870,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -817,7 +882,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -828,7 +894,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -839,7 +906,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -850,7 +918,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -861,7 +930,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -872,7 +942,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -883,7 +954,8 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",
@@ -894,7 +966,104 @@
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove it from the exported schema.",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1124",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema"
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "humanresources.vjobcandidate",
+            "Reason": "XML Functions",
+			"SqlStatement": "CREATE VIEW humanresources.vjobcandidate AS\n SELECT jobcandidateid,\n    businessentityid,\n    ((xpath('/n:Resume/n:Name/n:Name.Prefix/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Name.Prefix\",\n    ((xpath('/n:Resume/n:Name/n:Name.First/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Name.First\",\n    ((xpath('/n:Resume/n:Name/n:Name.Middle/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Name.Middle\",\n    ((xpath('/n:Resume/n:Name/n:Name.Last/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Name.Last\",\n    ((xpath('/n:Resume/n:Name/n:Name.Suffix/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Name.Suffix\",\n    ((xpath('/n:Resume/n:Skills/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying AS \"Skills\",\n    ((xpath('n:Address/n:Addr.Type/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(30) AS \"Addr.Type\",\n    ((xpath('n:Address/n:Addr.Location/n:Location/n:Loc.CountryRegion/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(100) AS \"Addr.Loc.CountryRegion\",\n    ((xpath('n:Address/n:Addr.Location/n:Location/n:Loc.State/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(100) AS \"Addr.Loc.State\",\n    ((xpath('n:Address/n:Addr.Location/n:Location/n:Loc.City/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(100) AS \"Addr.Loc.City\",\n    ((xpath('n:Address/n:Addr.PostalCode/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying(20) AS \"Addr.PostalCode\",\n    ((xpath('/n:Resume/n:EMail/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying AS \"EMail\",\n    ((xpath('/n:Resume/n:WebSite/text()'::text, resume, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[]))[1])::character varying AS \"WebSite\",\n    modifieddate\n   FROM humanresources.jobcandidate;",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "humanresources.vjobcandidateeducation",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW humanresources.vjobcandidateeducation AS\n SELECT jobcandidateid,\n    ((xpath('/root/ns:Education/ns:Edu.Level/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(50) AS \"Edu.Level\",\n    (((xpath('/root/ns:Education/ns:Edu.StartDate/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(20))::date AS \"Edu.StartDate\",\n    (((xpath('/root/ns:Education/ns:Edu.EndDate/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(20))::date AS \"Edu.EndDate\",\n    ((xpath('/root/ns:Education/ns:Edu.Degree/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(50) AS \"Edu.Degree\",\n    ((xpath('/root/ns:Education/ns:Edu.Major/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(50) AS \"Edu.Major\",\n    ((xpath('/root/ns:Education/ns:Edu.Minor/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(50) AS \"Edu.Minor\",\n    ((xpath('/root/ns:Education/ns:Edu.GPA/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(5) AS \"Edu.GPA\",\n    ((xpath('/root/ns:Education/ns:Edu.GPAScale/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(5) AS \"Edu.GPAScale\",\n    ((xpath('/root/ns:Education/ns:Edu.School/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(100) AS \"Edu.School\",\n    ((xpath('/root/ns:Education/ns:Edu.Location/ns:Location/ns:Loc.CountryRegion/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(100) AS \"Edu.Loc.CountryRegion\",\n    ((xpath('/root/ns:Education/ns:Edu.Location/ns:Location/ns:Loc.State/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(100) AS \"Edu.Loc.State\",\n    ((xpath('/root/ns:Education/ns:Edu.Location/ns:Location/ns:Loc.City/text()'::text, doc, '{{ns,http://adventureworks.com}}'::text[]))[1])::character varying(100) AS \"Edu.Loc.City\"\n   FROM ( SELECT unnesting.jobcandidateid,\n            ((('\u003croot xmlns:ns=\"http://adventureworks.com\"\u003e'::text || ((unnesting.education)::character varying)::text) || '\u003c/root\u003e'::text))::xml AS doc\n           FROM ( SELECT jobcandidate.jobcandidateid,\n                    unnest(xpath('/ns:Resume/ns:Education'::text, jobcandidate.resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])) AS education\n                   FROM humanresources.jobcandidate) unnesting) jc;",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "humanresources.vjobcandidateemployment",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW humanresources.vjobcandidateemployment AS\n SELECT jobcandidateid,\n    ((unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.StartDate/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying(20))::date AS \"Emp.StartDate\",\n    ((unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.EndDate/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying(20))::date AS \"Emp.EndDate\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.OrgName/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying(100) AS \"Emp.OrgName\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.JobTitle/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying(100) AS \"Emp.JobTitle\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.Responsibility/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.Responsibility\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.FunctionCategory/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.FunctionCategory\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.IndustryCategory/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.IndustryCategory\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.Location/ns:Location/ns:Loc.CountryRegion/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.Loc.CountryRegion\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.Location/ns:Location/ns:Loc.State/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.Loc.State\",\n    (unnest(xpath('/ns:Resume/ns:Employment/ns:Emp.Location/ns:Location/ns:Loc.City/text()'::text, resume, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/Resume}}'::text[])))::character varying AS \"Emp.Loc.City\"\n   FROM humanresources.jobcandidate;",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "person.vadditionalcontactinfo",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW person.vadditionalcontactinfo AS\n SELECT p.businessentityid,\n    p.firstname,\n    p.middlename,\n    p.lastname,\n    (xpath('(act:telephoneNumber)[1]/act:number/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS telephonenumber,\n    btrim((((xpath('(act:telephoneNumber)[1]/act:SpecialInstructions/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1])::character varying)::text) AS telephonespecialinstructions,\n    (xpath('(act:homePostalAddress)[1]/act:Street/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS street,\n    (xpath('(act:homePostalAddress)[1]/act:City/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS city,\n    (xpath('(act:homePostalAddress)[1]/act:StateProvince/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS stateprovince,\n    (xpath('(act:homePostalAddress)[1]/act:PostalCode/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS postalcode,\n    (xpath('(act:homePostalAddress)[1]/act:CountryRegion/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS countryregion,\n    (xpath('(act:homePostalAddress)[1]/act:SpecialInstructions/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS homeaddressspecialinstructions,\n    (xpath('(act:eMail)[1]/act:eMailAddress/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS emailaddress,\n    btrim((((xpath('(act:eMail)[1]/act:SpecialInstructions/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1])::character varying)::text) AS emailspecialinstructions,\n    (xpath('((act:eMail)[1]/act:SpecialInstructions/act:telephoneNumber)[1]/act:number/text()'::text, additional.node, '{{act,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactTypes}}'::text[]))[1] AS emailtelephonenumber,\n    p.rowguid,\n    p.modifieddate\n   FROM (person.person p\n     LEFT JOIN ( SELECT person.businessentityid,\n            unnest(xpath('/ci:AdditionalContactInfo'::text, person.additionalcontactinfo, '{{ci,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ContactInfo}}'::text[])) AS node\n           FROM person.person\n          WHERE (person.additionalcontactinfo IS NOT NULL)) additional ON ((p.businessentityid = additional.businessentityid)));",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "production.vproductmodelcatalogdescription",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW production.vproductmodelcatalogdescription AS\n SELECT productmodelid,\n    name,\n    ((xpath('/p1:ProductDescription/p1:Summary/html:p/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{html,http://www.w3.org/1999/xhtml}}'::text[]))[1])::character varying AS \"Summary\",\n    ((xpath('/p1:ProductDescription/p1:Manufacturer/p1:Name/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying AS manufacturer,\n    ((xpath('/p1:ProductDescription/p1:Manufacturer/p1:Copyright/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(30) AS copyright,\n    ((xpath('/p1:ProductDescription/p1:Manufacturer/p1:ProductURL/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS producturl,\n    ((xpath('/p1:ProductDescription/p1:Features/wm:Warranty/wm:WarrantyPeriod/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wm,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelWarrAndMain}}'::text[]))[1])::character varying(256) AS warrantyperiod,\n    ((xpath('/p1:ProductDescription/p1:Features/wm:Warranty/wm:Description/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wm,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelWarrAndMain}}'::text[]))[1])::character varying(256) AS warrantydescription,\n    ((xpath('/p1:ProductDescription/p1:Features/wm:Maintenance/wm:NoOfYears/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wm,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelWarrAndMain}}'::text[]))[1])::character varying(256) AS noofyears,\n    ((xpath('/p1:ProductDescription/p1:Features/wm:Maintenance/wm:Description/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wm,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelWarrAndMain}}'::text[]))[1])::character varying(256) AS maintenancedescription,\n    ((xpath('/p1:ProductDescription/p1:Features/wf:wheel/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wf,http://www.adventure-works.com/schemas/OtherFeatures}}'::text[]))[1])::character varying(256) AS wheel,\n    ((xpath('/p1:ProductDescription/p1:Features/wf:saddle/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wf,http://www.adventure-works.com/schemas/OtherFeatures}}'::text[]))[1])::character varying(256) AS saddle,\n    ((xpath('/p1:ProductDescription/p1:Features/wf:pedal/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wf,http://www.adventure-works.com/schemas/OtherFeatures}}'::text[]))[1])::character varying(256) AS pedal,\n    ((xpath('/p1:ProductDescription/p1:Features/wf:BikeFrame/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wf,http://www.adventure-works.com/schemas/OtherFeatures}}'::text[]))[1])::character varying AS bikeframe,\n    ((xpath('/p1:ProductDescription/p1:Features/wf:crankset/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription},{wf,http://www.adventure-works.com/schemas/OtherFeatures}}'::text[]))[1])::character varying(256) AS crankset,\n    ((xpath('/p1:ProductDescription/p1:Picture/p1:Angle/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS pictureangle,\n    ((xpath('/p1:ProductDescription/p1:Picture/p1:Size/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS picturesize,\n    ((xpath('/p1:ProductDescription/p1:Picture/p1:ProductPhotoID/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS productphotoid,\n    ((xpath('/p1:ProductDescription/p1:Specifications/Material/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS material,\n    ((xpath('/p1:ProductDescription/p1:Specifications/Color/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS color,\n    ((xpath('/p1:ProductDescription/p1:Specifications/ProductLine/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS productline,\n    ((xpath('/p1:ProductDescription/p1:Specifications/Style/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(256) AS style,\n    ((xpath('/p1:ProductDescription/p1:Specifications/RiderExperience/text()'::text, catalogdescription, '{{p1,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelDescription}}'::text[]))[1])::character varying(1024) AS riderexperience,\n    rowguid,\n    modifieddate\n   FROM production.productmodel\n  WHERE (catalogdescription IS NOT NULL);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "production.vproductmodelinstructions",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW production.vproductmodelinstructions AS\n SELECT productmodelid,\n    name,\n    ((xpath('/ns:root/text()'::text, instructions, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelManuInstructions}}'::text[]))[1])::character varying AS instructions,\n    (((xpath('@LocationID'::text, mfginstructions))[1])::character varying)::integer AS \"LocationID\",\n    (((xpath('@SetupHours'::text, mfginstructions))[1])::character varying)::numeric(9,4) AS \"SetupHours\",\n    (((xpath('@MachineHours'::text, mfginstructions))[1])::character varying)::numeric(9,4) AS \"MachineHours\",\n    (((xpath('@LaborHours'::text, mfginstructions))[1])::character varying)::numeric(9,4) AS \"LaborHours\",\n    (((xpath('@LotSize'::text, mfginstructions))[1])::character varying)::integer AS \"LotSize\",\n    ((xpath('/step/text()'::text, step))[1])::character varying(1024) AS \"Step\",\n    rowguid,\n    modifieddate\n   FROM ( SELECT locations.productmodelid,\n            locations.name,\n            locations.rowguid,\n            locations.modifieddate,\n            locations.instructions,\n            locations.mfginstructions,\n            unnest(xpath('step'::text, locations.mfginstructions)) AS step\n           FROM ( SELECT productmodel.productmodelid,\n                    productmodel.name,\n                    productmodel.rowguid,\n                    productmodel.modifieddate,\n                    productmodel.instructions,\n                    unnest(xpath('/ns:root/ns:Location'::text, productmodel.instructions, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/ProductModelManuInstructions}}'::text[])) AS mfginstructions\n                   FROM production.productmodel) locations) pm;",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "sales.vpersondemographics",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW sales.vpersondemographics AS\n SELECT businessentityid,\n    (((xpath('n:TotalPurchaseYTD/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::money AS totalpurchaseytd,\n    (((xpath('n:DateFirstPurchase/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::date AS datefirstpurchase,\n    (((xpath('n:BirthDate/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::date AS birthdate,\n    ((xpath('n:MaritalStatus/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying(1) AS maritalstatus,\n    ((xpath('n:YearlyIncome/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying(30) AS yearlyincome,\n    ((xpath('n:Gender/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying(1) AS gender,\n    (((xpath('n:TotalChildren/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::integer AS totalchildren,\n    (((xpath('n:NumberChildrenAtHome/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::integer AS numberchildrenathome,\n    ((xpath('n:Education/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying(30) AS education,\n    ((xpath('n:Occupation/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying(30) AS occupation,\n    (((xpath('n:HomeOwnerFlag/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::boolean AS homeownerflag,\n    (((xpath('n:NumberCarsOwned/text()'::text, demographics, '{{n,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/IndividualSurvey}}'::text[]))[1])::character varying)::integer AS numbercarsowned\n   FROM person.person\n  WHERE (demographics IS NOT NULL);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "sales.vstorewithdemographics",
+            "Reason": "XML Functions",
+            "SqlStatement": "CREATE VIEW sales.vstorewithdemographics AS\n SELECT businessentityid,\n    name,\n    ((unnest(xpath('/ns:StoreSurvey/ns:AnnualSales/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying)::money AS \"AnnualSales\",\n    ((unnest(xpath('/ns:StoreSurvey/ns:AnnualRevenue/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying)::money AS \"AnnualRevenue\",\n    (unnest(xpath('/ns:StoreSurvey/ns:BankName/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying(50) AS \"BankName\",\n    (unnest(xpath('/ns:StoreSurvey/ns:BusinessType/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying(5) AS \"BusinessType\",\n    ((unnest(xpath('/ns:StoreSurvey/ns:YearOpened/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying)::integer AS \"YearOpened\",\n    (unnest(xpath('/ns:StoreSurvey/ns:Specialty/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying(50) AS \"Specialty\",\n    ((unnest(xpath('/ns:StoreSurvey/ns:SquareFeet/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying)::integer AS \"SquareFeet\",\n    (unnest(xpath('/ns:StoreSurvey/ns:Brands/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying(30) AS \"Brands\",\n    (unnest(xpath('/ns:StoreSurvey/ns:Internet/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying(30) AS \"Internet\",\n    ((unnest(xpath('/ns:StoreSurvey/ns:NumberEmployees/text()'::text, demographics, '{{ns,http://schemas.microsoft.com/sqlserver/2004/07/adventure-works/StoreSurvey}}'::text[])))::character varying)::integer AS \"NumberEmployees\"\n   FROM sales.store;",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/adventureworks/export-dir/schema/views/view.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
+            "MinimumVersionsFixedIn": null
         }
     ]
 }
