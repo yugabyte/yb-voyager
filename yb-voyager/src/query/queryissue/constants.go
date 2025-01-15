@@ -96,6 +96,8 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME = "Index on column with complex datatype '%s'"
 	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME  = "Index with access method %s"
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME = "Primary/Unique key on column with complex datatype '%s'"
+	UNSUPPORTED_DATATYPES_LIVE_MIGRATION_ISSUE_NAME= "Unsupported datatype for Live migration"
+	UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME= "Unsupported datatype for Live migration with fall-forward/fallback"
 )
 
 // Issues Description

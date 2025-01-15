@@ -1537,9 +1537,9 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
 					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, // TODO add object type in type name
-					Name:                "",                                        // TODO
-					Impact:              constants.IMPACT_LEVEL_1,                  // Caveat - we don't know the migration is offline/online;
+					Type:                queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
+					Name:                queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION_ISSUE_NAME,
+					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
 					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
@@ -1558,8 +1558,8 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
 					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, // TODO add object type in type name
-					Name:                "",                                                   // TODO
+					Type:                queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
+					Name:                queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
 					Impact:              constants.IMPACT_LEVEL_1,
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
 					ObjectType:          constants.COLUMN,

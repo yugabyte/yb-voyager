@@ -380,7 +380,7 @@ func NewUnsupportedDatatypesIssue(objectType string, objectName string, sqlState
 
 var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
-	Name:        "Unsupported datatype for Live migration",
+	Name:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPES_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -395,7 +395,7 @@ func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, sql
 
 var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback",
+	Name:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
