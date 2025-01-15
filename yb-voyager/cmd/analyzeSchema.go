@@ -613,11 +613,11 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 }
 
 var MigrationCaveatsIssues = []string{
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-	FOREIGN_TABLE_ISSUE_REASON,
-	POLICY_ROLE_ISSUE,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+	queryissue.FOREIGN_TABLE,
+	queryissue.POLICY_WITH_ROLES,
+	queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
+	queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
 }
 
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
@@ -627,7 +627,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.Contains(issueInstance.Name, i)
+		return strings.Contains(issueInstance.Type, i)
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
