@@ -34,8 +34,10 @@ type FileBatchProducer struct {
 	fileFullySplit  bool
 	completed       bool
 
-	dataFile datafile.DataFile
-	header   string
+	dataFile              datafile.DataFile
+	header                string
+	numLinesTaken         int64
+	lineFromPreviousBatch string
 }
 
 func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBatchProducer, error) {
@@ -60,6 +62,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 		lastOffset:      lastOffset,
 		fileFullySplit:  fileFullySplit,
 		completed:       completed,
+		numLinesTaken:   lastOffset,
 	}, nil
 }
 
@@ -68,6 +71,9 @@ func (p *FileBatchProducer) Done() bool {
 }
 
 func (p *FileBatchProducer) NextBatch() (*Batch, error) {
+	if p.Done() {
+		return nil, fmt.Errorf("already done")
+	}
 	if len(p.pendingBatches) > 0 {
 		batch := p.pendingBatches[0]
 		p.pendingBatches = p.pendingBatches[1:]
@@ -89,22 +95,29 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 		}
 	}
 
-	batchWriter, err := p.newBatchWriter()
-	if err != nil {
-		return nil, err
-	}
-
 	var readLineErr error
 	var line string
 	var currentBytesRead int64
 	batchNum := p.lastBatchNumber + 1
+
+	batchWriter, err := p.newBatchWriter()
+	if err != nil {
+		return nil, err
+	}
+	if p.lineFromPreviousBatch != "" {
+		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
+		if err != nil {
+			return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
+		}
+		p.lineFromPreviousBatch = ""
+	}
 
 	for readLineErr == nil {
 
 		line, currentBytesRead, readLineErr = p.dataFile.NextLine()
 		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
 			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
-			numLinesTaken += 1
+			p.numLinesTaken += 1
 		}
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, p.dataFile.GetBytesRead(), currentBytesRead)
 		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
@@ -113,14 +126,14 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			utils.ErrExit("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			return nil, fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
-			columnNames, _ := TableToColumnNames.Get(t)
-			line, err = valueConverter.ConvertRow(t, columnNames, line)
+			columnNames, _ := TableToColumnNames.Get(p.task.TableNameTup)
+			line, err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, line)
 			if err != nil {
-				utils.ErrExit("transforming line number=%d for table: %q in file %s: %s", numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				return nil, fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 			}
 
 			// Check if adding this record exceeds the max batch size
@@ -128,28 +141,30 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				p.dataFile.GetBytesRead() > tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
 
 				// Finalize the current batch without adding the record
-				batch, err := p.finalizeBatch(batchWriter, false, numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead)
+				batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead)
 				if err != nil {
 					return nil, err
 				}
 
 				//carry forward the bytes to next batch
 				p.dataFile.ResetBytesRead(currentBytesRead)
+				p.lineFromPreviousBatch = line
 
 				// Start a new batch by calling the initBatchWriter function
-				initBatchWriter()
+				// initBatchWriter()
+				return batch, nil
 			}
 
 			// Write the record to the new or current batch
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				utils.ErrExit("Write to batch %d: %s", batchNum, err)
+				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
 			}
 		}
 
 		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0
 		if readLineErr == io.EOF {
-			batch, err := p.finalizeBatch(batchWriter, true, numLinesTaken, p.dataFile.GetBytesRead())
+			batch, err := p.finalizeBatch(batchWriter, true, p.numLinesTaken, p.dataFile.GetBytesRead())
 			if err != nil {
 				return nil, err
 			}
@@ -161,6 +176,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			return nil, fmt.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
 		}
 	}
+	return nil, fmt.Errorf("unexpected")
 }
 
 func (p *FileBatchProducer) openDataFile() error {
