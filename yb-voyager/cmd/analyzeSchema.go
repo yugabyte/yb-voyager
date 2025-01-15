@@ -201,15 +201,9 @@ const (
 	VIEW_CHECK_OPTION_ISSUE     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 
 	// Refactor: constants below used in some comparisions (use Issue Type there and remove these)
-	INHERITANCE_ISSUE_REASON                    = "TABLE INHERITANCE not supported in YugabyteDB"
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON = "Adding primary key to a partitioned table is not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON               = "COMPOUND TRIGGER not supported in YugabyteDB."
-	STORED_GENERATED_COLUMN_ISSUE_REASON        = "Stored generated columns are not supported."
-	FOREIGN_TABLE_ISSUE_REASON                  = "Foreign tables require manual intervention."
-	DEFERRABLE_CONSTRAINT_ISSUE                 = "DEFERRABLE constraints not supported yet"
-	POLICY_ROLE_ISSUE                           = "Policy require roles to be created."
-	ISSUE_INDEX_WITH_COMPLEX_DATATYPES          = `INDEX on column '%s' not yet supported`
-	INDEX_METHOD_ISSUE_REASON                   = "Schema contains %s index which is not supported."
+	COMPOUND_TRIGGER_ISSUE_REASON        = "COMPOUND TRIGGER not supported in YugabyteDB."
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"

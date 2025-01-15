@@ -61,7 +61,7 @@ func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement st
 
 var unsupportedIndexMethodIssue = issue.Issue{
 	Type:        UNSUPPORTED_INDEX_METHOD,
-	Name:        "Index with access method %s",
+	Name:        UNSUPPORTED_INDEX_METHOD_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
@@ -410,7 +410,7 @@ func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName s
 
 var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 	Type:        PK_UK_ON_COMPLEX_DATATYPE,
-	Name:        "Primary/Unique key on column with complex datatype '%s'",
+	Name:        PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
@@ -429,7 +429,7 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 
 var indexOnComplexDatatypesIssue = issue.Issue{
 	Type:        INDEX_ON_COMPLEX_DATATYPE,
-	Name:        "Index on column with complex datatype '%s'",
+	Name:        INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",

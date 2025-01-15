@@ -1017,7 +1017,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		CategoryDescription:   GetCategoryDescription(analyzeSchemaIssue.IssueType),
 		Type:                  analyzeSchemaIssue.Type,
 		Name:                  analyzeSchemaIssue.Reason, // in convertIssueInstanceToAnalyzeIssue() we assign Issue.Name to AnalyzeSchemaIssue.Reason field
-		Description:           lo.Ternary(issueDescription != "", issueDescription, analyzeSchemaIssue.Description),
+		Description:           lo.Ternary(len(issueDescription) != 0, issueDescription, analyzeSchemaIssue.Description),
 		Impact:                analyzeSchemaIssue.Impact,
 		ObjectType:            analyzeSchemaIssue.ObjectType,
 		ObjectName:            analyzeSchemaIssue.ObjectName,
@@ -1034,7 +1034,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
-		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)
+		reason := fmt.Sprintf(queryissue.UNSUPPORTED_INDEX_METHOD_ISSUE_NAME, displayIndexMethod)
 		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(featureName, reason, "", schemaAnalysisReport, false, ""))
 	}
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, "", queryissue.CONSTRAINT_TRIGGER, schemaAnalysisReport, false, ""))
@@ -1086,7 +1086,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.Schema
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
 	for _, unsupportedType := range unsupportedIndexDatatypes {
-		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), "", schemaAnalysisReport, false, "")
+		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME, unsupportedType), "", schemaAnalysisReport, false, "")
 		for _, object := range indexes.Objects {
 			formattedObject := object
 			formattedObject.ObjectName = fmt.Sprintf("%s: %s", strings.ToUpper(unsupportedType), object.ObjectName)

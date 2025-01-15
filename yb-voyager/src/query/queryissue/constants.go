@@ -91,6 +91,13 @@ const (
 	UNIQUE_NULLS_NOT_DISTINCT_NAME = "Unique Nulls Not Distinct"
 )
 
+const (
+	// Issue Names
+	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME = "Index on column with complex datatype '%s'"
+	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME  = "Index with access method %s"
+	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME = "Primary/Unique key on column with complex datatype '%s'"
+)
+
 // Issues Description
 const (
 	// for DMLs
