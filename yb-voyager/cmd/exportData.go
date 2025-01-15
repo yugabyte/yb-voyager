@@ -112,6 +112,11 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 
 func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	err := retrieveMigrationUUID()
+	if err != nil {
+		utils.ErrExit("failed to get migration UUID: %w", err)
+	}
+
 	ExitIfAlreadyCutover(exporterRole)
 	if useDebezium && !changeStreamingIsEnabled(exportType) {
 		utils.PrintAndLog("Note: Beta feature to accelerate data export is enabled by setting BETA_FAST_DATA_EXPORT environment variable")
@@ -121,11 +126,6 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	}
 	utils.PrintAndLog("export of data for source type as '%s'", source.DBType)
 	sqlname.SourceDBType = source.DBType
-
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
 
 	success := exportData()
 	if success {
