@@ -93,6 +93,23 @@ const (
 
 // Issues Description
 const (
+	// for DMLs
+	ADVISORY_LOCKS_ISSUE_DESCRIPTION            = "Advisory locks are not yet implemented in YugabyteDB"
+	SYSTEM_COLUMNS_ISSUE_DESCRIPTION            = "System columns are not yet supported in YugabyteDB"
+	XML_FUNCTIONS_ISSUE_DESCRIPTION             = "XML functions are not yet supported in YugabyteDB"
+	REGEX_FUNCTIONS_ISSUE_DESCRIPTION           = "Regex functions are not yet supported in YugabyteDB"
+	AGGREGATE_FUNCTION_ISSUE_DESCRIPTION        = "any_value, range_agg and range_intersect_agg functions are not supported yet in YugabyteDB"
+	JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION = "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB"
+	JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION       = "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB"
+	LO_FUNCTIONS_ISSUE_DESCRIPTION              = "Large Objects functions are not supported in YugabyteDB"
+	JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION        = "Jsonb subscripting is not yet supported in YugabyteDB"
+	JSON_PREDICATE_ISSUE_DESCRIPTION            = "IS JSON predicate expressions are not yet supported in YugabyteDB"
+	COPY_FROM_WHERE_ISSUE_DESCRIPTION           = "COPY FROM ... WHERE is not yet supported in YugabyteDB"
+	COPY_ON_ERROR_ISSUE_DESCRIPTION             = "COPY ... ON_ERROR is not yet supported in YugabyteDB"
+	FETCH_WITH_TIES_ISSUE_DESCRIPTION           = "FETCH .. WITH TIES is not yet supported in YugabyteDB"
+	MERGE_STATEMENT_ISSUE_DESCRIPTION           = "MERGE statement is not yet supported in YugabyteDB"
+
+	// for DDLs
 	STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION                        = "Stored generated columns are not supported in YugabyteDB.\nGenerated columns can be either VIRTUAL or STORED. YugabyteDB supports VIRTUAL generated columns but does not support STORED generated columns."
 	UNLOGGED_TABLE_ISSUE_DESCRIPTION                                  = "UNLOGGED tables are not yet supported in YugabyteDB"
 	UNSUPPORTED_INDEX_METHOD_DESCRIPTION                              = "The schema contains an index with an access method(gist, spgist, brin) which is not supported in YugabyteDB."
