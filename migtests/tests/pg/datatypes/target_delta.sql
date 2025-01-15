@@ -62,6 +62,7 @@ SET v1 = '{"new": "data"}', v2 = B'1111000011', v5=B'001010100101010101010101010
 DELETE FROM datatypes2
 WHERE 5 = ANY(v3);
 
+-- NOT WORKING WIT H YB CDC GRPC connector as of now
 -- INSERT INTO hstore_example (data) 
 -- VALUES 
 --     ('key7 => value7, key8 => value8');

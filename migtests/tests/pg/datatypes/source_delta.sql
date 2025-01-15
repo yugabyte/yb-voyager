@@ -70,3 +70,15 @@ VALUES
 INSERT INTO hstore_example (data) 
 VALUES 
     (hstore('{"key1=value1, key2=value2"}', '{"key1=value1, key2={"key1=value1, key2=value2"}"}'));
+
+INSERT INTO hstore_example (data) 
+VALUES 
+    ('');
+
+UPDATE hstore_example 
+SET data = NULL
+WHERE id = 5;
+
+UPDATE hstore_example 
+SET data = ''
+WHERE id = 6;

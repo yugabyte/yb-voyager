@@ -75,14 +75,21 @@ public class DebeziumRecordTransformer implements RecordTransformer {
             case STRUCT:
                 return toKafkaConnectJsonConverted(fieldValue, field);
             case MAP:
-		        StringBuilder mapString = new StringBuilder();
+	            StringBuilder mapString = new StringBuilder();
                 for (Map.Entry<String, String> entry : ((HashMap<String, String>) fieldValue).entrySet()) {
                     String key = entry.getKey();
                     String val = entry.getValue();
-                    key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "\"a"b\"" -> "\\"a\"b\\"" )
-                    val = val.replace("\"", "\\\""); 
-                    key = key.replace("\\\\", "\\"); // fixing \\-> \ ( "\\"a\"b\\"" -> "\"a\\"b\"" )
-                    val = val.replace("\\\\", "\\");
+                    /*
+                     Escaping the key and value here for the  double quote (")" and backslash char (\) with a backslash character as mentioned here 
+                     https://www.postgresql.org/docs/9/hstore.html#:~:text=To%20include%20a%20double%20quote%20or%20a%20backslash%20in%20a%20key%20or%20value%2C%20escape%20it%20with%20a%20backslash.
+                     
+                     Following the order of escaping the backslash first and then the double quote becasue first escape the backslashes in the string and adding the backslash for escaping to handle case like
+                     e.g. key - "a\"b" -> (first escaping) -> "a\\"b" -> (second escaping) -> "a\\\"b"
+                     */
+                    key = key.replace("\\", "\\\\"); // escaping backslash \ -> \\ ( "a\b" -> "a\\b" ) "
+                    val = val.replace("\\", "\\\\");
+                    key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "a"b" -> "a\"b" ) "
+                    val = val.replace("\"", "\\\"");
                     mapString.append("\"");
                     mapString.append(key);
                     mapString.append("\"");
@@ -92,10 +99,9 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                     mapString.append("\"");
                     mapString.append(",");
                 }
-                if(mapString.length() == 0) {
+		if(mapString.length() == 0) {
                     return "";
                 } 
-                LOGGER.info("map value = {}", mapString);
                 return mapString.toString().substring(0, mapString.length() - 1);
             
         }

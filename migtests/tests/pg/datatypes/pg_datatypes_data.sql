@@ -37,7 +37,7 @@ insert into null_and_default VALUES(2, NULL, NULL, NULL);
 INSERT INTO hstore_example (data) 
 VALUES 
     ('"key1"=>"value1", "key2"=>"value2"'),
-    (hstore('a"b', 'd"a')),
+    (hstore('a"b', 'd\"a')),
     (NULL),
     (''),
     ('key1 => value1, key2 => value2'),
