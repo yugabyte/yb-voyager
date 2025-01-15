@@ -140,6 +140,43 @@
                 document.getElementById('arrow-' + i).innerHTML = '&#x25B6;';
             }
         }
+
+        // Keep track of the current sort direction per field, so we can toggle it
+        let sortState = {
+            category: 'asc',
+            type: 'asc',
+            impact: 'asc'
+        };
+        function sortTableBy(field) {
+            // Grab the table element
+            const table = document.querySelector(".table-highlight");
+
+            // Collect all the .issue-pair <tbody> elements
+            const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
+
+            // Determine the current sort direction and flip it
+            let currentDirection = sortState[field] || 'asc';
+            let newDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
+            sortState[field] = newDirection;
+
+            issuePairs.sort((a, b) => {
+                let aValue = a.dataset[field] || "";
+                let bValue = b.dataset[field] || "";
+
+                if (aValue < bValue) return newDirection === 'asc' ? -1 : 1;
+                if (aValue > bValue) return newDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Re-append the sorted <tbody> elements to the table
+            issuePairs.forEach(pair => table.appendChild(pair));
+
+            // Update the sort indicator in the table header
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
+            if (sortIndicator) {
+                sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
+            }
+        }
     </script>
 </head>
 <body>
@@ -255,128 +292,146 @@
             </div>
         </div>
         <table class="table-highlight">
-            <!-- Summary Row for the issue -->
+            <!-- Summary Row Header for the issue -->
             <colgroup>
                 <col style="width: 20%;"> <!-- Category + arrow -->
-                <col style="width: 20%;"> <!-- Type -->
-                <col style="width: 50%;"> <!-- Name -->
+                <col style="width: 20%;"> <!-- Type -->  <!-- TODO: replace Type with Name field -->
+                <col style="width: 50%;"> <!-- Object/SQL Preview -->
                 <col style="width: 10%;"> <!-- Impact -->
             </colgroup>
 
             <thead>
                 <tr style="background-color: #f2f2f2;">
-                    <th>Category</th>
-                    <th>Type</th>
-                    <th>Name</th>
-                    <th>Impact</th>
+                    <th style="cursor: pointer;" onclick="sortTableBy('category')">
+                        Category <span class="sort-indicator">&#8597</span>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTableBy('type')">
+                        Type <span class="sort-indicator">&#8597</span>
+                    </th>
+                    <th>Object/SQL Preview</th>
+                    <th style="cursor: pointer;" onclick="sortTableBy('impact')">
+                        Impact <span class="sort-indicator">&#8597</span>
+                    </th>
                 </tr>
             </thead>
 
             <tbody>
                 {{ range $idx, $issue := .Issues }}
-                    <!-- Summary Row -->
-                    <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
-                        <td>
-                            <span id="arrow-{{ $idx }}" style="display:inline-block;">&#x25B6;</span>
-                            &nbsp;&nbsp;
-                            {{ snakeCaseToTitleCase $issue.Category }}
-                        </td>
-                        <td>{{ snakeCaseToTitleCase $issue.Type }}</td>
-                        <td>{{ $issue.Name }}</td>
-                        <td>{{ snakeCaseToTitleCase $issue.Impact }}</td>
-                    </tr>
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="{{ $issue.Category }}"
+                        data-type="{{ $issue.Type }}"
+                        data-impact="{{ $issue.Impact }}">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
+                            <td>
+                                <span id="arrow-{{ $idx }}" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                {{ snakeCaseToTitleCase $issue.Category }}
+                            </td>
+                            <td>{{ snakeCaseToTitleCase $issue.Type }}</td>
+                            <td>
+                                {{ if $issue.ObjectName }}
+                                    {{ $issue.ObjectName }}
+                                {{ else }}
+                                    {{ getSqlPreview $issue.SqlStatement }}
+                                {{ end }}
+                            </td>
 
-                    <!-- Hidden Details of the Row -->
-                    <tr id="details-{{ $idx }}" class="details-row" style="display: none;">
-                        <td colspan="4">
-                            <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                <colgroup>
-                                    <col style="width: 25%;">
-                                    <col style="width: 75%;">
-                                </colgroup>
-                                <tbody>
-                                    {{ if $issue.CategoryDescription }}
-                                    <tr>
-                                        <th>Category Description</th>
-                                        <td>
-                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                {{ $issue.CategoryDescription }}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                    {{ end }}
+                            <td>{{ snakeCaseToTitleCase $issue.Impact }}</td>
+                        </tr>
 
-                                    <!-- Only show if ObjectName is present -->
-                                    {{ if $issue.ObjectName }}
-                                    <tr>
-                                        <th>Object Name</th>
-                                        <td>{{ $issue.ObjectName }}</td>
-                                    </tr>
-                                    {{ end }}
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-{{ $idx }}" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        {{ if $issue.CategoryDescription }}
+                                        <tr>
+                                            <th>Category Description</th>
+                                            <td>
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                    {{ $issue.CategoryDescription }}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {{ end }}
 
-                                    <!-- Only show if ObjectType is present -->
-                                    {{ if $issue.ObjectType }}
-                                    <tr>
-                                        <th>Object Type</th>
-                                        <td>{{ $issue.ObjectType }}</td>
-                                    </tr>
-                                    {{ end }}
+                                        <!-- Only show if ObjectName is present -->
+                                        {{ if $issue.ObjectName }}
+                                        <tr>
+                                            <th>Object Name</th>
+                                            <td>{{ $issue.ObjectName }}</td>
+                                        </tr>
+                                        {{ end }}
+
+                                        <!-- Only show if ObjectType is present -->
+                                        {{ if $issue.ObjectType }}
+                                        <tr>
+                                            <th>Object Type</th>
+                                            <td>{{ $issue.ObjectType }}</td>
+                                        </tr>
+                                        {{ end }}
 
 
-                                    <tr>
-                                        <th>SQL Statement</th>
-                                        <td>
-                                            {{ if $issue.SqlStatement }}
-                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                <pre style="white-space: pre-wrap; margin:0;">{{ $issue.SqlStatement }}</pre>
-                                            </div>
-                                            {{ else }}
-                                            <!-- display N/A if Sql Statement not present -->
-                                            N/A
-                                            {{ end }}
-                                        </td>
-                                    </tr>
-
-                                    <tr>
-                                        <th>Docs Link</th>
-                                        <td>
-                                            {{ if $issue.DocsLink }}
-                                            <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
-                                            {{ else }}
-                                            <!-- display N/A if docs link not present -->
-                                            N/A
-                                            {{ end }}
-                                        </td>
-                                    </tr>
-
-                                    <!-- Only show if there is a supported version -->
-                                    {{ $verStr := getSupportedVersionString $issue.MinimumVersionFixedIn }}
-                                    {{ if $verStr }}
-                                    <tr>
-                                        <th>Supported In (versions)</th>
-                                        <td>
-                                            {{ $verStr }}
-                                        </td>
-                                    </tr>
-                                    {{ end }}
-
-                                    <tr>
-                                        <th>Description</th>
-                                        <td>
-                                            {{ if $issue.Description }}
-                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                <pre style="white-space: pre-wrap; margin:0;">{{ $issue.Description }}</pre>
-                                            </div>
-                                            {{ else }}
-                                            <!-- display N/A if description not present -->
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                {{ if $issue.SqlStatement }}
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.SqlStatement }}</pre>
+                                                </div>
+                                                {{ else }}
+                                                <!-- display N/A if Sql Statement not present -->
                                                 N/A
-                                            {{ end }}
-                                        </td>
-                                    </tr>
-                                </tbody>
-                            </table>
-                        </td>
-                    </tr>
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                {{ if $issue.DocsLink }}
+                                                <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
+                                                {{ else }}
+                                                <!-- display N/A if docs link not present -->
+                                                N/A
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        {{ $verStr := getSupportedVersionString $issue.MinimumVersionFixedIn }}
+                                        {{ if $verStr }}
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                {{ $verStr }}
+                                            </td>
+                                        </tr>
+                                        {{ end }}
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                {{ if $issue.Description }}
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.Description }}</pre>
+                                                </div>
+                                                {{ else }}
+                                                <!-- display N/A if description not present -->
+                                                    N/A
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
                 {{ end }}
             </tbody>
         </table>

@@ -908,7 +908,6 @@ func generateAssessmentReport() (err error) {
 	addNotesToAssessmentReport()
 	postProcessingOfAssessmentReport()
 
-	assessmentReport.SortIssuesByCategory()
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
 	err = generateAssessmentReportJson(assessmentReportDir)
 	if err != nil {
@@ -1656,6 +1655,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
 		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 

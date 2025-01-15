@@ -1195,19 +1195,6 @@ func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
 	ar.Issues = append(ar.Issues, issues...)
 }
 
-// Sort AssessmentIssue by Category and Impact
-func (ar *AssessmentReport) SortIssuesByCategory() {
-	sort.Slice(ar.Issues, func(i, j int) bool {
-		if ar.Issues[i].Category < ar.Issues[j].Category {
-			return true
-		} else if ar.Issues[i].Category > ar.Issues[j].Category {
-			return false
-		}
-		// If categories are same, sort by Impact (higher first)
-		return ar.Issues[i].Impact > ar.Issues[j].Impact
-	})
-}
-
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
 	if ar.Sizing == nil {
 		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
