@@ -41,6 +41,7 @@
             }
         ]
     },
+
     "Issues": [
         {
             "IssueType": "unsupported_features",
@@ -55,10 +56,10 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_datatypes",
+            "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.osm_changeset",
-            "Reason": "Unsupported datatype - geometry on column - geom",
+            "Reason": "PostGIS datatypes are not yet supported in YugabyteDB. Affected column: geom and type: geometry.",
             "SqlStatement": "CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326)) WITH (colocation=false);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql",
             "Suggestion": "",
@@ -82,7 +83,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "changeset_geom_gist ON public.osm_changeset",
-            "Reason": "Schema contains GIST index which is not supported.",
+            "Reason": "The schema contains an index with an access method \"GIST\" which is not supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
