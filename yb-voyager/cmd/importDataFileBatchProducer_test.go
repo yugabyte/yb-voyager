@@ -180,7 +180,8 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 
 func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	// max batch size in size is 25 bytes
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, 25)
+	maxBatchSizeBytes := int64(25)
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, maxBatchSizeBytes)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -217,16 +218,19 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	assert.Equal(t, 3, len(batches))
 	// each of length 2
 	assert.Equal(t, int64(1), batches[0].RecordCount)
+	assert.LessOrEqual(t, batches[0].ByteCount, maxBatchSizeBytes)
 	batchContents, err := os.ReadFile(batches[0].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, "id,val\n1, \"abcde\"", string(batchContents))
 
 	assert.Equal(t, int64(2), batches[1].RecordCount)
+	assert.LessOrEqual(t, batches[1].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[1].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, "id,val\n2, \"ghijk\"\n3, \"mnopq\"", string(batchContents))
 
 	assert.Equal(t, int64(1), batches[2].RecordCount)
+	assert.LessOrEqual(t, batches[2].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[2].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, "id,val\n4, \"stuvw\"", string(batchContents))
