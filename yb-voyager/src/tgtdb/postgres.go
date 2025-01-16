@@ -336,7 +336,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
 		}
 		result = append(result, table)
 	}
@@ -656,7 +656,7 @@ func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
 	}
 }
 
@@ -777,7 +777,7 @@ func (pg *TargetPostgreSQL) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	rows, err := pg.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
 	}
 	defer rows.Close()
 

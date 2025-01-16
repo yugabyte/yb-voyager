@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -166,7 +165,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 			fullTableName := fmt.Sprintf("%s.%s", schemaName, tableName)
 			table, err := namereg.NameReg.LookupTableName(fullTableName)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", fullTableName, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", fullTableName, err)
 			}
 			tableNameVsFileNameMap[table.ForKey()] = fileName
 		}
@@ -174,7 +173,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 
 	tocTextFileDataBytes, err := os.ReadFile(tocTextFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read file %q: %v", tocTextFilePath, err)
+		utils.ErrExit("Failed to read file: %q: %v", tocTextFilePath, err)
 	}
 
 	tocTextFileData := strings.Split(string(tocTextFileDataBytes), "\n")
@@ -209,7 +208,7 @@ func GetTableRowCount(filePath string) map[string]int64 {
 
 	fileBytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("read file %q: %s", filePath, err)
+		utils.ErrExit("read file: %q: %s", filePath, err)
 	}
 
 	lines := strings.Split(strings.Trim(string(fileBytes), "\n"), "\n")
@@ -295,7 +294,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		for _, key := range keys {
 			table, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				utils.ErrExit("lookup table %s in name registry : %v", key, err)
+				utils.ErrExit("lookup table in name registry: %q: %v", key, err)
 			}
 			displayTableName := table.CurrentName.Unqualified.MinQuoted
 			//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
@@ -329,7 +328,7 @@ func displayExportedRowCountSnapshot(snapshotViaDebezium bool) {
 		}
 		table, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 		if err != nil {
-			utils.ErrExit("lookup table %s in name registry : %v", tableStatus.TableName, err)
+			utils.ErrExit("lookup table  in name registry : %q: %v", tableStatus.TableName, err)
 		}
 		displayTableName := table.CurrentName.Unqualified.MinQuoted
 		partitions := leafPartitions[table.ForOutput()]
@@ -389,7 +388,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		for _, tableName := range tableList {
 			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
 			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table %q: %w", tableName, err)
+				utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
 			}
 			snapshotRowCount.Put(tableName, tableRowCount)
 		}
@@ -442,7 +441,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 	for _, subdir := range projectSubdirs {
 		err := exec.Command("mkdir", "-p", filepath.Join(projectDirPath, subdir)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", projectDirPath, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", projectDirPath, err)
 		}
 	}
 
@@ -459,7 +458,7 @@ func CreateMigrationProjectIfNotExists(dbType string, exportDir string) {
 
 		err := exec.Command("mkdir", "-p", filepath.Join(schemaDir, databaseObjectDirName)).Run()
 		if err != nil {
-			utils.ErrExit("couldn't create sub-directories under %q: %v", schemaDir, err)
+			utils.ErrExit("couldn't create sub-directories under: %q: %v", schemaDir, err)
 		}
 	}
 
@@ -930,7 +929,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	}
 	defaultSchema, noDefaultSchema := GetDefaultPGSchema(schema, "|")
 	if noDefaultSchema && len(strings.Split(table, ".")) <= 1 {
-		utils.ErrExit("no default schema found to qualify table %s", table)
+		utils.ErrExit("no default schema found to qualify table: %s", table)
 	}
 	tableName := sqlname.NewSourceNameFromMaybeQualifiedName(table, defaultSchema)
 	fromTable := tableName.Qualified.Unquoted
@@ -938,7 +937,7 @@ func renameTableIfRequired(table string) (string, bool) {
 	if renameTablesMap[fromTable] != "" {
 		tableTup, err := namereg.NameReg.LookupTableName(renameTablesMap[fromTable])
 		if err != nil {
-			utils.ErrExit("lookup failed for the table  %s", renameTablesMap[fromTable])
+			utils.ErrExit("lookup failed for the table:  %s", renameTablesMap[fromTable])
 		}
 
 		return tableTup.ForMinOutput(), true
@@ -1048,142 +1047,19 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	return nil
 }
 
-var (
-	UNSUPPORTED_DATATYPE_XML_ISSUE  = fmt.Sprintf("%s - xml", UNSUPPORTED_DATATYPE)
-	UNSUPPORTED_DATATYPE_XID_ISSUE  = fmt.Sprintf("%s - xid", UNSUPPORTED_DATATYPE)
-	APP_CHANGES_HIGH_THRESHOLD      = 5
-	APP_CHANGES_MEDIUM_THRESHOLD    = 1
-	SCHEMA_CHANGES_HIGH_THRESHOLD   = math.MaxInt32
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = 20
-)
-
-var appChanges = []string{
-	INHERITANCE_ISSUE_REASON,
-	CONVERSION_ISSUE_REASON,
-	DEFERRABLE_CONSTRAINT_ISSUE,
-	UNSUPPORTED_DATATYPE_XML_ISSUE,
-	UNSUPPORTED_DATATYPE_XID_ISSUE,
-	UNSUPPORTED_EXTENSION_ISSUE, // will confirm this
-}
-
-func readEnvForAppOrSchemaCounts() {
-	APP_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_HIGH_THRESHOLD", APP_CHANGES_HIGH_THRESHOLD)
-	APP_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("APP_CHANGES_MEDIUM_THRESHOLD", APP_CHANGES_MEDIUM_THRESHOLD)
-	SCHEMA_CHANGES_HIGH_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_HIGH_THRESHOLD", SCHEMA_CHANGES_HIGH_THRESHOLD)
-	SCHEMA_CHANGES_MEDIUM_THRESHOLD = utils.GetEnvAsInt("SCHEMA_CHANGES_MEDIUM_THRESHOLD", SCHEMA_CHANGES_MEDIUM_THRESHOLD)
-}
-
-// Migration complexity calculation from the conversion issues
-func getMigrationComplexity(sourceDBType string, schemaDirectory string, analysisReport utils.SchemaReport) string {
-	if analysisReport.MigrationComplexity != "" {
-		return analysisReport.MigrationComplexity
-	}
-
-	if sourceDBType == ORACLE {
-		mc, err := getMigrationComplexityForOracle(schemaDirectory)
-		if err != nil {
-			log.Errorf("failed to get migration complexity for oracle: %v", err)
-			return "NOT AVAILABLE"
-		}
-		return mc
-	} else if sourceDBType != POSTGRESQL {
-		return "NOT AVAILABLE"
-	}
-
-	log.Infof("Calculating migration complexity..")
-	readEnvForAppOrSchemaCounts()
-	appChangesCount := 0
-	for _, issue := range schemaAnalysisReport.Issues {
-		for _, appChange := range appChanges {
-			if strings.Contains(issue.Reason, appChange) {
-				appChangesCount++
-			}
-		}
-	}
-	schemaChangesCount := len(schemaAnalysisReport.Issues) - appChangesCount
-
-	if appChangesCount > APP_CHANGES_HIGH_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_HIGH_THRESHOLD {
-		return HIGH
-	} else if appChangesCount > APP_CHANGES_MEDIUM_THRESHOLD || schemaChangesCount > SCHEMA_CHANGES_MEDIUM_THRESHOLD {
-		return MEDIUM
-	}
-	//LOW in case appChanges == 0 or schemaChanges [0-20]
-	return LOW
-}
-
-// This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
-// Ideally, we should ALSO be considering the schema analysis report to get the migration complexity.
-func getMigrationComplexityForOracle(schemaDirectory string) (string, error) {
-	ora2pgReportPath := filepath.Join(schemaDirectory, "ora2pg_report.csv")
-	if !utils.FileOrFolderExists(ora2pgReportPath) {
-		return "", fmt.Errorf("ora2pg report file not found at %s", ora2pgReportPath)
-	}
-	file, err := os.Open(ora2pgReportPath)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", ora2pgReportPath, err)
-	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			log.Errorf("Error while closing file %s: %v", ora2pgReportPath, err)
-		}
-	}()
-	// Sample file contents
-
-	// "dbi:Oracle:(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = xyz)(PORT = 1521))(CONNECT_DATA = (SERVICE_NAME = DMS)))";
-	// "Oracle Database 19c Enterprise Edition Release 19.0.0.0.0";"ASSESS_MIGRATION";"261.62 MB";"1 person-day(s)";"A-2";
-	// "0/0/0.00";"0/0/0";"0/0/0";"25/0/6.50";"0/0/0.00";"0/0/0";"0/0/0";"0/0/0";"0/0/0";"3/0/1.00";"3/0/1.00";
-	// "44/0/4.90";"27/0/2.70";"9/0/1.80";"4/0/16.00";"5/0/3.00";"2/0/2.00";"125/0/58.90"
-	//
-	// X/Y/Z - total/invalid/cost for each type of objects(table,function,etc). Last data element is the sum total.
-	// total cost = 58.90 units (1 unit = 5 minutes). Therefore total cost is approx 1 person-days.
-	// column 6 is Migration level.
-	//  Migration levels:
-	//     A - Migration that might be run automatically
-	//     B - Migration with code rewrite and a human-days cost up to 5 days
-	//     C - Migration with code rewrite and a human-days cost above 5 days
-	// 	Technical levels:
-	//     1 = trivial: no stored functions and no triggers
-	//     2 = easy: no stored functions but with triggers, no manual rewriting
-	//     3 = simple: stored functions and/or triggers, no manual rewriting
-	//     4 = manual: no stored functions but with triggers or views with code rewriting
-	//     5 = difficult: stored functions and/or triggers with code rewriting
-	reader := csv.NewReader(file)
-	reader.Comma = ';'
-	rows, err := reader.ReadAll()
-	if err != nil {
-		log.Errorf("error reading csv file %s: %v", ora2pgReportPath, err)
-		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
-	}
-	if len(rows) > 1 {
-		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
-	}
-	reportData := rows[0]
-	migrationLevel := strings.Split(reportData[5], "-")[0]
-
-	switch migrationLevel {
-	case "A":
-		return LOW, nil
-	case "B":
-		return MEDIUM, nil
-	case "C":
-		return HIGH, nil
-	default:
-		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
-	}
-}
-
 // =====================================================================
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
 type AssessmentReport struct {
-	VoyagerVersion      string                                `json:"VoyagerVersion"`
-	TargetDBVersion     *ybversion.YBVersion                  `json:"TargetDBVersion"`
-	MigrationComplexity string                                `json:"MigrationComplexity"`
-	SchemaSummary       utils.SchemaSummary                   `json:"SchemaSummary"`
-	Sizing              *migassessment.SizingAssessmentReport `json:"Sizing"`
-	Issues              []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
-	TableIndexStats     *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-	Notes               []string                              `json:"Notes"`
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                          []string                              `json:"Notes"`
 
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`
@@ -1195,13 +1071,15 @@ type AssessmentReport struct {
 	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
 }
 
+// Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string
+	Category              string // expected values: feature, query_constrcuts, migration_caveats, plpgsql_objects, datatytpe
 	CategoryDescription   string
-	TypeName              string
-	TypeDescription       string
-	Impact                string
-	ObjectType            string
+	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                  string // Ex: "Stored generated columns are not supported."
+	Description           string
+	Impact                string // Level-1, Level-2, Level-3 (default: Level-1 ??)
+	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName            string
 	SqlStatement          string
 	DocsLink              string
@@ -1311,6 +1189,10 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	}
 
 	return &report, nil
+}
+
+func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
+	ar.Issues = append(ar.Issues, issues...)
 }
 
 func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
@@ -1532,31 +1414,41 @@ func PackAndSendCallhomePayloadOnExit() {
 	if callHomeErrorOrCompletePayloadSent {
 		return
 	}
+
+	var errorMsg string
+	var status string
+	if utils.ErrExitErr != nil {
+		errorMsg = utils.ErrExitErr.Error()
+		status = ERROR
+	} else {
+		status = EXIT
+	}
+
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(EXIT, "Exiting....")
+		packAndSendAssessMigrationPayload(status, errorMsg)
 	case assessMigrationBulkCmd.CommandPath():
-		packAndSendAssessMigrationBulkPayload(EXIT)
+		packAndSendAssessMigrationBulkPayload(status, errorMsg)
 	case exportSchemaCmd.CommandPath():
-		packAndSendExportSchemaPayload(EXIT)
+		packAndSendExportSchemaPayload(status, errorMsg)
 	case analyzeSchemaCmd.CommandPath():
-		packAndSendAnalyzeSchemaPayload(EXIT)
+		packAndSendAnalyzeSchemaPayload(status, errorMsg)
 	case importSchemaCmd.CommandPath():
-		packAndSendImportSchemaPayload(EXIT, "Exiting....")
+		packAndSendImportSchemaPayload(status, errorMsg)
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		packAndSendExportDataPayload(EXIT)
+		packAndSendExportDataPayload(status, errorMsg)
 	case exportDataFromTargetCmd.CommandPath():
-		packAndSendExportDataFromTargetPayload(EXIT)
+		packAndSendExportDataFromTargetPayload(status, errorMsg)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(EXIT)
+		packAndSendImportDataPayload(status, errorMsg)
 	case importDataToSourceCmd.CommandPath():
-		packAndSendImportDataToSourcePayload(EXIT)
+		packAndSendImportDataToSourcePayload(status, errorMsg)
 	case importDataToSourceReplicaCmd.CommandPath():
-		packAndSendImportDataToSrcReplicaPayload(EXIT)
+		packAndSendImportDataToSrcReplicaPayload(status, errorMsg)
 	case endMigrationCmd.CommandPath():
-		packAndSendEndMigrationPayload(EXIT)
+		packAndSendEndMigrationPayload(status, errorMsg)
 	case importDataFileCmd.CommandPath():
-		packAndSendImportDataFilePayload(EXIT)
+		packAndSendImportDataFilePayload(status, errorMsg)
 	}
 }
 
@@ -1618,17 +1510,17 @@ func sendCallhomePayloadAtIntervals() {
 		time.Sleep(15 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-			packAndSendExportDataPayload(INPROGRESS)
+			packAndSendExportDataPayload(INPROGRESS, "")
 		case exportDataFromTargetCmd.CommandPath():
-			packAndSendExportDataFromTargetPayload(INPROGRESS)
+			packAndSendExportDataFromTargetPayload(INPROGRESS, "")
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS)
+			packAndSendImportDataPayload(INPROGRESS, "")
 		case importDataToSourceCmd.CommandPath():
-			packAndSendImportDataToSourcePayload(INPROGRESS)
+			packAndSendImportDataToSourcePayload(INPROGRESS, "")
 		case importDataToSourceReplicaCmd.CommandPath():
-			packAndSendImportDataToSrcReplicaPayload(INPROGRESS)
+			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, "")
 		case importDataFileCmd.CommandPath():
-			packAndSendImportDataFilePayload(INPROGRESS)
+			packAndSendImportDataFilePayload(INPROGRESS, "")
 		}
 	}
 }

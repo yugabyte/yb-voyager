@@ -98,13 +98,6 @@ func TestFuncCallDetector(t *testing.T) {
 		`SELECT pg_advisory_unlock_all();`,
 	}
 
-	anyValAggSqls := []string{
-		`SELECT
-		department,
-		any_value(employee_name) AS any_employee
-	FROM employees
-	GROUP BY department;`,
-	}
 	loFunctionSqls := []string{
 		`UPDATE documents
 SET content_oid = lo_import('/path/to/new/file.pdf')
@@ -130,13 +123,9 @@ WHERE title = 'Design Document';`,
 		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
 		assert.Equal(t, len(issues), 1)
 		assert.Equal(t, issues[0].Type, LARGE_OBJECT_FUNCTIONS, "Large Objects not detected in SQL: %s", sql)
+
 	}
 
-	for _, sql := range anyValAggSqls {
-		issues := getDetectorIssues(t, NewFuncCallDetector(sql), sql)
-		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, AGGREGATE_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
-	}
 }
 
 func TestColumnRefDetector(t *testing.T) {
@@ -691,6 +680,40 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 	}
 }
 
+func TestJsonbSubscriptingDetector(t *testing.T) {
+	withoutIssueSqls := []string{
+		`SELECT numbers[1] AS first_number 
+		FROM array_data;`,
+		`select ab_data['name'] from (select Data as ab_data from test_jsonb);`, // NOT REPORTED AS OF NOW because of caveat
+	}
+	issuesSqls := []string{
+		`SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`,
+		`UPDATE json_data
+SET data = jsonb_set(data, '{user,details,city}', '"San Francisco"')
+WHERE data['user']['name'] = '"Alice"';`,
+		`SELECT
+    data->>$1 AS name, 
+    data[$2][$3] AS second_score
+FROM test_jsonb1`,
+		`SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;`,
+		`SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;`,
+		`SELECT ('{"key": "value1"}'::jsonb || '{"key": "value2"}'::jsonb)['key'] AS object_in_array;`,
+	}
+
+	for _, sql := range withoutIssueSqls {
+		issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(sql, []string{}, []string{}), sql)
+
+		assert.Equal(t, 0, len(issues), "Expected 1 issue for SQL: %s", sql)
+	}
+
+	for _, sql := range issuesSqls {
+		issues := getDetectorIssues(t, NewJsonbSubscriptingDetector(sql, []string{"data"}, []string{"jsonb_build_object"}), sql)
+
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, JSONB_SUBSCRIPTING, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
+	}
+}
+
 func TestJsonConstructorDetector(t *testing.T) {
 	sql := `SELECT JSON_ARRAY('PostgreSQL', 12, TRUE, NULL) AS json_array;`
 
@@ -708,5 +731,43 @@ WHERE JSON_EXISTS(details, '$.price ? (@ > $price)' PASSING 30 AS price);`
 	issues := getDetectorIssues(t, NewJsonQueryFunctionDetector(sql), sql)
 	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
 	assert.Equal(t, JSON_QUERY_FUNCTION, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+
+}
+
+func TestMergeStatementDetector(t *testing.T) {
+	sqls := []string{
+		`MERGE INTO customer_account ca
+USING recent_transactions t
+ON t.customer_id = ca.customer_id
+WHEN MATCHED THEN
+  UPDATE SET balance = balance + transaction_value
+WHEN NOT MATCHED THEN
+  INSERT (customer_id, balance)
+  VALUES (t.customer_id, t.transaction_value);`,
+
+		`MERGE INTO wines w
+USING wine_stock_changes s
+ON s.winename = w.winename
+WHEN NOT MATCHED AND s.stock_delta > 0 THEN
+  INSERT VALUES(s.winename, s.stock_delta)
+WHEN MATCHED AND w.stock + s.stock_delta > 0 THEN
+  UPDATE SET stock = w.stock + s.stock_delta
+WHEN MATCHED THEN
+  DELETE
+RETURNING merge_action(), w.*;`,
+	}
+
+	for _, sql := range sqls {
+		issues := getDetectorIssues(t, NewMergeStatementDetector(sql), sql)
+		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+		assert.Equal(t, MERGE_STATEMENT, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
+	}
+}
+func TestIsJsonPredicate(t *testing.T) {
+	sql := `SELECT js, js IS JSON "json?" FROM (VALUES ('123'), ('"abc"'), ('{"a": "b"}'), ('[1,2]'),('abc')) foo(js);`
+
+	issues := getDetectorIssues(t, NewJsonPredicateExprDetector(sql), sql)
+	assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
+	assert.Equal(t, JSON_TYPE_PREDICATE, issues[0].Type, "Expected Advisory Locks issue for SQL: %s", sql)
 
 }

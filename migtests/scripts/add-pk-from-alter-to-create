@@ -5,7 +5,7 @@ import os
 import re
 import shutil
 
-table_file_path = os.getenv('TEST_DIR')+'/export-dir/schema/tables/table.sql'
+table_file_path = os.getenv('EXPORT_DIR')+'/schema/tables/table.sql'
 
 #copy the table_file_path to table_file_path+'.old'
 src = table_file_path

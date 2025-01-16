@@ -94,7 +94,7 @@ main() {
 
 	step "Clean up"
 	./cleanup-db
-	rm -rf "${EXPORT_DIR}/*"
+	rm -rf "${EXPORT_DIR}"
 }
 
 main

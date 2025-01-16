@@ -27,7 +27,7 @@ CREATE TABLE sales (
 
 -- cases for multi column list partition, to be reported during analyze-schema
 CREATE TABLE test_1 (
-	id numeric NOT NULL,
+	id numeric NOT NULL REFERENCES sales_data(sales_id),
 	country_code varchar(3),
 	record_type varchar(5),
 	descriptions varchar(50),
@@ -362,31 +362,41 @@ CREATE TABLE test_udt (
 	employee_name VARCHAR(100),
 	home_address address_type,
 	some_field enum_test,
-	home_address1 non_public.address_type1
+	home_address1 non_public.address_type1,
+    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR)
 );
 
 CREATE TABLE test_arr_enum (
 	id int,
 	arr text[],
-	arr_enum enum_test[]
+	arr_enum enum_test[],
+    object_column TEXT CHECK (object_column IS JSON OBJECT)
 );
 
 CREATE TABLE public.locations (
     id integer NOT NULL,
     name character varying(100),
-    geom geometry(Point,4326)
+    geom geometry(Point,4326),
+    array_column TEXT CHECK (array_column IS JSON ARRAY)
  );
 
  CREATE TABLE public.xml_data_example (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255),
     description XML DEFAULT xmlparse(document '<product><name>Default Product</name><price>100.00</price><category>Electronics</category></product>'),
-    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)
 );
 
 CREATE TABLE image (title text, raster lo);
 
 CREATE TABLE employees (id INT PRIMARY KEY, salary INT, data hstore);
+
+-- IS JSON Predicate
+CREATE TABLE public.json_data (
+    id SERIAL PRIMARY KEY,
+    data_column TEXT NOT NULL CHECK (data_column IS JSON)
+);
 -- create table with multirange data types
 
 -- Create tables with primary keys directly
@@ -420,3 +430,39 @@ CREATE TABLE timestamptz_multirange_table (
     global_event_times tstzmultirange
 );
 
+-- Testing tables with unique nulls not distinct constraints
+
+-- Control case
+CREATE TABLE users_unique_nulls_distinct (
+    id SERIAL PRIMARY KEY,
+    email TEXT,
+    UNIQUE (email)
+);
+
+CREATE TABLE users_unique_nulls_not_distinct (
+    id SERIAL PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+);
+
+ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);

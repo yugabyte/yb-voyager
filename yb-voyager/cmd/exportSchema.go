@@ -95,7 +95,7 @@ func exportSchema() error {
 		log.Errorf("failed to get migration UUID: %v", err)
 		return fmt.Errorf("failed to get migration UUID: %w", err)
 	}
-	
+
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err = source.DB().Connect()
@@ -175,7 +175,7 @@ func exportSchema() error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	packAndSendExportSchemaPayload(COMPLETE)
+	packAndSendExportSchemaPayload(COMPLETE, "")
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -185,7 +185,7 @@ func exportSchema() error {
 	return nil
 }
 
-func packAndSendExportSchemaPayload(status string) {
+func packAndSendExportSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -203,6 +203,7 @@ func packAndSendExportSchemaPayload(status string) {
 		AppliedRecommendations: assessmentRecommendationsApplied,
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
+		Error:                  callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
@@ -467,8 +468,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	}
 
 	// true -> oracle, false -> PG
-	parsedObjectName := lo.Ternary(relation.Schemaname == "", relation.Relname,
-		relation.Schemaname+"."+relation.Relname)
+	parsedObjectName := utils.BuildObjectName(relation.Schemaname, relation.Relname)
 
 	match := false
 	switch source.DBType {

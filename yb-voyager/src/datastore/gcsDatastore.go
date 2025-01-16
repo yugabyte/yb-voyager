@@ -17,12 +17,12 @@ limitations under the License.
 package datastore
 
 import (
+	"fmt"
 	"io"
 	"net/url"
 	"os"
 	"regexp"
 	"strings"
-	"fmt"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/gcs"
@@ -36,7 +36,7 @@ type GCSDataStore struct {
 func NewGCSDataStore(resourceName string) *GCSDataStore {
 	url, err := url.Parse(resourceName)
 	if err != nil {
-		utils.ErrExit("invalid gcs resource URL %v", resourceName)
+		utils.ErrExit("invalid gcs resource URL: %v", resourceName)
 	}
 	return &GCSDataStore{url: url, bucketName: url.Host}
 }
@@ -48,13 +48,13 @@ func (ds *GCSDataStore) Glob(pattern string) ([]string, error) {
 		return nil, fmt.Errorf("listing all objects of %q: %w", pattern, err)
 	}
 	pattern = strings.Replace(pattern, "*", ".*", -1)
-	pattern = ds.url.String() + "/" + pattern 
+	pattern = ds.url.String() + "/" + pattern
 	re := regexp.MustCompile(pattern)
 	var resultSet []string
 	for _, objectName := range objectNames {
 		objectName = ds.url.String() + "/" + objectName
 		if re.MatchString(objectName) {
-			resultSet = append(resultSet, objectName) 
+			resultSet = append(resultSet, objectName)
 		}
 	}
 	return resultSet, nil
@@ -68,7 +68,7 @@ func (ds *GCSDataStore) AbsolutePath(filePath string) (string, error) {
 func (ds *GCSDataStore) FileSize(filePath string) (int64, error) {
 	objAttrs, err := gcs.GetObjAttrs(filePath)
 	if err != nil {
-		return 0, fmt.Errorf("get attributes of %q: %w",filePath, err)
+		return 0, fmt.Errorf("get attributes of %q: %w", filePath, err)
 	}
 	return objAttrs.Size, nil
 }
@@ -80,7 +80,7 @@ func (ds *GCSDataStore) Open(resourceName string) (io.ReadCloser, error) {
 	// if resourceName is hidden underneath a symlink for gcs objects...
 	objectPath, err := os.Readlink(resourceName)
 	if err != nil {
-		utils.ErrExit("unable to resolve symlink %v to gcs resource: %w", resourceName, err)
+		utils.ErrExit("unable to resolve symlink: %v to gcs resource: %w", resourceName, err)
 	}
 	return gcs.NewObjectReader(objectPath)
 }

@@ -129,21 +129,22 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate AssessmentReport Struct Definition",
 			actualType: reflect.TypeOf(AssessmentReport{}),
 			expectedType: struct {
-				VoyagerVersion             string                                `json:"VoyagerVersion"`
-				TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
-				MigrationComplexity        string                                `json:"MigrationComplexity"`
-				SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
-				Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
-				Issues                     []AssessmentIssue                     `json:"-"`
-				TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-				Notes                      []string                              `json:"Notes"`
-				UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
-				UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
-				UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-				UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-				UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-				UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
-				MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
+				VoyagerVersion                 string                                `json:"VoyagerVersion"`
+				TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+				MigrationComplexity            string                                `json:"MigrationComplexity"`
+				MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+				SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+				Issues                         []AssessmentIssue                     `json:"-"`
+				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+				Notes                          []string                              `json:"Notes"`
+				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
+				UnsupportedDataTypesDesc       string                                `json:"UnsupportedDataTypesDesc"`
+				UnsupportedFeatures            []UnsupportedFeature                  `json:"UnsupportedFeatures"`
+				UnsupportedFeaturesDesc        string                                `json:"UnsupportedFeaturesDesc"`
+				UnsupportedQueryConstructs     []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+				UnsupportedPlPgSqlObjects      []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
+				MigrationCaveats               []UnsupportedFeature                  `json:"MigrationCaveats"`
 			}{},
 		},
 	}
@@ -165,9 +166,10 @@ func TestAssessmentReportJson(t *testing.T) {
 	}
 
 	assessmentReport = AssessmentReport{
-		VoyagerVersion:      "v1.0.0",
-		TargetDBVersion:     newYbVersion,
-		MigrationComplexity: "High",
+		VoyagerVersion:                 "v1.0.0",
+		TargetDBVersion:                newYbVersion,
+		MigrationComplexity:            "High",
+		MigrationComplexityExplanation: "",
 		SchemaSummary: utils.SchemaSummary{
 			Description: "Test Schema Summary",
 			DBName:      "test_db",
@@ -302,12 +304,12 @@ func TestAssessmentReportJson(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to write assessment report to JSON file: %v", err)
 	}
-
 	// expected JSON
 	expectedJSON := `{
 	"VoyagerVersion": "v1.0.0",
 	"TargetDBVersion": "2024.1.1.1",
 	"MigrationComplexity": "High",
+	"MigrationComplexityExplanation": "",
 	"SchemaSummary": {
 		"Description": "Test Schema Summary",
 		"DbName": "test_db",

@@ -43,14 +43,21 @@ const (
 	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
 	PG_QUERY_SELECTSTMT_NODE = "pg_query.SelectStmt"
 
+	PG_QUERY_A_INDIRECTION_NODE              = "pg_query.A_Indirection"
 	PG_QUERY_JSON_OBJECT_AGG_NODE            = "pg_query.JsonObjectAgg"
 	PG_QUERY_JSON_ARRAY_AGG_NODE             = "pg_query.JsonArrayAgg"
 	PG_QUERY_JSON_ARRAY_CONSTRUCTOR_AGG_NODE = "pg_query.JsonArrayConstructor"
 	PG_QUERY_JSON_FUNC_EXPR_NODE             = "pg_query.JsonFuncExpr"
 	PG_QUERY_JSON_OBJECT_CONSTRUCTOR_NODE    = "pg_query.JsonObjectConstructor"
 	PG_QUERY_JSON_TABLE_NODE                 = "pg_query.JsonTable"
-	PG_QUERY_VIEWSTMT_NODE                   = "pg_query.ViewStmt"
-	PG_QUERY_COPYSTSMT_NODE                  = "pg_query.CopyStmt"
+	PG_QUERY_JSON_IS_PREDICATE_NODE          = "pg_query.JsonIsPredicate"
+	PG_QUERY_VIEW_STMT_NODE                  = "pg_query.ViewStmt"
+	PG_QUERY_COPY_STMT_NODE                  = "pg_query.CopyStmt"
+
+	PG_QUERY_DEFINE_STMT_NODE = "pg_query.DefineStmt"
+	PG_QUERY_MERGE_STMT_NODE  = "pg_query.MergeStmt"
+	PG_QUERY_CONSTRAINT_NODE  = "pg_query.Constraint"
+	PG_QUERY_INDEX_STMT_NODE  = "pg_query.IndexStmt"
 )
 
 // function type for processing nodes during traversal

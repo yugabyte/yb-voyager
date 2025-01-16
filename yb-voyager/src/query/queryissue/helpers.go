@@ -104,7 +104,7 @@ var UnsupportedIndexDatatypes = []string{
 
 var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
 	//agg function added in PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
-	"any_value",
+	"any_value", "range_agg", "range_intersect_agg",
 }...)
 
 const (
@@ -133,4 +133,27 @@ var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
 
 	//functions provided by lo extension, refer - https://www.postgresql.org/docs/current/lo.html#LO-RATIONALE
 	"lo_manage", "lo_oid",
+}...)
+
+// catalog functions return type jsonb
+var catalogFunctionsReturningJsonb = mapset.NewThreadUnsafeSet([]string{
+	/*
+			SELECT
+		    DISTINCT p.proname AS Function_Name
+		FROM
+		    pg_catalog.pg_proc p
+		    LEFT JOIN pg_catalog.pg_language l ON p.prolang = l.oid
+		    LEFT JOIN pg_catalog.pg_namespace n ON p.pronamespace = n.oid
+		WHERE
+		    pg_catalog.pg_function_is_visible(p.oid) AND pg_catalog.pg_get_function_result(p.oid) = 'jsonb'
+
+		ORDER BY Function_Name;
+	*/
+	"jsonb_agg", "jsonb_agg_finalfn", "jsonb_agg_strict", "jsonb_array_element",
+	"jsonb_build_array", "jsonb_build_object", "jsonb_concat", "jsonb_delete",
+	"jsonb_delete_path", "jsonb_extract_path", "jsonb_in", "jsonb_insert",
+	"jsonb_object", "jsonb_object_agg", "jsonb_object_agg_finalfn", "jsonb_object_agg_strict",
+	"jsonb_object_agg_unique", "jsonb_object_agg_unique_strict", "jsonb_object_field", "jsonb_path_query_array",
+	"jsonb_path_query_array_tz", "jsonb_path_query_first", "jsonb_path_query_first_tz", "jsonb_recv",
+	"jsonb_set", "jsonb_set_lax", "jsonb_strip_nulls", "to_jsonb", "ts_headline",
 }...)

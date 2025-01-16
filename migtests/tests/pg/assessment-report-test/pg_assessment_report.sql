@@ -144,7 +144,9 @@ WITH CHECK OPTION;
 CREATE TABLE public.test_jsonb (
     id integer,
     data jsonb,
-	data2 text
+	data2 text,
+    region text,
+    FOREIGN KEY (id, region) REFERENCES sales_region(id, region)
 );
 
 CREATE TABLE public.inet_type (
@@ -430,4 +432,49 @@ CREATE VIEW public.view_explicit_security_invoker
 WITH (security_invoker = true) AS
     SELECT employee_id, first_name
     FROM public.employees;
+
+CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
+
+ CREATE COLLATION public.numeric (provider = icu, locale = 'en@colNumeric=yes');
+-- Testing tables with unique nulls not distinct constraints
+
+-- Control case
+CREATE TABLE users_unique_nulls_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE (email)
+);
+
+CREATE TABLE users_unique_nulls_not_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+);
+
+ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);
+
+CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT;
+
 

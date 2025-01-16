@@ -113,7 +113,7 @@ func populateOra2pgConfigFile(configFilePath string, conf *Ora2pgConfig) {
 
 	err = os.WriteFile(configFilePath, output.Bytes(), 0644)
 	if err != nil {
-		utils.ErrExit("unable to update config file %q: %v\n", configFilePath, err)
+		utils.ErrExit("unable to update config file: %q: %v\n", configFilePath, err)
 	}
 }
 
