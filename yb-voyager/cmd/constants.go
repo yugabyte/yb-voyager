@@ -226,9 +226,6 @@ const (
 	UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE            = "Unsupported Data Types for Live Migration with Fall-forward/Fallback"
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION            = "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION = "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows."
-	DESCRIPTION_ADD_PK_TO_PARTITION_TABLE                           = `After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.`
-	DESCRIPTION_FOREIGN_TABLES                                      = `During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.`
-	DESCRIPTION_POLICY_ROLE_DESCRIPTION                             = `There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.`
 )
 
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}

@@ -617,8 +617,8 @@ var MigrationCaveatsIssues = []string{
 	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	queryissue.FOREIGN_TABLE,
 	queryissue.POLICY_WITH_ROLES,
-	queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
-	queryissue.UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
@@ -674,9 +674,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
 		Type:                   issueInstance.Type,
-		Reason:                 issueInstance.Name,
+		Name:                   issueInstance.Name,
+		Reason:                 issueInstance.Description,
 		Impact:                 issueInstance.Impact,
-		Description:            issueInstance.Description,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,
@@ -1212,9 +1212,11 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
+// TODO: fix it as per the new reason/description field value
 // analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
 var reasonsIncludingSensitiveInformationToCallhome = []string{
 	UNSUPPORTED_PG_SYNTAX,
+	// update this list with the issue descriptions having %s
 	POLICY_ROLE_ISSUE,
 	UNSUPPORTED_DATATYPE,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
