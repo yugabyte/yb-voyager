@@ -986,9 +986,9 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 		if !slices.Contains([]string{UNSUPPORTED_FEATURES_CATEGORY, MIGRATION_CAVEATS_CATEGORY}, analyzeIssue.IssueType) {
 			continue
 		}
+
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		issueMatched := lo.Ternary[bool](issueType != "", issueType == analyzeIssue.Type, strings.Contains(analyzeIssue.Reason, issueDescription))
-
 		if issueMatched {
 			if !minVersionsFixedInSet {
 				minVersionsFixedIn = analyzeIssue.MinimumVersionsFixedIn
@@ -1004,7 +1004,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			}
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
-
+			issueDescription = lo.Ternary(len(analyzeIssue.Reason) == 0, issueDescription, analyzeIssue.Reason)
 			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, issueDescription, minVersionsFixedIn))
 		}
 	}
@@ -1035,7 +1035,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
 		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
-		reason := fmt.Sprintf(queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION, displayIndexMethod)
+		reason := fmt.Sprintf(queryissue.UNSUPPORTED_INDEX_METHOD_DESCRIPTION, displayIndexMethod)
 		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(featureName, reason, "", schemaAnalysisReport, false))
 	}
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, "", queryissue.CONSTRAINT_TRIGGER, schemaAnalysisReport, false))
@@ -1197,11 +1197,11 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 	plpgsqlIssues := lo.Filter(schemaAnalysisReport.Issues, func(issue utils.AnalyzeSchemaIssue, _ int) bool {
 		return issue.IssueType == UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	})
-	groupPlpgsqlIssuesByReason := lo.GroupBy(plpgsqlIssues, func(issue utils.AnalyzeSchemaIssue) string {
-		return issue.Reason
+	groupPlpgsqlIssuesByIssueName := lo.GroupBy(plpgsqlIssues, func(issue utils.AnalyzeSchemaIssue) string {
+		return issue.Name
 	})
 	var unsupportedPlpgSqlObjects []UnsupportedFeature
-	for reason, analyzeSchemaIssues := range groupPlpgsqlIssuesByReason {
+	for issueName, analyzeSchemaIssues := range groupPlpgsqlIssuesByIssueName {
 		var objects []ObjectInfo
 		var docsLink string
 		var minVersionsFixedIn map[string]*ybversion.YBVersion
@@ -1213,7 +1213,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", reason, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", issueName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
 			}
 
 			objects = append(objects, ObjectInfo{
@@ -1237,7 +1237,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			})
 		}
 		feature := UnsupportedFeature{
-			FeatureName: reason,
+			FeatureName: issueName,
 			DisplayDDL:  true,
 			DocsLink:    docsLink,
 			Objects:     objects,

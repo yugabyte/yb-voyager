@@ -70,7 +70,7 @@ var unsupportedIndexMethodIssue = issue.Issue{
 
 func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) QueryIssue {
 	issue := unsupportedIndexMethodIssue
-	issue.Name = fmt.Sprintf(unsupportedIndexMethodIssue.Name, strings.ToUpper(indexAccessMethod))
+	issue.Description = fmt.Sprintf(issue.Description, strings.ToUpper(indexAccessMethod))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -423,7 +423,6 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-	issue.Name = fmt.Sprintf(issue.Name, typeName)
 	issue.Description = fmt.Sprintf(issue.Description, constraintName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
@@ -440,7 +439,6 @@ var indexOnComplexDatatypesIssue = issue.Issue{
 
 func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string) QueryIssue {
 	issue := indexOnComplexDatatypesIssue
-	issue.Name = fmt.Sprintf(issue.Name, typeName)
 	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

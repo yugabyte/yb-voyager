@@ -93,9 +93,9 @@ const (
 
 const (
 	// Issue Names
-	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Index on column with complex datatype '%s'"
-	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME                       = "Index with access method %s"
-	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Primary/Unique key on column with complex datatype '%s'"
+	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Index on column with complex datatype"
+	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME                       = "Index with access method"
+	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Primary/Unique key on column with complex datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME            = "Unsupported datatype for Live migration"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback"
 )
@@ -122,7 +122,7 @@ const (
 	// for DDLs
 	STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION                       = "Stored generated columns are not supported in YugabyteDB. Detected columns are (%s)."
 	UNLOGGED_TABLES_ISSUE_DESCRIPTION                                = "UNLOGGED tables are not yet supported in YugabyteDB"
-	UNSUPPORTED_INDEX_METHOD_DESCRIPTION                             = "The schema contains an index with an access method(gist, spgist, brin) which is not supported in YugabyteDB."
+	UNSUPPORTED_INDEX_METHOD_DESCRIPTION                             = "The schema contains an index with an access method %q which is not supported in YugabyteDB."
 	STORAGE_PARAMETERS_ISSUE_DESCRIPTION                             = "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB"
 	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_DESCRIPTION               = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value ) is not yet supported in YugabyteDB"
 	ALTER_TABLE_CLUSTER_ON_ISSUE_DESCRIPTION                         = "ALTER TABLE CLUSTER is not yet supported in YugabyteDB"
