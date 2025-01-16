@@ -88,7 +88,7 @@ const (
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME = "Foreign key constraint references partitioned table"
 
 	CTE_WITH_MATERIALIZED_CLAUSE      = "CTE_WITH_MATERIALIZED_CLAUSE"
-	CTE_WITH_MATERIALIZED_CLAUSE_NAME = "Modifying Materialization of Common table expressions not supported"
+	CTE_WITH_MATERIALIZED_CLAUSE_NAME = "CTE with MATERIALIZE clause"
 
 	SQL_BODY_IN_FUNCTION           = "SQL_BODY_IN_FUNCTION"
 	SQL_BODY_IN_FUNCTION_NAME      = "SQL Body in function"
