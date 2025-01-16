@@ -423,7 +423,7 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-	issue.Description = fmt.Sprintf(issue.Description, constraintName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
