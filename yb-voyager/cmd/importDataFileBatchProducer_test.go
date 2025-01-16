@@ -130,3 +130,123 @@ func TestBasicFileBatchProducer(t *testing.T) {
 	assert.Equal(t, int64(1), batch.RecordCount)
 	assert.True(t, batchproducer.Done())
 }
+
+func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
+	// max batch size in rows is 2
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+
+	assert.False(t, batchproducer.Done())
+
+	var batches []*Batch
+	for !batchproducer.Done() {
+		batch, err := batchproducer.NextBatch()
+		assert.NoError(t, err)
+		assert.NotNil(t, batch)
+		batches = append(batches, batch)
+	}
+
+	// 2 batches should be produced
+	assert.Equal(t, 2, len(batches))
+	// each of length 2
+	assert.Equal(t, int64(2), batches[0].RecordCount)
+	assert.Equal(t, int64(2), batches[1].RecordCount)
+}
+
+func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
+	// max batch size in size is 25 bytes
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, 25)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// each row exccept header is 10 bytes
+	fileContents := `id,val
+1, "abcde"
+2, "ghijk"
+3, "mnopq"
+4, "stuvw"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+
+	assert.False(t, batchproducer.Done())
+
+	var batches []*Batch
+	for !batchproducer.Done() {
+		batch, err := batchproducer.NextBatch()
+		assert.NoError(t, err)
+		assert.NotNil(t, batch)
+		batches = append(batches, batch)
+	}
+
+	// 3 batches should be produced
+	// while calculating for the first batch, the header is also considered
+	assert.Equal(t, 3, len(batches))
+	// each of length 2
+	assert.Equal(t, int64(1), batches[0].RecordCount)
+	assert.Equal(t, int64(2), batches[1].RecordCount)
+	assert.Equal(t, int64(1), batches[2].RecordCount)
+}
+
+func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *testing.T) {
+	// max batch size in size is 25 bytes
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, 25)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	// 3rd row is greater than max batch size
+	fileContents := `id,val
+1, "abcdef"
+2, "ghijk"
+3, "mnopq1234567899876543"
+4, "stuvw"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+
+	assert.False(t, batchproducer.Done())
+
+	// 1st batch is fine.
+	batch, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(1), batch.RecordCount)
+
+	// 2nd batch should throw error
+	_, err = batchproducer.NextBatch()
+	assert.ErrorContains(t, err, "larger than max batch size")
+}
