@@ -664,7 +664,7 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"FeatureName": "Foreign key constraint references partitioned table",
+			"FeatureName": "Foreign key references to partitioned table are not yet supported in YugabyteDB",
 			"Objects": [
 				{
 					"ObjectName": "public.test_jsonb, constraint: (test_jsonb_id_region_fkey)",
