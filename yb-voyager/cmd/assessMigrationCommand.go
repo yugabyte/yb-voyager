@@ -80,13 +80,18 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		validateSourceDBTypeForAssessMigration()
 		setExportFlagsDefaults()
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		err := validateAndSetTargetDbVersionFlag()
+		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
@@ -318,13 +323,6 @@ func assessMigration() (err error) {
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
 	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
-	CreateMigrationProjectIfNotExists(source.DBType, exportDir)
-
-	err = retrieveMigrationUUID()
-	if err != nil {
-		return fmt.Errorf("failed to get migration UUID: %w", err)
-	}
-
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
@@ -1013,13 +1011,12 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueRea
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, minVersionsFixedIn}
 }
 
-// Q: do we no need of displayDDLInHTML in this approach? DDL can always be there for issues in the table if present.
 func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
 	return AssessmentIssue{
 		Category:              analyzeSchemaIssue.IssueType,
 		CategoryDescription:   GetCategoryDescription(analyzeSchemaIssue.IssueType),
 		Type:                  analyzeSchemaIssue.Type,
-		Name:                  analyzeSchemaIssue.Reason, // in convertIssueInstanceToAnalyzeIssue() we assign IssueType to Reason field
+		Name:                  analyzeSchemaIssue.Reason, // in convertIssueInstanceToAnalyzeIssue() we assign Issue.Name to AnalyzeSchemaIssue.Reason field
 		Description:           issueDescription,          // TODO: verify
 		Impact:                analyzeSchemaIssue.Impact,
 		ObjectType:            analyzeSchemaIssue.ObjectType,
@@ -1655,6 +1652,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"groupByObjectName":                groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
+		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
