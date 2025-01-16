@@ -222,7 +222,7 @@ func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement st
 
 var cteWithMaterializedIssue = issue.Issue{
 	Type:        CTE_WITH_MATERIALIZED_CLAUSE,
-	Name:        "MATERIALIZE clause with CTE",
+	Name:        "CTE with MATERIALIZE clause",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "",
 	Suggestion:  "No workaround available right now",

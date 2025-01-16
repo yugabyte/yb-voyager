@@ -306,13 +306,13 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"ConstructTypeName": "Modifying Materialization of Common table expressions not supported",
+			"ConstructTypeName": "CTE with MATERIALIZE clause",
 			"Query": "WITH w AS NOT MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"ConstructTypeName": "Modifying Materialization of Common table expressions not supported",
+			"ConstructTypeName": "CTE with MATERIALIZE clause",
 			"Query": "WITH w AS MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
