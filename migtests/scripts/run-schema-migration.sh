@@ -95,7 +95,7 @@ main() {
 
 	step "Analyze schema."
 	analyze_schema --output-format json
-	compare_json_reports "${EXPORT_DIR}/reports/schema_analysis_report.json" "${TEST_DIR}/expected_files/expected_schema_analysis_report.json"
+	compare_json_reports "${TEST_DIR}/expected_files/expected_schema_analysis_report.json" "${EXPORT_DIR}/reports/schema_analysis_report.json"
 
 	step "Create target database."
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
