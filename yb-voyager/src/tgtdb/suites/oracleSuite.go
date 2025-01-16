@@ -17,7 +17,6 @@ package tgtdbsuite
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -30,7 +29,7 @@ import (
 var OraValueConverterSuite = map[string]ConverterFn{
 	"DATE": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		// from oracle for DATE type debezium gives epoch milliseconds with type `io.debezium.time.Timestamp`
-		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64) 
+		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
