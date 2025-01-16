@@ -29,11 +29,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
-type DummyTdb struct {
+type dummyTDB struct {
 	tgtdb.TargetYugabyteDB
 }
 
-func (t *DummyTdb) MaxBatchSizeInBytes() int64 {
+func (t *dummyTDB) MaxBatchSizeInBytes() int64 {
 	return 1024
 }
 
@@ -54,46 +54,44 @@ func createTempFile(dir string, fileContents string) (string, error) {
 	return file.Name(), nil
 }
 
-func TestBasicFileBatchProducer(t *testing.T) {
-	fileContents := `id,val
-1, "hello"`
+func setupDependenciesForTest(batchSize int64) (string, string, *ImportDataState, error) {
+	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
+	if err != nil {
+		return "", "", nil, err
+	}
 
-	exportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
-	assert.NoError(t, err)
-	defer os.RemoveAll(fmt.Sprintf("%s/", exportDir))
-	dataDir, err := os.MkdirTemp("/tmp", "data-dir-*")
-	assert.NoError(t, err)
-	defer os.RemoveAll(fmt.Sprintf("%s/", dataDir))
-	tempFile, err := createTempFile(dataDir, fileContents)
-	assert.NoError(t, err)
+	ldataDir, err := os.MkdirTemp("/tmp", "data-dir-*")
+	if err != nil {
+		return "", "", nil, err
+	}
 
-	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, exportDir)
-	tdb = &DummyTdb{}
+	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
+	tdb = &dummyTDB{}
 	valueConverter = &dbzm.NoOpValueConverter{}
-	dataStore = datastore.NewDataStore(dataDir)
-	batchSizeInNumRows = 2
+	dataStore = datastore.NewDataStore(ldataDir)
+
+	batchSizeInNumRows = batchSize
+
+	state := NewImportDataState(lexportDir)
+	return ldataDir, lexportDir, state, nil
+}
+
+func setupFileForTest(lexportDir string, fileContents string, dir string, tableName string) (string, *ImportFileTask, error) {
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "csv",
 		Delimiter:  ",",
 		HasHeader:  true,
-		ExportDir:  exportDir,
+		ExportDir:  lexportDir,
 		QuoteChar:  '"',
 		EscapeChar: '\\',
 		NullString: "NULL",
-		// DataFileList: []*FileEntry{
-		// 	{
-		// 		FilePath:  "file.csv", // Use relative path for testing absolute path handling.
-		// 		TableName: "public.my_table",
-		// 		RowCount:  100,
-		// 		FileSize:  2048,
-		// 	},
-		// },
-		// TableNameToExportedColumns: map[string][]string{
-		// 	"public.my_table": {"id", "name", "age"},
-		// },
+	}
+	tempFile, err := createTempFile(dir, fileContents)
+	if err != nil {
+		return "", nil, err
 	}
 
-	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", "test_table")
+	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", tableName)
 	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
 	task := &ImportFileTask{
 		ID:           1,
@@ -101,8 +99,24 @@ func TestBasicFileBatchProducer(t *testing.T) {
 		TableNameTup: tableNameTup,
 		RowCount:     1,
 	}
+	return tempFile, task, nil
+}
 
-	state := NewImportDataState(exportDir)
+func TestBasicFileBatchProducer(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(2)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	fileContents := `id,val
+1, "hello"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
 	assert.NoError(t, err)
