@@ -20,9 +20,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 4,
+				"TotalCount": 5,
 				"InvalidCount": 0,
-				"ObjectNames": "citext, pgcrypto, pg_stat_statements, lo"
+				"ObjectNames": "citext, pgcrypto, pg_stat_statements, lo, hstore"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -801,7 +801,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 12,
+			"ColumnCount": 13,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -2402,6 +2402,10 @@
 				},
 				{
 					"ObjectName": "schema2.products.item (schema2.item_details)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.combined_tbl.data (public.hstore)",
 					"SqlStatement": ""
 				}
 			],

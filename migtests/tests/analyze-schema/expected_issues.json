@@ -2000,5 +2000,16 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "",
             "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "employees",
+            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - hstore on column - data",
+            "SqlStatement": "CREATE TABLE employees (id INT PRIMARY KEY, salary INT, data hstore);",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
         }
 ]

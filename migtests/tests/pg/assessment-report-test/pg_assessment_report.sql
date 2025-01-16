@@ -204,6 +204,8 @@ CREATE TYPE public.address_type AS (
 );
 
 CREATE EXTENSION lo;
+
+CREATE EXTENSION hstore;
 --other misc types
 create table public.combined_tbl (
 	id int, 
@@ -218,6 +220,7 @@ create table public.combined_tbl (
     address address_type,
     raster lo,
     arr_enum enum_kind[],
+    data hstore,
     PRIMARY KEY (id, arr_enum)
 );
 

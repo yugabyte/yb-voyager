@@ -99,7 +99,7 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                     mapString.append("\"");
                     mapString.append(",");
                 }
-		if(mapString.length() == 0) {
+		        if(mapString.length() == 0) {
                     return "";
                 } 
                 return mapString.toString().substring(0, mapString.length() - 1);
