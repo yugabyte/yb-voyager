@@ -41,7 +41,6 @@
             }
         ]
     },
-
     "Issues": [
         {
             "IssueType": "unsupported_features",
@@ -56,7 +55,7 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
+            "IssueType": "unsupported_datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "public.osm_changeset",
             "Reason": "PostGIS datatypes are not yet supported in YugabyteDB. Affected column: geom and type: geometry.",
