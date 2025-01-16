@@ -350,7 +350,7 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 
 var postgisDatatypeIssue = issue.Issue{
 	Type:        POSTGIS_DATATYPE,
-	Name:        "Unsupported POSTGIS datatype",
+	Name:        "Unsupported datatype - POSTGIS",
 	Impact:      constants.IMPACT_LEVEL_1, // Ques: Should it be IMPACT_LEVEL_3 like other unsupported datatypes?
 	Description: POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
