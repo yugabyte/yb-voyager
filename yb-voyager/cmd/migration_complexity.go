@@ -221,9 +221,9 @@ const explainTemplateHTML = `
 		<thead>
 			<tr>
 				<th>Category</th>
-				<th>Level-1</th>
-				<th>Level-2</th>
-				<th>Level-3</th>
+				<th>Level 1</th>
+				<th>Level 2</th>
+				<th>Level 3</th>
 				<th>Total</th>
 			</tr>
 		</thead>
@@ -248,9 +248,9 @@ const explainTemplateHTML = `
 
 <p>
 <strong>Impact Levels:</strong></br>
-	Level-1: Resolutions are available with minimal effort.<br/>
-	Level-2: Resolutions are available requiring moderate effort.<br/>
-	Level-3: Resolutions may not be available or are complex.
+	Level 1: Resolutions are available with minimal effort.<br/>
+	Level 2: Resolutions are available requiring moderate effort.<br/>
+	Level 3: Resolutions may not be available or are complex.
 </p>
 `
 
@@ -301,11 +301,11 @@ func buildMigrationComplexityExplanation(sourceDBType string, assessmentReport A
 func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count int) string {
 	switch finalComplexity {
 	case constants.MIGRATION_COMPLEXITY_HIGH:
-		return fmt.Sprintf("Found %d Level-2 issue(s) and %d Level-3 issue(s), resulting in HIGH migration complexity", l2Count, l3Count)
+		return fmt.Sprintf("Found %d Level 2 issue(s) and %d Level 3 issue(s), resulting in HIGH migration complexity", l2Count, l3Count)
 	case constants.MIGRATION_COMPLEXITY_MEDIUM:
-		return fmt.Sprintf("Found %d Level-1 issue(s), %d Level-2 issue(s) and %d Level-3 issue(s), resulting in MEDIUM migration complexity", l1Count, l2Count, l3Count)
+		return fmt.Sprintf("Found %d Level 1 issue(s), %d Level 2 issue(s) and %d Level 3 issue(s), resulting in MEDIUM migration complexity", l1Count, l2Count, l3Count)
 	case constants.MIGRATION_COMPLEXITY_LOW:
-		return fmt.Sprintf("Found %d Level-1 issue(s) and %d Level-2 issue(s), resulting in LOW migration complexity", l1Count, l2Count)
+		return fmt.Sprintf("Found %d Level 1 issue(s) and %d Level 2 issue(s), resulting in LOW migration complexity", l1Count, l2Count)
 	}
 	return ""
 }

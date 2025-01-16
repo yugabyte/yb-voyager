@@ -222,18 +222,17 @@ const (
 
 // Reports one case in JSON
 func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string, category string, docsLink string, impact string) {
-	var issue utils.AnalyzeSchemaIssue
-	issue.FilePath = filePath
-	issue.Reason = reason
-	issue.GH = ghIssue
-	issue.Suggestion = suggestion
-	issue.ObjectType = objType
-	issue.ObjectName = objName
-	issue.SqlStatement = sqlStmt
-	issue.IssueType = category // IssueType field of analyze schema should be renamed to Category
-	issue.Impact = lo.Ternary(impact != "", impact, constants.IMPACT_LEVEL_1)
-	if sourceDBType == POSTGRESQL {
-		issue.DocsLink = docsLink
+	issue := utils.AnalyzeSchemaIssue{
+		IssueType:    category, // TODO: to be replaced with Category as a field
+		Reason:       reason,
+		Impact:       lo.Ternary(impact != "", impact, constants.IMPACT_LEVEL_1),
+		ObjectType:   objType,
+		ObjectName:   objName,
+		SqlStatement: sqlStmt,
+		FilePath:     filePath,
+		Suggestion:   suggestion,
+		GH:           ghIssue,
+		DocsLink:     docsLink,
 	}
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
@@ -663,10 +662,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
 	*/
 	displayObjectName := issueInstance.ObjectName
-
-	constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]
-	if slices.Contains(constraintIssues, issueInstance.Type) && ok {
-		//In case of constraint issues we add constraint name to the object name as well
+	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(constraintIssues, issueInstance.Type) && ok {
+		//In case of constraint issues we add constraint name to the object name to achieve the uniqueness
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
 
@@ -676,8 +673,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
 		ObjectName:             displayObjectName,
-		Reason:                 issueInstance.Name,
 		Type:                   issueInstance.Type,
+		Reason:                 issueInstance.Name,
 		Impact:                 issueInstance.Impact,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,

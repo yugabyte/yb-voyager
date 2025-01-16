@@ -25,12 +25,15 @@
             border-collapse: collapse;
             width: 100%;
             margin-top: 20px;
+            table-layout: fixed;
         }
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
             vertical-align: top; /* Vertically center content in table cells */
+            word-wrap: break-word;
+            white-space: normal;
         }
         th {
             background-color: #f2f2f2;
@@ -65,12 +68,116 @@
             overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
             white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
             word-break: break-all; /* Prevents long words from overflowing */
-            margin: 0; /* Remove default margins */
-            padding: 0; /* Remove default padding */
+            margin: 5px; /* Remove default margins */
+            padding: 5px; /* Remove default padding */
             font-family: monospace; /* Optional: ensure a monospaced font */
         }
-
+        .table-highlight thead tr {
+            background-color: #f2f2f2;
+            font-weight: bold;
+            border-bottom: 2px solid #ccc; /* a visual separator from the body */
+        }
+        .summary-row {
+            cursor: pointer;
+            border-bottom:2px solid #000;
+        }
+        .details-row {
+            background-color: #fafafa;
+            border-bottom:2px solid #ccc;
+        }
+        /* Container for the top summary + buttons */
+        .assessment-issues-header {
+            display: flex;                /* enable flex layout */
+            justify-content: space-between; /* pushes left content to one side, buttons to the other */
+            align-items: center;            /* vertically center items */
+            margin-bottom: 1rem;            /* space before the table */
+        }
+        .assessment-issues-header p {
+            margin: 0;        /* remove default paragraph margins or adjust to your liking */
+            margin-bottom: 4px;
+        }
+        /* Container for the buttons on the right */
+        .assessment-issues-header .buttons {
+            display: flex;         /* let buttons sit side by side */
+            gap: 5px;              /* small space between them */
+        }
+        .rounded-button {
+            padding: 6px 12px;
+            border-radius: 9999px; /* pill shape */
+            border: 1px solid #ccc;
+            background-color: #f9f9f9;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+        .rounded-button:hover {
+            background-color: #eee;
+        }
     </style>
+    <script>
+        function toggleDetails(detailsRowId, arrowId) {
+            var detailsRow = document.getElementById(detailsRowId);
+            var arrow = document.getElementById(arrowId);
+            if (detailsRow.style.display === "none" || detailsRow.style.display === "") {
+                detailsRow.style.display = "table-row"; // Show the row
+                arrow.innerHTML = "&#x25BC;";   // Down arrow
+            } else {
+                detailsRow.style.display = "none"; // Hide the row
+                arrow.innerHTML = "&#x25B6;"; // Right arrow
+            }
+        }
+        function expandAllIssues() {
+            // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
+            totalIssues = {{ len .Issues }};
+            for (let i = 0; i < totalIssues; i++) {
+                document.getElementById('details-' + i).style.display = 'table-row';
+                document.getElementById('arrow-' + i).innerHTML = '&#x25BC;';
+            }
+        }
+        function collapseAllIssues() {
+            totalIssues = {{ len .Issues }};
+            for (let i = 0; i < totalIssues; i++) {
+                document.getElementById('details-' + i).style.display = 'none';
+                document.getElementById('arrow-' + i).innerHTML = '&#x25B6;';
+            }
+        }
+
+        // Keep track of the current sort direction per field, so we can toggle it
+        let sortState = {
+            category: 'asc',
+            type: 'asc',
+            impact: 'asc'
+        };
+        function sortTableBy(field) {
+            // Grab the table element
+            const table = document.querySelector(".table-highlight");
+
+            // Collect all the .issue-pair <tbody> elements
+            const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
+
+            // Determine the current sort direction and flip it
+            let currentDirection = sortState[field] || 'asc';
+            let newDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
+            sortState[field] = newDirection;
+
+            issuePairs.sort((a, b) => {
+                let aValue = a.dataset[field] || "";
+                let bValue = b.dataset[field] || "";
+
+                if (aValue < bValue) return newDirection === 'asc' ? -1 : 1;
+                if (aValue > bValue) return newDirection === 'asc' ? 1 : -1;
+                return 0;
+            });
+
+            // Re-append the sorted <tbody> elements to the table
+            issuePairs.forEach(pair => table.appendChild(pair));
+
+            // Update the sort indicator in the table header
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
+            if (sortIndicator) {
+                sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
+            }
+        }
+    </script>
 </head>
 <body>
     <div class="wrapper">
@@ -90,10 +197,8 @@
 
         <p><strong>Target YB Version:</strong> {{.TargetDBVersion}} </p>
 
-        {{if eq .MigrationComplexity "NOT AVAILABLE"}}
-        <!-- Do nothing -->
-        {{else}} 
-        <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
+        {{if ne .MigrationComplexity "NOT AVAILABLE"}}
+            <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
         {{end}}
 
         <h2>Database Objects</h2>
@@ -171,245 +276,167 @@
             <p>{{ .MigrationComplexityExplanation }}</p>
         {{end}}
 
-        <h2>Unsupported Data Types</h2>
-        <p>{{.UnsupportedDataTypesDesc}}</p>
-        {{ if .UnsupportedDataTypes }}
-            <div class="scrollable-div">
-                <table class="formatted_table">
-                    <tr>
-                        <th>Schema</th>
-                        <th>Table</th>
-                        <th>Column</th>
-                        <th>Data Type</th>
-                    </tr>
-                    {{range .UnsupportedDataTypes}}
-                    <tr>
-                        <td>{{.SchemaName}}</td>
-                        <td>{{.TableName}}</td>
-                        <td>{{.ColumnName}}</td>
-                        <td>{{.DataType}}</td>
-                    </tr>
-                    {{end}}
-                </table>
+        <h2>Assessment Issues</h2>
+        {{ if .Issues }}
+        <div class="assessment-issues-header">
+            <!-- Left area: text about total issues -->
+            <div>
+                <p><strong>Total Issues: </strong>{{ len .Issues }}</p>
+                <p>Below is a detailed breakdown of each issue.</p>
             </div>
-        {{ else }}
-            <p>No unsupported data types present in the assessed schemas.</p>
-        {{ end }}
+            <!-- Right area: buttons -->
+            <div class="buttons">
+                <button class="rounded-button" onclick="expandAllIssues()">Expand All</button>
+                <button class="rounded-button" onclick="collapseAllIssues()">Collapse All</button>
+            </div>
+        </div>
+        <table class="table-highlight">
+            <!-- Summary Row Header for the issue -->
+            <colgroup>
+                <col style="width: 20%;"> <!-- Category + arrow -->
+                <col style="width: 20%;"> <!-- Type -->  <!-- TODO: replace Type with Name field -->
+                <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                <col style="width: 10%;"> <!-- Impact -->
+            </colgroup>
 
-        <h2>Unsupported Features</h2>
-        <p>{{.UnsupportedFeaturesDesc}}</p>
-        {{ $hasUnsupportedFeatures := false }}
-        {{range .UnsupportedFeatures}}
-            {{if .Objects}} <!-- Check if Objects is not empty -->
-                {{ $hasUnsupportedFeatures = true }}
-                {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
-                    <h4>{{.FeatureName}}</h4>
-                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
-                    {{ if $supporterVerStr }}
-                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
-                    {{ end }}
-                    <div class="scrollable-div">
-                        <ul>
-                            {{range .Objects}}
-                                <li class='list_item'>{{.SqlStatement}}</li>
-                            {{end}}
-                        </ul>
-                    </div>
-                {{else}}
-                    <h4>{{.FeatureName}}</h4>
-                    {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
-                    {{ if $supporterVerStr }}
-                    <p>Supported in Versions: {{ $supporterVerStr }} </p>
-                    {{ end }}
-                    <div class="scrollable-div">
-                        <ul>
-                            {{range .Objects}}
-                                <li class='list_item'>{{.ObjectName}}</li>
-                            {{end}}
-                        </ul>
-                    </div>
-                {{end}}
-                {{if .DocsLink}}
-                    <p id="refer-p"><a href="{{.DocsLink}}" target="_blank">Details</a></p>
-                {{end}} 
-            {{end}}
-        {{end}}
-        {{if not $hasUnsupportedFeatures}} <!-- Check if no unsupported features were found -->
-            <p>No unsupported features were present among the ones assessed.</p>
-        {{end}}
-
-        <h2>Unsupported Query Constructs</h2>
-        {{ if .UnsupportedQueryConstructs}}
-            <p>Source database queries not supported in YugabyteDB, identified by scanning system tables:</p>
-            <table class="formatted_table">
-                <tr>
-                    <th>Construct Type</th>
-                    <th>Queries</th>
-                    <th>Details</th>
+            <thead>
+                <tr style="background-color: #f2f2f2;">
+                    <th style="cursor: pointer;" onclick="sortTableBy('category')">
+                        Category <span class="sort-indicator">&#8597</span>
+                    </th>
+                    <th style="cursor: pointer;" onclick="sortTableBy('type')">
+                        Type <span class="sort-indicator">&#8597</span>
+                    </th>
+                    <th>Object/SQL Preview</th>
+                    <th style="cursor: pointer;" onclick="sortTableBy('impact')">
+                        Impact <span class="sort-indicator">&#8597</span>
+                    </th>
                 </tr>
-                {{ $currentType := "" }}
-                {{ $docsLink := "" }}
-                {{ $supporterVerStr := "" }}
-                {{ range $i, $construct := .UnsupportedQueryConstructs }}
-                    {{ if ne $construct.ConstructTypeName $currentType }}
-                        {{ if ne $currentType "" }}
-                                </ul>
-                            </div>
-                        </td>
-                        <td>{{ if $supporterVerStr }}
-                            Supported in Versions: {{ $supporterVerStr }}
-                            {{ end }}
-                            {{ if $docsLink }}
-                                <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
-                            {{ else }}
-                                N/A
-                            {{ end }}
-                        </td>
-                        </tr>
-                        {{ end }}
-                        {{ $docsLink = $construct.DocsLink }}
-                        {{ $supporterVerStr = getSupportedVersionString $construct.MinimumVersionsFixedIn }}
-                        <tr>
-                            <td><strong>{{ $construct.ConstructTypeName }}</strong></td>
+            </thead>
+
+            <tbody>
+                {{ range $idx, $issue := .Issues }}
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="{{ $issue.Category }}"
+                        data-type="{{ $issue.Type }}"
+                        data-impact="{{ $issue.Impact }}">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
                             <td>
-                                <div class="scrollable-div">
-                                    <ul>
-                        {{ $currentType = $construct.ConstructTypeName }}
-                    {{ end }}
-                    <li class="list_item">{{ $construct.Query }}</li>
-                {{ end }}
-                <!-- Close the last construct type -->
-                {{ if ne $currentType "" }}
-                        </ul>
-                    </div>
-                </td>
-                <td>
-                    {{ if $supporterVerStr }}
-                    Supported in Versions: {{ $supporterVerStr }} <br>
-                    {{ end }}
-                    {{ if $docsLink }}
-                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
-                    {{ else }}
-                        N/A
-                    {{ end }}
-                </td>
-                </tr>
-                {{ end }}
-            </table>
-        {{ else }}
-            <p>No unsupported query constructs found in the source database for target YugabyteDB.</p>
-        {{ end }}
-
-        <h2>Unsupported PL/pgSQL objects</h2>
-        {{ if .UnsupportedPlPgSqlObjects}}
-            <p>Source schema objects having unsupported statements in PL/pgSQL code block: </p>
-            <table>
-                <tr>
-                    <th>Feature Name</th>
-                    <th>Object type</th>
-                    <th>Object name</th>
-                    <th>Statement</th>
-                    <th>Details</th>
-                </tr>
-                {{ range  .UnsupportedPlPgSqlObjects }}
-                    <!-- Feature Row with rowspan for grouping -->
-                    <tr>
-                    {{ $objectsGroupByObjectType := groupByObjectType .Objects }}
-                    {{ $numUniqueObjectNamesOfAllTypes := totalUniqueObjectNamesOfAllTypes $objectsGroupByObjectType }}
-                    {{ $docsLink := .DocsLink }}
-                    {{ $supportedVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
-                    <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}><strong>{{ .FeatureName }}</strong></td>
-                    {{ $isNextRowRequiredForObjectType := false }}
-                    {{ range $type, $objectsByType := $objectsGroupByObjectType }}
-                        {{ $objectGroupByObjectName := groupByObjectName $objectsByType }}
-                        {{ $numUniqueObjectNames := numKeysInMapStringObjectInfo $objectGroupByObjectName }}
-                        {{ if $isNextRowRequiredForObjectType }}
-                            <tr>
-                        {{ end }}
-                        <td rowspan={{ $numUniqueObjectNames }} >{{ $type }}</td>
-                        {{ $isNextRowRequiredForObjectName := false }}
-                        {{ range $name, $objectsByName := $objectGroupByObjectName }}
-                            {{ if $isNextRowRequiredForObjectName }}
-                                <tr>
-                            {{ end }}
-                            <td>{{ $name }}</td>
-                            <td>
-                                <div class="scrollable-div">
-                                    <ul>
-                                    {{ range $objectsByName }}
-                                        <li class="list_item"><pre>{{ .SqlStatement }}</pre></li>
-                                    {{ end }}
-                                    </ul>
-                                </div>
+                                <span id="arrow-{{ $idx }}" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                {{ snakeCaseToTitleCase $issue.Category }}
                             </td>
-                            {{ if not $isNextRowRequiredForObjectType }}
-                                <td rowspan={{ $numUniqueObjectNamesOfAllTypes }}>
-                                    {{ if $supportedVerStr }}
-                                        Supported in Versions: {{ $supportedVerStr }} <br>
-                                    {{ end }}
-                                    {{ if $docsLink }}
-                                        <a href="{{ $docsLink }}" target="_blank">Docs Link</a>
-                                    {{ else }}
-                                        N/A
-                                    {{ end }}
-                                </td>
-                            {{ end }}
-                            {{ $isNextRowRequiredForObjectName = true }}
-                            {{ $isNextRowRequiredForObjectType = true }}
-                            </tr>
-                        {{ end }}
-                    {{ end }}
+                            <td>{{ snakeCaseToTitleCase $issue.Type }}</td>
+                            <td>
+                                {{ if $issue.ObjectName }}
+                                    {{ $issue.ObjectName }}
+                                {{ else }}
+                                    {{ getSqlPreview $issue.SqlStatement }}
+                                {{ end }}
+                            </td>
+
+                            <td>{{ snakeCaseToTitleCase $issue.Impact }}</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-{{ $idx }}" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        {{ if $issue.CategoryDescription }}
+                                        <tr>
+                                            <th>Category Description</th>
+                                            <td>
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                    {{ $issue.CategoryDescription }}
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        {{ end }}
+
+                                        <!-- Only show if ObjectName is present -->
+                                        {{ if $issue.ObjectName }}
+                                        <tr>
+                                            <th>Object Name</th>
+                                            <td>{{ $issue.ObjectName }}</td>
+                                        </tr>
+                                        {{ end }}
+
+                                        <!-- Only show if ObjectType is present -->
+                                        {{ if $issue.ObjectType }}
+                                        <tr>
+                                            <th>Object Type</th>
+                                            <td>{{ $issue.ObjectType }}</td>
+                                        </tr>
+                                        {{ end }}
+
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                {{ if $issue.SqlStatement }}
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.SqlStatement }}</pre>
+                                                </div>
+                                                {{ else }}
+                                                <!-- display N/A if Sql Statement not present -->
+                                                N/A
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                {{ if $issue.DocsLink }}
+                                                <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
+                                                {{ else }}
+                                                <!-- display N/A if docs link not present -->
+                                                N/A
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        {{ $verStr := getSupportedVersionString $issue.MinimumVersionFixedIn }}
+                                        {{ if $verStr }}
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                {{ $verStr }}
+                                            </td>
+                                        </tr>
+                                        {{ end }}
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                {{ if $issue.Description }}
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.Description }}</pre>
+                                                </div>
+                                                {{ else }}
+                                                <!-- display N/A if description not present -->
+                                                    N/A
+                                                {{ end }}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
                 {{ end }}
-            </table>
+            </tbody>
+        </table>
         {{ else }}
-            <p>No unsupported PL/pgSQL objects found in the source database for target YugabyteDB.</p>
+        <p>No issues were found in the assessment.</p>
         {{ end }}
-
-        {{ if .MigrationCaveats}}
-            {{ $hasMigrationCaveats := false }}
-            <h2>Migration caveats</h2>
-            {{range .MigrationCaveats}}
-                {{if .Objects}} <!-- Check if Objects is not empty -->
-                    {{ $hasMigrationCaveats = true }}
-                    {{if .DisplayDDL }} <!-- for these feature we are displaying the DDLs-->
-                        <h4>{{.FeatureName}}</h4>
-                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
-                        {{ if $supporterVerStr }}
-                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
-                        {{ end }}
-                        <p>{{.FeatureDescription}}</p>
-                        <div class="scrollable-div">
-                            <ul>
-                                {{range .Objects}}
-                                    <li class='list_item'>{{.SqlStatement}}</li>
-                                {{end}}
-                            </ul>
-                        </div>
-                    {{else}}
-                        <h4>{{.FeatureName}}</h4>
-                        {{ $supporterVerStr := getSupportedVersionString .MinimumVersionsFixedIn }}
-                        {{ if $supporterVerStr }}
-                            <p>Supported in Versions: {{ $supporterVerStr }} </p>
-                        {{ end }}
-                        <p>{{.FeatureDescription}}</p>
-                        <div class="scrollable-div">
-                            <ul>
-                                {{range .Objects}}
-                                    <li class='list_item'>{{.ObjectName}}</li>
-                                {{end}}
-                            </ul>
-                        </div>
-                    {{end}}
-                    {{if .DocsLink}}
-                        <p id="refer-p"><a href="{{.DocsLink}}" target="_blank">Details</a></p>
-                    {{end}} 
-                {{end}}
-            {{end}}
-            {{if not $hasMigrationCaveats}} <!-- Check if no migration caveats were found -->
-                <p>No migration caveats were found in the schema.</p>
-            {{end}}
-        {{end}}
-
 
         {{if .Notes}}
             <br>

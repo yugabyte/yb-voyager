@@ -100,7 +100,7 @@ type DBObject struct {
 
 // TODO: support MinimumVersionsFixedIn in xml
 type AnalyzeSchemaIssue struct {
-	// TODO: rename IssueType to Category
+	// TODO: deprecate this and rename to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`

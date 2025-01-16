@@ -27,7 +27,7 @@ var advisoryLocksIssue = issue.Issue{
 	Type:        ADVISORY_LOCKS,
 	Name:        "Advisory Locks",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "Advisory locks are not yet implemented in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/3642",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
@@ -41,7 +41,7 @@ var systemColumnsIssue = issue.Issue{
 	Type:        SYSTEM_COLUMNS,
 	Name:        "System Columns",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "System columns are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
@@ -55,7 +55,7 @@ var xmlFunctionsIssue = issue.Issue{
 	Type:        XML_FUNCTIONS,
 	Name:        "XML Functions",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "XML functions are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xml-functions-is-not-yet-supported",
@@ -69,7 +69,7 @@ var regexFunctionsIssue = issue.Issue{
 	Type:        REGEX_FUNCTIONS,
 	Name:        "Regex Functions",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "Regex functions are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -83,10 +83,10 @@ var aggregateFunctionIssue = issue.Issue{
 	Type:        AGGREGATE_FUNCTION,
 	Name:        AGGREGATION_FUNCTIONS_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "any_value, range_agg and range_intersect_agg functions not supported yet in YugabyteDB",
+	Description: "any_value, range_agg and range_intersect_agg functions are not supported yet in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
@@ -101,7 +101,7 @@ var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:        JSON_CONSTRUCTOR_FUNCTION,
 	Name:        JSON_CONSTRUCTOR_FUNCTION_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Postgresql 17 features not supported yet in YugabyteDB",
+	Description: "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -119,10 +119,10 @@ var jsonQueryFunctionIssue = issue.Issue{
 	Type:        JSON_QUERY_FUNCTION,
 	Name:        JSON_QUERY_FUNCTIONS_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Postgresql 17 features not supported yet in YugabyteDB",
+	Description: "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
@@ -138,9 +138,8 @@ var loFunctionsIssue = issue.Issue{
 	Name:        LARGE_OBJECT_FUNCTIONS_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Large Objects functions are not supported in YugabyteDB",
-	Suggestion:  "Large objects functions are not yet supported in YugabyteDB, no workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 }
 
 func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
@@ -155,10 +154,10 @@ var jsonbSubscriptingIssue = issue.Issue{
 	Type:        JSONB_SUBSCRIPTING,
 	Name:        JSONB_SUBSCRIPTING_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Jsonb subscripting is not supported in YugabyteDB yet",
+	Description: "Jsonb subscripting is not yet supported in YugabyteDB",
 	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
 }
 
 func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -169,10 +168,10 @@ var jsonPredicateIssue = issue.Issue{
 	Type:        JSON_TYPE_PREDICATE,
 	Name:        JSON_TYPE_PREDICATE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "IS JSON predicate expressions not supported yet in YugabyteDB",
+	Description: "IS JSON predicate expressions are not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -183,7 +182,7 @@ var copyFromWhereIssue = issue.Issue{
 	Type:        COPY_FROM_WHERE,
 	Name:        "COPY FROM ... WHERE",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "COPY FROM ... WHERE is not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -197,7 +196,7 @@ var copyOnErrorIssue = issue.Issue{
 	Type:        COPY_ON_ERROR,
 	Name:        "COPY ... ON_ERROR",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "COPY ... ON_ERROR is not yet supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -211,10 +210,10 @@ var fetchWithTiesIssue = issue.Issue{
 	Type:        FETCH_WITH_TIES,
 	Name:        "FETCH .. WITH TIES",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "FETCH .. WITH TIES is not supported in YugabyteDB",
+	Description: "FETCH .. WITH TIES is not yet supported in YugabyteDB",
 	Suggestion:  "No workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -225,10 +224,10 @@ var mergeStatementIssue = issue.Issue{
 	Type:        MERGE_STATEMENT,
 	Name:        "Merge Statement",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "This statement is not supported in YugabyteDB yet",
+	Description: "MERGE statement is not yet supported in YugabyteDB",
 	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25574",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command", 
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
 }
 
 func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
