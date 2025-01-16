@@ -20,6 +20,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -271,4 +272,60 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 	// 2nd batch should throw error
 	_, err = batchproducer.NextBatch()
 	assert.ErrorContains(t, err, "larger than max batch size")
+}
+
+func TestFileBatchProducerResumable(t *testing.T) {
+	// max batch size in rows is 2
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+	assert.False(t, batchproducer.Done())
+
+	// generate one batch
+	batch1, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch1)
+	assert.Equal(t, int64(2), batch1.RecordCount)
+
+	// simulate a crash and recover
+	batchproducer, err = NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+	assert.False(t, batchproducer.Done())
+
+	// state should have recovered that one batch
+	assert.Equal(t, 1, len(batchproducer.pendingBatches))
+	assert.True(t, cmp.Equal(batch1, batchproducer.pendingBatches[0]))
+
+	// verify that it picks up from pendingBatches
+	// instead of procing a new batch.
+	batch1Recovered, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch1Recovered)
+	assert.True(t, cmp.Equal(batch1, batch1Recovered))
+	assert.Equal(t, 0, len(batchproducer.pendingBatches))
+	assert.False(t, batchproducer.Done())
+
+	// get final batch
+	batch2, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch2)
+	assert.Equal(t, int64(2), batch2.RecordCount)
+	assert.True(t, batchproducer.Done())
 }
