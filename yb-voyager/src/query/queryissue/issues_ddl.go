@@ -504,7 +504,7 @@ func NewLODatatypeIssue(objectType string, objectName string, SqlStatement strin
 
 var multiRangeDatatypeIssue = issue.Issue{
 	Type:        MULTI_RANGE_DATATYPE,
-	Name:        "Unsupported Multirange datatype",
+	Name:        "Unsupported datatype - Multirange",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	Suggestion:  "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
