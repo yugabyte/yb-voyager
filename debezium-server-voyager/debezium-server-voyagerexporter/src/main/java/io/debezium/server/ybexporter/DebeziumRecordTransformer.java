@@ -79,6 +79,8 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                 for (Map.Entry<String, String> entry : ((HashMap<String, String>) fieldValue).entrySet()) {
                     String key = entry.getKey();
                     String val = entry.getValue();
+                    LOGGER.debug("[MAP] before transforming key - {}", key);
+                    LOGGER.debug("[MAP] before transforming value - {}", val);                    
                     /*
                      Escaping the key and value here for the  double quote (")" and backslash char (\) with a backslash character as mentioned here 
                      https://www.postgresql.org/docs/9/hstore.html#:~:text=To%20include%20a%20double%20quote%20or%20a%20backslash%20in%20a%20key%20or%20value%2C%20escape%20it%20with%20a%20backslash.
@@ -90,6 +92,10 @@ public class DebeziumRecordTransformer implements RecordTransformer {
                     val = val.replace("\\", "\\\\");
                     key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "a"b" -> "a\"b" ) "
                     val = val.replace("\"", "\\\"");
+
+		            LOGGER.debug("[MAP] after transforming key - {}", key);
+                    LOGGER.debug("[MAP] after transforming value - {}", val);
+                    
                     mapString.append("\"");
                     mapString.append(key);
                     mapString.append("\"");

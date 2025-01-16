@@ -137,18 +137,6 @@ var OraValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, _ bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
-		mapValue := make(map[string]interface{})
-		err := json.Unmarshal([]byte(columnValue), &mapValue)
-		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
-		}
-		var transformedMapValue string
-		for key, value := range mapValue {
-			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
-		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
-	},
 	"STRING": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		if formatIfRequired {
 			formattedColumnValue := strings.Replace(columnValue, "'", "''", -1)
