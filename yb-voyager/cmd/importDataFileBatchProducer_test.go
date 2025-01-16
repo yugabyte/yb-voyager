@@ -30,11 +30,12 @@ import (
 )
 
 type dummyTDB struct {
+	maxSizeBytes int64
 	tgtdb.TargetYugabyteDB
 }
 
-func (t *dummyTDB) MaxBatchSizeInBytes() int64 {
-	return 1024
+func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
+	return d.maxSizeBytes
 }
 
 func createTempFile(dir string, fileContents string) (string, error) {
@@ -54,7 +55,7 @@ func createTempFile(dir string, fileContents string) (string, error) {
 	return file.Name(), nil
 }
 
-func setupDependenciesForTest(batchSize int64) (string, string, *ImportDataState, error) {
+func setupDependenciesForTest(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, error) {
 	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
 		return "", "", nil, err
@@ -66,11 +67,11 @@ func setupDependenciesForTest(batchSize int64) (string, string, *ImportDataState
 	}
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
-	tdb = &dummyTDB{}
+	tdb = &dummyTDB{maxSizeBytes: batchSizeBytes}
 	valueConverter = &dbzm.NoOpValueConverter{}
 	dataStore = datastore.NewDataStore(ldataDir)
 
-	batchSizeInNumRows = batchSize
+	batchSizeInNumRows = batchSizeRows
 
 	state := NewImportDataState(lexportDir)
 	return ldataDir, lexportDir, state, nil
@@ -103,7 +104,7 @@ func setupFileForTest(lexportDir string, fileContents string, dir string, tableN
 }
 
 func TestBasicFileBatchProducer(t *testing.T) {
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(2)
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -127,4 +128,5 @@ func TestBasicFileBatchProducer(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, batch)
 	assert.Equal(t, int64(1), batch.RecordCount)
+	assert.True(t, batchproducer.Done())
 }
