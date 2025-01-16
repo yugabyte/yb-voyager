@@ -101,6 +101,7 @@ const (
 )
 
 // Issues Description
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome slice in analyzeSchema.go
 const (
 	// for DMLs
 	ADVISORY_LOCKS_ISSUE_DESCRIPTION            = "Advisory locks are not yet implemented in YugabyteDB"

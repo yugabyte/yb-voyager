@@ -206,6 +206,7 @@ const (
 	UNSUPPORTED_EXTENSION_ISSUE_REASON = "This extension is not supported in YugabyteDB by default."
 	VIEW_CHECK_OPTION_ISSUE_REASON     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER not supported in YugabyteDB."
+	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON = "SQL statement(s) might be unsupported please review and edit to match PostgreSQL syntax if required"
 
 	// Refactor: constants below used in some comparisions (use Issue Type there and remove these)
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
@@ -241,13 +242,13 @@ func reportCase(filePath string, issueType string, reason string, ghIssue string
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
 	if comment == 1 {
-		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, "Unsupported, please edit to match PostgreSQL syntax", "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
+		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		summaryMap[objType].invalidCount[objName] = true
 	} else if comment == 2 {
 		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType, "")
 		summaryMap["PACKAGE"].objSet = append(summaryMap["PACKAGE"].objSet, objName)
 	} else if comment == 3 {
-		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, "SQLs in file might be unsupported please review and edit to match PostgreSQL syntax if required. ", "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
+		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 	} else if comment == 4 {
 		summaryMap[objType].details["Inherited Types are present which are not supported in PostgreSQL syntax, so exported as Inherited Tables"] = true
 	}
@@ -321,7 +322,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		_, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
-				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
+				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, err.Error())
 				reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, reason, "https://github.com/yugabyte/yb-voyager/issues/1625",
 					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 			}
@@ -1212,17 +1213,22 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
-// TODO: fix it as per the new reason/description field value
 // analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
 var reasonsIncludingSensitiveInformationToCallhome = []string{
-	UNSUPPORTED_PG_SYNTAX,
-	// update this list with the issue descriptions having %s
-	POLICY_ROLE_ISSUE,
-	UNSUPPORTED_DATATYPE,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-	STORED_GENERATED_COLUMN_ISSUE_REASON,
-	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
+	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
+	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION,
+	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION,
+	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION,
+	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
 }
 
 // analyze issue reasons to send the object names for to callhome
@@ -1243,22 +1249,24 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
 			return strings.Contains(issue.Reason, r)
 		}) {
-			issue.ObjectName = "XXX" // Redacting object name before sending in case reason is not in list
+			issue.ObjectName = constants.OBFUSCATE_STRING // Redacting object name before sending in case reason is not in list
 		}
 		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
-			if strings.Contains(issue.Reason, sensitiveReason) {
-				switch sensitiveReason {
-				case UNSUPPORTED_DATATYPE, UNSUPPORTED_DATATYPE_LIVE_MIGRATION:
-					//e.g. Reason "Unsupported datatype - xml on column - data"
-					//sending only "Unsupported datatype - xml"
-					issue.Reason = strings.Split(issue.Reason, "on column -")[0]
-				default:
-					issue.Reason = sensitiveReason
+			if strings.HasPrefix(issue.Reason, sensitiveReason) {
+				issue.Reason = sensitiveReason
+			} else {
+				match, err := utils.MatchesFormatString(sensitiveReason, issue.Reason)
+				if match {
+					issue.Reason, err = utils.ObfuscateFormatDetails(sensitiveReason, issue.Reason, constants.OBFUSCATE_STRING)
+				}
+				if err != nil {
+					log.Errorf("error while matching issue reason with sensitive reasons: %v", err)
+					issue.Reason = constants.OBFUSCATE_STRING
 				}
 			}
 		}
-		//no need to send this in callhome as we already have it documented.
-		issue.Suggestion = "XXX"
+		//no need to send suggestion in callhome as we already have it documented.
+		issue.Suggestion = constants.OBFUSCATE_STRING
 		callhomeIssues = append(callhomeIssues, issue)
 	}
 
