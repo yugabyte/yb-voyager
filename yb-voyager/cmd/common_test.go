@@ -138,6 +138,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Issues                         []AssessmentIssue                     `json:"-"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 				Notes                          []string                              `json:"Notes"`
+				SerializationMode              string                                `json:"-"`
 				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
 				UnsupportedDataTypesDesc       string                                `json:"UnsupportedDataTypesDesc"`
 				UnsupportedFeatures            []UnsupportedFeature                  `json:"UnsupportedFeatures"`
