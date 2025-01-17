@@ -243,12 +243,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	redactedParams := ConnectionParams{
-		NumConnections:    yb.tconf.Parallelism,
-		NumMaxConnections: yb.tconf.MaxParallelism,
-		ConnUriList:       utils.GetRedactedURLs(targetUriList),
-		SessionInitScript: getYBSessionInitScript(yb.tconf),
-	}
+	redactedParams := *params
 	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
 }
