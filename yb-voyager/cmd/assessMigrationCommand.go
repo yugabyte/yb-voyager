@@ -493,7 +493,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	}
 
 	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
-
+	// assessmentReport.SerializationMode = "full"
 	payload := AssessMigrationPayload{
 		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
@@ -1609,6 +1609,7 @@ func generateAssessmentReportJson(reportDir string) error {
 	}
 	log.Infof("migration complexity explanation: %q", assessmentReport.MigrationComplexityExplanation)
 
+	// assessmentReport.SerializationMode = "minimal"
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)

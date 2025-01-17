@@ -1050,6 +1050,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 // =====================================================================
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
+// NOTE: If you add or remove any field, consider updating MarshalJSON() method if required
 type AssessmentReport struct {
 	VoyagerVersion                 string                                `json:"VoyagerVersion"`
 	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
@@ -1060,7 +1061,7 @@ type AssessmentReport struct {
 	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                          []string                              `json:"Notes"`
-
+	SerializationMode              string                                `json:"-"` // field to control serialization of json
 	// fields going to be deprecated
 	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`
 	UnsupportedDataTypesDesc   string                            `json:"UnsupportedDataTypesDesc"`
@@ -1189,6 +1190,40 @@ func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
 	}
 
 	return &report, nil
+}
+
+// Implementing json.Marshaler interface by defining MarshalJSON() to have customised serialization
+// NOTE: Ensure that AssessmentReport is passed as value in json.Marshal() to invoke custom MarshalJSON logic.
+func (ar AssessmentReport) MarshalJSON() ([]byte, error) {
+	switch ar.SerializationMode {
+	case "full", "":
+		type Alias AssessmentReport
+		return json.Marshal(Alias(ar))
+	case "minimal":
+		return json.Marshal(struct {
+			VoyagerVersion                 string                                `json:"VoyagerVersion"`
+			TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+			MigrationComplexity            string                                `json:"MigrationComplexity"`
+			MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+			SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+			Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+			Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
+			TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+			Notes                          []string                              `json:"Notes"`
+		}{
+			VoyagerVersion:                 ar.VoyagerVersion,
+			TargetDBVersion:                ar.TargetDBVersion,
+			MigrationComplexity:            ar.MigrationComplexity,
+			MigrationComplexityExplanation: ar.MigrationComplexityExplanation,
+			SchemaSummary:                  ar.SchemaSummary,
+			Sizing:                         ar.Sizing,
+			Issues:                         ar.Issues,
+			TableIndexStats:                ar.TableIndexStats,
+			Notes:                          ar.Notes,
+		})
+	default:
+		return nil, fmt.Errorf("unsupported serialization mode: %s", ar.SerializationMode)
+	}
 }
 
 func (ar *AssessmentReport) AppendIssues(issues ...AssessmentIssue) {
