@@ -12,6 +12,40 @@ sys.path.append(os.path.join(os.getcwd(), 'migtests/lib'))
 import yb
 import argparse
 
+
+# Global configuration variables
+
+# import_type: Type of import ('file' or 'offline').
+# additional_flags: Additional flags to be passed to the import command.
+# resumption: Dictionary containing resumption settings.
+# row_count: Dictionary containing expected row counts for validation.
+# max_restarts: Maximum number of restarts / resumes.
+# min_interrupt_seconds: Minimum interval between interrupts.
+# max_interrupt_seconds: Maximum interval between interrupts.
+# min_restart_wait_seconds: Minimum wait time before resuming.
+# max_restart_wait_seconds: Maximum wait time before resuming.
+
+import_type = None
+additional_flags = {}
+file_table_map = ''
+resumption = {}
+max_restarts = 0
+min_interrupt_seconds = 0
+max_interrupt_seconds = 0
+min_restart_wait_seconds = 0
+max_restart_wait_seconds = 0
+row_count = {}
+export_dir = ''
+run_without_adaptive_parallelism = False
+source_db_type = ''
+target_db_host = ''
+target_db_port = ''
+target_db_user = ''
+target_db_password = ''
+target_db_schema = ''
+target_db_name = ''
+data_dir = ''
+
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
     parser.add_argument('config_file', metavar='config.yaml', type=str, 
@@ -26,29 +60,62 @@ def load_config(config_file):
         config = yaml.safe_load(file)        
     return config
 
-def prepare_import_data_file_command(config):
-    """
-    Prepares the yb-voyager import data file command based on the given configuration.
-    """
-    file_table_map = config['file_table_map']
-    additional_flags = config.get('additional_flags', {})
+def initialize_globals(config):
+    """Initialize global variables from configuration."""
+    global import_type, resumption, row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
+    global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir
 
+    resumption = config.get('resumption', {})
+    import_type = config.get('import_type', 'file')  # Default to 'file'
+    additional_flags = config.get('additional_flags', {})
+    file_table_map = config.get('file_table_map', '')
+
+    # Resumption settings
+    # resumption = config['resumption']
+    max_restarts = resumption.get('max_restarts', 5)
+    min_interrupt_seconds = resumption.get('min_interrupt_seconds', 30)
+    max_interrupt_seconds = resumption.get('max_interrupt_seconds', 60)
+    min_restart_wait_seconds = resumption.get('min_restart_wait_seconds', 30)
+    max_restart_wait_seconds = resumption.get('max_restart_wait_seconds', 60)
+
+    # Validation
+    row_count = config.get('row_count', {})
+
+    # Export directory
+    export_dir = os.getenv('EXPORT_DIR', os.getcwd())
+
+    # Environment variables
+    target_db_host = os.getenv('TARGET_DB_HOST', '')
+    target_db_port = os.getenv('TARGET_DB_PORT', '')
+    target_db_user = os.getenv('TARGET_DB_USER', '')
+    target_db_password = os.getenv('TARGET_DB_PASSWORD', '')
+    target_db_schema = os.getenv('TARGET_DB_SCHEMA', '')
+    target_db_name = os.getenv('TARGET_DB_NAME', '')
+    data_dir = os.getenv('DATA_DIR', '')
+
+    # Adaptive parallelism
+    run_without_adaptive_parallelism = os.getenv('RUN_WITHOUT_ADAPTIVE_PARALLELISM') == 'true'
+    source_db_type = os.getenv('SOURCE_DB_TYPE', '')
+
+
+def prepare_import_data_file_command():
+    """Prepares the yb-voyager import data file command."""
     args = [
         'yb-voyager', 'import', 'data', 'file',
-        '--export-dir', os.getenv('EXPORT_DIR', ''),
-        '--target-db-host', os.getenv('TARGET_DB_HOST', ''),
-        '--target-db-port', os.getenv('TARGET_DB_PORT', ''),
-        '--target-db-user', os.getenv('TARGET_DB_USER', ''),
-        '--target-db-password', os.getenv('TARGET_DB_PASSWORD', ''),
-        '--target-db-schema', os.getenv('TARGET_DB_SCHEMA', ''),
-        '--target-db-name', os.getenv('TARGET_DB_NAME', ''),
+        '--export-dir', export_dir,
+        '--target-db-host', target_db_host,
+        '--target-db-port', target_db_port,
+        '--target-db-user', target_db_user,
+        '--target-db-password', target_db_password,
+        '--target-db-schema', target_db_schema,
+        '--target-db-name', target_db_name,
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
-        '--data-dir', os.getenv('DATA_DIR', ''),
+        '--data-dir', data_dir,
         '--file-table-map', file_table_map
     ]
 
-    if os.getenv('RUN_WITHOUT_ADAPTIVE_PARALLELISM') == 'true':
+    if run_without_adaptive_parallelism:
         args.extend(['--enable-adaptive-parallelism', 'false'])
 
     for flag, value in additional_flags.items():
@@ -63,24 +130,22 @@ def prepare_import_data_command(config):
     Prepares the yb-voyager import data command based on the given configuration.
     """
 
-    additional_flags = config.get('additional_flags', {})
-
     args = [
         'yb-voyager', 'import', 'data',
-        '--export-dir', os.getenv('EXPORT_DIR', ''),
-        '--target-db-host', os.getenv('TARGET_DB_HOST', ''),
-        '--target-db-port', os.getenv('TARGET_DB_PORT', ''),
-        '--target-db-user', os.getenv('TARGET_DB_USER', ''),
-        '--target-db-password', os.getenv('TARGET_DB_PASSWORD', ''),
-        '--target-db-name', os.getenv('TARGET_DB_NAME', ''),
+        '--export-dir', export_dir,
+        '--target-db-host', target_db_host,
+        '--target-db-port', target_db_port,
+        '--target-db-user', target_db_user,
+        '--target-db-password', target_db_password,
+        '--target-db-name', target_db_name,
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
     ]
     
-    if os.getenv('SOURCE_DB_TYPE') != 'postgresql':
-        args.extend(['--target-db-schema', os.getenv('TARGET_DB_SCHEMA', '')])
+    if source_db_type != 'postgresql':
+        args.extend(['--target-db-schema', target_db_schema])
 
-    if os.getenv('RUN_WITHOUT_ADAPTIVE_PARALLELISM') == 'true':
+    if run_without_adaptive_parallelism:
         args.extend(['--enable-adaptive-parallelism', 'false'])
 
     for flag, value in additional_flags.items():
@@ -90,100 +155,177 @@ def prepare_import_data_command(config):
     return args
 
 
-def run_and_resume_voyager(command, resumption):
-    """
-    Runs the yb-voyager command with support for resumption testing.
-    """
-    for attempt in range(1, resumption['max_restarts'] + 1):
-        print(f"\n--- Attempt {attempt} of {resumption['max_restarts']} ---")
-        try:
-            process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-            print("Running command:", ' '.join(command), flush=True)
+# def run_and_resume_voyager(command, resumption):
+#     """
+#     Runs the yb-voyager command with support for resumption testing.
+#     """
+#     for attempt in range(1, max_restarts + 1):
+#         print(f"\n--- Attempt {attempt} of {max_restarts} ---")
+#         try:
+#             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+#             print("Running command:", ' '.join(command), flush=True)
 
-            start_time = time.time()
-            full_output = ''
+#             start_time = time.time()
+#             full_output = ''
 
-            while True:
-                rlist, _, _ = select.select([process.stdout, process.stderr], [], [], 5)
-                for ready in rlist:
-                    output = ready.readline()
-                    if not output:  # Exit if output is empty (end of process output)
-                        break
-                    full_output += output
-                if time.time() - start_time > 5:
-                    break
+#             while True:
+#                 rlist, _, _ = select.select([process.stdout, process.stderr], [], [], 5)
+#                 for ready in rlist:
+#                     output = ready.readline()
+#                     if not output:  # Exit if output is empty (end of process output)
+#                         break
+#                     full_output += output
+#                 if time.time() - start_time > 5:
+#                     break
 
-            if full_output:
-                print(full_output.strip(), flush=True)
+#             if full_output:
+#                 print(full_output.strip(), flush=True)
 
-            while True:
-                if process.poll() is not None:
-                    break  # Process has ended, exit loop
+#             while True:
+#                 if process.poll() is not None:
+#                     break  # Process has ended, exit loop
 
-                interrupt_interval_seconds = random.randint(
-                    resumption['min_interrupt_seconds'], 
-                    resumption['max_interrupt_seconds']
-                )
-                print(f"\nProcess will be interrupted in {interrupt_interval_seconds // 60}m {interrupt_interval_seconds % 60}s")
-                time.sleep(interrupt_interval_seconds)
-                print(f"\nInterrupting the import process (PID: {process.pid})")
-                process.send_signal(signal.SIGINT)
+#                 interrupt_interval_seconds = random.randint(
+#                     min_interrupt_seconds, 
+#                     max_interrupt_seconds
+#                 )
+#                 print(f"\nProcess will be interrupted in {interrupt_interval_seconds // 60}m {interrupt_interval_seconds % 60}s")
+#                 time.sleep(interrupt_interval_seconds)
+#                 print(f"\nInterrupting the import process (PID: {process.pid})")
+#                 process.send_signal(signal.SIGINT)
 
-                restart_wait_time_seconds = random.randint(
-                    resumption['min_restart_wait_seconds'], 
-                    resumption['max_restart_wait_seconds']
-                )
-                print(f"\nWaiting for {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...")
-                time.sleep(restart_wait_time_seconds)
+#                 restart_wait_time_seconds = random.randint(
+#                     min_restart_wait_seconds, 
+#                     max_restart_wait_seconds
+#                 )
+#                 print(f"\nWaiting for {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...")
+#                 time.sleep(restart_wait_time_seconds)
 
-        except Exception as e:
-            print(f"Error occurred during import: {e}")
-            if process:
-                process.kill()
-            raise e
+#         except Exception as e:
+#             print(f"Error occurred during import: {e}")
+#             if process:
+#                 process.kill()
+#             raise e
         
-        finally:
-            if process and process.poll() is None:
-                print(f"Terminating process (PID: {process.pid})")
-                process.kill()
-                process.wait(timeout=30)
+#         finally:
+#             if process and process.poll() is None:
+#                 print(f"Terminating process (PID: {process.pid})")
+#                 process.kill()
+#                 process.wait(timeout=30)
 
-    # Final import retry logic
-    print("\n--- Final attempt to complete the import ---")
+#     # Final import retry logic
+#     print("\n--- Final attempt to complete the import ---")
     
-    for _ in range(2): 
-        try:
-            print("\nVoyager command output:")
+#     try:
+#         print("\nVoyager command output:\n")
 
-            process = subprocess.Popen(
-                command, 
-                stdout=subprocess.PIPE, 
-                stderr=subprocess.PIPE, 
-                text=True
-            )
+#         process = subprocess.Popen(
+#             command,
+#             stdout=subprocess.PIPE,
+#             stderr=subprocess.PIPE,
+#             text=True
+#         )
 
-            # Capture and print output
-            for line in iter(process.stdout.readline, ''):
-                print(line.strip())
-                sys.stdout.flush()
+#         # Capture and print output
+#         for line in iter(process.stdout.readline, ''):
+#             print(line.strip())
+#             sys.stdout.flush()
 
-            process.wait()
+#         process.wait()
 
-            if process.returncode != 0:
-                raise subprocess.CalledProcessError(process.returncode, command)
+#         if process.returncode != 0:
+#             raise subprocess.CalledProcessError(process.returncode, command)
 
-            break
-        except subprocess.CalledProcessError as e:
-            print("\nVoyager command error:")
-            for line in iter(process.stderr.readline, ''):
-                print(line.strip())
-                sys.stdout.flush()
-            time.sleep(30)
-    else:
-        print("Final import failed after 2 attempts.")
+#     except subprocess.CalledProcessError:
+#         print("\nVoyager command error:")
+#         for line in iter(process.stderr.readline, ''):
+#             print(line.strip())
+#             sys.stdout.flush()
+#         sys.exit(1)
+
+
+def run_command(command, allow_interruption=True, interrupt_after=None):
+    """
+    Runs a command and captures its outputs, with optional interruption logic.
+
+    Args:
+        command (list): The command to run as a list of strings.
+        allow_interruption (bool): Whether to allow interruption of the command.
+        interrupt_after (int): Time in seconds after which the command should be interrupted. If None, no interruption.
+
+    Returns:
+        tuple: (completed, stdout, stderr)
+            - completed (bool): True if the command completed without interruption or error.
+            - stdout (str): Captured standard output.
+            - stderr (str): Captured standard error.
+    """
+    process = subprocess.Popen(
+        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+    )
+    start_time = time.time()
+
+    while process.poll() is None:  # Process is still running
+        if allow_interruption and interrupt_after is not None:
+            elapsed_time = time.time() - start_time
+            if elapsed_time > interrupt_after:
+                print("Interrupting the process...", flush=True)
+                process.terminate()  # Send SIGTERM to interrupt
+                break
+        time.sleep(1)  # Avoid busy-waiting
+
+    # Capture outputs after the process is done or interrupted
+    stdout, stderr = process.communicate()
+
+    # Determine if the process completed successfully
+    completed = process.returncode == 0 and process.poll() is not None
+    return completed, stdout, stderr
+
+def run_and_resume_voyager(command):
+    """
+    Handles the interruption logic and manages retries for the command.
+
+    Args:
+        command (list): The command to execute.
+    """
+    for attempt in range(1, max_restarts + 1):
+        print(f"\n--- Attempt {attempt} of {max_restarts} ---")
+
+        # Randomly determine interruption timing
+        interruption_time = random.randint(min_interrupt_seconds, max_interrupt_seconds)
+
+        print(f"\nRunning command: {' '.join(command)}", flush=True)
+        print(f"\nInterrupting the command in {interruption_time // 60}m {interruption_time % 60}s...", flush=True)
+
+        completed, stdout, stderr = run_command(command, allow_interruption=True, interrupt_after=interruption_time)
+
+        # Output handling
+        if stdout:
+            print(f"\nCommand output:\n{stdout}", flush=True)
+        if stderr:
+            print(f"\nCommand error:\n{stderr}", flush=True)
+
+        print("Process was interrupted. Preparing to resume...", flush=True)
+        restart_wait_time_seconds = random.randint(min_restart_wait_seconds, max_restart_wait_seconds)
+        print(f"Waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...", flush=True)
+        time.sleep(restart_wait_time_seconds)
+
+    # Final attempt without interruption
+    print("\n--- Final attempt to complete the import ---")
+    completed, stdout, stderr = run_command(command, allow_interruption=False)
+
+    # Final output handling
+    if stdout:
+        print(f"\nFinal command output:\n{stdout}", flush=True)
+    if stderr:
+        print(f"\nFinal command error:\n{stderr}", flush=True)
+
+    if not completed:
+        print("\nCommand failed on the final attempt.", flush=True)
         sys.exit(1)
 
-def validate_row_counts(row_count, export_dir):
+    print("\nCommand completed successfully on the final attempt.", flush=True)
+
+def validate_row_counts():
     """
     Validates the row counts of the target tables after import.
     If the row count validation fails, it logs details and exits.
@@ -228,33 +370,38 @@ def validate_row_counts(row_count, export_dir):
     else:
         print("\nAll table row counts validated successfully.")
 
-
-
 def run_import_with_resumption(config):
-    
-    import_type = config.get('import_type', 'file')  # Default to 'file' if not specified
+    """
+    Runs the import process with resumption logic based on the provided configuration.
+
+    Args:
+        config (dict): The configuration dictionary loaded from the YAML file.
+    """
 
     if import_type == 'file':
-        command = prepare_import_data_file_command(config)
+        command = prepare_import_data_file_command()
     elif import_type == 'offline':
         command = prepare_import_data_command(config)
     else:
         raise ValueError(f"Unsupported import_type: {import_type}")
 
-    run_and_resume_voyager(command, config['resumption'])
-
-    validate_row_counts(config['row_count'], os.getenv('EXPORT_DIR', ''))
+    run_and_resume_voyager(command)
 
 
 if __name__ == "__main__":
     try:
         args = parse_arguments()
         config = load_config(args.config_file)
+        initialize_globals(config)
 
         print(f"Loaded configuration from {args.config_file}")
 
+        # Run import process
         run_import_with_resumption(config)
-        
+
+        # Validate rows
+        validate_row_counts()
+
     except Exception as e:
         print(f"Test failed: {e}")
         sys.exit(1)
