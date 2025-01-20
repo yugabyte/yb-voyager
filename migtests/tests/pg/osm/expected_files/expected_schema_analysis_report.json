@@ -67,6 +67,18 @@
             "MinimumVersionsFixedIn": null
         },
         {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.osm_changeset",
+            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - public.hstore on column - tags",
+            "SqlStatement": "CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326)) WITH (colocation=false);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "changeset_geom_gist ON public.osm_changeset",

@@ -266,6 +266,10 @@
 				{
 					"ObjectName": "public.reports.report_tsv (tsvector)",
 					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.reports.attrs (public.hstore)",
+					"SqlStatement": ""
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",

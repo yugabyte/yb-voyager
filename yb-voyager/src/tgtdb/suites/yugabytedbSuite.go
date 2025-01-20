@@ -19,13 +19,13 @@ package tgtdbsuite
 import (
 	"encoding/base64"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
@@ -173,17 +173,8 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		}
 		return string(hexValue), nil
 	},
-	"MAP": func(columnValue string, _ bool, _ *schemareg.ColumnSchema) (string, error) {
-		mapValue := make(map[string]interface{})
-		err := json.Unmarshal([]byte(columnValue), &mapValue)
-		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
-		}
-		var transformedMapValue string
-		for key, value := range mapValue {
-			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
-		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
+	"MAP": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
+		return quoteValueIfRequiredWithEscaping(columnValue, formatIfRequired, dbzmSchema) //handled in exporter plugin
 	},
 	"STRING": quoteValueIfRequiredWithEscaping,
 }

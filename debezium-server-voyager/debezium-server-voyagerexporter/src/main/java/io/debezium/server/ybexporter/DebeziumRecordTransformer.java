@@ -16,12 +16,16 @@ import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
+import java.util.HashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * This class ensures of doing any transformation of the record received from debezium
  * before actually writing that record.
  */
 public class DebeziumRecordTransformer implements RecordTransformer {
+	private static final Logger LOGGER = LoggerFactory.getLogger(DebeziumRecordTransformer.class);
 
     private JsonConverter jsonConverter;
     public DebeziumRecordTransformer(){
@@ -70,6 +74,42 @@ public class DebeziumRecordTransformer implements RecordTransformer {
             case BYTES:
             case STRUCT:
                 return toKafkaConnectJsonConverted(fieldValue, field);
+            case MAP:
+	            StringBuilder mapString = new StringBuilder();
+                for (Map.Entry<String, String> entry : ((HashMap<String, String>) fieldValue).entrySet()) {
+                    String key = entry.getKey();
+                    String val = entry.getValue();
+                    LOGGER.debug("[MAP] before transforming key - {}", key);
+                    LOGGER.debug("[MAP] before transforming value - {}", val);                    
+                    /*
+                     Escaping the key and value here for the  double quote (")" and backslash char (\) with a backslash character as mentioned here 
+                     https://www.postgresql.org/docs/9/hstore.html#:~:text=To%20include%20a%20double%20quote%20or%20a%20backslash%20in%20a%20key%20or%20value%2C%20escape%20it%20with%20a%20backslash.
+                     
+                     Following the order of escaping the backslash first and then the double quote becasue first escape the backslashes in the string and adding the backslash for escaping to handle case like
+                     e.g. key - "a\"b" -> (first escaping) -> "a\\"b" -> (second escaping) -> "a\\\"b"
+                     */
+                    key = key.replace("\\", "\\\\"); // escaping backslash \ -> \\ ( "a\b" -> "a\\b" ) "
+                    val = val.replace("\\", "\\\\");
+                    key = key.replace("\"", "\\\""); // escaping double quotes " -> \" ( "a"b" -> "a\"b" ) "
+                    val = val.replace("\"", "\\\"");
+
+		            LOGGER.debug("[MAP] after transforming key - {}", key);
+                    LOGGER.debug("[MAP] after transforming value - {}", val);
+                    
+                    mapString.append("\"");
+                    mapString.append(key);
+                    mapString.append("\"");
+                    mapString.append(" => ");
+                    mapString.append("\"");
+                    mapString.append(val);
+                    mapString.append("\"");
+                    mapString.append(",");
+                }
+		        if(mapString.length() == 0) {
+                    return "";
+                } 
+                return mapString.toString().substring(0, mapString.length() - 1);
+            
         }
         return fieldValue.toString();
     }

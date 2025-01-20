@@ -49,6 +49,18 @@
     },
     "Issues": [
         {
+            "IssueType": "migration_caveats",
+            "ObjectType": "TABLE",
+            "ObjectName": "public.reports",
+            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - public.hstore on column - attrs",
+            "SqlStatement": "CREATE TABLE public.reports (\n    agent_uuid uuid,\n    \"time\" timestamp with time zone,\n    attrs public.hstore DEFAULT ''::public.hstore,\n    report text,\n    report_tsv tsvector\n);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+            "MinimumVersionsFixedIn": null
+        },
+        {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",

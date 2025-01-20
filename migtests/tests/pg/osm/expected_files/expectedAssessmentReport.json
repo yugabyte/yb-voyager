@@ -225,7 +225,20 @@
 		}
 	],
 	"Notes": null,
-	"MigrationCaveats": null,
+	"MigrationCaveats": [
+		{
+			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
+			"Objects": [
+				{
+					"ObjectName": "public.osm_changeset.tags (public.hstore)",
+					"SqlStatement": ""
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"MinimumVersionsFixedIn": null
+		}
+	],
 	"UnsupportedQueryConstructs": null,
     "UnsupportedPlPgSqlObjects": null
 }
