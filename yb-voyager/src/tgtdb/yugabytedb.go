@@ -37,6 +37,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/tiendc/go-deepcopy"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -243,7 +244,13 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		SessionInitScript: getYBSessionInitScript(yb.tconf),
 	}
 	yb.connPool = NewConnectionPool(params)
-	redactedParams := params
+	redactedParams := &ConnectionParams{}
+	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
+	err := deepcopy.Copy(redactedParams, params)
+	if err!= nil {
+		log.Errorf("couldn't get the copy of connection params for logging: %v", err)
+		return nil
+	}
 	redactedParams.ConnUriList = utils.GetRedactedURLs(redactedParams.ConnUriList)
 	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
