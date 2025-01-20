@@ -246,7 +246,7 @@ def prepare_import_data_command(config):
 
 def run_command(command, allow_interruption=True, interrupt_after=None):
     """
-    Runs a command and captures its outputs, with optional interruption logic.
+    Runs a command and captures its outputs, with enforced interruption if configured.
 
     Args:
         command (list): The command to run as a list of strings.
@@ -263,6 +263,7 @@ def run_command(command, allow_interruption=True, interrupt_after=None):
         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
     )
     start_time = time.time()
+    interrupted = False
 
     while process.poll() is None:  # Process is still running
         if allow_interruption and interrupt_after is not None:
@@ -273,7 +274,8 @@ def run_command(command, allow_interruption=True, interrupt_after=None):
                     process.terminate()
                     process.wait(timeout=10)  # Give it 10 seconds to terminate gracefully
                 except subprocess.TimeoutExpired:
-                    process.kill()  # Forcefully kill if it doesn't terminate
+                    process.kill()  # Kill if it doesn't terminate
+                interrupted = True
                 break
         time.sleep(1)  # Avoid busy-waiting
 
@@ -281,7 +283,7 @@ def run_command(command, allow_interruption=True, interrupt_after=None):
     stdout, stderr = process.communicate()
 
     # Determine if the process completed successfully
-    completed = process.returncode == 0 and process.poll() is not None
+    completed = process.returncode == 0 and not interrupted
     return completed, stdout, stderr
 
 def run_and_resume_voyager(command):
