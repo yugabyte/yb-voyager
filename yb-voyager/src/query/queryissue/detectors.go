@@ -579,6 +579,7 @@ func (c *CommonTableExpressionDetector) Detect(msg protoreflect.Message) error {
 		return err
 	}
 	if cteNode.Ctematerialized != queryparser.CTE_MATERIALIZED_DEFAULT {
+		//MATERIALIZED / NOT MATERIALIZED clauses in CTE is not supported in YB
 		c.materializedClauseDetected = true
 	}
 	return nil

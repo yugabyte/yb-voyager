@@ -224,7 +224,7 @@ var cteWithMaterializedIssue = issue.Issue{
 	Type:        CTE_WITH_MATERIALIZED_CLAUSE,
 	Name:        CTE_WITH_MATERIALIZED_CLAUSE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "",
+	Description: "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
 	Suggestion:  "No workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",

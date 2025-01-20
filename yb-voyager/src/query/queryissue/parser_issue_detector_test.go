@@ -1061,6 +1061,27 @@ WHERE w2.key = 123;`,
 )
 INSERT INTO products_log
 SELECT * FROM moved_rows;`,
+`CREATE VIEW view1 AS
+WITH data_cte AS NOT MATERIALIZED (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
+`CREATE VIEW view2 AS
+WITH data_cte AS MATERIALIZED (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
+`CREATE VIEW view3 AS
+WITH data_cte AS (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
 	}
 
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
@@ -1071,11 +1092,18 @@ SELECT * FROM moved_rows;`,
 		sqls[2]: []QueryIssue{
 			NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
 		},
+		sqls[3]: []QueryIssue{
+			NewCTEWithMaterializedIssue("VIEW", "view1", sqls[3]),
+		},
+		sqls[4]: []QueryIssue{
+			NewCTEWithMaterializedIssue("VIEW", "view2", sqls[4]),
+		},
+		sqls[5]: []QueryIssue{},
 	}
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
