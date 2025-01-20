@@ -269,7 +269,11 @@ def run_command(command, allow_interruption=True, interrupt_after=None):
             elapsed_time = time.time() - start_time
             if elapsed_time > interrupt_after:
                 print("Interrupting the process...", flush=True)
-                process.terminate()  # Send SIGTERM to interrupt
+                try:
+                    process.terminate()
+                    process.wait(timeout=10)  # Give it 10 seconds to terminate gracefully
+                except subprocess.TimeoutExpired:
+                    process.kill()  # Forcefully kill if it doesn't terminate
                 break
         time.sleep(1)  # Avoid busy-waiting
 
@@ -307,7 +311,9 @@ def run_and_resume_voyager(command):
         print("Process was interrupted. Preparing to resume...", flush=True)
         restart_wait_time_seconds = random.randint(min_restart_wait_seconds, max_restart_wait_seconds)
         print(f"Waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...", flush=True)
+        print(f"Before waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s...", flush=True)
         time.sleep(restart_wait_time_seconds)
+        print("Completed waiting. Proceeding to next attempt...", flush=True)
 
     # Final attempt without interruption
     print("\n--- Final attempt to complete the import ---")

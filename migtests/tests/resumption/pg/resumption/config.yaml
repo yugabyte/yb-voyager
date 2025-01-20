@@ -50,7 +50,7 @@ row_count:
 
 # Resumption Settings
 resumption:
-  max_restarts: 15
+  max_restarts: 20
   min_interrupt_seconds: 20
   max_interrupt_seconds: 45
   min_restart_wait_seconds: 15
