@@ -52,7 +52,7 @@
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.reports",
-            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - public.hstore on column - attrs",
+            "Reason": "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs and type: public.hstore. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE public.reports (\n    agent_uuid uuid,\n    \"time\" timestamp with time zone,\n    attrs public.hstore DEFAULT ''::public.hstore,\n    report text,\n    report_tsv tsvector\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
             "Suggestion": "",

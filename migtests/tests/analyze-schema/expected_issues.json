@@ -2148,7 +2148,7 @@
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "employees",
-            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - hstore on column - data",
+            "Reason": "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: data and type: hstore. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE employees (id INT PRIMARY KEY, salary INT, data hstore);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
