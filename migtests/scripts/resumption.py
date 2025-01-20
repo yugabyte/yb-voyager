@@ -316,7 +316,7 @@ def run_and_resume_voyager(command):
         print("Completed waiting. Proceeding to next attempt...", flush=True)
 
     # Final attempt without interruption
-    print("\n--- Final attempt to complete the import ---")
+    print("\n--- Final attempt to complete the import ---", flush=True)
     completed, stdout, stderr = run_command(command, allow_interruption=False)
 
     # Final output handling
