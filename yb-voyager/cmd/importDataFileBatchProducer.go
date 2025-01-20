@@ -72,7 +72,7 @@ func (p *FileBatchProducer) Done() bool {
 
 func (p *FileBatchProducer) NextBatch() (*Batch, error) {
 	if p.Done() {
-		return nil, fmt.Errorf("already done")
+		return nil, fmt.Errorf("already completed producing all batches")
 	}
 	if len(p.pendingBatches) > 0 {
 		batch := p.pendingBatches[0]
@@ -176,7 +176,8 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			return nil, fmt.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
 		}
 	}
-	return nil, fmt.Errorf("unexpected")
+	// ideally should not reach here
+	return nil, fmt.Errorf("could not produce next batch: err: %w", readLineErr)
 }
 
 func (p *FileBatchProducer) openDataFile() error {
@@ -229,10 +230,4 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 	batchWriter = nil
 	p.lastBatchNumber = batchNum
 	return batch, nil
-	// submitBatch(batch, updateProgressFn, importBatchArgsProto)
-
-	// Increment batchNum only if this is not the last batch
-	// if !isLastBatch {
-	// 	batchNum++
-	// }
 }
