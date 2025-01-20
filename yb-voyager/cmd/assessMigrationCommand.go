@@ -1004,7 +1004,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			}
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
-			issueDescription = lo.Ternary(len(analyzeIssue.Reason) == 0, issueDescription, analyzeIssue.Reason)
+			issueDescription = analyzeIssue.Reason
 			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, issueDescription, minVersionsFixedIn))
 		}
 	}
@@ -1018,7 +1018,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		CategoryDescription:   GetCategoryDescription(analyzeSchemaIssue.IssueType),
 		Type:                  analyzeSchemaIssue.Type,
 		Name:                  analyzeSchemaIssue.Name,
-		Description:           lo.Ternary(len(analyzeSchemaIssue.Reason) == 0, issueDescription, analyzeSchemaIssue.Reason),
+		Description:           analyzeSchemaIssue.Reason,
 		Impact:                analyzeSchemaIssue.Impact,
 		ObjectType:            analyzeSchemaIssue.ObjectType,
 		ObjectName:            analyzeSchemaIssue.ObjectName,

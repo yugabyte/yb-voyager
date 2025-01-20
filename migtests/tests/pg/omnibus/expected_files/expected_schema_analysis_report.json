@@ -517,7 +517,6 @@
             "ObjectType": "TABLE",
             "ObjectName": "ordinary_tables.geometric_examples",
             "Reason": "Datatype not yet supported by voyager in live migration. Affected column: circle_example and type: circle. These columns will be excluded when exporting and importing data in live migration workflows.",
-            "Reason": "Datatype not yet supported by voyager in live migration. Affected column: circle_example and type: circle. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE ordinary_tables.geometric_examples (\n    point_example point,\n    line_example line,\n    lseg_example lseg,\n    box_example box,\n    path_example path,\n    polygon_example polygon,\n    circle_example circle\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
