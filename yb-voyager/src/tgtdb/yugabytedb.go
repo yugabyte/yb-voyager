@@ -246,7 +246,11 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	yb.connPool = NewConnectionPool(params)
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
-	deepcopy.Copy(redactedParams, params)
+	err := deepcopy.Copy(redactedParams, params)
+	if err!= nil {
+		log.Errorf("couldn't get the copy of connection params for logging: %v", err)
+		return nil
+	}
 	redactedParams.ConnUriList = utils.GetRedactedURLs(redactedParams.ConnUriList)
 	log.Info("Initialized connection pool with settings: ", spew.Sdump(redactedParams))
 	return nil
