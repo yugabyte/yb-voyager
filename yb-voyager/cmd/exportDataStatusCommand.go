@@ -91,7 +91,7 @@ var exportDataStatusCmd = &cobra.Command{
 			reportFile := jsonfile.NewJsonFile[[]*exportTableMigStatusOutputRow](reportFilePath)
 			err := reportFile.Create(&rows)
 			if err != nil {
-				utils.ErrExit("creating into json file %s: %v", reportFilePath, err)
+				utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
 			}
 			fmt.Print(color.GreenString("Export data status report is written to %s\n", reportFilePath))
 			return
@@ -123,7 +123,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file %s: %v", exportStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
 	}
 	if status == nil {
 		return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
@@ -142,7 +142,7 @@ func runExportDataStatusCmdDbzm(streamChanges bool, leafPartitions map[string][]
 func getSnapshotExportStatusRow(tableStatus *dbzm.TableExportStatus, leafPartitions map[string][]string, msr *metadb.MigrationStatusRecord) *exportTableMigStatusOutputRow {
 	nt, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", tableStatus.SchemaName, tableStatus.TableName))
 	if err != nil {
-		utils.ErrExit("lookup %s in name registry: %v", tableStatus.TableName, err)
+		utils.ErrExit("lookup in name registry: %s: %v", tableStatus.TableName, err)
 	}
 	//Using the ForOutput() as a key for leafPartitions map as we are populating the map in that way.
 	displayTableName := getDisplayName(nt, leafPartitions[nt.ForOutput()], msr.IsExportTableListSet)
@@ -183,7 +183,7 @@ func runExportDataStatusCmd(msr *metadb.MigrationStatusRecord, leafPartitions ma
 		if errors.Is(err, fs.ErrNotExist) {
 			return nil, fmt.Errorf("export data has not started yet. Try running after export has started")
 		}
-		utils.ErrExit("Failed to read export status file %s: %v", exportSnapshotStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
 	}
 
 	exportedSnapshotRow, exportedSnapshotStatus, err := getExportedSnapshotRowsMap(exportStatusSnapshot)

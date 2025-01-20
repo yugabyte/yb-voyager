@@ -74,11 +74,10 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	VoyagerVersion      string               `json:"VoyagerVersion"`
-	TargetDBVersion     *ybversion.YBVersion `json:"TargetDBVersion"`
-	MigrationComplexity string               `json:"MigrationComplexity"`
-	SchemaSummary       SchemaSummary        `json:"Summary"`
-	Issues              []AnalyzeSchemaIssue `json:"Issues"`
+	VoyagerVersion  string               `json:"VoyagerVersion"`
+	TargetDBVersion *ybversion.YBVersion `json:"TargetDBVersion"`
+	SchemaSummary   SchemaSummary        `json:"Summary"`
+	Issues          []AnalyzeSchemaIssue `json:"Issues"`
 }
 
 type SchemaSummary struct {
@@ -101,12 +100,13 @@ type DBObject struct {
 
 // TODO: support MinimumVersionsFixedIn in xml
 type AnalyzeSchemaIssue struct {
-	// TODO: rename IssueType to Category
+	// TODO: deprecate this and rename to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`
 	Reason                 string                          `json:"Reason"`
 	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
+	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`

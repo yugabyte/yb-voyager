@@ -43,14 +43,19 @@ var endMigrationCmd = &cobra.Command{
 	Long:  "End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir",
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		err := validateEndMigrationFlags(cmd)
+		if utils.IsDirectoryEmpty(exportDir) {
+			utils.ErrExit("export directory is empty, nothing to end")
+		}
+
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
+		err = validateEndMigrationFlags(cmd)
 		if err != nil {
 			utils.ErrExit(err.Error())
 		}
 
-		if utils.IsDirectoryEmpty(exportDir) {
-			utils.ErrExit("export directory is empty, nothing to end")
-		}
 	},
 
 	Run: endMigrationCommandFn,
@@ -76,7 +81,6 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		utils.ErrExit("error while checking streaming mode: %w\n", err)
 	}
 
-	retrieveMigrationUUID()
 	checkIfEndCommandCanBePerformed(msr)
 
 	// backing up the state from the export directory
@@ -97,10 +101,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload(COMPLETE)
+	packAndSendEndMigrationPayload(COMPLETE, "")
 }
 
-func packAndSendEndMigrationPayload(status string) {
+func packAndSendEndMigrationPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -115,6 +119,7 @@ func packAndSendEndMigrationPayload(status string) {
 		BackupLogFiles:       bool(backupLogFiles),
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
+		Error:                callhome.SanitizeErrorMsg(errorMsg),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status
@@ -663,7 +668,7 @@ func cleanupExportDir() {
 	for _, subdir := range subdirs {
 		err := os.RemoveAll(filepath.Join(exportDir, subdir))
 		if err != nil {
-			utils.ErrExit("removing %s directory: %v", subdir, err)
+			utils.ErrExit("removing directory: %q: %v", subdir, err)
 		}
 	}
 }
@@ -784,7 +789,7 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
@@ -810,7 +815,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
@@ -829,7 +834,7 @@ func areOnDifferentFileSystems(path1 string, path2 string) bool {
 	err2 := syscall.Stat(path2, &stat2)
 
 	if err1 != nil || err2 != nil {
-		utils.ErrExit("getting file system info for %s and %s: %v, %v", path1, path2, err1, err2)
+		utils.ErrExit("getting file system info: for %s and %s: %v, %v", path1, path2, err1, err2)
 	}
 
 	return stat1.Dev != stat2.Dev

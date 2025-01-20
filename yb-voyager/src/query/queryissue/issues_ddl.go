@@ -20,30 +20,35 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var generatedColumnsIssue = issue.Issue{
-	Type:       STORED_GENERATED_COLUMNS,
-	TypeName:   "Stored generated columns are not supported.",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/10695",
-	Suggestion: "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+	Type:        STORED_GENERATED_COLUMNS,
+	Name:        "Stored generated columns are not supported.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Stored generated columns are not supported in YugabyteDB.\nGenerated columns can be either VIRTUAL or STORED. YugabyteDB supports VIRTUAL generated columns but does not support STORED generated columns.",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10695",
+	Suggestion:  "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 }
 
 func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) QueryIssue {
 	issue := generatedColumnsIssue
-	issue.TypeName = issue.TypeName + fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ","))
+	issue.Name = issue.Name + fmt.Sprintf(" Generated Columns: (%s)", strings.Join(generatedColumns, ","))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unloggedTableIssue = issue.Issue{
-	Type:       UNLOGGED_TABLE,
-	TypeName:   "UNLOGGED tables are not supported yet.",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-	Suggestion: "Remove UNLOGGED keyword to make it work",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
+	Type:        UNLOGGED_TABLE,
+	Name:        "UNLOGGED tables are not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "UNLOGGED tables are not supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1129/",
+	Suggestion:  "Remove UNLOGGED keyword to make it work",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 	},
@@ -55,24 +60,28 @@ func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement st
 }
 
 var unsupportedIndexMethodIssue = issue.Issue{
-	Type:     UNSUPPORTED_INDEX_METHOD,
-	TypeName: "Schema contains %s index which is not supported.",
-	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1337",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+	Type:        UNSUPPORTED_INDEX_METHOD,
+	Name:        "Schema contains %s index which is not supported.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "The schema contains an index with an access method(gist, spgist, brin) which is not supported in YugabyteDB.",
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
 }
 
 func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) QueryIssue {
 	issue := unsupportedIndexMethodIssue
-	issue.TypeName = fmt.Sprintf(unsupportedIndexMethodIssue.TypeName, strings.ToUpper(indexAccessMethod))
+	issue.Name = fmt.Sprintf(unsupportedIndexMethodIssue.Name, strings.ToUpper(indexAccessMethod))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var storageParameterIssue = issue.Issue{
-	Type:       STORAGE_PARAMETER,
-	TypeName:   "Storage parameters are not supported yet.",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/23467",
-	Suggestion: "Remove the storage parameters from the DDL",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+	Type:        STORAGE_PARAMETER,
+	Name:        "Storage parameters are not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/23467",
+	Suggestion:  "Remove the storage parameters from the DDL",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
 }
 
 func NewStorageParameterIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -81,11 +90,13 @@ func NewStorageParameterIssue(objectType string, objectName string, sqlStatement
 }
 
 var setColumnAttributeIssue = issue.Issue{
-	Type:       ALTER_TABLE_SET_COLUMN_ATTRIBUTE,
-	TypeName:   "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
-	Suggestion: "Remove it from the exported schema",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+	Type:        ALTER_TABLE_SET_COLUMN_ATTRIBUTE,
+	Name:        "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value ) is not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1124",
+	Suggestion:  "Remove it from the exported schema",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
 func NewSetColumnAttributeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -94,11 +105,13 @@ func NewSetColumnAttributeIssue(objectType string, objectName string, sqlStateme
 }
 
 var alterTableClusterOnIssue = issue.Issue{
-	Type:       ALTER_TABLE_CLUSTER_ON,
-	TypeName:   "ALTER TABLE CLUSTER not supported yet.",
-	GH:         "https://github.com/YugaByte/yugabyte-db/issues/1124",
-	Suggestion: "Remove it from the exported schema.",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+	Type:        ALTER_TABLE_CLUSTER_ON,
+	Name:        "ALTER TABLE CLUSTER not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "ALTER TABLE CLUSTER is not yet supported in YugabyteDB",
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1124",
+	Suggestion:  "Remove it from the exported schema.",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
 func NewClusterONIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -107,11 +120,13 @@ func NewClusterONIssue(objectType string, objectName string, sqlStatement string
 }
 
 var alterTableDisableRuleIssue = issue.Issue{
-	Type:       ALTER_TABLE_DISABLE_RULE,
-	TypeName:   "ALTER TABLE name DISABLE RULE not supported yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1124",
-	Suggestion: "Remove this and the rule '%s' from the exported schema to be not enabled on the table.",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
+	Type:        ALTER_TABLE_DISABLE_RULE,
+	Name:        "ALTER TABLE name DISABLE RULE not supported yet",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "ALTER TABLE name DISABLE RULE is not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1124",
+	Suggestion:  "Remove this and the rule '%s' from the exported schema to be not enabled on the table.",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
 func NewAlterTableDisableRuleIssue(objectType string, objectName string, sqlStatement string, ruleName string) QueryIssue {
@@ -122,11 +137,13 @@ func NewAlterTableDisableRuleIssue(objectType string, objectName string, sqlStat
 }
 
 var exclusionConstraintIssue = issue.Issue{
-	Type:       EXCLUSION_CONSTRAINTS,
-	TypeName:   "Exclusion constraint is not supported yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/3944",
-	Suggestion: "Refer docs link for details on possible workaround",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
+	Type:        EXCLUSION_CONSTRAINTS,
+	Name:        "Exclusion constraint is not supported yet",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Exclusion constraints are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/3944",
+	Suggestion:  "Refer docs link for details on possible workaround",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
 }
 
 func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
@@ -137,11 +154,13 @@ func NewExclusionConstraintIssue(objectType string, objectName string, sqlStatem
 }
 
 var deferrableConstraintIssue = issue.Issue{
-	Type:       DEFERRABLE_CONSTRAINTS,
-	TypeName:   "DEFERRABLE constraints not supported yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1709",
-	Suggestion: "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
+	Type:        DEFERRABLE_CONSTRAINTS,
+	Name:        "DEFERRABLE constraints not supported yet",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: "Deferrable constraints are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1709",
+	Suggestion:  "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 }
 
 func NewDeferrableConstraintIssue(objectType string, objectName string, sqlStatement string, constraintName string) QueryIssue {
@@ -152,10 +171,12 @@ func NewDeferrableConstraintIssue(objectType string, objectName string, sqlState
 }
 
 var multiColumnGinIndexIssue = issue.Issue{
-	Type:     MULTI_COLUMN_GIN_INDEX,
-	TypeName: "Schema contains gin index on multi column which is not supported.",
-	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10652",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gin-indexes-on-multiple-columns-are-not-supported",
+	Type:        MULTI_COLUMN_GIN_INDEX,
+	Name:        "Schema contains gin index on multi column which is not supported.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "GIN indexes on multiple columns are not supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10652",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gin-indexes-on-multiple-columns-are-not-supported",
 }
 
 func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -163,10 +184,12 @@ func NewMultiColumnGinIndexIssue(objectType string, objectName string, sqlStatem
 }
 
 var orderedGinIndexIssue = issue.Issue{
-	Type:     ORDERED_GIN_INDEX,
-	TypeName: "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
-	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10653",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#issue-in-some-unsupported-cases-of-gin-indexes",
+	Type:        ORDERED_GIN_INDEX,
+	Name:        "Schema contains gin index on column with ASC/DESC/HASH Clause which is not supported.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "GIN indexes on columns with ASC/DESC/HASH clause are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10653",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#issue-in-some-unsupported-cases-of-gin-indexes", // TODO: link is not working
 }
 
 func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -174,24 +197,28 @@ func NewOrderedGinIndexIssue(objectType string, objectName string, sqlStatement 
 }
 
 var policyRoleIssue = issue.Issue{
-	Type:       POLICY_WITH_ROLES,
-	TypeName:   "Policy require roles to be created.",
-	Suggestion: "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
-	GH:         "https://github.com/yugabyte/yb-voyager/issues/1655",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+	Type:        POLICY_WITH_ROLES,
+	Name:        "Policy require roles to be created.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Policies require roles to be created in the target database but the roles are not migrated during schema migration.",
+	Suggestion:  "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1655",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
 }
 
 func NewPolicyRoleIssue(objectType string, objectName string, sqlStatement string, roles []string) QueryIssue {
 	issue := policyRoleIssue
-	issue.TypeName = fmt.Sprintf("%s Users - (%s)", issue.TypeName, strings.Join(roles, ","))
+	issue.Name = fmt.Sprintf("%s Users - (%s)", issue.Name, strings.Join(roles, ","))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var constraintTriggerIssue = issue.Issue{
-	Type:     CONSTRAINT_TRIGGER,
-	TypeName: "CONSTRAINT TRIGGER not supported yet.",
-	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1709",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
+	Type:        CONSTRAINT_TRIGGER,
+	Name:        "CONSTRAINT TRIGGER not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "CONSTRAINT TRIGGER is not yet supported in YugabyteDB",
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1709",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
 }
 
 func NewConstraintTriggerIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -200,10 +227,12 @@ func NewConstraintTriggerIssue(objectType string, objectName string, sqlStatemen
 }
 
 var referencingClauseInTriggerIssue = issue.Issue{
-	Type:     REFERENCING_CLAUSE_IN_TRIGGER,
-	TypeName: "REFERENCING clause (transition tables) not supported yet.",
-	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1668",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
+	Type:        REFERENCING_CLAUSE_IN_TRIGGER,
+	Name:        "REFERENCING clause (transition tables) not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "REFERENCING clause (transition tables) is not yet supported in YugabyteDB",
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1668",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#referencing-clause-for-triggers",
 }
 
 func NewReferencingClauseTrigIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -211,11 +240,13 @@ func NewReferencingClauseTrigIssue(objectType string, objectName string, sqlStat
 }
 
 var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
-	Type:       BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE,
-	TypeName:   "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24830",
-	Suggestion: "Create the triggers on individual partitions.",
+	Type:        BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE,
+	Name:        "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "BEFORE ROW triggers on partitioned tables are not yet supported in YugabyteDB",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24830",
+	Suggestion:  "Create the triggers on individual partitions.",
 }
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -223,10 +254,12 @@ func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sql
 }
 
 var alterTableAddPKOnPartitionIssue = issue.Issue{
-	Type:     ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
-	TypeName: "Adding primary key to a partitioned table is not supported yet.",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
-	GH:       "https://github.com/yugabyte/yugabyte-db/issues/10074",
+	Type:        ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+	Name:        "Adding primary key to a partitioned table is not supported yet.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Adding primary key using ALTER TABLE to a partitioned table is not yet supported in YugabyteDB",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10074",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
@@ -240,11 +273,13 @@ func NewAlterTableAddPKOnPartiionIssue(objectType string, objectName string, sql
 }
 
 var expressionPartitionIssue = issue.Issue{
-	Type:       EXPRESSION_PARTITION_WITH_PK_UK,
-	TypeName:   "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
-	Suggestion: "Remove the Constriant from the table definition",
-	GH:         "https://github.com/yugabyte/yb-voyager/issues/698",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
+	Type:        EXPRESSION_PARTITION_WITH_PK_UK,
+	Name:        "Issue with Partition using Expression on a table which cannot contain Primary Key / Unique Key on any column",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Tables partitioned using expressions cannot contain primary or unique keys in YugabyteDB",
+	Suggestion:  "Remove the Constriant from the table definition",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/698",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
 }
 
 func NewExpressionPartitionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -252,11 +287,13 @@ func NewExpressionPartitionIssue(objectType string, objectName string, sqlStatem
 }
 
 var multiColumnListPartition = issue.Issue{
-	Type:       MULTI_COLUMN_LIST_PARTITION,
-	TypeName:   `cannot use "list" partition strategy with more than one column`,
-	Suggestion: "Make it a single column partition by list or choose other supported Partitioning methods",
-	GH:         "https://github.com/yugabyte/yb-voyager/issues/699",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
+	Type:        MULTI_COLUMN_LIST_PARTITION,
+	Name:        `cannot use "list" partition strategy with more than one column`,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Multi-column partition by list is not supported in YugabyteDB",
+	Suggestion:  "Make it a single column partition by list or choose other supported Partitioning methods",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/699",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
 }
 
 func NewMultiColumnListPartition(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -264,105 +301,124 @@ func NewMultiColumnListPartition(objectType string, objectName string, sqlStatem
 }
 
 var insufficientColumnsInPKForPartition = issue.Issue{
-	Type:       INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
-	TypeName:   "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
-	Suggestion: "Add all Partition columns to Primary Key",
-	GH:         "https://github.com/yugabyte/yb-voyager/issues/578",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
+	Type:        INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
+	Name:        "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Partition key column not part of Primary Key columns",
+	Suggestion:  "Add all Partition columns to Primary Key",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/578",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
 }
 
 func NewInsufficientColumnInPKForPartition(objectType string, objectName string, sqlStatement string, partitionColumnsNotInPK []string) QueryIssue {
 	issue := insufficientColumnsInPKForPartition
-	issue.TypeName = fmt.Sprintf("%s - (%s)", issue.TypeName, strings.Join(partitionColumnsNotInPK, ", "))
+	issue.Name = fmt.Sprintf("%s - (%s)", issue.Name, strings.Join(partitionColumnsNotInPK, ", "))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xmlDatatypeIssue = issue.Issue{
-	Type:       XML_DATATYPE,
-	TypeName:   "Unsupported datatype - xml",
-	Suggestion: "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/1043",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+	Type:        XML_DATATYPE,
+	Name:        "Unsupported datatype - xml",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: "XML datatype is not yet supported in YugabyteDB",
+	Suggestion:  "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 }
 
 func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := xmlDatatypeIssue
-	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	issue.Name = fmt.Sprintf("%s on column - %s", issue.Name, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xidDatatypeIssue = issue.Issue{
-	Type:       XID_DATATYPE,
-	TypeName:   "Unsupported datatype - xid",
-	Suggestion: "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/15638",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
+	Type:        XID_DATATYPE,
+	Name:        "Unsupported datatype - xid",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: "XID datatype is not yet supported in YugabyteDB",
+	Suggestion:  "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/15638",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
 }
 
 func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := xidDatatypeIssue
-	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	issue.Name = fmt.Sprintf("%s on column - %s", issue.Name, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var postgisDatatypeIssue = issue.Issue{
-	Type:     POSTGIS_DATATYPES,
-	TypeName: "Unsupported datatype",
-	GH:       "https://github.com/yugabyte/yugabyte-db/issues/11323",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+	Type:        POSTGIS_DATATYPES,
+	Name:        "Unsupported datatype",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "PostGIS datatypes are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
 func NewPostGisDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := postgisDatatypeIssue
-	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesIssue = issue.Issue{
-	Type:     UNSUPPORTED_DATATYPES,
-	TypeName: "Unsupported datatype",
-	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+	Type:        UNSUPPORTED_DATATYPES,
+	Name:        "Unsupported datatype",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "%s datatype is not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
 func NewUnsupportedDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesIssue
-	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationIssue = issue.Issue{
-	Type:     UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
-	TypeName: "Unsupported datatype for Live migration",
-	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION,
+	Name:        "Unsupported datatype for Live migration",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "%s datatype is not yet supported by voyager for Live Migration",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
 func NewUnsupportedDatatypesForLMIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationIssue
-	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var unsupportedDatatypesForLiveMigrationWithFFOrFBIssue = issue.Issue{
-	Type:     UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
-	TypeName: "Unsupported datatype for Live migration with fall-forward/fallback",
-	GH:       "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+	Type:        UNSUPPORTED_DATATYPES_LIVE_MIGRATION_WITH_FF_FB,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "%s datatype is not yet supported by voyager for Live Migration with fall-forward/fallback",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
 func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := unsupportedDatatypesForLiveMigrationWithFFOrFBIssue
-	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
-	Type:       PK_UK_ON_COMPLEX_DATATYPE,
-	TypeName:   "Primary key and Unique constraint on column '%s' not yet supported",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion: "Refer to the docs link for the workaround",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+	Type:        PK_UK_ON_COMPLEX_DATATYPE,
+	Name:        "Primary key and Unique constraint on column '%s' not yet supported",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Primary key and Unique constraints on columns with complex data types are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  "Refer to the docs link for the workaround",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -370,30 +426,34 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 		CONSTRAINT_NAME: constraintName,
 	}
 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
+	issue.Name = fmt.Sprintf(issue.Name, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var indexOnComplexDatatypesIssue = issue.Issue{
-	Type:       INDEX_ON_COMPLEX_DATATYPE,
-	TypeName:   "INDEX on column '%s' not yet supported",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion: "Refer to the docs link for the workaround",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+	Type:        INDEX_ON_COMPLEX_DATATYPE,
+	Name:        "INDEX on column '%s' not yet supported",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Indexes on columns with complex data types are not yet supported in YugabyteDB",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  "Refer to the docs link for the workaround",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnComplexDatatypesIssue(objectType string, objectName string, sqlStatement string, typeName string) QueryIssue {
 	issue := indexOnComplexDatatypesIssue
-	issue.TypeName = fmt.Sprintf(issue.TypeName, typeName)
+	issue.Name = fmt.Sprintf(issue.Name, typeName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var foreignTableIssue = issue.Issue{
-	Type:       FOREIGN_TABLE,
-	TypeName:   "Foreign tables require manual intervention.",
-	GH:         "https://github.com/yugabyte/yb-voyager/issues/1627",
-	Suggestion: "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table",
-	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+	Type:        FOREIGN_TABLE,
+	Name:        "Foreign tables require manual intervention.",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by Voyager",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1627",
+	Suggestion:  "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
 }
 
 func NewForeignTableIssue(objectType string, objectName string, sqlStatement string, serverName string) QueryIssue {
@@ -403,10 +463,12 @@ func NewForeignTableIssue(objectType string, objectName string, sqlStatement str
 }
 
 var inheritanceIssue = issue.Issue{
-	Type:     INHERITANCE,
-	TypeName: "TABLE INHERITANCE not supported in YugabyteDB",
-	GH:       "https://github.com/YugaByte/yugabyte-db/issues/1129",
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+	Type:        INHERITANCE,
+	Name:        "TABLE INHERITANCE not supported in YugabyteDB",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: "Table inheritance is not yet supported in YugabyteDB",
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1129",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
 }
 
 func NewInheritanceIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -414,12 +476,13 @@ func NewInheritanceIssue(objectType string, objectName string, sqlStatement stri
 }
 
 var percentTypeSyntax = issue.Issue{
-	Type:            REFERENCED_TYPE_DECLARATION,
-	TypeName:        "Referenced type declaration of variables",
-	TypeDescription: "",
-	Suggestion:      "Fix the syntax to include the actual type name instead of referencing the type of a column",
-	GH:              "https://github.com/yugabyte/yugabyte-db/issues/23619",
-	DocsLink:        "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
+	Type:        REFERENCED_TYPE_DECLARATION,
+	Name:        "Referenced type declaration of variables",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB",
+	Suggestion:  "Fix the syntax to include the actual type name instead of referencing the type of a column",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/23619",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
 }
 
 func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -427,51 +490,73 @@ func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatemen
 }
 
 var loDatatypeIssue = issue.Issue{
-	Type:       LARGE_OBJECT_DATATYPE,
-	TypeName:   "Unsupported datatype - lo",
-	Suggestion: "Large objects are not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "https://github.com/yugabyte/yugabyte-db/issues/25318",
-	DocsLink:   "", // TODO
+	Type:        LARGE_OBJECT_DATATYPE,
+	Name:        "Unsupported datatype - lo",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Large objects are not yet supported in YugabyteDB",
+	Suggestion:  "Large objects are not yet supported in YugabyteDB, no workaround available currently",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
 }
 
 func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
 	issue := loDatatypeIssue
-	issue.TypeName = fmt.Sprintf("%s on column - %s", issue.TypeName, colName)
+	issue.Name = fmt.Sprintf("%s on column - %s", issue.Name, colName)
 	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var multiRangeDatatypeIssue = issue.Issue{
-	Type:       MULTI_RANGE_DATATYPE,
-	TypeName:   "Unsupported datatype",
-	Suggestion: "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "", //TODO
-	DocsLink:   "", //TODO
+	Type:        MULTI_RANGE_DATATYPE,
+	Name:        "Unsupported datatype",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Multirange data type is not yet supported in YugabyteDB",
+	Suggestion:  "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := multiRangeDatatypeIssue
-	issue.TypeName = fmt.Sprintf("%s - %s on column - %s", issue.TypeName, typeName, colName)
+	issue.Name = fmt.Sprintf("%s - %s on column - %s", issue.Name, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var securityInvokerViewIssue = issue.Issue{
-	Type:       SECURITY_INVOKER_VIEWS,
-	TypeName:   "Security Invoker Views not supported yet",
-	Suggestion: "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
-	GH:         "", // TODO
-	DocsLink:   "", // TODO
+	Type:        SECURITY_INVOKER_VIEWS,
+	Name:        "Security Invoker Views not supported yet",
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Security Invoker Views are not yet supported in YugabyteDB",
+	Suggestion:  "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(securityInvokerViewIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
+var deterministicOptionCollationIssue = issue.Issue{
+	Type:        DETERMINISTIC_OPTION_WITH_COLLATION,
+	Name:        DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Deterministic option with collation is not supported in YugabyteDB",
+	Suggestion:  "This feature is not supported in YugabyteDB yet",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
-	Type:       FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
-	TypeName:   FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
-	Suggestion: "No workaround available ",
-	GH:         "", // TODO
-	DocsLink:   "", // TODO
+	Type:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
+	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Foreign key references to partitioned tables are not yet supported in YugabyteDB",
+	Suggestion:  "No workaround available ",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
@@ -479,4 +564,18 @@ func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName 
 		CONSTRAINT_NAME: constraintName,
 	}
 	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details)
+}
+
+var uniqueNullsNotDistinctIssue = issue.Issue{
+	Type:        UNIQUE_NULLS_NOT_DISTINCT,
+	Name:        UNIQUE_NULLS_NOT_DISTINCT_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "Unique constraint on columns with NULL values is not yet supported in YugabyteDB",
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

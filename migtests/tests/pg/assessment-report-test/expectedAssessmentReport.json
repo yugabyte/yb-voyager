@@ -44,15 +44,15 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 83,
-				"InvalidCount": 36,
-				"ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.bigint_multirange_table, public.boston, public.c, public.child_table, public.citext_type, public.combined_tbl, public.date_multirange_table, public.documents, public.employees, public.employees2, public.employeescopyfromwhere, public.employeescopyonerror, public.employeesforview, public.ext_test, public.foo, public.inet_type, public.int_multirange_table, public.library_nested, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.numeric_multirange_table, public.orders, public.orders2, public.orders_lateral, public.ordersentry, public.parent_table, public.products, public.sales_region, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.timestamp_multirange_table, public.timestamptz_multirange_table, public.ts_query_table, public.tt, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.bigint_multirange_table, schema2.boston, schema2.c, schema2.child_table, schema2.date_multirange_table, schema2.employees2, schema2.employeesforview, schema2.ext_test, schema2.foo, schema2.int_multirange_table, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.numeric_multirange_table, schema2.orders, schema2.orders2, schema2.parent_table, schema2.products, schema2.sales_region, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.timestamp_multirange_table, schema2.timestamptz_multirange_table, schema2.tt, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
+				"TotalCount": 93,
+				"InvalidCount": 42,
+				"ObjectNames": "public.\"Case_Sensitive_Columns\", public.\"Mixed_Case_Table_Name_Test\", public.\"Recipients\", public.\"WITH\", public.audit, public.bigint_multirange_table, public.boston, public.c, public.child_table, public.citext_type, public.combined_tbl, public.date_multirange_table, public.documents, public.employees, public.employees2, public.employeescopyfromwhere, public.employeescopyonerror, public.employeesforview, public.ext_test, public.foo, public.inet_type, public.int_multirange_table, public.library_nested, public.london, public.mixed_data_types_table1, public.mixed_data_types_table2, public.numeric_multirange_table, public.orders, public.orders2, public.orders_lateral, public.ordersentry, public.parent_table, public.products, public.sales_region, public.sales_unique_nulls_not_distinct, public.sales_unique_nulls_not_distinct_alter, public.session_log, public.session_log1, public.session_log2, public.sydney, public.test_exclude_basic, public.test_jsonb, public.test_xml_type, public.timestamp_multirange_table, public.timestamptz_multirange_table, public.ts_query_table, public.tt, public.users_unique_nulls_distinct, public.users_unique_nulls_not_distinct, public.users_unique_nulls_not_distinct_index, public.with_example1, public.with_example2, schema2.\"Case_Sensitive_Columns\", schema2.\"Mixed_Case_Table_Name_Test\", schema2.\"Recipients\", schema2.\"WITH\", schema2.audit, schema2.bigint_multirange_table, schema2.boston, schema2.c, schema2.child_table, schema2.date_multirange_table, schema2.employees2, schema2.employeesforview, schema2.ext_test, schema2.foo, schema2.int_multirange_table, schema2.london, schema2.mixed_data_types_table1, schema2.mixed_data_types_table2, schema2.numeric_multirange_table, schema2.orders, schema2.orders2, schema2.parent_table, schema2.products, schema2.sales_region, schema2.sales_unique_nulls_not_distinct, schema2.sales_unique_nulls_not_distinct_alter, schema2.session_log, schema2.session_log1, schema2.session_log2, schema2.sydney, schema2.test_xml_type, schema2.timestamp_multirange_table, schema2.timestamptz_multirange_table, schema2.tt, schema2.users_unique_nulls_distinct, schema2.users_unique_nulls_not_distinct, schema2.users_unique_nulls_not_distinct_index, schema2.with_example1, schema2.with_example2, test_views.view_table1, test_views.view_table2"
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 26,
-				"InvalidCount": 22,
-				"ObjectNames": "idx8 ON public.combined_tbl, idx9 ON public.combined_tbl, idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1"
+				"TotalCount": 28,
+				"InvalidCount": 24,
+				"ObjectNames": "idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx8 ON public.combined_tbl, idx9 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, users_unique_nulls_not_distinct_index_email ON public.users_unique_nulls_not_distinct_index, users_unique_nulls_not_distinct_index_email ON schema2.users_unique_nulls_not_distinct_index"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -75,7 +75,7 @@
 				"ObjectType": "VIEW",
 				"TotalCount": 10,
 				"InvalidCount": 6,
-				"ObjectNames": "public.ordersentry_view, public.sales_employees, schema2.sales_employees, test_views.v1, test_views.v2, test_views.v3, test_views.v4, public.view_explicit_security_invoker, schema2.top_employees_view, public.top_employees_view"
+				"ObjectNames": "public.ordersentry_view, public.sales_employees, public.top_employees_view, public.view_explicit_security_invoker, schema2.sales_employees, schema2.top_employees_view, test_views.v1, test_views.v2, test_views.v3, test_views.v4"
 			},
 			{
 				"ObjectType": "TRIGGER",
@@ -100,6 +100,12 @@
 				"TotalCount": 4,
 				"InvalidCount": 2,
 				"ObjectNames": "policy_test_fine ON public.test_exclude_basic, policy_test_fine_2 ON public.employees2, policy_test_report ON public.test_xml_type, policy_test_report ON schema2.test_xml_type"
+			},
+			{
+				"ObjectType": "COLLATION",
+				"TotalCount": 2,
+				"InvalidCount": 1,
+				"ObjectNames": "schema2.ignore_accents, public.\"numeric\""
 			}
 		]
 	},
@@ -186,9 +192,19 @@
 				"schema2.numeric_multirange_table",
 				"schema2.timestamp_multirange_table",
 				"schema2.timestamptz_multirange_table",
-				"public.employeesforview"
+				"public.employeesforview",
+				"schema2.users_unique_nulls_distinct",
+	      		"schema2.users_unique_nulls_not_distinct",
+				"schema2.sales_unique_nulls_not_distinct",
+				"public.users_unique_nulls_not_distinct_index",
+				"schema2.users_unique_nulls_not_distinct_index",
+				"schema2.sales_unique_nulls_not_distinct_alter",
+				"public.users_unique_nulls_distinct",
+				"public.users_unique_nulls_not_distinct",
+				"public.sales_unique_nulls_not_distinct",
+				"public.sales_unique_nulls_not_distinct_alter"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 89 objects (81 tables/materialized views and 8 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 109 objects (91 tables/materialized views and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl",
 				"public.citext_type",
@@ -574,6 +590,17 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
+			"FeatureName": "Deterministic attribute in collation",
+			"Objects": [
+				{
+					"ObjectName": "schema2.ignore_accents",
+					"SqlStatement": "CREATE COLLATION schema2.ignore_accents (provider = icu, deterministic = false, locale = 'und-u-kc-ks-level1');"
+				}
+			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
 			"Objects": [
 				{
@@ -633,6 +660,7 @@
 					"SqlStatement": "CREATE TRIGGER t_raster BEFORE DELETE OR UPDATE ON public.combined_tbl FOR EACH ROW EXECUTE FUNCTION public.lo_manage('raster');"
 				}
 			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -643,6 +671,7 @@
 					"SqlStatement": "ALTER TABLE ONLY public.test_jsonb\n    ADD CONSTRAINT test_jsonb_id_region_fkey FOREIGN KEY (id, region) REFERENCES public.sales_region(id, region);"
 				}
 			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -653,6 +682,7 @@
 					"SqlStatement": "CREATE TABLE public.ordersentry (\n    order_id integer NOT NULL,\n    customer_name text NOT NULL,\n    product_name text NOT NULL,\n    quantity integer NOT NULL,\n    price numeric(10,2) NOT NULL,\n    processed_at timestamp without time zone,\n    r integer DEFAULT regexp_count('This is an example. Another example. Example is a common word.'::text, 'example'::text)\n);"
 				}
 			],
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -667,6 +697,7 @@
 					"SqlStatement": "CREATE VIEW schema2.top_employees_view AS\n SELECT id,\n    first_name,\n    last_name,\n    salary\n   FROM ( SELECT employeesforview.id,\n            employeesforview.first_name,\n            employeesforview.last_name,\n            employeesforview.salary\n           FROM schema2.employeesforview\n          ORDER BY employeesforview.salary DESC\n         FETCH FIRST 2 ROWS WITH TIES) top_employees;"
 				}
 			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -677,11 +708,275 @@
 					"SqlStatement": "CREATE VIEW public.view_explicit_security_invoker WITH (security_invoker='true') AS\n SELECT employee_id,\n    first_name\n   FROM public.employees;"
 				}
 			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"FeatureName": "Unique Nulls Not Distinct",
+			"Objects": [
+				{
+					"ObjectName": "users_unique_nulls_not_distinct_index_email ON public.users_unique_nulls_not_distinct_index",
+					"SqlStatement": "CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email ON public.users_unique_nulls_not_distinct_index USING btree (email) NULLS NOT DISTINCT;"
+				},
+				{
+					"ObjectName": "users_unique_nulls_not_distinct_index_email ON schema2.users_unique_nulls_not_distinct_index",
+					"SqlStatement": "CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email ON schema2.users_unique_nulls_not_distinct_index USING btree (email) NULLS NOT DISTINCT;"
+				},
+				{
+					"ObjectName": "public.sales_unique_nulls_not_distinct",
+					"SqlStatement": "ALTER TABLE ONLY public.sales_unique_nulls_not_distinct\n    ADD CONSTRAINT sales_unique_nulls_not_distin_store_id_product_id_sale_date_key UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);"
+				},
+				{
+					"ObjectName": "public.sales_unique_nulls_not_distinct_alter",
+					"SqlStatement": "ALTER TABLE ONLY public.sales_unique_nulls_not_distinct_alter\n    ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);"
+				},
+				{
+					"ObjectName": "public.users_unique_nulls_not_distinct",
+					"SqlStatement": "ALTER TABLE ONLY public.users_unique_nulls_not_distinct\n    ADD CONSTRAINT users_unique_nulls_not_distinct_email_key UNIQUE NULLS NOT DISTINCT (email);"
+				},
+				{
+					"ObjectName": "schema2.sales_unique_nulls_not_distinct",
+					"SqlStatement": "ALTER TABLE ONLY schema2.sales_unique_nulls_not_distinct\n    ADD CONSTRAINT sales_unique_nulls_not_distin_store_id_product_id_sale_date_key UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);"
+				},
+				{
+					"ObjectName": "schema2.sales_unique_nulls_not_distinct_alter",
+					"SqlStatement": "ALTER TABLE ONLY schema2.sales_unique_nulls_not_distinct_alter\n    ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);"
+				},
+				{
+					"ObjectName": "schema2.users_unique_nulls_not_distinct",
+					"SqlStatement": "ALTER TABLE ONLY schema2.users_unique_nulls_not_distinct\n    ADD CONSTRAINT users_unique_nulls_not_distinct_email_key UNIQUE NULLS NOT DISTINCT (email);"
+				}
+			],
+			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
 			"MinimumVersionsFixedIn": null
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "sales_unique_nulls_not_distinct_alter_unique",
+			"RowCount": null,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.sales_unique_nulls_not_distinct_alter",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "sales_unique_nulls_not_distin_store_id_product_id_sale_date_key",
+			"RowCount": null,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.sales_unique_nulls_not_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_not_distinct_email_key",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.users_unique_nulls_not_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_distinct_email_key",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.users_unique_nulls_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "sales_unique_nulls_not_distinct_alter_unique",
+			"RowCount": null,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.sales_unique_nulls_not_distinct_alter",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "sales_unique_nulls_not_distin_store_id_product_id_sale_date_key",
+			"RowCount": null,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.sales_unique_nulls_not_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_not_distinct_email_key",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.users_unique_nulls_not_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_distinct_email_key",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.users_unique_nulls_distinct",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_not_distinct",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_distinct",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "sales_unique_nulls_not_distinct",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "sales_unique_nulls_not_distinct_alter",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_not_distinct",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_distinct",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "sales_unique_nulls_not_distinct_alter",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "sales_unique_nulls_not_distinct",
+			"RowCount": 0,
+			"ColumnCount": 3,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
 		{
 			"SchemaName": "public",
 			"ObjectName": "Recipients",
@@ -2319,6 +2614,62 @@
 			"ObjectType": "",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_not_distinct_index_email",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "public.users_unique_nulls_not_distinct_index",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "users_unique_nulls_not_distinct_index",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_not_distinct_index",
+			"RowCount": 0,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
+		},
+		{
+			"SchemaName": "schema2",
+			"ObjectName": "users_unique_nulls_not_distinct_index_email",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "",
+			"ParentTableName": "schema2.users_unique_nulls_not_distinct_index",
+			"SizeInBytes": 8192
 		}
 		
 	],
@@ -2517,19 +2868,19 @@
 		{
 			"ConstructTypeName": "Large Object Functions",
 			"Query": "SELECT lo_create($1)",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
 			"ConstructTypeName": "COPY FROM ... WHERE",
 			"Query": "COPY employeesCopyFromWhere (id, name, age)\nFROM STDIN WITH (FORMAT csv)\nWHERE age \u003e 30",
-			"DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
 		{
 			"ConstructTypeName": "COPY ... ON_ERROR",
 			"Query": "COPY employeesCopyOnError (id, name, age)\nFROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE )",
-			"DocsLink": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		}
 	],
@@ -2543,6 +2894,7 @@
 					"SqlStatement": "SELECT lo_unlink(loid);"
 				}
 			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{

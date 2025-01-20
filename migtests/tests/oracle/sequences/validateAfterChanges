@@ -166,14 +166,14 @@ def migration_completed_checks_yb():
 def migration_completed_checks_ff():
     print("Running tests on Oracle source replica")
     global db_schema
-    db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA")
+    db_schema = os.environ.get("SOURCE_REPLICA_DB_SCHEMA").upper()
     change_expected_values_ff_fb()
     oracle.run_checks(migration_completed_checks, db_type="source_replica")
 
 def migration_completed_checks_fb():
     print("Running tests on Oracle source")
     global db_schema
-    db_schema = os.environ.get("SOURCE_DB_SCHEMA")
+    db_schema = os.environ.get("SOURCE_DB_SCHEMA").upper()
     change_expected_values_ff_fb()
     oracle.run_checks(migration_completed_checks, db_type="source")
 

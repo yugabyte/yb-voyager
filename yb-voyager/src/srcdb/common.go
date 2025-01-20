@@ -38,7 +38,7 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		table, err := namereg.NameReg.LookupTableName(targetTableName)
 		if err != nil {
-			utils.ErrExit("error while looking up table name %q: %v", targetTableName, err)
+			utils.ErrExit("error while looking up table name: %q: %v", targetTableName, err)
 		}
 		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
 			// This can happen in case of nested tables in Oracle.

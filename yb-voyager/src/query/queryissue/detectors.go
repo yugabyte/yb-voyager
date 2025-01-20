@@ -317,7 +317,7 @@ func NewCopyCommandUnsupportedConstructsDetector(query string) *CopyCommandUnsup
 // Detect if COPY command uses unsupported syntax i.e. COPY FROM ... WHERE and COPY... ON_ERROR
 func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Message) error {
 	// Check if the message is a COPY statement
-	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPYSTSMT_NODE {
+	if msg.Descriptor().FullName() != queryparser.PG_QUERY_COPY_STMT_NODE {
 		return nil // Not a COPY statement, nothing to detect
 	}
 
@@ -453,6 +453,77 @@ func (d *JsonQueryFunctionDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type MergeStatementDetector struct {
+	query                    string
+	isMergeStatementDetected bool
+}
+
+func NewMergeStatementDetector(query string) *MergeStatementDetector {
+	return &MergeStatementDetector{
+		query: query,
+	}
+}
+
+func (m *MergeStatementDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_MERGE_STMT_NODE {
+		m.isMergeStatementDetected = true
+	}
+	return nil
+
+}
+
+func (m *MergeStatementDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if m.isMergeStatementDetected {
+		issues = append(issues, NewMergeStatementIssue(DML_QUERY_OBJECT_TYPE, "", m.query))
+	}
+	return issues
+}
+
+type UniqueNullsNotDistinctDetector struct {
+	query    string
+	detected bool
+}
+
+func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDetector {
+	return &UniqueNullsNotDistinctDetector{
+		query: query,
+	}
+}
+
+// Detect checks if a unique constraint is defined which has nulls not distinct
+func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
+		indexStmt, err := queryparser.ProtoAsIndexStmt(msg)
+		if err != nil {
+			return err
+		}
+
+		if indexStmt.Unique && indexStmt.NullsNotDistinct {
+			d.detected = true
+		}
+	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_CONSTRAINT_NODE {
+		constraintNode, err := queryparser.ProtoAsTableConstraint(msg)
+		if err != nil {
+			return err
+		}
+
+		if constraintNode.Contype == queryparser.UNIQUE_CONSTR_TYPE && constraintNode.NullsNotDistinct {
+			d.detected = true
+		}
+	}
+
+	return nil
+}
+
+func (d *UniqueNullsNotDistinctDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.detected {
+		issues = append(issues, NewUniqueNullsNotDistinctIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+	}
+	return issues
+}
+
 type JsonPredicateExprDetector struct {
 	query    string
 	detected bool
@@ -463,7 +534,6 @@ func NewJsonPredicateExprDetector(query string) *JsonPredicateExprDetector {
 		query: query,
 	}
 }
-
 func (j *JsonPredicateExprDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_JSON_IS_PREDICATE_NODE {
 		/*
