@@ -1255,6 +1255,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			if strings.HasPrefix(issue.Reason, sensitiveReason) {
 				issue.Reason = sensitiveReason
 			} else {
+				// TODO: should we just start sending issue type/name here instead of obfuscating the reason since that is anyways static
 				match, err := utils.MatchesFormatString(sensitiveReason, issue.Reason)
 				if match {
 					issue.Reason, err = utils.ObfuscateFormatDetails(sensitiveReason, issue.Reason, constants.OBFUSCATE_STRING)

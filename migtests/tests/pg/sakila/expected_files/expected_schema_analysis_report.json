@@ -165,7 +165,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "film_fulltext_idx ON public.film",
-            "Reason": "The schema contains an index with an access method \"GIST\" which is not supported in YugabyteDB.",
+            "Reason": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",

@@ -82,7 +82,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "changeset_geom_gist ON public.osm_changeset",
-            "Reason": "The schema contains an index with an access method \"GIST\" which is not supported in YugabyteDB.",
+            "Reason": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",

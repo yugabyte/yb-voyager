@@ -351,7 +351,7 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 var postgisDatatypeIssue = issue.Issue{
 	Type:        POSTGIS_DATATYPE,
 	Name:        "Unsupported datatype - POSTGIS",
-	Impact:      constants.IMPACT_LEVEL_1, // Ques: Should it be IMPACT_LEVEL_3 like other unsupported datatypes?
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
@@ -366,7 +366,7 @@ func NewPostGisDatatypeIssue(objectType string, objectName string, sqlStatement 
 var unsupportedDatatypeIssue = issue.Issue{
 	Type:        UNSUPPORTED_DATATYPE,
 	Name:        "Unsupported datatype",
-	Impact:      constants.IMPACT_LEVEL_1, // Ques: Should it be IMPACT_LEVEL_3 like other unsupported datatypes?
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
