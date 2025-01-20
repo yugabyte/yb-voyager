@@ -312,7 +312,7 @@
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "extension_example.testhstore",
-            "Reason": "Unsupported datatype for Live migration with fall-forward/fallback - extension_example.hstore on column - h",
+            "Reason": "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: h and type: extension_example.hstore. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE extension_example.testhstore (\n    h extension_example.hstore\n);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
