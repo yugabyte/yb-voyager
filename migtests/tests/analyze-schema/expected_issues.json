@@ -2029,7 +2029,7 @@
             "ObjectName": "top_employees_view",
             "Reason": "FETCH .. WITH TIES is not yet supported in YugabyteDB",
             "SqlStatement": "CREATE VIEW top_employees_view AS SELECT * FROM (\n\t\t\tSELECT * FROM employees\n\t\t\tORDER BY salary DESC\n\t\t\tFETCH FIRST 2 ROWS WITH TIES\n\t\t) AS top_employees;",
-            "Suggestion": "No workaround available right now",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
