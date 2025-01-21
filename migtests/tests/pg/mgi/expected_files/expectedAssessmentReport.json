@@ -13420,7 +13420,7 @@
 	"UnsupportedQueryConstructs": null,
     "UnsupportedPlPgSqlObjects": [
 		{
-			"FeatureName": "Referenced type declaration of variables",
+			"FeatureName": "Referencing type declaration of variables",
 			"Objects": [
 				{
 					"ObjectType": "FUNCTION",

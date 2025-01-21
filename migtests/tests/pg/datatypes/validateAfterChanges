@@ -29,6 +29,7 @@ EXPECTED_ROW_COUNT = {
 	'datetime_type2': 2, 
 	'null_and_default' :2,
 	'decimal_types': 4,
+	'hstore_example': 16,
 }
 
 EXPECTED_SUM_OF_COLUMN = {
@@ -65,6 +66,7 @@ EXPECTED_ROW_COUNT_FF = {
 	'datetime_type2': 3, 
 	'null_and_default' :2,
 	'decimal_types': 4,
+	'hstore_example': 16,
 }
 
 EXPECTED_SUM_OF_COLUMN_FF = {
@@ -128,6 +130,14 @@ def migration_completed_checks(tgt):
 	expected_distinct_values = EXPECTED_DISNTICT_VALUES['v5']
 	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
 		None, expected_distinct_values = expected_distinct_values)
+	
+	print("hstore_example:")
+	expected_hstore_values=['"f1"=>"1", "f2"=>"{\\"key1=value1, key2=value2\\"}"', None, '"json_field"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', 
+	'"weight"=>"11.2 ounces", "ISBN-13"=>"978-1449370000", "language"=>"English", "paperback"=>"243", "publisher"=>"postgresqltutorial.com"', 
+	'"key1"=>"value1", "key2"=>"value2", "key3"=>"value3"', '"\\"{key1:value1,key2:value2}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"',
+	'"a\\"b"=>"d\\\\\\"a"', '"{\\"key1=value1, key2=value2\\"}"=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '"key5"=>"value5", "key6"=>"value6"', 
+	'"\\"{\\"\\"key1\\"\\":\\"\\"value1\\"\\",\\"\\"key2\\"\\":\\"\\"value2\\"\\"}\\""=>"{\\"key1=value1, key2={\\"key1=value1, key2=value2\\"}\\"}"', '']
+	tgt.assert_distinct_values_of_col("hstore_example", "data", "public", expected_distinct_values=expected_hstore_values)
 
 if __name__ == "__main__":
 	main()
