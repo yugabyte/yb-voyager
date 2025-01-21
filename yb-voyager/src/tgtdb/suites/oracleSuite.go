@@ -17,7 +17,6 @@ package tgtdbsuite
 
 import (
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"math"
 	"strconv"
@@ -30,7 +29,7 @@ import (
 var OraValueConverterSuite = map[string]ConverterFn{
 	"DATE": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		// from oracle for DATE type debezium gives epoch milliseconds with type `io.debezium.time.Timestamp`
-		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64) 
+		epochMilliSecs, err := strconv.ParseInt(columnValue, 10, 64)
 		if err != nil {
 			return columnValue, fmt.Errorf("parsing epoch milliseconds: %v", err)
 		}
@@ -136,18 +135,6 @@ var OraValueConverterSuite = map[string]ConverterFn{
 			hexValue = fmt.Sprintf("'%s'", hexString) // in insert statement no need of escaping the backslash and add quotes
 		}
 		return string(hexValue), nil
-	},
-	"MAP": func(columnValue string, _ bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
-		mapValue := make(map[string]interface{})
-		err := json.Unmarshal([]byte(columnValue), &mapValue)
-		if err != nil {
-			return columnValue, fmt.Errorf("parsing map: %v", err)
-		}
-		var transformedMapValue string
-		for key, value := range mapValue {
-			transformedMapValue = transformedMapValue + fmt.Sprintf("\"%s\"=>\"%s\",", key, value)
-		}
-		return fmt.Sprintf("'%s'", transformedMapValue[:len(transformedMapValue)-1]), nil //remove last comma and add quotes
 	},
 	"STRING": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
 		if formatIfRequired {

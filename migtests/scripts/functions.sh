@@ -150,8 +150,6 @@ EOF
 	run_sqlplus_as_sys ${pdb_name} "create-pdb-tablespace.sql"
 	cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
-	rm create-pdb-tablespace.sql
-	rm oracle-inputs.sql
 }
 
 grant_permissions_for_live_migration_pg() {
@@ -393,6 +391,7 @@ import_data() {
 		--disable-pb true
 		--send-diagnostics=false 
 		--max-retries 1
+		--yes
 		"
 
 		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
