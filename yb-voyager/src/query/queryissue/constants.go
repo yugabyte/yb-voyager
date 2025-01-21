@@ -152,7 +152,7 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Indexes on columns with complex data types like '%v' are not yet supported in YugabyteDB."
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                                  = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                                    = "Table inheritance is not yet supported in YugabyteDB."
-	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION                    = "Referencing the type of `a column instead of the actual type name is not supported in YugabyteDB."
+	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION                    = "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB."
 	LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION                          = "Large Objects are not yet supported in YugabyteDB. Affected column: %s."
 	MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION                           = "Multi-range data type is not yet supported in YugabyteDB. Affected column: %s and type: %v."
 	SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION                         = "Security invoker views are not yet supported in YugabyteDB."
