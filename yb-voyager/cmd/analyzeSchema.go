@@ -926,14 +926,25 @@ sqlParsingLoop:
 				codeBlockDelimiter = "END" //SQL body to determine the end of BEGIN ATOMIC ... END; sql body
 			}
 		case CODE_BLOCK_STARTED:
-			if strings.Contains(currLine, codeBlockDelimiter) ||
-				strings.Contains(currLine, strings.ToLower(codeBlockDelimiter)) {
-				//TODO: anyways we should be using pg-parser: but for now for the END sql body delimiter checking the UPPER and LOWER both
-				dollarQuoteFlag = 2 //denotes end of code/body part
-				if isEndOfSqlStmt(currLine) {
-					break sqlParsingLoop
+			switch codeBlockDelimiter {
+			case "END":
+				if strings.Contains(currLine, codeBlockDelimiter) ||
+					strings.Contains(currLine, strings.ToLower(codeBlockDelimiter)) {
+					//TODO: anyways we should be using pg-parser: but for now for the END sql body delimiter checking the UPPER and LOWER both
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
+				}
+			default:
+				if strings.Contains(currLine, codeBlockDelimiter) {
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
 				}
 			}
+
 		case CODE_BLOCK_COMPLETED:
 			if isEndOfSqlStmt(currLine) {
 				break sqlParsingLoop
