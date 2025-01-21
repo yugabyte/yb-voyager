@@ -1644,7 +1644,7 @@
             "ObjectName": "p ON tbl1",
             "Reason": "Policies require specific roles (regress_rls_eve, regress_rls_frank) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY P ON tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -1656,7 +1656,7 @@
             "Reason": "Policies require specific roles (regress_rls_group1) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1 ON z1 TO regress_rls_group1 USING (a % 2 = 0);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "MinimumVersionsFixedIn": null
         },

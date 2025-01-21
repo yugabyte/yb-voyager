@@ -387,7 +387,7 @@
             "Reason": "Policies require specific roles (regress_rls_eve, regress_rls_frank) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p ON regress_rls_schema.tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -399,7 +399,7 @@
             "Reason": "Policies require specific roles (regress_rls_dob_role1) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -411,7 +411,7 @@
             "Reason": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t2 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -423,7 +423,7 @@
             "Reason": "Policies require specific roles (regress_rls_bob) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.t1_2 TO regress_rls_bob USING (((a % 2) = 0));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -531,7 +531,7 @@
             "Reason": "Policies require specific roles (regress_rls_group1) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.z1 TO regress_rls_group1 USING (((a % 2) = 0));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -543,7 +543,7 @@
             "Reason": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1_2 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -555,7 +555,7 @@
             "Reason": "Policies require specific roles (regress_rls_dob_role1) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1_3 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -567,7 +567,7 @@
             "Reason": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1_4 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -579,7 +579,7 @@
             "Reason": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p1r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c\u003e 44));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -591,7 +591,7 @@
             "Reason": "Policies require specific roles (regress_rls_carol) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.t1_2 TO regress_rls_carol USING (((a % 4) = 0));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -603,7 +603,7 @@
             "Reason": "Policies require specific roles (regress_rls_group2) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.z1 TO regress_rls_group2 USING (((a % 2) = 1));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -615,7 +615,7 @@
             "Reason": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY p2r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING (((cid \u003c\u003e 44) AND (cid \u003c 50)));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
@@ -627,7 +627,7 @@
             "Reason": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration.",
             "SqlStatement": "CREATE POLICY pp1r ON regress_rls_schema.part_document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c 55));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/policies/policy.sql",
-            "Suggestion": "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+            "Suggestion": "Create the Users manually to make the policies work.",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1655",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
             "MinimumVersionsFixedIn": null
