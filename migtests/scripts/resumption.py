@@ -11,6 +11,7 @@ import yaml
 sys.path.append(os.path.join(os.getcwd(), 'migtests/lib'))
 import yb
 import argparse
+import tempfile
 
 
 # Global configuration variables
@@ -244,47 +245,93 @@ def prepare_import_data_command(config):
 #         sys.exit(1)
 
 
-def run_command(command, allow_interruption=True, interrupt_after=None):
-    """
-    Runs a command and captures its outputs, with enforced interruption if configured.
+# def run_command(command, allow_interruption=True, interrupt_after=None):
+#     """
+#     Runs a command and captures its outputs, with enforced interruption if configured.
 
-    Args:
-        command (list): The command to run as a list of strings.
-        allow_interruption (bool): Whether to allow interruption of the command.
-        interrupt_after (int): Time in seconds after which the command should be interrupted. If None, no interruption.
+#     Args:
+#         command (list): The command to run as a list of strings.
+#         allow_interruption (bool): Whether to allow interruption of the command.
+#         interrupt_after (int): Time in seconds after which the command should be interrupted. If None, no interruption.
 
-    Returns:
-        tuple: (completed, stdout, stderr)
-            - completed (bool): True if the command completed without interruption or error.
-            - stdout (str): Captured standard output.
-            - stderr (str): Captured standard error.
-    """
-    process = subprocess.Popen(
-        command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-    )
-    start_time = time.time()
-    interrupted = False
+#     Returns:
+#         tuple: (completed, stdout, stderr)
+#             - completed (bool): True if the command completed without interruption or error.
+#             - stdout (str): Captured standard output.
+#             - stderr (str): Captured standard error.
+#     """
+#     process = subprocess.Popen(
+#         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
+#     )
+#     start_time = time.time()
+#     interrupted = False
 
-    while process.poll() is None:  # Process is still running
-        if allow_interruption and interrupt_after is not None:
-            elapsed_time = time.time() - start_time
-            if elapsed_time > interrupt_after:
-                print("Interrupting the process...", flush=True)
-                try:
-                    process.terminate()
-                    process.wait(timeout=10)  # Give it 10 seconds to terminate gracefully
-                except subprocess.TimeoutExpired:
-                    process.kill()  # Kill if it doesn't terminate
-                interrupted = True
-                break
-        time.sleep(1)  # Avoid busy-waiting
+#     while process.poll() is None:  # Process is still running
+#         if allow_interruption and interrupt_after is not None:
+#             elapsed_time = time.time() - start_time
+#             if elapsed_time > interrupt_after:
+#                 print("Interrupting the process...", flush=True)
+#                 try:
+#                     process.terminate()
+#                     process.wait(timeout=10)  # Give it 10 seconds to terminate gracefully
+#                 except subprocess.TimeoutExpired:
+#                     process.kill()  # Kill if it doesn't terminate
+#                 interrupted = True
+#                 break
+#         time.sleep(1)  # Avoid busy-waiting
 
-    # Capture outputs after the process is done or interrupted
-    stdout, stderr = process.communicate()
+#     # Capture outputs after the process is done or interrupted
+#     stdout, stderr = process.communicate()
 
-    # Determine if the process completed successfully
-    completed = process.returncode == 0 and not interrupted
-    return completed, stdout, stderr
+#     # Determine if the process completed successfully
+#     completed = process.returncode == 0 and not interrupted
+#     return completed, stdout, stderr
+
+
+def run_command(command, allow_interruption=False, interrupt_after=None):
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        process = subprocess.Popen(
+            command, stdout=stdout_file, stderr=stderr_file, text=True
+        )
+        start_time = time.time()
+        interrupted = False
+
+        while process.poll() is None:
+            if allow_interruption and interrupt_after is not None:
+                elapsed_time = time.time() - start_time
+                if elapsed_time > interrupt_after:
+                    print("Interrupting the process (PID: {})...".format(process.pid), flush=True)
+                    try:
+                        process.terminate()
+                        process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        process.kill()
+                    interrupted = True
+                    break
+            time.sleep(1)  # Avoid busy-waiting
+
+        stdout_file.seek(0)
+        stderr_file.seek(0)
+
+        # Decode bytes to string
+        stdout = stdout_file.read().decode('utf-8').strip()  # Replace 'utf-8' with the appropriate encoding if needed
+        stderr = stderr_file.read().decode('utf-8').strip()
+
+        # Print "Command Output:" only if stdout contains data
+        if stdout:
+            print("\nCommand Output:\n")
+            for line in stdout.splitlines():
+                print(line)
+
+        # Print "Command Errors:" only if stderr contains data
+        if stderr:
+            print("\nCommand Errors:\n")
+            for line in stderr.splitlines():
+                print(line)
+
+        completed = process.returncode == 0 and not interrupted
+
+        return completed, stdout, stderr
 
 def run_and_resume_voyager(command):
     """
@@ -304,28 +351,27 @@ def run_and_resume_voyager(command):
 
         completed, stdout, stderr = run_command(command, allow_interruption=True, interrupt_after=interruption_time)
 
-        # Output handling
-        if stdout:
-            print(f"\nCommand output:\n{stdout}", flush=True)
-        if stderr:
-            print(f"\nCommand error:\n{stderr}", flush=True)
+        # # Output handling
+        # if stdout:
+        #     print(f"\nCommand output:\n{stdout}", flush=True)
+        # if stderr:
+        #     print(f"\nCommand error:\n{stderr}", flush=True)
 
         print("Process was interrupted. Preparing to resume...", flush=True)
         restart_wait_time_seconds = random.randint(min_restart_wait_seconds, max_restart_wait_seconds)
         print(f"Waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...", flush=True)
-        print(f"Before waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s...", flush=True)
         time.sleep(restart_wait_time_seconds)
         print("Completed waiting. Proceeding to next attempt...", flush=True)
 
     # Final attempt without interruption
-    print("\n--- Final attempt to complete the import ---", flush=True)
+    print("\n--- Final attempt to complete the import ---\n", flush=True)
     completed, stdout, stderr = run_command(command, allow_interruption=False)
 
-    # Final output handling
-    if stdout:
-        print(f"\nFinal command output:\n{stdout}", flush=True)
-    if stderr:
-        print(f"\nFinal command error:\n{stderr}", flush=True)
+    # # Final output handling
+    # if stdout:
+    #     print(f"\nFinal command output:\n{stdout}", flush=True)
+    # if stderr:
+    #     print(f"\nFinal command error:\n{stderr}", flush=True)
 
     if not completed:
         print("\nCommand failed on the final attempt.", flush=True)
