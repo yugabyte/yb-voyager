@@ -255,7 +255,6 @@ end;`,
 		t.Errorf("Expected %d SQL statements for %s, got %d", len(expectedSqlInfoArr), objType, len(sqlInfoArr))
 	} 
 
-	fmt.Printf("sqlinfoarr - %v", sqlInfoArr)
 	for i, expectedSqlInfo := range expectedSqlInfoArr {
 		assert.Equal(t, expectedSqlInfo.objName, sqlInfoArr[i].objName)
 		assert.Equal(t, expectedSqlInfo.stmt, sqlInfoArr[i].stmt)
