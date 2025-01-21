@@ -56,9 +56,9 @@
             },
             {
                 "ObjectType": "VIEW",
-                "TotalCount": 7,
-                "InvalidCount": 7,
-                "ObjectNames": "public.my_films_view, v1, v2, test, public.orders_view, view_name, top_employees_view"
+                "TotalCount": 8,
+                "InvalidCount": 8,
+                "ObjectNames": "zz, public.my_films_view, v1, v2, test, public.orders_view, view_name, top_employees_view"
             },
             {
                 "ObjectType": "TRIGGER",
