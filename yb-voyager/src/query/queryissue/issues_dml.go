@@ -21,6 +21,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var advisoryLocksIssue = issue.Issue{
@@ -73,6 +74,9 @@ var regexFunctionsIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -158,6 +162,9 @@ var jsonbSubscriptingIssue = issue.Issue{
 	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

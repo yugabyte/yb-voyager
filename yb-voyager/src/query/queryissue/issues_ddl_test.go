@@ -67,6 +67,7 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	if isFixed {
 		assert.NoError(t, execErr)
 	} else {
+		fmt.Printf("ERROR - %v", execErr)
 		assert.ErrorContains(t, execErr, expectedError)
 	}
 }
@@ -141,7 +142,11 @@ func testSetAttributeIssue(t *testing.T) {
     stream_ordering bigint
 	);
 	ALTER TABLE ONLY public.event_search ALTER COLUMN room_id SET (n_distinct=-0.01)`)
-
+/*
+        	            				/home/runner/work/yb-voyager/yb-voyager/yb-voyager/src/query/queryissue/issues_ddl_test.go:145
+        	Error:      	Error "ERROR: ALTER action ALTER COLUMN ... SET not supported yet (SQLSTATE 0A000)" does not contain "ALTER TABLE ALTER column not supported yet"
+        	Test:       	TestDDLIssuesInYBVersion/set_attribute-2.25.0.0-b489
+*/
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE ALTER column not supported yet", setColumnAttributeIssue)
 }
 
@@ -161,7 +166,12 @@ func testClusterOnIssue(t *testing.T) {
 	CREATE UNIQUE INDEX test_age_salary ON public.test USING btree (age ASC NULLS LAST, salary ASC NULLS LAST);
 
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
-
+/*
+        	            				/home/runner/work/yb-voyager/yb-voyager/yb-voyager/src/query/queryissue/issues_ddl_test.go:165
+        	Error:      	Error "ERROR: ALTER action CLUSTER ON not supported yet (SQLSTATE 0A000)" does not contain "ALTER TABLE CLUSTER not supported yet"
+        	Test:       	TestDDLIssuesInYBVersion/cluster_on-2.25.0.0-b489
+=== NAME  TestDDLIssuesInYBVersion
+*/
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", alterTableClusterOnIssue)
 }
 
@@ -177,7 +187,12 @@ func testDisableRuleIssue(t *testing.T) {
 	create rule trule_rule as on update to trule do instead nothing;
 
 	ALTER TABLE trule DISABLE RULE trule_rule`)
-
+/*
+        	            				/home/runner/work/yb-voyager/yb-voyager/yb-voyager/src/query/queryissue/issues_ddl_test.go:181
+        	Error:      	Error "ERROR: ALTER action DISABLE RULE not supported yet (SQLSTATE 0A000)" does not contain "ALTER TABLE DISABLE RULE not supported yet"
+        	Test:       	TestDDLIssuesInYBVersion/disable_rule-2.25.0.0-b489
+=== NAME  TestDDLIssuesInYBVersion
+*/
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", alterTableDisableRuleIssue)
 }
 

@@ -80,10 +80,19 @@ func testFetchWithTiesIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 
 	stmts := []string{
-		`SELECT * FROM employees
+		`CREATE TABLE fetch_table(id int, salary bigint);
+		SELECT * FROM fetch_table
 		ORDER BY salary DESC
 		FETCH FIRST 2 ROWS WITH TIES;`,
 	}
+
+	/*
+			r/yb-voyager/src/query/queryissue/issues_dml_test.go:90
+		        	Error:      	Error "ERROR: column \"salary\" does not exist (SQLSTATE 42703)" does not contain "syntax error at or near \"WITH\""
+		        	Test:       	TestDMLIssuesInYBVersion/fetch_with_ties-2.25.0.0-b489
+		=== NAME  TestDMLIssuesInYBVersion
+
+	*/
 
 	for _, stmt := range stmts {
 		_, err = conn.Exec(ctx, stmt)
@@ -109,6 +118,11 @@ func testCopyFromWhereIssue(t *testing.T) {
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
+	/*
+			       	Error:      	Error "ERROR: syntax error at or near \"WITH\" (SQLSTATE 42601)" does not contain "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)"
+		        	Test:       	TestDMLIssuesInYBVersion/copy_from_where-2.25.0.0-b489
+		=== NAME  TestDMLIssuesInYBVersion
+	*/
 	// In case the COPY FROM ...  WHERE construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
 	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WHERE loid = 1 WITH (FORMAT csv, HEADER true);`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
@@ -212,7 +226,14 @@ RETURNING merge_action(), w.*;
 	for _, sql := range sqls {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
+		/*
+		       	            				/home/runner/work/yb-voyager/yb-voyager/yb-voyager/src/query/queryissue/issues_dml_test.go:216
+		       	Error:      	Error "ERROR: This statement not supported yet (SQLSTATE 0A000)" does not contain "syntax error at or near \"MERGE\""
+		       	Test:       	TestDMLIssuesInYBVersion/merge_statement-2.25.0.0-b489
+		   issues_ddl_test.go:70:
 
+		*/
+		fmt.Printf("SQL - %s", sql)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
 	}
 
@@ -249,9 +270,9 @@ INSERT INTO events (event_range) VALUES
     ('[2024-01-20, 2024-01-25]'::daterange);
 
 SELECT range_agg(event_range) AS union_of_ranges
-FROM events;
+FROM events;`,
 
-SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+		`SELECT range_intersect_agg(event_range) AS intersection_of_ranges
 FROM events;`,
 	}
 
@@ -262,7 +283,7 @@ FROM events;`,
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-
+		fmt.Printf("SQL - %s", sql)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
 	}
 }
