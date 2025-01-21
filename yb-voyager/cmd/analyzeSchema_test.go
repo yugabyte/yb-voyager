@@ -172,6 +172,16 @@ $$ LANGUAGE plpgsql;
 
 CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;
 
+CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE 
+BEGIN ATOMIC; SELECT $1 + $2; END;
+
+CREATE FUNCTION public.case_sensitive_test(n integer) RETURNS SETOF text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    begin atomic
+ SELECT repeat('*'::text, g.g) AS repeat
+    FROM generate_series(1, asterisks.n) g(g);
+end; 
+
 CREATE FUNCTION public.asterisks1(n integer) RETURNS text
     LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
     RETURN repeat('*'::text, n);`
@@ -208,6 +218,21 @@ $$ LANGUAGE plpgsql;`,
 			formattedStmt: `CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;`,
 		},
 		sqlInfo{
+			objName:       "add",
+			stmt:          "CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END; ",
+			formattedStmt: "CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE\nBEGIN ATOMIC; SELECT $1 + $2; END;",
+		},
+		sqlInfo{
+			objName:       "public.case_sensitive_test",
+			stmt:          "CREATE FUNCTION public.case_sensitive_test(n integer) RETURNS SETOF text     LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE     begin atomic  SELECT repeat('*'::text, g.g) AS repeat     FROM generate_series(1, asterisks.n) g(g); end; ",
+			formattedStmt: `CREATE FUNCTION public.case_sensitive_test(n integer) RETURNS SETOF text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    begin atomic
+ SELECT repeat('*'::text, g.g) AS repeat
+    FROM generate_series(1, asterisks.n) g(g);
+end;`,
+		},
+		sqlInfo{
 			objName:       "public.asterisks1",
 			stmt:          "CREATE FUNCTION public.asterisks1(n integer) RETURNS text     LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE     RETURN repeat('*'::text, n); ",
 			formattedStmt: `CREATE FUNCTION public.asterisks1(n integer) RETURNS text
@@ -230,6 +255,7 @@ $$ LANGUAGE plpgsql;`,
 		t.Errorf("Expected %d SQL statements for %s, got %d", len(expectedSqlInfoArr), objType, len(sqlInfoArr))
 	} 
 
+	fmt.Printf("sqlinfoarr - %v", sqlInfoArr)
 	for i, expectedSqlInfo := range expectedSqlInfoArr {
 		assert.Equal(t, expectedSqlInfo.objName, sqlInfoArr[i].objName)
 		assert.Equal(t, expectedSqlInfo.stmt, sqlInfoArr[i].stmt)
