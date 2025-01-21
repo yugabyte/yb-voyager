@@ -913,7 +913,6 @@ sqlParsingLoop:
 
 		stmt += currLine + " "
 		formattedStmt += currLine + "\n"
-
 		// Assuming that both the dollar quote strings will not be in same line
 		switch dollarQuoteFlag {
 		case CODE_BLOCK_NOT_STARTED:
@@ -929,8 +928,7 @@ sqlParsingLoop:
 		case CODE_BLOCK_STARTED:
 			if strings.Contains(currLine, codeBlockDelimiter) ||
 				strings.Contains(currLine, strings.ToLower(codeBlockDelimiter)) {
-				//TODO: anyways we should be using pg-parser: for the END sql body delimiter checking the UPPER and LOWER both
-				//not using regex as there are some issues while doing that (not debugged that)
+				//TODO: anyways we should be using pg-parser: but for now for the END sql body delimiter checking the UPPER and LOWER both
 				dollarQuoteFlag = 2 //denotes end of code/body part
 				if isEndOfSqlStmt(currLine) {
 					break sqlParsingLoop
@@ -978,6 +976,9 @@ func isEndOfSqlStmt(line string) bool {
 	if cmtStartIdx != -1 {
 		line = line[0:cmtStartIdx] // ignore comment
 		line = strings.TrimRight(line, " ")
+	}
+	if len(line) == 0 {
+		return false
 	}
 	return line[len(line)-1] == ';'
 }
