@@ -1040,3 +1040,43 @@ REFERENCES schema1.abc (id);
 		}
 	}
 }
+
+func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
+	sql1 := `SELECT 5678901234, 0x1527D27F2 as hex;`
+	sql2 := `SELECT 5678901234, 0o52237223762 as octal;`
+	sql3 := `SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`
+	sql4 := `CREATE VIEW zz AS
+    SELECT
+        5678901234 AS DEC,
+        0x1527D27F2 AS hex,
+        0o52237223762 AS oct,
+        0b10101001001111101001001111111`
+	sqls := map[string]QueryIssue{
+		sql1: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql1),
+		sql2: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql2),
+		sql3: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql3),
+		sql4: NewNonDecimalIntegerLiteralIssue("VIEW", "zz", sql4),
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for sql, expectedIssue := range sqls {
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(issues))
+		cmp.Equal(issues[0], expectedIssue)
+	}
+	sqlsWithoutIssues := []string{
+		`SELECT 1234, '0x4D2';`,    //string constant starting with 0x
+		`SELECT $1, $2 as binary;`, // parameterised strings for constant data
+		//DEFAULT and check constraints are not reported because parse tree doesn't the info of non-decimal integer literal usage as it converts it to decimal
+		`CREATE TABLE bitwise_example (
+    id SERIAL PRIMARY KEY,
+    flags INT DEFAULT 0x0F CHECK (flags & 0x01 = 0x01) -- Hexadecimal bitwise check
+);`,
+`CREATE TABLE bin_default(id int, bin_int int DEFAULT 0b1010010101 CHECK (bin_int<>0b1000010101));`,
+	}
+	for _, sql := range sqlsWithoutIssues {
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(issues))
+	}
+}

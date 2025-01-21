@@ -157,3 +157,9 @@ var catalogFunctionsReturningJsonb = mapset.NewThreadUnsafeSet([]string{
 	"jsonb_path_query_array_tz", "jsonb_path_query_first", "jsonb_path_query_first_tz", "jsonb_recv",
 	"jsonb_set", "jsonb_set_lax", "jsonb_strip_nulls", "to_jsonb", "ts_headline",
 }...)
+
+var nonDecimalIntegerLiterals = []string{
+	"0x",
+	"0o",
+	"0b",
+}

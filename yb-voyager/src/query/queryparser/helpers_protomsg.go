@@ -420,6 +420,13 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	return selectStmtNode, nil
 }
 
+func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
+	aConstNode, ok := msg.Interface().(*pg_query.A_Const)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_ACONST_NODE)
+	}
+	return aConstNode, nil
+}
 func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
 	protoMsg, ok := msg.Interface().(proto.Message)
 	if !ok {

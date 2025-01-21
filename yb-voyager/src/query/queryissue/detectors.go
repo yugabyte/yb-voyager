@@ -17,6 +17,7 @@ package queryissue
 
 import (
 	"slices"
+	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
@@ -551,6 +552,63 @@ func (j *JsonPredicateExprDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if j.detected {
 		issues = append(issues, NewJsonPredicateIssue(DML_QUERY_OBJECT_TYPE, "", j.query))
+	}
+	return issues
+}
+
+type NonDecimalIntegerLiteralDetector struct {
+	query    string
+	detected bool
+}
+
+func NewNonDecimalIntegerLiteralDetector(query string) *NonDecimalIntegerLiteralDetector {
+	return &NonDecimalIntegerLiteralDetector{
+		query: query,
+	}
+}
+func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_ACONST_NODE {
+		return nil
+	}
+	aConstNode, err := queryparser.ProtoAsAConstNode(msg)
+	if err != nil {
+		return err
+	}
+	/*
+		Caveats can't report this issue for cases like -
+		1. DML having the constant change to parameters in PGSS - SELECT $1, $2 as binary;
+		2. DDL having the CHECK or DEFAULT -
+			- pg_dump will not dump non-decimal literal, it will give out the decimal constant only
+			- even if in some user added DDL in schema file during analyze-schema it can't be detected as parse tree doesn't info
+			e.g. -
+			CREATE TABLE bitwise_example (
+				id SERIAL PRIMARY KEY,
+				flags INT DEFAULT 0x0F CHECK (flags & 0x01 = 0x01) -- Hexadecimal bitwise check
+			);
+			parseTree - create_stmt:{relation:{relname:"bitwise_example" inh:true relpersistence:"p" location:15} ...
+			table_elts:{column_def:{colname:"flags" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1
+			location:70} is_local:true constraints:{constraint:{contype:CONSTR_DEFAULT raw_expr:{a_const:{ival:{ival:15} location:82}} 
+			location:74}} constraints:{constraint:{contype:CONSTR_CHECK initially_valid:true raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} 
+			lexpr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"&"}} lexpr:{column_ref:{fields:{string:{sval:"flags"}} location:94}} rexpr:{a_const:{ival:{ival:1} 
+			location:102}} location:100}} rexpr:{a_const:{ival:{ival:1} location:109}} location:107}} ..
+
+	*/
+	switch {
+	case aConstNode.GetFval() != nil:
+		fval := aConstNode.GetFval().Fval
+		for _, literal := range nonDecimalIntegerLiterals {
+			if strings.HasPrefix(fval, literal) {
+				n.detected = true
+			}
+		}
+	}
+	return nil
+}
+
+func (n *NonDecimalIntegerLiteralDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if n.detected {
+		issues = append(issues, NewNonDecimalIntegerLiteralIssue(DML_QUERY_OBJECT_TYPE, "", n.query))
 	}
 	return issues
 }
