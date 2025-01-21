@@ -155,96 +155,6 @@ def prepare_import_data_command(config):
 
     return args
 
-
-# def run_and_resume_voyager(command, resumption):
-#     """
-#     Runs the yb-voyager command with support for resumption testing.
-#     """
-#     for attempt in range(1, max_restarts + 1):
-#         print(f"\n--- Attempt {attempt} of {max_restarts} ---")
-#         try:
-#             process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-#             print("Running command:", ' '.join(command), flush=True)
-
-#             start_time = time.time()
-#             full_output = ''
-
-#             while True:
-#                 rlist, _, _ = select.select([process.stdout, process.stderr], [], [], 5)
-#                 for ready in rlist:
-#                     output = ready.readline()
-#                     if not output:  # Exit if output is empty (end of process output)
-#                         break
-#                     full_output += output
-#                 if time.time() - start_time > 5:
-#                     break
-
-#             if full_output:
-#                 print(full_output.strip(), flush=True)
-
-#             while True:
-#                 if process.poll() is not None:
-#                     break  # Process has ended, exit loop
-
-#                 interrupt_interval_seconds = random.randint(
-#                     min_interrupt_seconds, 
-#                     max_interrupt_seconds
-#                 )
-#                 print(f"\nProcess will be interrupted in {interrupt_interval_seconds // 60}m {interrupt_interval_seconds % 60}s")
-#                 time.sleep(interrupt_interval_seconds)
-#                 print(f"\nInterrupting the import process (PID: {process.pid})")
-#                 process.send_signal(signal.SIGINT)
-
-#                 restart_wait_time_seconds = random.randint(
-#                     min_restart_wait_seconds, 
-#                     max_restart_wait_seconds
-#                 )
-#                 print(f"\nWaiting for {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...")
-#                 time.sleep(restart_wait_time_seconds)
-
-#         except Exception as e:
-#             print(f"Error occurred during import: {e}")
-#             if process:
-#                 process.kill()
-#             raise e
-        
-#         finally:
-#             if process and process.poll() is None:
-#                 print(f"Terminating process (PID: {process.pid})")
-#                 process.kill()
-#                 process.wait(timeout=30)
-
-#     # Final import retry logic
-#     print("\n--- Final attempt to complete the import ---")
-    
-#     try:
-#         print("\nVoyager command output:\n")
-
-#         process = subprocess.Popen(
-#             command,
-#             stdout=subprocess.PIPE,
-#             stderr=subprocess.PIPE,
-#             text=True
-#         )
-
-#         # Capture and print output
-#         for line in iter(process.stdout.readline, ''):
-#             print(line.strip())
-#             sys.stdout.flush()
-
-#         process.wait()
-
-#         if process.returncode != 0:
-#             raise subprocess.CalledProcessError(process.returncode, command)
-
-#     except subprocess.CalledProcessError:
-#         print("\nVoyager command error:")
-#         for line in iter(process.stderr.readline, ''):
-#             print(line.strip())
-#             sys.stdout.flush()
-#         sys.exit(1)
-
-
 # def run_command(command, allow_interruption=True, interrupt_after=None):
 #     """
 #     Runs a command and captures its outputs, with enforced interruption if configured.
@@ -287,7 +197,6 @@ def prepare_import_data_command(config):
 #     completed = process.returncode == 0 and not interrupted
 #     return completed, stdout, stderr
 
-
 def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         process = subprocess.Popen(
@@ -313,17 +222,14 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         stdout_file.seek(0)
         stderr_file.seek(0)
 
-        # Decode bytes to string
-        stdout = stdout_file.read().decode('utf-8').strip()  # Replace 'utf-8' with the appropriate encoding if needed
+        stdout = stdout_file.read().decode('utf-8').strip()
         stderr = stderr_file.read().decode('utf-8').strip()
 
-        # Print "Command Output:" only if stdout contains data
         if stdout:
             print("\nCommand Output:\n")
             for line in stdout.splitlines():
                 print(line)
 
-        # Print "Command Errors:" only if stderr contains data
         if stderr:
             print("\nCommand Errors:\n")
             for line in stderr.splitlines():
@@ -351,12 +257,6 @@ def run_and_resume_voyager(command):
 
         completed, stdout, stderr = run_command(command, allow_interruption=True, interrupt_after=interruption_time)
 
-        # # Output handling
-        # if stdout:
-        #     print(f"\nCommand output:\n{stdout}", flush=True)
-        # if stderr:
-        #     print(f"\nCommand error:\n{stderr}", flush=True)
-
         print("Process was interrupted. Preparing to resume...", flush=True)
         restart_wait_time_seconds = random.randint(min_restart_wait_seconds, max_restart_wait_seconds)
         print(f"Waiting {restart_wait_time_seconds // 60}m {restart_wait_time_seconds % 60}s before resuming...", flush=True)
@@ -366,12 +266,6 @@ def run_and_resume_voyager(command):
     # Final attempt without interruption
     print("\n--- Final attempt to complete the import ---\n", flush=True)
     completed, stdout, stderr = run_command(command, allow_interruption=False)
-
-    # # Final output handling
-    # if stdout:
-    #     print(f"\nFinal command output:\n{stdout}", flush=True)
-    # if stderr:
-    #     print(f"\nFinal command error:\n{stderr}", flush=True)
 
     if not completed:
         print("\nCommand failed on the final attempt.", flush=True)
