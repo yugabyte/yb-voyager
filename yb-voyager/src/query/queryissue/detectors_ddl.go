@@ -142,7 +142,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, NewUnsupportedDatatypesForLMIssue(
+			issues = append(issues, NewUnsupportedDatatypeForLMIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -254,7 +254,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.ColumnName,
 		))
 	default:
-		*issues = append(*issues, NewUnsupportedDatatypesIssue(
+		*issues = append(*issues, NewUnsupportedDatatypeIssue(
 			objType,
 			objName,
 			"",

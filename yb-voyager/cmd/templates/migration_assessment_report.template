@@ -359,14 +359,6 @@
                                         </tr>
                                         {{ end }}
 
-                                        <!-- Only show if ObjectName is present -->
-                                        {{ if $issue.ObjectName }}
-                                        <tr>
-                                            <th>Object Name</th>
-                                            <td>{{ $issue.ObjectName }}</td>
-                                        </tr>
-                                        {{ end }}
-
                                         <!-- Only show if ObjectType is present -->
                                         {{ if $issue.ObjectType }}
                                         <tr>
@@ -375,6 +367,13 @@
                                         </tr>
                                         {{ end }}
 
+                                        <!-- Only show if ObjectName is present -->
+                                        {{ if $issue.ObjectName }}
+                                        <tr>
+                                            <th>Object Name</th>
+                                            <td>{{ $issue.ObjectName }}</td>
+                                        </tr>
+                                        {{ end }}
 
                                         <tr>
                                             <th>SQL Statement</th>
@@ -426,6 +425,7 @@
                                                 {{ end }}
                                             </td>
                                         </tr>
+
                                     </tbody>
                                 </table>
                             </td>
