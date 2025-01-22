@@ -855,30 +855,6 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 	return result
 }
 
-func getTotalProgressAmount(task *ImportFileTask) int64 {
-	if reportProgressInBytes {
-		return task.FileSize
-	} else {
-		return task.RowCount
-	}
-}
-
-func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
-	if reportProgressInBytes {
-		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table: %s: %s", task.TableNameTup, err)
-		}
-		return byteCount
-	} else {
-		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table: %s: %s", task.TableNameTup, err)
-		}
-		return rowCount
-	}
-}
-
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
 	tableNames := []string{}
 	for _, t := range tasks {
@@ -974,31 +950,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns, _ := TableToColumnNames.Get(tableNameTup)
-	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
-	if err != nil {
-		utils.ErrExit("if required quote column names: %s", err)
-	}
-	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
-	fileFormat := dataFileDescriptor.FileFormat
-	if fileFormat == datafile.SQL {
-		fileFormat = datafile.TEXT
-	}
-	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
-	}
-	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
-	return importBatchArgsProto
-}
-
 func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
 
 	origDataFile := task.FilePath
@@ -1049,44 +1000,6 @@ func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProt
 		}
 	})
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
-}
-
-func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
-	err := batch.MarkPending()
-	if err != nil {
-		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
-	}
-	log.Infof("Importing %q", batch.FilePath)
-
-	importBatchArgs := *importBatchArgsProto
-	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
-
-	var rowsAffected int64
-	sleepIntervalSec := 0
-	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
-			break
-		}
-		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
-		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
-		}
-		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, batch.FilePath, attempt)
-		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	}
-	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
-	}
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
@@ -1233,32 +1146,6 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 			},
 		}
 		result = append(result, &tableMetrics)
-	}
-
-	return result
-}
-
-func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
-	status int) cp.UpdateImportedRowCountEvent {
-
-	var schemaName, tableName2 string
-	if strings.Count(tableName, ".") == 1 {
-		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
-	} else {
-		schemaName, tableName2 = tconf.Schema, tableName
-	}
-	result := cp.UpdateImportedRowCountEvent{
-		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
-			BaseEvent: cp.BaseEvent{
-				EventType:     "IMPORT DATA",
-				MigrationUUID: migrationUUID,
-				SchemaNames:   []string{schemaName},
-			},
-			TableName:         tableName2,
-			Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[status],
-			TotalRowCount:     countTotalRows,
-			CompletedRowCount: countLiveRows,
-		},
 	}
 
 	return result
