@@ -100,12 +100,13 @@ type DBObject struct {
 
 // TODO: support MinimumVersionsFixedIn in xml
 type AnalyzeSchemaIssue struct {
-	// TODO: rename IssueType to Category
+	// TODO: deprecate this and rename to Category
 	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`
 	Reason                 string                          `json:"Reason"`
 	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
+	Name                   string                          `json:"-" xml:"-"` // to use for AssessmentIssue
 	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`

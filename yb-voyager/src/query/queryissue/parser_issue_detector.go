@@ -124,7 +124,7 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryI
 		if !fixed {
 			filteredIssues = append(filteredIssues, i)
 		} else {
-			if i.Issue.Type == UNLOGGED_TABLE {
+			if i.Issue.Type == UNLOGGED_TABLES {
 				p.IsUnloggedTablesIssueFiltered = true
 			}
 		}
@@ -397,6 +397,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
 		NewUniqueNullsNotDistinctDetector(query),
 		NewJsonPredicateExprDetector(query),
+		NewCommonTableExpressionDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {

@@ -2,6 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"TargetDBVersion": "IGNORED",
 	"MigrationComplexity": "HIGH",
+	"MigrationComplexityExplanation": "Found 26 Level 2 issue(s) and 29 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -20,9 +21,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 4,
+				"TotalCount": 5,
 				"InvalidCount": 0,
-				"ObjectNames": "citext, pgcrypto, pg_stat_statements, lo"
+				"ObjectNames": "citext, pgcrypto, pg_stat_statements, lo, hstore"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -56,9 +57,9 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 11,
-				"InvalidCount": 4,
-				"ObjectNames": "public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
+				"TotalCount": 15,
+				"InvalidCount": 8,
+				"ObjectNames": "public.asterisks, schema2.asterisks, public.asterisks1, schema2.asterisks1, public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
@@ -503,6 +504,29 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 		    "MinimumVersionsFixedIn": null
         },
+		{
+			"FeatureName": "SQL Body in function",
+			"Objects": [
+				{
+					"ObjectName": "public.asterisks",
+					"SqlStatement": "CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;"
+				},
+				{
+					"ObjectName": "public.asterisks1",
+					"SqlStatement": "CREATE FUNCTION public.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);"
+				},
+				{
+					"ObjectName": "schema2.asterisks",
+					"SqlStatement": "CREATE FUNCTION schema2.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;"
+				},
+				{
+					"ObjectName": "schema2.asterisks1",
+					"SqlStatement": "CREATE FUNCTION schema2.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
 		{
 			"FeatureName": "View with check option",
 			"Objects": [
@@ -1107,7 +1131,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 12,
+			"ColumnCount": 13,
 			"Reads": 0,
 			"Writes": 0,
 			"ReadsPerSecond": 0,
@@ -2779,6 +2803,10 @@
 				{
 					"ObjectName": "schema2.products.item (schema2.item_details)",
 					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.combined_tbl.data (public.hstore)",
+					"SqlStatement": ""
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -2898,7 +2926,7 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"FeatureName": "Referenced type declaration of variables",
+			"FeatureName": "Referencing type declaration of variables",
 			"Objects": [
 				{
 					"ObjectType": "FUNCTION",

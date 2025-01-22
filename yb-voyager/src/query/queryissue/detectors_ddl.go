@@ -142,7 +142,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, NewUnsupportedDatatypesForLMIssue(
+			issues = append(issues, NewUnsupportedDatatypeForLMIssue(
 				obj.GetObjectType(),
 				table.GetObjectName(),
 				"",
@@ -254,7 +254,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.ColumnName,
 		))
 	default:
-		*issues = append(*issues, NewUnsupportedDatatypesIssue(
+		*issues = append(*issues, NewUnsupportedDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -603,6 +603,25 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssu
 	return issues, nil
 }
 
+// ================FUNCTION ISSUE DETECTOR ==================
+
+type FunctionIssueDetector struct{}
+
+func (v *FunctionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
+	function, ok := obj.(*queryparser.Function)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected View")
+	}
+	var issues []QueryIssue
+
+	if function.HasSqlBody {
+		//https://www.postgresql.org/docs/15/sql-createfunction.html#:~:text=a%20new%20session.-,sql_body,-The%20body%20of
+		issues = append(issues, NewSqlBodyInFunctionIssue(function.GetObjectType(), function.GetObjectName(), ""))
+	}
+
+	return issues, nil
+}
+
 // ==============MVIEW ISSUE DETECTOR ======================
 
 type MViewIssueDetector struct{}
@@ -667,6 +686,8 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		return &ViewIssueDetector{}, nil
 	case *queryparser.MView:
 		return &MViewIssueDetector{}, nil
+	case *queryparser.Function:
+		return &FunctionIssueDetector{}, nil
 	case *queryparser.Collation:
 		return &CollationIssueDetector{}, nil
 	default:

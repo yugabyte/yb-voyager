@@ -100,7 +100,7 @@ jobs:
             docker run -d --name yugabytedb-$version \
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:$version \
-            bin/yugabyted start --background=false --ui=false
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
             sleep 20
           
             echo "Test YugabyteDB connection"
