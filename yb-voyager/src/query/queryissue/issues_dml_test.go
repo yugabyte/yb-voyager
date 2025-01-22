@@ -121,7 +121,7 @@ func testCopyOnErrorIssue(t *testing.T) {
 8,Item8,80
 9,Item9,90
 10,Item10,100`
-	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644) 
+	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644)
 	assert.NoError(t, err)
 
 	defer tmpFile.Close()
@@ -129,15 +129,15 @@ func testCopyOnErrorIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 
 	// In case the COPY ... ON_ERROR construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
-	_, err = conn.Exec(ctx, `	CREATE TABLE my_table_copy_error (
-    id INT,
-    name TEXT,
-    value INT
-);
-
-	COPY my_table_copy_where (id, name, value) 
-FROM '/tmp/copy_where_example.csv'
-WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`)
+	_, err = conn.Exec(ctx, fmt.Sprintf(`	CREATE TABLE my_table_copy_error (
+		id INT,
+		name TEXT,
+		value INT
+	);
+	
+		COPY my_table_copy_error (id, name, value) 
+	FROM '%s'
+	WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`, tmpFile.Name()))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
 }
 
@@ -161,13 +161,13 @@ func testCopyFromWhereIssue(t *testing.T) {
 8,Item8,80
 9,Item9,90
 10,Item10,100`
-	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644) 
+	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644)
 	assert.NoError(t, err)
 
 	defer tmpFile.Close()
 
 	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `
+	_, err = conn.Exec(ctx, fmt.Sprintf(`
 	CREATE TABLE my_table_copy_where (
     id INT,
     name TEXT,
@@ -175,9 +175,9 @@ func testCopyFromWhereIssue(t *testing.T) {
 );
 
 	COPY my_table_copy_where (id, name, value) 
-FROM '/tmp/copy_where_example.csv'
+FROM '%s'
 WITH (FORMAT csv, HEADER true)
-Where id <=5;`)
+Where id <=5;`, tmpFile.Name()))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
 }
 
@@ -286,32 +286,13 @@ RETURNING merge_action(), w.*;
 		   issues_ddl_test.go:70:
 
 		*/
-		fmt.Printf("SQL - %s", sql)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
 	}
 
 }
 
-func testAggFunctions(t *testing.T) {
+func testRangeAggFunctionsIssue(t *testing.T) {
 	sqls := []string{
-		`CREATE TABLE any_value_ex (
-    department TEXT,
-    employee_name TEXT,
-    salary NUMERIC
-);
-
-INSERT INTO any_value_ex VALUES
-('HR', 'Alice', 50000),
-('HR', 'Bob', 55000),
-('IT', 'Charlie', 60000),
-('IT', 'Diana', 62000);
-
-SELECT
-    department,
-    any_value(employee_name) AS any_employee
-FROM any_value_ex
-GROUP BY department;`,
-
 		`CREATE TABLE events (
     id SERIAL PRIMARY KEY,
     event_range daterange
@@ -336,8 +317,37 @@ FROM events;`,
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, rangeAggregateFunctionIssue)
 	}
+}
+
+func testAnyValueAggFunctions(t *testing.T) {
+	sql := `CREATE TABLE any_value_ex (
+    department TEXT,
+    employee_name TEXT,
+    salary NUMERIC
+);
+
+INSERT INTO any_value_ex VALUES
+('HR', 'Alice', 50000),
+('HR', 'Bob', 55000),
+('IT', 'Charlie', 60000),
+('IT', 'Diana', 62000);
+
+SELECT
+    department,
+    any_value(employee_name) AS any_employee
+FROM any_value_ex
+GROUP BY department;`
+
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, sql)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, anyValueAggregateFunction)
+
 }
 
 func TestDMLIssuesInYBVersion(t *testing.T) {
@@ -390,7 +400,10 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonbSubscriptingIssue)
 	assert.True(t, success)
-	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAggFunctions)
+	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAnyValueAggFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testRangeAggFunctionsIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)

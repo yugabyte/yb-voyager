@@ -297,7 +297,7 @@ func testDeterministicCollationIssue(t *testing.T) {
 	_, err = conn.Exec(ctx, `
 	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, securityInvokerViewIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, deterministicOptionCollationIssue)
 }
 
 func testForeignKeyReferencesPartitionedTableIssue(t *testing.T) {
