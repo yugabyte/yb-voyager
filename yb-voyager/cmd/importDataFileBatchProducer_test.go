@@ -331,3 +331,57 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.Equal(t, int64(2), batch2.RecordCount)
 	assert.True(t, batchproducer.Done())
 }
+
+func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
+	// max batch size in rows is 2
+	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	assert.NoError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "foo"
+4, "bar"`
+	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+	assert.False(t, batchproducer.Done())
+
+	// generate all batches
+	batches := []*Batch{}
+	for !batchproducer.Done() {
+		batch, err := batchproducer.NextBatch()
+		assert.NoError(t, err)
+		assert.NotNil(t, batch)
+		batches = append(batches, batch)
+	}
+
+	// simulate a crash and recover
+	batchproducer, err = NewFileBatchProducer(task, state)
+	assert.NoError(t, err)
+	assert.False(t, batchproducer.Done())
+
+	// state should have recovered two batches
+	assert.Equal(t, 2, len(batchproducer.pendingBatches))
+
+	// verify that it picks up from pendingBatches
+	// instead of procing a new batch.
+	recoveredBatches := []*Batch{}
+	for !batchproducer.Done() {
+		batch, err := batchproducer.NextBatch()
+		assert.NoError(t, err)
+		assert.NotNil(t, batch)
+		recoveredBatches = append(recoveredBatches, batch)
+	}
+	assert.Equal(t, len(batches), len(recoveredBatches))
+	assert.ElementsMatch(t, batches, recoveredBatches)
+}
