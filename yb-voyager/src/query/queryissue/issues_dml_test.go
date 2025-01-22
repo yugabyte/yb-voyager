@@ -86,14 +86,6 @@ func testFetchWithTiesIssue(t *testing.T) {
 		FETCH FIRST 2 ROWS WITH TIES;`,
 	}
 
-	/*
-			r/yb-voyager/src/query/queryissue/issues_dml_test.go:90
-		        	Error:      	Error "ERROR: column \"salary\" does not exist (SQLSTATE 42703)" does not contain "syntax error at or near \"WITH\""
-		        	Test:       	TestDMLIssuesInYBVersion/fetch_with_ties-2.25.0.0-b489
-		=== NAME  TestDMLIssuesInYBVersion
-
-	*/
-
 	for _, stmt := range stmts {
 		_, err = conn.Exec(ctx, stmt)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "WITH"`, regexFunctionsIssue)
@@ -280,8 +272,8 @@ RETURNING merge_action(), w.*;
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
-		switch testYbVersion {
-		case ybversion.V2_25_0_0:
+		switch {
+		case testYbVersion.Equal(ybversion.V2_25_0_0):
 			errMsg = "This statement not supported yet"
 		default:
 			errMsg = `syntax error at or near "MERGE"`

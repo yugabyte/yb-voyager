@@ -143,8 +143,8 @@ func testSetAttributeIssue(t *testing.T) {
 	ALTER TABLE ONLY public.event_search ALTER COLUMN room_id SET (n_distinct=-0.01)`)
 
 	var errMsg string
-	switch testYbVersion {
-	case ybversion.V2_25_0_0:
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
 		errMsg = `ALTER action ALTER COLUMN ... SET not supported yet`
 	default:
 		errMsg = "ALTER TABLE ALTER column not supported yet"
@@ -170,13 +170,12 @@ func testClusterOnIssue(t *testing.T) {
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
 
 	var errMsg string
-	switch testYbVersion.String() {
-	case ybversion.V2_25_0_0.String():
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
 		errMsg = "ALTER action CLUSTER ON not supported yet"
 	default:
 		errMsg = "ALTER TABLE CLUSTER not supported yet"
 	}
-	fmt.Printf("version -%v, match - %v, errorMSG - %s", testYbVersion, testYbVersion.String() == ybversion.V2_25_0_0.String(), errMsg)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, alterTableClusterOnIssue)
 }
 
@@ -194,8 +193,8 @@ func testDisableRuleIssue(t *testing.T) {
 	ALTER TABLE trule DISABLE RULE trule_rule`)
 
 	var errMsg string
-	switch testYbVersion {
-	case ybversion.V2_25_0_0:
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
 		errMsg = "ALTER action DISABLE RULE not supported yet"
 	default:
 		errMsg = "ALTER TABLE DISABLE RULE not supported yet"
@@ -341,7 +340,6 @@ END;`: `syntax error at or near "BEGIN"`,
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-		fmt.Printf("%s", sql)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, sqlBodyInFunctionIssue)
 	}
 }
