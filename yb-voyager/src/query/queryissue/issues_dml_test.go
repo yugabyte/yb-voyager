@@ -177,7 +177,7 @@ func testCopyFromWhereIssue(t *testing.T) {
 	COPY my_table_copy_where (id, name, value) 
 FROM '%s'
 WITH (FORMAT csv, HEADER true)
-Where id <=5;`, tmpFile.Name()))
+WHERE id <=5;`, tmpFile.Name()))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
 }
 
