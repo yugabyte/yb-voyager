@@ -757,3 +757,78 @@ func SnakeCaseToTitleCase(snake string) string {
 
 	return strings.Join(words, " ")
 }
+
+// MatchesFormatString checks if the final string matches the format string with %s placeholders filled.
+func MatchesFormatString(format, final string) (bool, error) {
+	regexPattern, err := FormatToRegex(format)
+	if err != nil {
+		return false, err
+	}
+
+	re, err := regexp.Compile(regexPattern)
+	if err != nil {
+		return false, fmt.Errorf("failed to compile regex pattern: %v", err)
+	}
+
+	return re.MatchString(final), nil
+}
+
+// FormatToRegex converts a format string with %s placeholders to a regex pattern.
+// It assumes(and support) that the only format specifier is %s.
+func FormatToRegex(format string) (string, error) {
+	// Split the format string at each %s to replace that with regex capture group.
+	parts := strings.Split(format, "%s")
+
+	// Escape each part to make it a literal string.
+	lo.ForEach(parts, func(part string, i int) {
+		parts[i] = regexp.QuoteMeta(part)
+	})
+
+	regexPattern := fmt.Sprintf("^%s$", strings.Join(parts, "(.+?)"))
+	return regexPattern, nil
+}
+
+// ObfuscateFormatDetails obfuscates the captured groups in the final string with the provided obfuscation string.
+// It assumes that the format string matches the final string.
+func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error) {
+	regexPattern, err := FormatToRegex(format)
+	if err != nil {
+		return "", err
+	}
+
+	re, err := regexp.Compile(regexPattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile regex pattern: %v", err)
+	}
+
+	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.
+	matchIndices := re.FindStringSubmatchIndex(final)
+	if matchIndices == nil {
+		return "", fmt.Errorf("no matches found")
+	}
+
+	// matchIndices is a slice where:
+	// matchIndices[0], matchIndices[1] are the start and end of the entire match.
+	// matchIndices[2], matchIndices[3], etc., are the start and end of each capture group.
+	// Collect all capture group indices.
+	var groups [][2]int
+	for i := 2; i < len(matchIndices); i += 2 {
+		start, end := matchIndices[i], matchIndices[i+1]
+		groups = append(groups, [2]int{start, end})
+	}
+
+	// Build the obfuscated string by replacing the captured groups.
+	var sb strings.Builder
+	lastIndex := 0
+	for _, group := range groups {
+		start, end := group[0], group[1]
+		sb.WriteString(final[lastIndex:start]) // Append the text before the group.
+		sb.WriteString(obfuscateWith)          // Append the obfuscation string.
+
+		// Update the lastIndex for next iteration.
+		lastIndex = end
+	}
+
+	sb.WriteString(final[lastIndex:]) // Append the text after the last group.
+	return sb.String(), nil
+}

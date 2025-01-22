@@ -124,7 +124,7 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryI
 		if !fixed {
 			filteredIssues = append(filteredIssues, i)
 		} else {
-			if i.Issue.Type == UNLOGGED_TABLE {
+			if i.Issue.Type == UNLOGGED_TABLES {
 				p.IsUnloggedTablesIssueFiltered = true
 			}
 		}
