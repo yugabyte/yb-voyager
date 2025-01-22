@@ -1014,11 +1014,15 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 
 func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
 	return AssessmentIssue{
-		Category:              analyzeSchemaIssue.IssueType,
-		CategoryDescription:   GetCategoryDescription(analyzeSchemaIssue.IssueType),
-		Type:                  analyzeSchemaIssue.Type,
-		Name:                  analyzeSchemaIssue.Name,
-		Description:           analyzeSchemaIssue.Reason,
+		Category:            analyzeSchemaIssue.IssueType,
+		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
+		Type:                analyzeSchemaIssue.Type,
+		Name:                analyzeSchemaIssue.Name,
+
+		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
+		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
+		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
+
 		Impact:                analyzeSchemaIssue.Impact,
 		ObjectType:            analyzeSchemaIssue.ObjectType,
 		ObjectName:            analyzeSchemaIssue.ObjectName,

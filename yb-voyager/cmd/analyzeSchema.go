@@ -1271,7 +1271,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			issue.ObjectName = constants.OBFUSCATE_STRING // Redacting object name before sending in case reason is not in list
 		}
 		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
-			if strings.HasPrefix(issue.Reason, sensitiveReason) {
+			if sensitiveReason == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Reason, sensitiveReason) {
 				issue.Reason = sensitiveReason
 			} else {
 				// TODO: should we just start sending issue type/name here instead of obfuscating the reason since that is anyways static

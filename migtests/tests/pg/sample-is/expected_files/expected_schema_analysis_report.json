@@ -64,7 +64,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
-            "Reason": "Exclusion constraints are not yet supported in YugabyteDB",
+            "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
             "Suggestion": "Refer docs link for details on possible workaround",

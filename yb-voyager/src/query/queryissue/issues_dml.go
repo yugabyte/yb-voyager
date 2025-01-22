@@ -211,7 +211,6 @@ var fetchWithTiesIssue = issue.Issue{
 	Name:        "FETCH .. WITH TIES",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: FETCH_WITH_TIES_ISSUE_DESCRIPTION,
-	Suggestion:  "No workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
