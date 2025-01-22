@@ -919,6 +919,7 @@ centos_install_mysql_client() {
 	sudo yum remove -y mysql84-community-release-el${version}-1 1>&2 
 	sudo yum install -y mysql84-community-release-el${version}-1.noarch.rpm 1>&2
 	sudo yum install -y mysql-community-devel 1>&2
+	rm -f mysql84-community-release-el${version}-1.noarch.rpm
 }
 
 centos_check_base_repo_enabled() {
