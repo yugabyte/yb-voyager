@@ -25,14 +25,10 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-const (
-	LIMIT_OPTION_WITH_TIES = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
-)
-
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
-	_, isPlPgSQLObject := getCreateFuncStmtNode(parseTree)
-	return isPlPgSQLObject
+	node, ok := getCreateFuncStmtNode(parseTree)
+	return ok && (node.CreateFunctionStmt.SqlBody == nil) //TODO fix proper https://github.com/pganalyze/pg_query_go/issues/129
 }
 
 func IsViewObject(parseTree *pg_query.ParseResult) bool {
