@@ -351,20 +351,18 @@ GROUP BY department;`
 }
 
 func testCTEWithMaterializedIssue(t *testing.T) {
-	sqls := map[string]string{`WITH w AS NOT MATERIALIZED (
+	sqls := map[string]string{`
+	CREATE TABLE big_table(key text, ref text, c1 int, c2 int);
+	WITH w AS NOT MATERIALIZED (
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
 	WHERE w2.key = 123;`: `syntax error at or near "NOT"`,
-		`WITH moved_rows AS MATERIALIZED (
-		DELETE FROM products
-		WHERE
-			"date" >= '2010-10-01' AND
-			"date" < '2010-11-01'
-		RETURNING *
+		`WITH w AS MATERIALIZED (
+		SELECT * FROM big_table
 	)
-	INSERT INTO products_log
-	SELECT * FROM moved_rows;`: `syntax error at or near "MATERIALIZED"`,
+	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+	WHERE w2.key = 123;`: `syntax error at or near "MATERIALIZED"`,
 	}
 	for sql, errMsg := range sqls {
 		ctx := context.Background()

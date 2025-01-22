@@ -255,6 +255,9 @@ var cteWithMaterializedIssue = issue.Issue{
 	Suggestion:  "No workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
+	},
 }
 
 func NewCTEWithMaterializedIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
