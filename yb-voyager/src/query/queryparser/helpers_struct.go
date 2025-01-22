@@ -27,8 +27,8 @@ import (
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
-	node, isPlPgSQLObject := getCreateFuncStmtNode(parseTree)
-	return isPlPgSQLObject && (node.CreateFunctionStmt.SqlBody == nil) //TODO fix proper https://github.com/pganalyze/pg_query_go/issues/129
+	node, ok := getCreateFuncStmtNode(parseTree)
+	return ok && (node.CreateFunctionStmt.SqlBody == nil) //TODO fix proper https://github.com/pganalyze/pg_query_go/issues/129
 }
 
 func IsViewObject(parseTree *pg_query.ParseResult) bool {
