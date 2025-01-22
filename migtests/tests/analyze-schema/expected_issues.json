@@ -106,7 +106,9 @@
             "Suggestion": "No workaround available ",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -128,7 +130,9 @@
             "Suggestion": "This feature is not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -139,7 +143,9 @@
             "Suggestion": "This feature is not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -779,7 +785,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -790,7 +798,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -1636,7 +1646,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "migration_caveats",
@@ -2043,7 +2055,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2054,7 +2068,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2065,7 +2081,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2076,7 +2094,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2087,7 +2107,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2098,7 +2120,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2109,7 +2133,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2120,7 +2146,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2131,7 +2159,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2142,7 +2172,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2153,7 +2185,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2164,7 +2198,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2175,7 +2211,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "migration_caveats",

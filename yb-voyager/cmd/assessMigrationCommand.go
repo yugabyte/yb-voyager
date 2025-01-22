@@ -1244,6 +1244,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			DisplayDDL:  true,
 			DocsLink:    docsLink,
 			Objects:     objects,
+			MinimumVersionsFixedIn: minVersionsFixedIn,
 		}
 		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
 	}

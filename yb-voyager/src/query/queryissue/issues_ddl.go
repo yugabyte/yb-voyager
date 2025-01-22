@@ -552,7 +552,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, // TODO: understand why docs says coming soon non-deterministic collation but the CREATE COLLAITON works on 2.25 
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0, // TODO: understand why docs says coming soon non-deterministic collation but the CREATE COLLAITON works on 2.25
 		//https://docs.yugabyte.com/preview/develop/pg15-features/#:~:text=Consider%20strings%20to%20be%20equal%20even%20if%20they%20consist%20of%20different%20bytes%2C%20for%20example%2C%20case%2Dinsensitive%2C%20or%20accent%2Dinsensitive%20comparisons.
 	},
 }
@@ -570,7 +570,7 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
@@ -590,7 +590,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
@@ -607,7 +607,7 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
