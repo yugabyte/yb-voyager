@@ -65,3 +65,21 @@ WHERE array_column IS JSON ARRAY;
 SELECT 1234, 0x4D2 as hex, 0o2322 as octal, 0b10011010010 as binary;
 
 SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010 \gdesc
+
+WITH w AS NOT MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;
+
+WITH w AS MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;
+
+WITH w AS (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;

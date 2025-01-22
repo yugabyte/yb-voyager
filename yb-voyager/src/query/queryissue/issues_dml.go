@@ -220,6 +220,20 @@ func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement st
 	return newQueryIssue(fetchWithTiesIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+var cteWithMaterializedIssue = issue.Issue{
+	Type:        CTE_WITH_MATERIALIZED_CLAUSE,
+	Name:        CTE_WITH_MATERIALIZED_CLAUSE_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
+	Suggestion:  "No workaround available right now",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewCTEWithMaterializedIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(cteWithMaterializedIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var mergeStatementIssue = issue.Issue{
 	Type:        MERGE_STATEMENT,
 	Name:        "Merge Statement",

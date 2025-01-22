@@ -194,3 +194,17 @@ BEGIN
     RAISE NOTICE 'Row inserted with non-decimal integers.';
 END;
 $$;
+
+CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    BEGIN ATOMIC
+ SELECT repeat('*'::text, g.g) AS repeat
+    FROM generate_series(1, asterisks.n) g(g);
+END; 
+--TODO fix our parser for this case - splitting it into two "CREATE FUNCTION ...FROM generate_series(1, asterisks.n) g(g);" "END;
+
+CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;
+
+CREATE FUNCTION public.asterisks1(n integer) RETURNS text
+    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+    RETURN repeat('*'::text, n);

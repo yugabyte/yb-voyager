@@ -587,9 +587,9 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 			);
 			parseTree - create_stmt:{relation:{relname:"bitwise_example" inh:true relpersistence:"p" location:15} ...
 			table_elts:{column_def:{colname:"flags" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1
-			location:70} is_local:true constraints:{constraint:{contype:CONSTR_DEFAULT raw_expr:{a_const:{ival:{ival:15} location:82}} 
-			location:74}} constraints:{constraint:{contype:CONSTR_CHECK initially_valid:true raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} 
-			lexpr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"&"}} lexpr:{column_ref:{fields:{string:{sval:"flags"}} location:94}} rexpr:{a_const:{ival:{ival:1} 
+			location:70} is_local:true constraints:{constraint:{contype:CONSTR_DEFAULT raw_expr:{a_const:{ival:{ival:15} location:82}}
+			location:74}} constraints:{constraint:{contype:CONSTR_CHECK initially_valid:true raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}}
+			lexpr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"&"}} lexpr:{column_ref:{fields:{string:{sval:"flags"}} location:94}} rexpr:{a_const:{ival:{ival:1}
 			location:102}} location:100}} rexpr:{a_const:{ival:{ival:1} location:109}} location:107}} ..
 
 	*/
@@ -609,6 +609,44 @@ func (n *NonDecimalIntegerLiteralDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if n.detected {
 		issues = append(issues, NewNonDecimalIntegerLiteralIssue(DML_QUERY_OBJECT_TYPE, "", n.query))
+	}
+	return issues
+}
+
+type CommonTableExpressionDetector struct {
+	query                      string
+	materializedClauseDetected bool
+}
+
+func NewCommonTableExpressionDetector(query string) *CommonTableExpressionDetector {
+	return &CommonTableExpressionDetector{
+		query: query,
+	}
+}
+
+func (c *CommonTableExpressionDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CTE_NODE {
+		return nil
+	}
+	/*
+		with_clause:{ctes:{common_table_expr:{ctename:"cte" ctematerialized:CTEMaterializeNever
+		ctequery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:939}} location:939}} from_clause:{range_var:{relname:"a" inh:true relpersistence:"p" location:946}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}} location:906}} location:901} op:SETOP_NONE}} stmt_location:898
+	*/
+	cteNode, err := queryparser.ProtoAsCTENode(msg)
+	if err != nil {
+		return err
+	}
+	if cteNode.Ctematerialized != queryparser.CTE_MATERIALIZED_DEFAULT {
+		//MATERIALIZED / NOT MATERIALIZED clauses in CTE is not supported in YB
+		c.materializedClauseDetected = true
+	}
+	return nil
+}
+
+func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if c.materializedClauseDetected {
+		issues = append(issues, NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", c.query))
 	}
 	return issues
 }

@@ -497,3 +497,16 @@ BEGIN
     RAISE NOTICE 'Row inserted with non-decimal integers.';
 END;
 $$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS SETOF text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+BEGIN ATOMIC
+SELECT repeat('*', g) FROM generate_series (1, n) g;
+END;
+-- BEGIN ATOMIC syntax is not working with regex parser we have for functions TODO: fix 
+
+CREATE OR REPLACE FUNCTION asterisks1(n int)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURN repeat('*', n);

@@ -25,9 +25,9 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 7,
+				"TotalCount": 8,
 				"InvalidCount": 2,
-				"ObjectNames": "analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
+				"ObjectNames": "sales.big_table, analytics.metrics, sales.orders, sales.test_json_chk, sales.events, sales.json_data, sales.customer_account, sales.recent_transactions"
 			},
 			{
 				"ObjectType": "SEQUENCE",
@@ -53,6 +53,7 @@
 	"Sizing": {
 		"SizingRecommendation": {
 			"ColocatedTables": [
+				"sales.big_table",
 				"sales.orders",
 				"analytics.metrics",
 				"sales.customer_account",
@@ -61,7 +62,7 @@
 				"sales.json_data",
 				"sales.test_json_chk"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 7 objects (7 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 8 objects (8 tables/materialized views and 0 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": null,
 			"NumNodes": 3,
 			"VCPUsPerInstance": 4,
@@ -140,6 +141,20 @@
 			"ObjectType": "",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "sales",
+			"ObjectName": "big_table",
+			"RowCount": 0,
+			"ColumnCount": 4,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "",
+			"ParentTableName": null,
+			"SizeInBytes": 0
 		},
 		{
 			"SchemaName": "sales",
@@ -288,6 +303,18 @@
 			"ConstructTypeName": "Json Type Predicate",
 			"Query": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "CTE with MATERIALIZE clause",
+			"Query": "WITH w AS NOT MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"ConstructTypeName": "CTE with MATERIALIZE clause",
+			"Query": "WITH w AS MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		}
 	],
