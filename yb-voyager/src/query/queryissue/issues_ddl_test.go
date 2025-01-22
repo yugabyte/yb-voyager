@@ -360,6 +360,39 @@ func testUniqueNullsNotDistinctIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", uniqueNullsNotDistinctIssue)
 }
 
+func testBeforeRowTriggerOnPartitionedTable(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);
+
+CREATE OR REPLACE FUNCTION public.check_sales_region()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.amount < 0 THEN
+        RAISE EXCEPTION 'Amount cannot be negative';
+    END IF;
+
+    IF NEW.branch IS NULL OR NEW.branch = '' THEN
+        RAISE EXCEPTION 'Branch name cannot be null or empty';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_sales_region_insert_update
+BEFORE INSERT OR UPDATE ON public.sales_region
+FOR EACH ROW
+EXECUTE FUNCTION public.check_sales_region();`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `"sales_region" is a partitioned table`, beforeRowTriggerOnPartitionTableIssue)
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -429,5 +462,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "unique nulls not distinct", ybVersion), testUniqueNullsNotDistinctIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "before row triggers on partitioned table", ybVersion), testBeforeRowTriggerOnPartitionedTable)
 	assert.True(t, success)
 }

@@ -732,7 +732,9 @@
             "Suggestion": "Create the triggers on individual partitions.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",

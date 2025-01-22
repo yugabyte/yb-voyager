@@ -251,6 +251,10 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24830",
 	Suggestion:  "Create the triggers on individual partitions.",
+
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
