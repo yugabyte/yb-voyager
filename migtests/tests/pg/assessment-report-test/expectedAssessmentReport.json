@@ -56,9 +56,9 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 11,
-				"InvalidCount": 4,
-				"ObjectNames": "public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
+				"TotalCount": 15,
+				"InvalidCount": 8,
+				"ObjectNames": "public.asterisks, schema2.asterisks, public.asterisks1, schema2.asterisks1, public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
@@ -502,6 +502,29 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 		    "MinimumVersionsFixedIn": null
         },
+		{
+			"FeatureName": "SQL Body in function",
+			"Objects": [
+				{
+					"ObjectName": "public.asterisks",
+					"SqlStatement": "CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;"
+				},
+				{
+					"ObjectName": "public.asterisks1",
+					"SqlStatement": "CREATE FUNCTION public.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);"
+				},
+				{
+					"ObjectName": "schema2.asterisks",
+					"SqlStatement": "CREATE FUNCTION schema2.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;"
+				},
+				{
+					"ObjectName": "schema2.asterisks1",
+					"SqlStatement": "CREATE FUNCTION schema2.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
 		{
 			"FeatureName": "View with check option",
 			"Objects": [

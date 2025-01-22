@@ -21,16 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
-)
-
-const (
-	DOCS_LINK_PREFIX        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
-	POSTGRESQL_PREFIX       = "postgresql/"
-	ADVISORY_LOCKS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#advisory-locks-is-not-yet-implemented"
-	SYSTEM_COLUMNS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#system-columns-is-not-yet-supported"
-	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions-is-not-yet-supported"
 )
 
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
@@ -409,39 +400,37 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 }
 
 func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
-	protoMsg, ok := msg.Interface().(proto.Message)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to proto.Message")
-	}
-	selectStmtNode, ok := protoMsg.(*pg_query.SelectStmt)
+	selectStmtNode, ok := msg.Interface().(*pg_query.SelectStmt)
 	if !ok {
 		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
 	}
 	return selectStmtNode, nil
 }
 
-func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
-	protoMsg, ok := msg.Interface().(proto.Message)
+func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
+	cteNode, ok := msg.Interface().(*pg_query.CommonTableExpr)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to proto.Message")
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CTE_NODE)
 	}
-	indexStmtNode, ok := protoMsg.(*pg_query.IndexStmt)
+	return cteNode, nil
+}
+
+func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
 	if !ok {
 		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
 	}
+
 	return indexStmtNode, nil
 }
 
 func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
-	proto, ok := msg.Interface().(proto.Message)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to proto.Message")
-	}
-	constraintNode, ok := proto.(*pg_query.Constraint)
+	consNode, ok := msg.Interface().(*pg_query.Constraint)
 	if !ok {
 		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
 	}
-	return constraintNode, nil
+
+	return consNode, nil
 }
 
 /*

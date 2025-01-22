@@ -1040,3 +1040,123 @@ REFERENCES schema1.abc (id);
 		}
 	}
 }
+
+func TestCTEIssues(t *testing.T) {
+	sqls := []string{
+		`WITH w AS (
+    SELECT key, very_expensive_function(val) as f FROM some_table
+)
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.f = w2.f;`,
+		`WITH w AS NOT MATERIALIZED (
+    SELECT * FROM big_table
+)
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = 123;`,
+		`WITH moved_rows AS MATERIALIZED (
+    DELETE FROM products
+    WHERE
+        "date" >= '2010-10-01' AND
+        "date" < '2010-11-01'
+    RETURNING *
+)
+INSERT INTO products_log
+SELECT * FROM moved_rows;`,
+`CREATE VIEW view1 AS
+WITH data_cte AS NOT MATERIALIZED (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
+`CREATE VIEW view2 AS
+WITH data_cte AS MATERIALIZED (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
+`CREATE VIEW view3 AS
+WITH data_cte AS (
+    SELECT 
+        generate_series(1, 5) AS id,
+        'Name ' || generate_series(1, 5) AS name
+)
+SELECT * FROM data_cte;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{},
+		sqls[1]: []QueryIssue{
+			NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
+		},
+		sqls[2]: []QueryIssue{
+			NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
+		},
+		sqls[3]: []QueryIssue{
+			NewCTEWithMaterializedIssue("VIEW", "view1", sqls[3]),
+		},
+		sqls[4]: []QueryIssue{
+			NewCTEWithMaterializedIssue("VIEW", "view2", sqls[4]),
+		},
+		sqls[5]: []QueryIssue{},
+	}
+
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+
+}
+
+func TestSQLBodyIssues(t *testing.T) {
+	sqls := []string{
+		`CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURN repeat('*', n);`,
+		`CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS SETOF text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+BEGIN ATOMIC
+SELECT repeat('*', g) FROM generate_series (1, n) g;
+END;`,
+		`CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS SETOF text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS
+$func$
+SELECT repeat('*', g) FROM generate_series (1, n) g;
+$func$;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewSqlBodyInFunctionIssue("FUNCTION", "asterisks", sqls[0]),
+		},
+		sqls[1]: []QueryIssue{
+			NewSqlBodyInFunctionIssue("FUNCTION", "asterisks", sqls[1]),
+		},
+		sqls[2]: []QueryIssue{},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}

@@ -563,6 +563,20 @@ func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName 
 	return newQueryIssue(foreignKeyReferencesPartitionedTableIssue, objectType, objectName, SqlStatement, details)
 }
 
+var sqlBodyInFunctionIssue = issue.Issue{
+	Type:        SQL_BODY_IN_FUNCTION,
+	Name:        SQL_BODY_IN_FUNCTION_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "SQL Body for sql languages in function statement is not supported in YugabyteDB",
+	Suggestion:  "No workaround available",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(sqlBodyInFunctionIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
 var uniqueNullsNotDistinctIssue = issue.Issue{
 	Type:        UNIQUE_NULLS_NOT_DISTINCT,
 	Name:        UNIQUE_NULLS_NOT_DISTINCT_NAME,
