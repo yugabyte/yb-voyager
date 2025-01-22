@@ -909,8 +909,8 @@ create_guardrail_scripts_dir() {
 
 centos_install_mysql_client() {
 	version=$1
-	# If version is greater than or equal to 8 then dont install from community repo
-	if [ "$version" -ge 8 ]; then
+	# If version is equal to 8 then dont install from community repo
+	if [ "$version" -eq 8 ]; then
 		$YUM_INSTALL mysql-devel 1>&2
 		return
 	fi
