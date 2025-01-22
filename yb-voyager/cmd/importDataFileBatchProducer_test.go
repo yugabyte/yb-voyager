@@ -30,6 +30,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 type dummyTDB struct {
@@ -41,24 +42,7 @@ func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
 	return d.maxSizeBytes
 }
 
-func createTempFile(dir string, fileContents string) (string, error) {
-	// Create a temporary file
-	file, err := os.CreateTemp(dir, "temp-*.txt")
-	if err != nil {
-		return "", err
-	}
-	defer file.Close()
-
-	// Write some text to the file
-	_, err = file.WriteString(fileContents)
-	if err != nil {
-		return "", err
-	}
-
-	return file.Name(), nil
-}
-
-func setupDependenciesForTest(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, error) {
+func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, error) {
 	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
 		return "", "", nil, err
@@ -80,7 +64,7 @@ func setupDependenciesForTest(batchSizeRows int64, batchSizeBytes int64) (string
 	return ldataDir, lexportDir, state, nil
 }
 
-func setupFileForTest(lexportDir string, fileContents string, dir string, tableName string) (string, *ImportFileTask, error) {
+func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string) (string, *ImportFileTask, error) {
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "csv",
 		Delimiter:  ",",
@@ -90,7 +74,7 @@ func setupFileForTest(lexportDir string, fileContents string, dir string, tableN
 		EscapeChar: '\\',
 		NullString: "NULL",
 	}
-	tempFile, err := createTempFile(dir, fileContents)
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents)
 	if err != nil {
 		return "", nil, err
 	}
@@ -107,7 +91,7 @@ func setupFileForTest(lexportDir string, fileContents string, dir string, tableN
 }
 
 func TestBasicFileBatchProducer(t *testing.T) {
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -119,7 +103,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 
 	fileContents := `id,val
 1, "hello"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -136,7 +120,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 
 func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -151,7 +135,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -169,22 +153,24 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 
 	// 2 batches should be produced
 	assert.Equal(t, 2, len(batches))
-	// each of length 2
+
+	batch1ExpectedContents := "id,val\n1, \"hello\"\n2, \"world\""
 	assert.Equal(t, int64(2), batches[0].RecordCount)
 	batchContents, err := os.ReadFile(batches[0].GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "id,val\n1, \"hello\"\n2, \"world\"", string(batchContents))
+	assert.Equal(t, batch1ExpectedContents, string(batchContents))
 
+	batch2ExpectedContents := "id,val\n3, \"foo\"\n4, \"bar\""
 	assert.Equal(t, int64(2), batches[1].RecordCount)
 	batchContents, err = os.ReadFile(batches[1].GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "id,val\n3, \"foo\"\n4, \"bar\"", string(batchContents))
+	assert.Equal(t, batch2ExpectedContents, string(batchContents))
 }
 
 func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	// max batch size in size is 25 bytes
 	maxBatchSizeBytes := int64(25)
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -200,7 +186,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 2, "ghijk"
 3, "mnopq"
 4, "stuvw"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -219,29 +205,32 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	// 3 batches should be produced
 	// while calculating for the first batch, the header is also considered
 	assert.Equal(t, 3, len(batches))
-	// each of length 2
+
+	batch1ExpectedContents := "id,val\n1, \"abcde\""
 	assert.Equal(t, int64(1), batches[0].RecordCount)
 	assert.LessOrEqual(t, batches[0].ByteCount, maxBatchSizeBytes)
 	batchContents, err := os.ReadFile(batches[0].GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "id,val\n1, \"abcde\"", string(batchContents))
+	assert.Equal(t, batch1ExpectedContents, string(batchContents))
 
+	batch2ExpectedContents := "id,val\n2, \"ghijk\"\n3, \"mnopq\""
 	assert.Equal(t, int64(2), batches[1].RecordCount)
 	assert.LessOrEqual(t, batches[1].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[1].GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "id,val\n2, \"ghijk\"\n3, \"mnopq\"", string(batchContents))
+	assert.Equal(t, batch2ExpectedContents, string(batchContents))
 
+	batch3ExpectedContents := "id,val\n4, \"stuvw\""
 	assert.Equal(t, int64(1), batches[2].RecordCount)
 	assert.LessOrEqual(t, batches[2].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[2].GetFilePath())
 	assert.NoError(t, err)
-	assert.Equal(t, "id,val\n4, \"stuvw\"", string(batchContents))
+	assert.Equal(t, batch3ExpectedContents, string(batchContents))
 }
 
 func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *testing.T) {
 	// max batch size in size is 25 bytes
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(1000, 25)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1000, 25)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -257,7 +246,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 2, "ghijk"
 3, "mnopq1234567899876543"
 4, "stuvw"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -278,7 +267,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 
 func TestFileBatchProducerResumable(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -293,7 +282,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -334,7 +323,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 
 func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupDependenciesForTest(2, 1024)
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -349,7 +338,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := setupFileForTest(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
