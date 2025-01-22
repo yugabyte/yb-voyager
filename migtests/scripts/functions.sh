@@ -150,8 +150,6 @@ EOF
 	run_sqlplus_as_sys ${pdb_name} "create-pdb-tablespace.sql"
 	cp ${SCRIPTS}/oracle/live-grants.sql oracle-inputs.sql
 	run_sqlplus_as_sys ${cdb_name} "oracle-inputs.sql"
-	rm create-pdb-tablespace.sql
-	rm oracle-inputs.sql
 }
 
 grant_permissions_for_live_migration_pg() {
@@ -392,8 +390,8 @@ import_data() {
 		--target-db-name ${TARGET_DB_NAME}
 		--disable-pb true
 		--send-diagnostics=false 
-		--truncate-splits true
 		--max-retries 1
+		--yes
 		"
 
 		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
@@ -893,7 +891,7 @@ normalize_json() {
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
             .RowCount? = "IGNORED" |
-			.MigrationComplexityExplanation?= "IGNORED" |
+			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
             # Replace newline characters in SqlStatement with spaces
 			.SqlStatement? |= (
 				if type == "string" then

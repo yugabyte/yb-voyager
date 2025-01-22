@@ -17,9 +17,9 @@ package constants
 
 const (
 	// Database Object types
-	TABLE    = "table"
-	FUNCTION = "function"
-	COLUMN   = "column"
+	TABLE    = "TABLE"
+	FUNCTION = "FUNCTION"
+	COLUMN   = "COLUMN"
 
 	// Source DB Types
 	YUGABYTEDB = "yugabytedb"
@@ -44,4 +44,8 @@ const (
 	MIGRATION_COMPLEXITY_LOW    = "LOW"
 	MIGRATION_COMPLEXITY_MEDIUM = "MEDIUM"
 	MIGRATION_COMPLEXITY_HIGH   = "HIGH"
+)
+
+const (
+	OBFUSCATE_STRING = "XXXXX"
 )

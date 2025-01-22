@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "LOW",
+	"MigrationComplexityExplanation": "Found 3 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_is",
@@ -266,6 +267,10 @@
 			"Objects": [
 				{
 					"ObjectName": "public.reports.report_tsv (tsvector)",
+					"SqlStatement": ""
+				},
+				{
+					"ObjectName": "public.reports.attrs (public.hstore)",
 					"SqlStatement": ""
 				}
 			],

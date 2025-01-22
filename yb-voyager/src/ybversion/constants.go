@@ -23,6 +23,7 @@ const (
 	SERIES_2024_2 = "2024.2"
 	SERIES_2_21   = "2.21"
 	SERIES_2_23   = "2.23"
+	SERIES_2_25   = "2.25"
 )
 
 var LatestStable *YBVersion
