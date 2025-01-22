@@ -120,23 +120,31 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-// Assessment feature names to send the object names for to callhome
-var featuresToSendObjectsToCallhome = []string{}
+var descriptionsIncludingSensitiveInformationToCallhome = reasonsIncludingSensitiveInformationToCallhome
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
 
+	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
+	payload.Status = status
+	if assessmentMetadataDirFlag == "" {
+		sourceDBDetails := callhome.SourceDBDetails{
+			DBType:    source.DBType,
+			DBVersion: source.DBVersion,
+			DBSize:    source.DBSize,
+		}
+		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	}
 
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
 				//redacting schema and object name
-				ObjectName:      "XXX",
+				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
@@ -156,87 +164,69 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}),
 	}
 
-	unsupportedDatatypesList := lo.Map(assessmentReport.UnsupportedDataTypes, func(datatype utils.TableColumnsDataTypes, _ int) string {
-		return datatype.DataType
-	})
+	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
+	if err != nil {
+		log.Errorf("failed to build migration complexity explanation: %v", err)
+	}
 
-	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
-		return q.ConstructTypeName
-	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
-		return len(constructs)
-	})
-
-	var unsupportedFeatures []callhome.UnsupportedFeature
-	for _, feature := range assessmentReport.UnsupportedFeatures {
-		if feature.FeatureName == EXTENSION_FEATURE {
-			// For extensions, we need to send the extension name in the feature name
-			// for better categorization in callhome
-			for _, object := range feature.Objects {
-				unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
-					FeatureName:      fmt.Sprintf("%s - %s", feature.FeatureName, object.ObjectName),
-					ObjectCount:      1,
-					TotalOccurrences: 1,
-				})
-			}
-		} else {
-			var objects []string
-			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
-				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
-					return o.ObjectName
-				})
-			}
-			unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				Objects:          objects,
-				TotalOccurrences: len(feature.Objects),
-			})
+	var obfuscatedIssues []callhome.AssessmentIssueCallhome
+	for _, issue := range assessmentReport.Issues {
+		obfuscatedIssue := callhome.AssessmentIssueCallhome{
+			Category:              issue.Category,
+			CategoryDescription:   issue.CategoryDescription,
+			Type:                  issue.Type,
+			Name:                  issue.Name,
+			Description:           issue.Description,
+			Impact:                issue.Impact,
+			ObjectType:            issue.ObjectType,
+			ObjectName:            constants.OBFUSCATE_STRING,
+			SqlStatement:          constants.OBFUSCATE_STRING, // TODO(future): we can obfuscate sensitive info in SQL statement
+			DocsLink:              issue.DocsLink,
+			MinimumVersionFixedIn: issue.MinimumVersionFixedIn,
 		}
+
+		// allowing object name for unsupported extension issue type
+		if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
+			// object name(i.e. extension name here) might be qualified with schema so just taking the last part
+			obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
+		}
+
+		for _, sensitiveDescription := range descriptionsIncludingSensitiveInformationToCallhome {
+			if sensitiveDescription == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Description, sensitiveDescription) {
+				issue.Description = sensitiveDescription
+			} else {
+				// TODO: should we just start sending issue type/name here instead of obfuscating the reason since that is anyways static
+				match, err := utils.MatchesFormatString(sensitiveDescription, issue.Description)
+				if match {
+					issue.Description, err = utils.ObfuscateFormatDetails(sensitiveDescription, issue.Description, constants.OBFUSCATE_STRING)
+				}
+				if err != nil {
+					log.Errorf("error while matching issue description with sensitive descriptions: %v", err)
+					issue.Description = constants.OBFUSCATE_STRING
+				}
+			}
+		}
+
+		// appending the issue after obfuscating sensitive information
+		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		TargetDBVersion:            assessmentReport.TargetDBVersion,
-		MigrationComplexity:        assessmentReport.MigrationComplexity,
-		UnsupportedFeatures:        callhome.MarshalledJsonString(unsupportedFeatures),
-		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
-		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
-		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			return callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				TotalOccurrences: len(feature.Objects),
-			}
-		})),
-		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			groupedObjects := groupByObjectName(plpgsql.Objects)
-			return callhome.UnsupportedFeature{
-				FeatureName:      plpgsql.FeatureName,
-				ObjectCount:      len(lo.Keys(groupedObjects)),
-				TotalOccurrences: len(plpgsql.Objects),
-			}
-		})),
-		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
-		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
-		IopsInterval:     intervalForCapturingIOPS,
-		Error:            callhome.SanitizeErrorMsg(errMsg),
+		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
+		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		MigrationComplexity:            assessmentReport.MigrationComplexity,
+		MigrationComplexityExplanation: explanation,
+		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
+		Issues:                         callhome.MarshalledJsonString(obfuscatedIssues),
+		Error:                          callhome.SanitizeErrorMsg(errMsg),
+		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
+		SourceConnectivity:             assessmentMetadataDirFlag == "",
+		IopsInterval:                   intervalForCapturingIOPS,
 	}
 
-	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
-		}
-		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-		assessPayload.SourceConnectivity = true
-	} else {
-		assessPayload.SourceConnectivity = false
-	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	payload.Status = status
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
@@ -495,7 +485,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
 
 	payload := AssessMigrationPayload{
-		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
+		PayloadVersion:      ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
 		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
