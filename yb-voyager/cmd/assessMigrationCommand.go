@@ -137,6 +137,10 @@ var descriptionsIncludingSensitiveInformationToCallhome = []string{
 	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION,
 	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION,
+
+	// extras because suggestion contains sensitive information
+	queryissue.FOREIGN_TABLE_ISSUE_DESCRIPTION + " " + queryissue.FOREIGN_TABLE_ISSUE_SUGGESTION,
+	queryissue.ALTER_TABLE_DISABLE_RULE_ISSUE_DESCRIPTION + " " + queryissue.ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION,
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
