@@ -155,48 +155,6 @@ def prepare_import_data_command(config):
 
     return args
 
-# def run_command(command, allow_interruption=True, interrupt_after=None):
-#     """
-#     Runs a command and captures its outputs, with enforced interruption if configured.
-
-#     Args:
-#         command (list): The command to run as a list of strings.
-#         allow_interruption (bool): Whether to allow interruption of the command.
-#         interrupt_after (int): Time in seconds after which the command should be interrupted. If None, no interruption.
-
-#     Returns:
-#         tuple: (completed, stdout, stderr)
-#             - completed (bool): True if the command completed without interruption or error.
-#             - stdout (str): Captured standard output.
-#             - stderr (str): Captured standard error.
-#     """
-#     process = subprocess.Popen(
-#         command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True
-#     )
-#     start_time = time.time()
-#     interrupted = False
-
-#     while process.poll() is None:  # Process is still running
-#         if allow_interruption and interrupt_after is not None:
-#             elapsed_time = time.time() - start_time
-#             if elapsed_time > interrupt_after:
-#                 print("Interrupting the process...", flush=True)
-#                 try:
-#                     process.terminate()
-#                     process.wait(timeout=10)  # Give it 10 seconds to terminate gracefully
-#                 except subprocess.TimeoutExpired:
-#                     process.kill()  # Kill if it doesn't terminate
-#                 interrupted = True
-#                 break
-#         time.sleep(1)  # Avoid busy-waiting
-
-#     # Capture outputs after the process is done or interrupted
-#     stdout, stderr = process.communicate()
-
-#     # Determine if the process completed successfully
-#     completed = process.returncode == 0 and not interrupted
-#     return completed, stdout, stderr
-
 def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         process = subprocess.Popen(
@@ -332,6 +290,7 @@ def run_import_with_resumption(config):
         command = prepare_import_data_command(config)
     else:
         raise ValueError(f"Unsupported import_type: {import_type}")
+        sys.exit(1)
 
     run_and_resume_voyager(command)
 
