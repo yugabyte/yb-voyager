@@ -20,7 +20,6 @@ package ybversion
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
