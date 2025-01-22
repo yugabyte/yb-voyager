@@ -170,9 +170,13 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
                     print("Interrupting the process (PID: {})...".format(process.pid), flush=True)
                     try:
                         process.terminate()
+                        print("Terminate signal sent to process (PID: {}). Waiting for process to exit...".format(process.pid), flush=True)
                         process.wait(timeout=10)
+                        print("Process (PID: {}) terminated gracefully.".format(process.pid), flush=True)
                     except subprocess.TimeoutExpired:
+                        print("Process (PID: {}) did not terminate in time. Forcing termination...".format(process.pid), flush=True)
                         process.kill()
+                        print("Process (PID: {}) killed.".format(process.pid), flush=True)
                     interrupted = True
                     break
             time.sleep(1)  # Avoid busy-waiting
