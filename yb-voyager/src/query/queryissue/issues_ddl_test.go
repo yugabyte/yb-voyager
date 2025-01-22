@@ -169,6 +169,7 @@ func testClusterOnIssue(t *testing.T) {
 
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
 
+	fmt.Printf("%s", testYbVersion)
 	var errMsg string
 	switch testYbVersion {
 	case ybversion.V2_25_0_0:
