@@ -1005,11 +1005,6 @@ func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn f
 	importBatchArgsProto := getImportBatchArgsProto(task.TableNameTup, task.FilePath)
 	log.Infof("Start splitting table %q: data-file: %q", task.TableNameTup, origDataFile)
 
-	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
-	if err != nil {
-		utils.ErrExit("preparing for file import: %s", err)
-	}
-
 	fileBatchProducer, err := NewFileBatchProducer(task, state)
 	if err != nil {
 		utils.ErrExit("creating file batch producer: %s", err)

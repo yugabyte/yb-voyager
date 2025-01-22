@@ -51,10 +51,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 	if err != nil {
 		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
-	var completed bool
-	if len(pendingBatches) == 0 && fileFullySplit {
-		completed = true
-	}
+	completed := len(pendingBatches) == 0 && fileFullySplit
 
 	return &FileBatchProducer{
 		task:            task,
@@ -106,6 +103,9 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 	if err != nil {
 		return nil, err
 	}
+	// in the previous batch, a line was read from file but not added to the batch
+	// because adding it would breach size/row based thresholds.
+	// Add that line to the current batch.
 	if p.lineFromPreviousBatch != "" {
 		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
 		if err != nil {
@@ -170,6 +170,9 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 
 			p.completed = true
+			// TODO: resetting bytes read to 0 is technically not correct if we are adding a header
+			// to each batch file. Currently header bytes are only considered in the first batch.
+			// For the rest of the batches, header bytes are ignored, since we are resetting it to 0.
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
