@@ -169,14 +169,14 @@ func testClusterOnIssue(t *testing.T) {
 
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
 
-	fmt.Printf("%s", testYbVersion)
 	var errMsg string
-	switch testYbVersion {
-	case ybversion.V2_25_0_0:
+	switch testYbVersion.String() {
+	case ybversion.V2_25_0_0.String():
 		errMsg = "ALTER action CLUSTER ON not supported yet"
 	default:
 		errMsg = "ALTER TABLE CLUSTER not supported yet"
 	}
+	fmt.Printf("version -%v, match - %v, errorMSG - %s", testYbVersion, testYbVersion.String() == ybversion.V2_25_0_0.String(), errMsg)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, alterTableClusterOnIssue)
 }
 

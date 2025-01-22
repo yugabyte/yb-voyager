@@ -357,8 +357,9 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-	WHERE w2.key = ''123;`: `syntax error at or near "NOT"`,
-		`WITH w AS MATERIALIZED (
+	WHERE w2.key = '123';`: `syntax error at or near "NOT"`,
+		`CREATE TABLE big_table(key text, ref text, c1 int, c2 int);
+		WITH w AS MATERIALIZED (
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
