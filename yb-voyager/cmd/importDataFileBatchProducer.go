@@ -28,15 +28,17 @@ type FileBatchProducer struct {
 	task  *ImportFileTask
 	state *ImportDataState
 
-	pendingBatches  []*Batch
-	lastBatchNumber int64
-	lastOffset      int64
-	fileFullySplit  bool
-	completed       bool
+	pendingBatches  []*Batch //pending batches after recovery
+	lastBatchNumber int64    // batch number of the last batch that was produced
+	lastOffset      int64    // file offset from where the last batch was produced, only used in recovery
+	fileFullySplit  bool     // if the file is fully split into batches
+	completed       bool     // if all batches have been produced
 
-	dataFile              datafile.DataFile
-	header                string
-	numLinesTaken         int64
+	dataFile      datafile.DataFile
+	header        string
+	numLinesTaken int64 // number of lines read from the file
+	// line that was read from file while producing the previous batch
+	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
 }
 
@@ -150,12 +152,10 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				p.dataFile.ResetBytesRead(currentBytesRead)
 				p.lineFromPreviousBatch = line
 
-				// Start a new batch by calling the initBatchWriter function
-				// initBatchWriter()
 				return batch, nil
 			}
 
-			// Write the record to the new or current batch
+			// Write the record to the current batch
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
 				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
