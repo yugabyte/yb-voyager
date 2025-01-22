@@ -67,7 +67,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	if isFixed {
 		assert.NoError(t, execErr)
 	} else {
-		fmt.Printf("ERROR - %v", execErr)
 		assert.ErrorContains(t, execErr, expectedError)
 	}
 }

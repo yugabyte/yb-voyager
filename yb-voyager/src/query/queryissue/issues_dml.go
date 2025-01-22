@@ -91,6 +91,9 @@ var aggregateFunctionIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
@@ -193,6 +196,9 @@ var copyFromWhereIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

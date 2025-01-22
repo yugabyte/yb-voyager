@@ -51,7 +51,7 @@ func testJsonbSubscriptingIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, `SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", loDatatypeIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", jsonbSubscriptingIssue)
 }
 
 func testRegexFunctionsIssue(t *testing.T) {
@@ -105,10 +105,39 @@ func testCopyOnErrorIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
+	tmpFile, err := os.CreateTemp("/tmp", "copy_where_example.csv")
+	assert.NoError(t, err)
+
+	// Write the csv content to the file
+	//4th row has error
+	csvData := `id,name,value
+1,Item1,10
+2,Item2,20
+3,Item3,30
+4|Item4,40
+5,Item5,50
+6,Item6,60
+7,Item7,70
+8,Item8,80
+9,Item9,90
+10,Item10,100`
+	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644) 
+	assert.NoError(t, err)
+
+	defer tmpFile.Close()
+
 	defer conn.Close(context.Background())
 
 	// In case the COPY ... ON_ERROR construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
-	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)
+	_, err = conn.Exec(ctx, `	CREATE TABLE my_table_copy_error (
+    id INT,
+    name TEXT,
+    value INT
+);
+
+	COPY my_table_copy_where (id, name, value) 
+FROM '/tmp/copy_where_example.csv'
+WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
 }
 
@@ -117,14 +146,38 @@ func testCopyFromWhereIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
+	tmpFile, err := os.CreateTemp("/tmp", "copy_where_example.csv")
+	assert.NoError(t, err)
+
+	// Write the csv content to the file
+	csvData := `id,name,value
+1,Item1,10
+2,Item2,20
+3,Item3,30
+4,Item4,40
+5,Item5,50
+6,Item6,60
+7,Item7,70
+8,Item8,80
+9,Item9,90
+10,Item10,100`
+	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644) 
+	assert.NoError(t, err)
+
+	defer tmpFile.Close()
+
 	defer conn.Close(context.Background())
-	/*
-			       	Error:      	Error "ERROR: syntax error at or near \"WITH\" (SQLSTATE 42601)" does not contain "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)"
-		        	Test:       	TestDMLIssuesInYBVersion/copy_from_where-2.25.0.0-b489
-		=== NAME  TestDMLIssuesInYBVersion
-	*/
-	// In case the COPY FROM ...  WHERE construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
-	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WHERE loid = 1 WITH (FORMAT csv, HEADER true);`)
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE my_table_copy_where (
+    id INT,
+    name TEXT,
+    value INT
+);
+
+	COPY my_table_copy_where (id, name, value) 
+FROM '/tmp/copy_where_example.csv'
+WITH (FORMAT csv, HEADER true)
+Where id <=5;`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
 }
 
@@ -283,7 +336,6 @@ FROM events;`,
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-		fmt.Printf("SQL - %s", sql)
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
 	}
 }
