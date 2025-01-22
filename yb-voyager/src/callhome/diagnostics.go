@@ -96,13 +96,6 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
-type UnsupportedFeature struct {
-	FeatureName      string   `json:"FeatureName"`
-	Objects          []string `json:"Objects,omitempty"`
-	ObjectCount      int      `json:"ObjectCount"`
-	TotalOccurrences int      `json:"TotalOccurrences"`
-}
-
 var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type AssessMigrationPhasePayload struct {

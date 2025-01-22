@@ -109,7 +109,7 @@ const (
 )
 
 // Issues Description
-// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome slice in analyzeSchema.go
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
 const (
 	// for DMLs
 	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
@@ -184,6 +184,7 @@ const (
 )
 
 // Issue Suggestions
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
 const (
 	STORED_GENERATED_COLUMN_ISSUE_SUGGESTION                  = "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details."
 	UNLOGGED_TABLES_ISSUE_SUGGESTION                          = "Remove UNLOGGED keyword to make it work"
