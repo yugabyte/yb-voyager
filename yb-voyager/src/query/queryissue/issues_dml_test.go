@@ -400,10 +400,10 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonbSubscriptingIssue)
 	assert.True(t, success)
-	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAnyValueAggFunctions)
+	success = t.Run(fmt.Sprintf("%s-%s", "any-value aggregate functions", ybVersion), testAnyValueAggFunctions)
 	assert.True(t, success)
 
-	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testRangeAggFunctionsIssue)
+	success = t.Run(fmt.Sprintf("%s-%s", "range aggregate functions", ybVersion), testRangeAggFunctionsIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)

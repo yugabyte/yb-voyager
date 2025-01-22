@@ -78,7 +78,7 @@ func testXMLFunctionIssue(t *testing.T) {
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
-	assert.ErrorContains(t, err, "unsupported XML feature")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlFunctionsIssue)
 }
 
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
@@ -94,7 +94,7 @@ func testStoredGeneratedFunctionsIssue(t *testing.T) {
 		width NUMERIC NOT NULL,
 		area NUMERIC GENERATED ALWAYS AS (length * width) STORED
 	)`)
-	assert.ErrorContains(t, err, "syntax error")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", generatedColumnsIssue)
 }
 
 func testUnloggedTableIssue(t *testing.T) {
@@ -319,8 +319,7 @@ func testUniqueNullsNotDistinctIssue(t *testing.T) {
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `
-	CREATE TABLE public.products (
+	_, err = conn.Exec(ctx, `CREATE TABLE public.products (
     id INTEGER PRIMARY KEY,
     product_name VARCHAR(100),
     serial_number TEXT,
