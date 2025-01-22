@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "MEDIUM",
+	"MigrationComplexityExplanation": "Found 44 Level 1 issue(s), 0 Level 2 issue(s) and 0 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_stackex",

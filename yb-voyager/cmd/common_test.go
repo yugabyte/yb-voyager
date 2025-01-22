@@ -305,6 +305,7 @@ func TestAssessmentReportJson(t *testing.T) {
 		t.Fatalf("Failed to write assessment report to JSON file: %v", err)
 	}
 	// expected JSON
+	// TODO: add migration complexity after updating the structs field to AssessmentIssue here
 	expectedJSON := `{
 	"VoyagerVersion": "v1.0.0",
 	"TargetDBVersion": "2024.1.1.1",

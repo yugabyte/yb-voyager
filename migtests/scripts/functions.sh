@@ -892,7 +892,6 @@ normalize_json() {
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
             .RowCount? = "IGNORED" |
 			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
-			.MigrationComplexityExplanation?= "IGNORED" |
             # Replace newline characters in SqlStatement with spaces
 			.SqlStatement? |= (
 				if type == "string" then

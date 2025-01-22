@@ -254,7 +254,7 @@ const explainTemplateHTML = `
 </p>
 `
 
-const explainTemplateText = `Reasoning: {{ .ComplexityRationale }}`
+const explainTemplateText = `{{ .ComplexityRationale }}`
 
 type MigrationComplexityExplanationData struct {
 	Summaries           []MigrationComplexityCategorySummary

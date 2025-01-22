@@ -2,6 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"TargetDBVersion": "IGNORED",
 	"MigrationComplexity": "HIGH",
+	"MigrationComplexityExplanation": "Found 26 Level 2 issue(s) and 29 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",

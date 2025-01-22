@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
-	"MigrationComplexity":"MEDIUM",
+	"MigrationComplexity": "MEDIUM",
+	"MigrationComplexityExplanation": "",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
 		"DbName": "ORCLPDB1",
