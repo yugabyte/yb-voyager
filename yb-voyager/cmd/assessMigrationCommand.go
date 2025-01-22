@@ -120,7 +120,24 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-var descriptionsIncludingSensitiveInformationToCallhome = reasonsIncludingSensitiveInformationToCallhome
+// assessment issue descriptions to modify before sending to callhome as will have sensitive information
+// copy of reasonsIncludingSensitiveInformationToCallhome
+var descriptionsIncludingSensitiveInformationToCallhome = []string{
+	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
+	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION + " " + queryissue.STORED_GENERATED_COLUMN_ISSUE_SUGGESTION,
+	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION + " " + queryissue.POLICY_ROLE_ISSUE_SUGGESTION,
+	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION + " " + queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION,
+	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.XML_DATATYPE_ISSUE_SUGGESTION,
+	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.XID_DATATYPE_ISSUE_SUGGESTION,
+	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION,
+	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION,
+}
 
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
@@ -192,17 +209,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}
 
 		for _, sensitiveDescription := range descriptionsIncludingSensitiveInformationToCallhome {
-			if sensitiveDescription == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Description, sensitiveDescription) {
-				issue.Description = sensitiveDescription
+			if sensitiveDescription == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(obfuscatedIssue.Description, sensitiveDescription) {
+				obfuscatedIssue.Description = sensitiveDescription
 			} else {
-				// TODO: should we just start sending issue type/name here instead of obfuscating the reason since that is anyways static
-				match, err := utils.MatchesFormatString(sensitiveDescription, issue.Description)
+				match, err := utils.MatchesFormatString(sensitiveDescription, obfuscatedIssue.Description)
 				if match {
-					issue.Description, err = utils.ObfuscateFormatDetails(sensitiveDescription, issue.Description, constants.OBFUSCATE_STRING)
+					obfuscatedIssue.Description, err = utils.ObfuscateFormatDetails(sensitiveDescription, obfuscatedIssue.Description, constants.OBFUSCATE_STRING)
 				}
 				if err != nil {
 					log.Errorf("error while matching issue description with sensitive descriptions: %v", err)
-					issue.Description = constants.OBFUSCATE_STRING
+					obfuscatedIssue.Description = constants.OBFUSCATE_STRING
 				}
 			}
 		}
