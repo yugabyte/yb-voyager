@@ -571,8 +571,8 @@ func (c *CommonTableExpressionDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 	/*
-	with_clause:{ctes:{common_table_expr:{ctename:"cte" ctematerialized:CTEMaterializeNever 
-	ctequery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:939}} location:939}} from_clause:{range_var:{relname:"a" inh:true relpersistence:"p" location:946}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}} location:906}} location:901} op:SETOP_NONE}} stmt_location:898
+		with_clause:{ctes:{common_table_expr:{ctename:"cte" ctematerialized:CTEMaterializeNever
+		ctequery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:939}} location:939}} from_clause:{range_var:{relname:"a" inh:true relpersistence:"p" location:946}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}} location:906}} location:901} op:SETOP_NONE}} stmt_location:898
 	*/
 	cteNode, err := queryparser.ProtoAsCTENode(msg)
 	if err != nil {
@@ -593,3 +593,50 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type ListenNotifyIssueDetector struct {
+	query    string
+	detected bool
+}
+
+func NewListenNotifyIssueDetector(query string) *ListenNotifyIssueDetector {
+	return &ListenNotifyIssueDetector{
+		query: query,
+	}
+}
+
+func (ln *ListenNotifyIssueDetector) Detect(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		/*
+			example-SELECT pg_notify('my_notification', 'Payload from pg_notify');
+				parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_notify"}}
+				args:{a_const:{sval:{sval:"my_notification"}  location:129}}  args:{a_const:{sval:{sval:"Payload from pg_notify"}
+		*/
+		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
+		if funcName == PG_NOTIFY_FUNC {
+			ln.detected = true
+		}
+	case queryparser.PG_QUERY_LISTEN_STMT_NODE, queryparser.PG_QUERY_NOTIFY_STMT_NODE, queryparser.PG_QUERY_UNLISTEN_STMT_NODE:
+		/*
+			examples -
+				LISTEN my_table_changes;
+				NOTIFY my_notification, 'Payload from pg_notify';
+				UNLISTEN my_notification;
+			parseTrees-
+				stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}}  stmt_len:25}
+				stmts:{stmt:{notify_stmt:{conditionname:"my_table_changes" payload:"Row inserted: id=1, name=Alice"}}  stmt_location:26  stmt_len:58}
+				stmts:{stmt:{unlisten_stmt:{conditionname:"my_notification"}}  stmt_location:85  stmt_len:25}
+		*/
+		ln.detected = true
+	}
+
+	return nil
+}
+
+func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if ln.detected {
+		issues = append(issues, NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", ln.query))
+	}
+	return issues
+}

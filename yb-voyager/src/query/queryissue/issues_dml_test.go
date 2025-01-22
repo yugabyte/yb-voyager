@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
@@ -295,6 +296,32 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 	}
 }
 
+func testEventsListenNotifyIssue(t *testing.T) {
+	sqls := map[string]string{
+		`LISTEN my_table_changes;`:                                       `LISTEN not supported yet and will be ignored`,
+		`NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`:     `NOTIFY not supported yet and will be ignored`,
+		`UNLISTEN my_notification;`:                                      `UNLISTEN not supported yet and will be ignored`,
+		`SELECT pg_notify('my_notification', 'Payload from pg_notify');`: `NOTIFY not supported yet and will be ignored`,
+	}
+	for sql, warnMsg := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		connConfig := conn.Config()
+		connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
+			if n != nil {
+				assert.Contains(t, n.Message, warnMsg)
+			}
+		}
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "", cteWithMaterializedIssue)
+	}
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -352,6 +379,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "cte with materialized cluase", ybVersion), testCTEWithMaterializedIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "events listen / notify", ybVersion), testEventsListenNotifyIssue)
 	assert.True(t, success)
 
 }

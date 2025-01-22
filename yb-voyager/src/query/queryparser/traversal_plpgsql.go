@@ -196,7 +196,10 @@ func formatExprQuery(q string) string {
 		 "PLpgSQL_expr": {
 			"query": "'DROP TABLE IF EXISTS employees'",
 	*/
-	q = strings.Trim(q, "'") //to remove any extra '' around the statement
+	//to remove any extra '' around the statement
+	if strings.HasPrefix(q, "'") && strings.HasSuffix(q, "'") {
+		q = q[1 : len(q)-1]
+	}
 	q = strings.TrimSpace(q)
 	if !strings.HasSuffix(q, ";") { // adding the ; to query in case not added already
 		q += ";"

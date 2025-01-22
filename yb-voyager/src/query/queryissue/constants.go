@@ -94,6 +94,9 @@ const (
 	SQL_BODY_IN_FUNCTION_NAME      = "SQL Body in function"
 	UNIQUE_NULLS_NOT_DISTINCT      = "UNIQUE_NULLS_NOT_DISTINCT"
 	UNIQUE_NULLS_NOT_DISTINCT_NAME = "Unique Nulls Not Distinct"
+
+	LISTEN_NOTIFY = "LISTEN_NOTIFY"
+	LISTEN_NOTIFY_NAME = "Events Listen / Notify"
 )
 
 const (
