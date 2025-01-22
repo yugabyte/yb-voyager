@@ -134,6 +134,7 @@ var (
 	parserIssueDetector = queryissue.NewParserIssueDetector()
 	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
+	sqlBodyBeginRegex   = re("BEGIN", "ATOMIC")
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -911,7 +912,6 @@ sqlParsingLoop:
 
 		stmt += currLine + " "
 		formattedStmt += currLine + "\n"
-
 		// Assuming that both the dollar quote strings will not be in same line
 		switch dollarQuoteFlag {
 		case CODE_BLOCK_NOT_STARTED:
@@ -920,14 +920,30 @@ sqlParsingLoop:
 			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
 				dollarQuoteFlag = 1 //denotes start of the code/body part
 				codeBlockDelimiter = matches[0]
+			} else if matches := sqlBodyBeginRegex.FindStringSubmatch(currLine); matches != nil {
+				dollarQuoteFlag = 1        //denotes start of the sql body part https://www.postgresql.org/docs/15/sql-createfunction.html#:~:text=a%20new%20session.-,sql_body,-The%20body%20of
+				codeBlockDelimiter = "END" //SQL body to determine the end of BEGIN ATOMIC ... END; sql body
 			}
 		case CODE_BLOCK_STARTED:
-			if strings.Contains(currLine, codeBlockDelimiter) {
-				dollarQuoteFlag = 2 //denotes end of code/body part
-				if isEndOfSqlStmt(currLine) {
-					break sqlParsingLoop
+			switch codeBlockDelimiter {
+			case "END":
+				if strings.Contains(currLine, codeBlockDelimiter) ||
+					strings.Contains(currLine, strings.ToLower(codeBlockDelimiter)) {
+					//TODO: anyways we should be using pg-parser: but for now for the END sql body delimiter checking the UPPER and LOWER both
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
+				}
+			default:
+				if strings.Contains(currLine, codeBlockDelimiter) {
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
 				}
 			}
+
 		case CODE_BLOCK_COMPLETED:
 			if isEndOfSqlStmt(currLine) {
 				break sqlParsingLoop
@@ -970,6 +986,9 @@ func isEndOfSqlStmt(line string) bool {
 	if cmtStartIdx != -1 {
 		line = line[0:cmtStartIdx] // ignore comment
 		line = strings.TrimRight(line, " ")
+	}
+	if len(line) == 0 {
+		return false
 	}
 	return line[len(line)-1] == ';'
 }
