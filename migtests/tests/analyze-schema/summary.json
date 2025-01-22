@@ -44,9 +44,9 @@
             },
             {
                 "ObjectType": "FUNCTION",
-                "TotalCount": 7,
-                "InvalidCount": 7,
-                "ObjectNames": "create_and_populate_tables, public.get_employeee_salary, get_employee_details, calculate_tax, log_salary_change, list_high_earners, copy_high_earners"
+                "TotalCount": 10,
+                "InvalidCount": 10,
+                "ObjectNames": "public.asterisks, add, public.asterisks1, create_and_populate_tables, public.get_employeee_salary, get_employee_details, calculate_tax, log_salary_change, list_high_earners, copy_high_earners"
             },
             {
                 "ObjectType": "PROCEDURE",
