@@ -56,9 +56,9 @@
 			},
 			{
 				"ObjectType": "FUNCTION",
-				"TotalCount": 11,
-				"InvalidCount": 4,
-				"ObjectNames": "public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
+				"TotalCount": 13,
+				"InvalidCount": 6,
+				"ObjectNames": "public.insert_non_decimal, schema2.insert_non_decimal, public.manage_large_object, public.auditlogfunc, public.check_sales_region, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.auditlogfunc, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"			},
 			{
 				"ObjectType": "AGGREGATE",
 				"TotalCount": 2,
@@ -2889,6 +2889,23 @@
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
+		{
+			"FeatureName": "Non-decimal integer literal",
+			"Objects": [
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "public.insert_non_decimal",
+					"SqlStatement": "SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;"
+				},
+				{
+					"ObjectType": "FUNCTION",
+					"ObjectName": "schema2.insert_non_decimal",
+					"SqlStatement": "SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;"
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
 		{
 			"FeatureName": "Large Object Functions",
 			"Objects": [

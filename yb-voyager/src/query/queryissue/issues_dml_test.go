@@ -271,20 +271,20 @@ func testNonDecimalIntegerLiteralIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
-	sqls := map[string]string{
+	sqls := []string{
 		`CREATE VIEW zz AS
     SELECT
-        5678901234 AS DEC,
-        0x1527D27F2 AS hex,
-        0o52237223762 AS oct,
-        0b101010010011111010010011111110010 AS bin;`: `syntax error at or near "AS"`,
-		`SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`: `syntax error at or near "as"`,
+        5678901234 as DEC,
+        0x1527D27F2 as hex,
+        0o52237223762 as oct,
+        0b101010010011111010010011111110010 as bin;`,
+		`SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`,
 	}
-	for sql, expectedErr := range sqls {
+	for _, sql := range sqls {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
 
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedErr, nonDecimalIntegerLiteralIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "as"`, nonDecimalIntegerLiteralIssue)
 	}
 }
 func TestDMLIssuesInYBVersion(t *testing.T) {
@@ -343,7 +343,7 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)
 	assert.True(t, success)
 
-	success = t.Run(fmt.Sprintf("%s-%s", "non-decimal interger literal", ybVersion), testNonDecimalIntegerLiteralIssue)
+	success = t.Run(fmt.Sprintf("%s-%s", "Non-decimal integer literal", ybVersion), testNonDecimalIntegerLiteralIssue)
 	assert.True(t, success)
 
 }

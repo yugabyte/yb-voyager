@@ -239,7 +239,7 @@ var nonDecimalIntegerLiteralIssue = issue.Issue{
 	Type:        NON_DECIMAL_INTEGER_LITERAL,
 	Name:        NON_DECIMAL_INTEGER_LITERAL_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Non decimal interger literals are not supported in YugabyteDB",
+	Description: "Non decimal integer literals are not supported in YugabyteDB",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",

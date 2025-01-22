@@ -1073,6 +1073,13 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
     flags INT DEFAULT 0x0F CHECK (flags & 0x01 = 0x01) -- Hexadecimal bitwise check
 );`,
 `CREATE TABLE bin_default(id int, bin_int int DEFAULT 0b1010010101 CHECK (bin_int<>0b1000010101));`,
+/*
+similarly this insert is also can't be reported as parser changes them to decimal integers while giving parseTree
+insert_stmt:{relation:{relname:"non_decimal_table" inh:true relpersistence:"p" location:12} cols:{res_target:{name:"binary_value" ...
+select_stmt:{select_stmt:{values_lists:{list:{items:{a_const:{ival:{ival:10} location:81}} items:{a_const:{ival:{ival:10} location:89}} items:{a_const:{ival:{ival:10} location:96}}}} 
+*/
+`INSERT INTO non_decimal_table (binary_value, octal_value, hex_value)
+    VALUES (0b1010, 0o012, 0xA);`,
 	}
 	for _, sql := range sqlsWithoutIssues {
 		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)

@@ -91,7 +91,7 @@ const (
 	UNIQUE_NULLS_NOT_DISTINCT_NAME = "Unique Nulls Not Distinct"
 
 	NON_DECIMAL_INTEGER_LITERAL      = "NON_DECIMAL_INTEGER_LITERAL"
-	NON_DECIMAL_INTEGER_LITERAL_NAME = "Non-decimal interger literal"
+	NON_DECIMAL_INTEGER_LITERAL_NAME = "Non-decimal integer literal"
 )
 
 const (
