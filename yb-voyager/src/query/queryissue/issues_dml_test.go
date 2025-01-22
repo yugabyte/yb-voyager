@@ -279,14 +279,14 @@ RETURNING merge_action(), w.*;
 	for _, sql := range sqls {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-		/*
-		       	            				/home/runner/work/yb-voyager/yb-voyager/yb-voyager/src/query/queryissue/issues_dml_test.go:216
-		       	Error:      	Error "ERROR: This statement not supported yet (SQLSTATE 0A000)" does not contain "syntax error at or near \"MERGE\""
-		       	Test:       	TestDMLIssuesInYBVersion/merge_statement-2.25.0.0-b489
-		   issues_ddl_test.go:70:
-
-		*/
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
+		var errMsg string
+		switch testYbVersion {
+		case ybversion.V2_25_0_0:
+			errMsg = "This statement not supported yet"
+		default:
+			errMsg = `syntax error at or near "MERGE"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, mergeStatementIssue)
 	}
 
 }
@@ -357,12 +357,12 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-	WHERE w2.key = 123;`: `syntax error at or near "NOT"`,
+	WHERE w2.key = ''123;`: `syntax error at or near "NOT"`,
 		`WITH w AS MATERIALIZED (
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-	WHERE w2.key = 123;`: `syntax error at or near "MATERIALIZED"`,
+	WHERE w2.key = '123';`: `syntax error at or near "MATERIALIZED"`,
 	}
 	for sql, errMsg := range sqls {
 		ctx := context.Background()
