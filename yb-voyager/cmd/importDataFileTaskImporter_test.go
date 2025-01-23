@@ -16,56 +16,14 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
-
-type TestDB struct {
-	testcontainers.TestContainer
-	tgtdb.TargetDB
-}
-
-var testYugabyteDBTarget *TestDB
-
-func setupYugabyteTestDb(t *testing.T) {
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err := yugabytedbContainer.Start(context.Background())
-	testutils.FatalIfError(t, err)
-	host, port, err := yugabytedbContainer.GetHostPort()
-	testutils.FatalIfError(t, err)
-	testYugabyteDBTarget := &TestDB{
-		TestContainer: yugabytedbContainer,
-		TargetDB: tgtdb.NewTargetDB(&tgtdb.TargetConf{
-			TargetDBType: "yugabytedb",
-			DBVersion:    yugabytedbContainer.GetConfig().DBVersion,
-			User:         yugabytedbContainer.GetConfig().User,
-			Password:     yugabytedbContainer.GetConfig().Password,
-			Schema:       yugabytedbContainer.GetConfig().Schema,
-			DBName:       yugabytedbContainer.GetConfig().DBName,
-			Host:         host,
-			Port:         port,
-		}),
-	}
-	testYugabyteDBTarget.TestContainer.ExecuteSqls(
-		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
-	)
-
-	tdb = testYugabyteDBTarget.TargetDB
-	err = tdb.Init()
-	testutils.FatalIfError(t, err)
-	err = tdb.CreateVoyagerSchema()
-	testutils.FatalIfError(t, err)
-	err = tdb.InitConnPool()
-	testutils.FatalIfError(t, err)
-}
 
 func TestBasicTaskImport(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
