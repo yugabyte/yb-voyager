@@ -41,15 +41,15 @@ func TestBasicTaskImport(t *testing.T) {
 	defer testYugabyteDBTarget.Finalize()
 	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
-		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
+		`CREATE TABLE test_table_basic (id INT PRIMARY KEY, val TEXT);`,
 	)
-	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table;`)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_basic;`)
 
 	// file import
 	fileContents := `id,val
 1, "hello"
 2, "world"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic")
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -64,7 +64,7 @@ func TestBasicTaskImport(t *testing.T) {
 
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table").Scan(&rowCount)
+	err = tdb.QueryRow("SELECT count(*) FROM test_table_basic").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 }
@@ -83,15 +83,15 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	defer testYugabyteDBTarget.Finalize()
 	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
-		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
+		`CREATE TABLE test_table_all (id INT PRIMARY KEY, val TEXT);`,
 	)
-	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table;`)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_all;`)
 
 	// file import
 	fileContents := `id,val
 1, "hello"
 2, "world"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all")
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -105,7 +105,7 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 
 	workerPool.Wait()
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table").Scan(&rowCount)
+	err = tdb.QueryRow("SELECT count(*) FROM test_table_all").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
@@ -133,9 +133,9 @@ func TestTaskImportResumable(t *testing.T) {
 	defer testYugabyteDBTarget.Finalize()
 	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
-		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
+		`CREATE TABLE test_table_resume (id INT PRIMARY KEY, val TEXT);`,
 	)
-	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table;`)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_resume;`)
 
 	// file import
 	fileContents := `id,val
@@ -143,7 +143,7 @@ func TestTaskImportResumable(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume")
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -159,7 +159,7 @@ func TestTaskImportResumable(t *testing.T) {
 	workerPool.Wait()
 	// check that the first batch was imported
 	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table").Scan(&rowCount)
+	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
@@ -174,7 +174,7 @@ func TestTaskImportResumable(t *testing.T) {
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
 	workerPool.Wait()
-	err = tdb.QueryRow("SELECT count(*) FROM test_table").Scan(&rowCount)
+	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), rowCount)
 }
