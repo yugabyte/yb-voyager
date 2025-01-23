@@ -37,9 +37,10 @@ type FuncCallDetector struct {
 
 	advisoryLocksFuncsDetected mapset.Set[string]
 	xmlFuncsDetected           mapset.Set[string]
-	aggFuncsDetected           mapset.Set[string]
+	rangeAggFuncsDetected      mapset.Set[string]
 	regexFuncsDetected         mapset.Set[string]
 	loFuncsDetected            mapset.Set[string]
+	anyValueFuncDetected       bool
 }
 
 func NewFuncCallDetector(query string) *FuncCallDetector {
@@ -47,7 +48,7 @@ func NewFuncCallDetector(query string) *FuncCallDetector {
 		query:                      query,
 		advisoryLocksFuncsDetected: mapset.NewThreadUnsafeSet[string](),
 		xmlFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
-		aggFuncsDetected:           mapset.NewThreadUnsafeSet[string](),
+		rangeAggFuncsDetected:      mapset.NewThreadUnsafeSet[string](),
 		regexFuncsDetected:         mapset.NewThreadUnsafeSet[string](),
 		loFuncsDetected:            mapset.NewThreadUnsafeSet[string](),
 	}
@@ -72,9 +73,14 @@ func (d *FuncCallDetector) Detect(msg protoreflect.Message) error {
 		d.regexFuncsDetected.Add(funcName)
 	}
 
-	if unsupportedAggFunctions.ContainsOne(funcName) {
-		d.aggFuncsDetected.Add(funcName)
+	if unsupportedRangeAggFunctions.ContainsOne(funcName) {
+		d.rangeAggFuncsDetected.Add(funcName)
 	}
+
+	if funcName == ANY_VALUE {
+		d.anyValueFuncDetected = true
+	}
+
 	if unsupportedLargeObjectFunctions.ContainsOne(funcName) {
 		d.loFuncsDetected.Add(funcName)
 	}
@@ -90,8 +96,11 @@ func (d *FuncCallDetector) GetIssues() []QueryIssue {
 	if d.xmlFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewXmlFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
-	if d.aggFuncsDetected.Cardinality() > 0 {
-		issues = append(issues, NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.aggFuncsDetected.ToSlice()))
+	if d.rangeAggFuncsDetected.Cardinality() > 0 {
+		issues = append(issues, NewRangeAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query, d.rangeAggFuncsDetected.ToSlice()))
+	}
+	if d.anyValueFuncDetected {
+		issues = append(issues, NewAnyValueAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
 	}
 	if d.regexFuncsDetected.Cardinality() > 0 {
 		issues = append(issues, NewRegexFunctionsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))

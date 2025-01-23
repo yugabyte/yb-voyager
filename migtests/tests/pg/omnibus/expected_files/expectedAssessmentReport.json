@@ -540,7 +540,9 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-		    "MinimumVersionsFixedIn": null
+		    "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
 		{
 			"FeatureName": "Conversion objects",

@@ -78,7 +78,7 @@ func testXMLFunctionIssue(t *testing.T) {
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
-	assert.ErrorContains(t, err, "unsupported XML feature")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlFunctionsIssue)
 }
 
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
@@ -94,7 +94,7 @@ func testStoredGeneratedFunctionsIssue(t *testing.T) {
 		width NUMERIC NOT NULL,
 		area NUMERIC GENERATED ALWAYS AS (length * width) STORED
 	)`)
-	assert.ErrorContains(t, err, "syntax error")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", generatedColumnsIssue)
 }
 
 func testUnloggedTableIssue(t *testing.T) {
@@ -142,7 +142,14 @@ func testSetAttributeIssue(t *testing.T) {
 	);
 	ALTER TABLE ONLY public.event_search ALTER COLUMN room_id SET (n_distinct=-0.01)`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE ALTER column not supported yet", setColumnAttributeIssue)
+	var errMsg string
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
+		errMsg = `ALTER action ALTER COLUMN ... SET not supported yet`
+	default:
+		errMsg = "ALTER TABLE ALTER column not supported yet"
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, setColumnAttributeIssue)
 }
 
 func testClusterOnIssue(t *testing.T) {
@@ -162,7 +169,14 @@ func testClusterOnIssue(t *testing.T) {
 
 	ALTER TABLE public.test CLUSTER ON test_age_salary`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE CLUSTER not supported yet", alterTableClusterOnIssue)
+	var errMsg string
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
+		errMsg = "ALTER action CLUSTER ON not supported yet"
+	default:
+		errMsg = "ALTER TABLE CLUSTER not supported yet"
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, alterTableClusterOnIssue)
 }
 
 func testDisableRuleIssue(t *testing.T) {
@@ -178,7 +192,14 @@ func testDisableRuleIssue(t *testing.T) {
 
 	ALTER TABLE trule DISABLE RULE trule_rule`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ALTER TABLE DISABLE RULE not supported yet", alterTableDisableRuleIssue)
+	var errMsg string
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
+		errMsg = "ALTER action DISABLE RULE not supported yet"
+	default:
+		errMsg = "ALTER TABLE DISABLE RULE not supported yet"
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, alterTableDisableRuleIssue)
 }
 
 func testStorageParameterIssue(t *testing.T) {
@@ -283,7 +304,7 @@ func testDeterministicCollationIssue(t *testing.T) {
 	_, err = conn.Exec(ctx, `
 	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, securityInvokerViewIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, deterministicOptionCollationIssue)
 }
 
 func testForeignKeyReferencesPartitionedTableIssue(t *testing.T) {
@@ -305,7 +326,7 @@ func testSQLBodyInFunctionIssue(t *testing.T) {
   RETURNS text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 RETURN repeat('*', n);`: `syntax error at or near "RETURN"`,
-		`CREATE OR REPLACE FUNCTION asterisks(n int)
+		`CREATE OR REPLACE FUNCTION asterisks1(n int)
   RETURNS SETOF text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 BEGIN ATOMIC
@@ -319,7 +340,6 @@ END;`: `syntax error at or near "BEGIN"`,
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, sqlBodyInFunctionIssue)
 	}
 }
@@ -330,8 +350,7 @@ func testUniqueNullsNotDistinctIssue(t *testing.T) {
 	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `
-	CREATE TABLE public.products (
+	_, err = conn.Exec(ctx, `CREATE TABLE public.products (
     id INTEGER PRIMARY KEY,
     product_name VARCHAR(100),
     serial_number TEXT,
@@ -339,6 +358,39 @@ func testUniqueNullsNotDistinctIssue(t *testing.T) {
 	);`)
 
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "syntax error", uniqueNullsNotDistinctIssue)
+}
+
+func testBeforeRowTriggerOnPartitionedTable(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);
+
+CREATE OR REPLACE FUNCTION public.check_sales_region()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.amount < 0 THEN
+        RAISE EXCEPTION 'Amount cannot be negative';
+    END IF;
+
+    IF NEW.branch IS NULL OR NEW.branch = '' THEN
+        RAISE EXCEPTION 'Branch name cannot be null or empty';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER before_sales_region_insert_update
+BEFORE INSERT OR UPDATE ON public.sales_region
+FOR EACH ROW
+EXECUTE FUNCTION public.check_sales_region();`)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `"sales_region" is a partitioned table`, beforeRowTriggerOnPartitionTableIssue)
 }
 
 func TestDDLIssuesInYBVersion(t *testing.T) {
@@ -408,7 +460,10 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "sql body in function", ybVersion), testSQLBodyInFunctionIssue)
 	assert.True(t, success)
-	
+
 	success = t.Run(fmt.Sprintf("%s-%s", "unique nulls not distinct", ybVersion), testUniqueNullsNotDistinctIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "before row triggers on partitioned table", ybVersion), testBeforeRowTriggerOnPartitionedTable)
 	assert.True(t, success)
 }

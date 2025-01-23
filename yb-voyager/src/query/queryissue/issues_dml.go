@@ -21,6 +21,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var advisoryLocksIssue = issue.Issue{
@@ -73,28 +74,48 @@ var regexFunctionsIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(regexFunctionsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var aggregateFunctionIssue = issue.Issue{
-	Type:        AGGREGATE_FUNCTION,
-	Name:        AGGREGATION_FUNCTIONS_NAME,
+var anyValueAggregateFunction = issue.Issue{
+	Type:        ANY_VALUE_AGGREGATE_FUNCTION,
+	Name:        ANY_VALUE_AGGREGATE_FUNCTION_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: AGGREGATE_FUNCTION_ISSUE_DESCRIPTION,
+	Description: ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION,
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
-func NewAggregationFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
+func NewAnyValueAggregateFunctionIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(anyValueAggregateFunction, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var rangeAggregateFunctionIssue = issue.Issue{
+	Type:        RANGE_AGGREGATE_FUNCTION,
+	Name:        RANGE_AGGREGATE_FUNCTION_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: RANGE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewRangeAggregateFunctionIssue(objectType string, objectName string, sqlStatement string, funcNames []string) QueryIssue {
 	sort.Strings(funcNames)
 	details := map[string]interface{}{
 		FUNCTION_NAMES: funcNames, //TODO USE it later when we start putting these in reports
 	}
-	return newQueryIssue(aggregateFunctionIssue, objectType, objectName, sqlStatement, details)
+	return newQueryIssue(rangeAggregateFunctionIssue, objectType, objectName, sqlStatement, details)
 }
 
 var jsonConstructorFunctionsIssue = issue.Issue{
@@ -158,6 +179,9 @@ var jsonbSubscriptingIssue = issue.Issue{
 	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -186,6 +210,9 @@ var copyFromWhereIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -227,6 +254,9 @@ var cteWithMaterializedIssue = issue.Issue{
 	Suggestion:  "No workaround available right now",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
+	},
 }
 
 func NewCTEWithMaterializedIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -238,7 +268,7 @@ var mergeStatementIssue = issue.Issue{
 	Name:        "Merge Statement",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: MERGE_STATEMENT_ISSUE_DESCRIPTION,
-	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
+	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25574",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
 }

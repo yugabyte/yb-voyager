@@ -86,7 +86,7 @@
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": [
 		{
-			"FeatureName": "Aggregate Functions",
+			"FeatureName": "Range aggregate Functions",
 			"Objects": [
 				{
 					"ObjectName": "sales.event_analysis_view",
@@ -95,7 +95,16 @@
 				{
 					"ObjectName": "sales.event_analysis_view2",
 					"SqlStatement": "CREATE VIEW sales.event_analysis_view2 AS\n SELECT range_intersect_agg(event_range) AS overlapping_range\n   FROM sales.events;"
-				},
+				}
+			],
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"FeatureName": "ANY_VALUE() aggregate Function",
+			"Objects": [
 				{
 					"ObjectName": "sales.employ_depart_view",
 					"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;"
@@ -113,7 +122,9 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{	
 			"FeatureName": "Json Type Predicate",
@@ -252,19 +263,23 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
-			"ConstructTypeName": "Aggregate Functions",
+			"ConstructTypeName": "Range aggregate Functions",
 			"Query": "SELECT range_intersect_agg(event_range) AS intersection_of_ranges\nFROM sales.events",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
-			"ConstructTypeName": "Aggregate Functions",
+			"ConstructTypeName": "Range aggregate Functions",
 			"Query": "SELECT range_agg(event_range) AS union_of_ranges\nFROM sales.events",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
-			"ConstructTypeName": "Aggregate Functions",
+			"ConstructTypeName": "ANY_VALUE() aggregate Function",
 			"Query": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
@@ -280,25 +295,33 @@
 			"ConstructTypeName": "Jsonb Subscripting",
 			"Query": "SELECT \n    data,\n    data[$1] AS name, \n    (data[$2]) as active\nFROM sales.test_json_chk",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "Jsonb Subscripting",
 			"Query": "SELECT (sales.get_user_info($1))[$2] AS user_info",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "Jsonb Subscripting",
 			"Query": "SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "Jsonb Subscripting",
 			"Query": "SELECT ($1 :: jsonb)[$2][$3] as b",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "Json Type Predicate",
@@ -310,13 +333,17 @@
 			"ConstructTypeName": "CTE with MATERIALIZE clause",
 			"Query": "WITH w AS NOT MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "CTE with MATERIALIZE clause",
 			"Query": "WITH w AS MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		}
 	],
 	"UnsupportedPlPgSqlObjects": [
@@ -330,7 +357,9 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		}
 	]
 }

@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -407,9 +408,9 @@ func FatalIfError(t *testing.T, err error) {
 	}
 }
 
-func CreateTempFile(dir string, fileContents string) (string, error) {
+func CreateTempFile(dir string, fileContents string, fileFormat string) (string, error) {
 	// Create a temporary file
-	file, err := os.CreateTemp(dir, "temp-*.txt")
+	file, err := os.CreateTemp(dir, fmt.Sprintf("temp-*.%s", fileFormat))
 	if err != nil {
 		return "", err
 	}

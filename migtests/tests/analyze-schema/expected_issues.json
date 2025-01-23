@@ -24,7 +24,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "public.my_films_view",
-            "Reason": "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB",
+            "Reason": "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE VIEW public.my_films_view AS\nSELECT jt.* FROM\n my_films,\n JSON_TABLE ( js, '$.favorites[*]'\n   COLUMNS (\n    id FOR ORDINALITY,\n    kind text PATH '$.kind',\n    NESTED PATH '$.films[*]' COLUMNS (\n      title text FORMAT JSON PATH '$.title' OMIT QUOTES,\n      director text PATH '$.director' KEEP QUOTES))) AS jt;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -35,7 +35,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.json_data",
-            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB",
+            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE public.json_data (\n    id SERIAL PRIMARY KEY,\n    data_column TEXT NOT NULL CHECK (data_column IS JSON)\n);",
             "Suggestion": "",
              "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -46,7 +46,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "test_arr_enum",
-            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB",
+            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE test_arr_enum (\n\tid int,\n\tarr text[],\n\tarr_enum enum_test[],\n    object_column TEXT CHECK (object_column IS JSON OBJECT)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -57,7 +57,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "test_udt",
-            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB",
+            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE test_udt (\n\temployee_id SERIAL PRIMARY KEY,\n\temployee_name VARCHAR(100),\n\thome_address address_type,\n\tsome_field enum_test,\n\thome_address1 non_public.address_type1,\n    scalar_column TEXT CHECK (scalar_column IS JSON SCALAR)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -68,7 +68,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
-            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB",
+            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -79,7 +79,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.locations",
-            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB",
+            "Reason": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE public.locations (\n    id integer NOT NULL,\n    name character varying(100),\n    geom geometry(Point,4326),\n    array_column TEXT CHECK (array_column IS JSON ARRAY)\n );",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -90,7 +90,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "test",
-            "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB",
+            "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE OR REPLACE view test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -106,13 +106,15 @@
             "Suggestion": "No workaround available ",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
             "ObjectType": "MVIEW",
             "ObjectName": "test",
-            "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB",
+            "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "",
              "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -128,7 +130,9 @@
             "Suggestion": "This feature is not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -139,13 +143,15 @@
             "Suggestion": "This feature is not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
-            "Reason": "XML functions are not yet supported in YugabyteDB",
+            "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
@@ -726,7 +732,9 @@
             "Suggestion": "Create the triggers on individual partitions.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -779,7 +787,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -790,7 +800,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -1636,7 +1648,9 @@
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "migration_caveats",
@@ -1664,7 +1678,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_lock(sender_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1675,7 +1689,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_lock(receiver_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1686,7 +1700,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1697,7 +1711,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1708,7 +1722,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_unlock(sender_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1719,7 +1733,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT pg_advisory_unlock(receiver_id);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1730,7 +1744,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "XML functions are not yet supported in YugabyteDB",
+            "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
@@ -1741,7 +1755,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "FUNCTION",
             "ObjectName": "create_and_populate_tables",
-            "Reason": "System columns are not yet supported in YugabyteDB",
+            "Reason": "System columns are not yet supported in YugabyteDB.",
             "SqlStatement": "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
@@ -1752,7 +1766,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT id, first_name FROM employees WHERE pg_try_advisory_lock(300) IS TRUE;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1763,7 +1777,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
-            "Reason": "System columns are not yet supported in YugabyteDB",
+            "Reason": "System columns are not yet supported in YugabyteDB.",
             "SqlStatement": "SELECT e.id, e.name,\n            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num\n        FROM employees e;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
@@ -1774,7 +1788,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
-            "Reason": "XML functions are not yet supported in YugabyteDB",
+            "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": "SELECT e.id, x.employee_xml\n        FROM employees e\n        JOIN (\n            SELECT xmlelement(name \"employee\", xmlattributes(e.id AS \"id\"), e.name) AS employee_xml\n            FROM employees e\n        ) x ON x.employee_xml IS NOT NULL\n        WHERE xmlexists('//employee[name=\"John Doe\"]' PASSING BY REF x.employee_xml);",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
@@ -1785,7 +1799,7 @@
             "IssueType": "unsupported_plpgsql_objects",
             "ObjectType": "PROCEDURE",
             "ObjectName": "add_employee",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "SELECT e.id,\n            CASE\n                WHEN e.salary \u003e 100000 THEN pg_advisory_lock(e.id)\n                ELSE pg_advisory_unlock(e.id)\n            END AS lock_status\n        FROM employees e;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1796,7 +1810,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "MVIEW",
             "ObjectName": "public.sample_data_view",
-            "Reason": "XML functions are not yet supported in YugabyteDB",
+            "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE MATERIALIZED VIEW public.sample_data_view AS\n SELECT sample_data.id,\n    sample_data.name,\n    sample_data.description,\n    XMLFOREST(sample_data.name AS name, sample_data.description AS description) AS xml_data,\n    pg_try_advisory_lock((sample_data.id)::bigint) AS lock_acquired,\n    sample_data.ctid AS row_ctid,\n    sample_data.xmin AS xmin_value\n   FROM public.sample_data\n  WITH NO DATA;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
@@ -1807,7 +1821,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "MVIEW",
             "ObjectName": "public.sample_data_view",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "CREATE MATERIALIZED VIEW public.sample_data_view AS\n SELECT sample_data.id,\n    sample_data.name,\n    sample_data.description,\n    XMLFOREST(sample_data.name AS name, sample_data.description AS description) AS xml_data,\n    pg_try_advisory_lock((sample_data.id)::bigint) AS lock_acquired,\n    sample_data.ctid AS row_ctid,\n    sample_data.xmin AS xmin_value\n   FROM public.sample_data\n  WITH NO DATA;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1818,7 +1832,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "MVIEW",
             "ObjectName": "public.sample_data_view",
-            "Reason": "System columns are not yet supported in YugabyteDB",
+            "Reason": "System columns are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE MATERIALIZED VIEW public.sample_data_view AS\n SELECT sample_data.id,\n    sample_data.name,\n    sample_data.description,\n    XMLFOREST(sample_data.name AS name, sample_data.description AS description) AS xml_data,\n    pg_try_advisory_lock((sample_data.id)::bigint) AS lock_acquired,\n    sample_data.ctid AS row_ctid,\n    sample_data.xmin AS xmin_value\n   FROM public.sample_data\n  WITH NO DATA;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
@@ -1829,7 +1843,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "public.orders_view",
-            "Reason": "XML functions are not yet supported in YugabyteDB",
+            "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE VIEW public.orders_view AS\n SELECT orders.order_id,\n    orders.customer_name,\n    orders.product_name,\n    orders.quantity,\n    orders.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name), XMLELEMENT(NAME \"Quantity\", orders.quantity), XMLELEMENT(NAME \"TotalPrice\", (orders.price * (orders.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,\n    orders.ctid AS row_ctid,\n    orders.xmin AS transaction_id\n   FROM public.orders;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/1043",
@@ -1840,7 +1854,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "public.orders_view",
-            "Reason": "Advisory locks are not yet implemented in YugabyteDB",
+            "Reason": "Advisory locks are not yet implemented in YugabyteDB.",
             "SqlStatement": "CREATE VIEW public.orders_view AS\n SELECT orders.order_id,\n    orders.customer_name,\n    orders.product_name,\n    orders.quantity,\n    orders.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name), XMLELEMENT(NAME \"Quantity\", orders.quantity), XMLELEMENT(NAME \"TotalPrice\", (orders.price * (orders.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,\n    orders.ctid AS row_ctid,\n    orders.xmin AS transaction_id\n   FROM public.orders;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3642",
@@ -1851,7 +1865,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "public.orders_view",
-            "Reason": "System columns are not yet supported in YugabyteDB",
+            "Reason": "System columns are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE VIEW public.orders_view AS\n SELECT orders.order_id,\n    orders.customer_name,\n    orders.product_name,\n    orders.quantity,\n    orders.price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name), XMLELEMENT(NAME \"Quantity\", orders.quantity), XMLELEMENT(NAME \"TotalPrice\", (orders.price * (orders.quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", orders.customer_name), XMLELEMENT(NAME \"Product\", orders.product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((orders.customer_name || orders.product_name)))::bigint) AS lock_acquired,\n    orders.ctid AS row_ctid,\n    orders.xmin AS transaction_id\n   FROM public.orders;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24843",
@@ -2027,7 +2041,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "top_employees_view",
-            "Reason": "FETCH .. WITH TIES is not yet supported in YugabyteDB",
+            "Reason": "FETCH .. WITH TIES is not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE VIEW top_employees_view AS SELECT * FROM (\n\t\t\tSELECT * FROM employees\n\t\t\tORDER BY salary DESC\n\t\t\tFETCH FIRST 2 ROWS WITH TIES\n\t\t) AS top_employees;",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -2043,7 +2057,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2054,7 +2070,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2065,7 +2083,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2076,7 +2096,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2087,7 +2109,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2098,7 +2122,9 @@
             "Suggestion": "No workaround available",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2109,7 +2135,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2120,7 +2148,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_datatypes",
@@ -2131,7 +2161,9 @@
             "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2142,7 +2174,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2153,7 +2187,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2164,7 +2200,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "unsupported_features",
@@ -2175,7 +2213,9 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": null
+            "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
         {
             "IssueType": "migration_caveats",

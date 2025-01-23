@@ -464,7 +464,9 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-		    "MinimumVersionsFixedIn": null
+		    "MinimumVersionsFixedIn": {
+                "2.25": "2.25.0.0"
+            }
         },
 		{
 			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
@@ -475,7 +477,9 @@
 				}
 			],
 			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "Exclusion constraints",
@@ -524,7 +528,9 @@
 				}
 			],
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "View with check option",
@@ -621,7 +627,9 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",
@@ -695,7 +703,9 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "Regex Functions",
@@ -706,7 +716,9 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "FETCH .. WITH TIES Clause",
@@ -732,7 +744,9 @@
 				}
 			],
 			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"FeatureName": "Unique Nulls Not Distinct",
@@ -771,7 +785,9 @@
 				}
 			],
 			"DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features", 
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
@@ -2902,7 +2918,9 @@
 			"ConstructTypeName": "COPY FROM ... WHERE",
 			"Query": "COPY employeesCopyFromWhere (id, name, age)\nFROM STDIN WITH (FORMAT csv)\nWHERE age \u003e 30",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		},
 		{
 			"ConstructTypeName": "COPY ... ON_ERROR",

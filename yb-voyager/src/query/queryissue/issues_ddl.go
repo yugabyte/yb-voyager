@@ -33,6 +33,9 @@ var generatedColumnsIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10695",
 	Suggestion:  "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) QueryIssue {
@@ -51,6 +54,7 @@ var unloggedTableIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
 }
 
@@ -247,6 +251,10 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24830",
 	Suggestion:  "Create the triggers on individual partitions.",
+
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -265,6 +273,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
 }
 
@@ -511,6 +520,9 @@ var multiRangeDatatypeIssue = issue.Issue{
 	Suggestion:  "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
@@ -527,6 +539,9 @@ var securityInvokerViewIssue = issue.Issue{
 	Suggestion:  "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -541,6 +556,10 @@ var deterministicOptionCollationIssue = issue.Issue{
 	Suggestion:  "This feature is not supported in YugabyteDB yet",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0, // TODO: understand why docs says coming soon non-deterministic collation but the CREATE COLLAITON works on 2.25
+		//https://docs.yugabyte.com/preview/develop/pg15-features/#:~:text=Consider%20strings%20to%20be%20equal%20even%20if%20they%20consist%20of%20different%20bytes%2C%20for%20example%2C%20case%2Dinsensitive%2C%20or%20accent%2Dinsensitive%20comparisons.
+	},
 }
 
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -555,6 +574,9 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Suggestion:  "No workaround available ",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
@@ -572,6 +594,9 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	Suggestion:  "No workaround available",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -586,6 +611,9 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

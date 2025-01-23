@@ -827,17 +827,17 @@ $$ LANGUAGE plpgsql;`,
 	}
 	aggregateSqls := map[string][]QueryIssue{
 		sqls[0]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+			NewAnyValueAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
 		},
 		sqls[1]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
+			NewRangeAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1], []string{"range_intersect_agg"}),
 		},
 		sqls[2]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
+			NewRangeAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2], []string{"range_agg"}),
 		},
 		sqls[3]: []QueryIssue{
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
-			NewAggregationFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0], []string{"any_value"}),
+			NewRangeAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", "SELECT range_agg(range_value)                       FROM ranges;", []string{"range_agg"}),
+			NewAnyValueAggregateFunctionIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
 		},
 	}
 	aggregateSqls[sqls[3]] = modifiedIssuesforPLPGSQL(aggregateSqls[sqls[3]], "FUNCTION", "aggregate_ranges")
