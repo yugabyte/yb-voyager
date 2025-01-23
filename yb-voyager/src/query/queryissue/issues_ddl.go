@@ -201,7 +201,7 @@ var policyRoleIssue = issue.Issue{
 	Name:        "Policy with Roles",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: POLICY_ROLE_ISSUE_DESCRIPTION,
-	Suggestion:  "Users/Grants are not migrated during the schema migration. Create the Users manually to make the policies work",
+	Suggestion:  "Create the Users manually to make the policies work.",
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1655",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
 }
@@ -216,7 +216,7 @@ var constraintTriggerIssue = issue.Issue{
 	Type:        CONSTRAINT_TRIGGER,
 	Name:        "Constraint Trigger",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "CONSTRAINT TRIGGER is not yet supported in YugabyteDB",
+	Description: "CONSTRAINT TRIGGER is not yet supported in YugabyteDB.",
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1709",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#constraint-trigger-is-not-supported",
 }
@@ -258,6 +258,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	Name:        "Adding Primary Key to a partitioned table",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_DESCRIPTION,
+	Suggestion:  "After export schema, the ALTER table should be merged with CREATE table for partitioned tables.",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10074",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{

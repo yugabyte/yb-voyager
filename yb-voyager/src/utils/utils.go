@@ -760,7 +760,7 @@ func SnakeCaseToTitleCase(snake string) string {
 
 // MatchesFormatString checks if the final string matches the format string with %s placeholders filled.
 func MatchesFormatString(format, final string) (bool, error) {
-	regexPattern, err := FormatToRegex(format)
+	regexPattern, err := formatToRegex(format)
 	if err != nil {
 		return false, err
 	}
@@ -773,25 +773,57 @@ func MatchesFormatString(format, final string) (bool, error) {
 	return re.MatchString(final), nil
 }
 
-// FormatToRegex converts a format string with %s placeholders to a regex pattern.
-// It assumes(and support) that the only format specifier is %s.
-func FormatToRegex(format string) (string, error) {
-	// Split the format string at each %s to replace that with regex capture group.
-	parts := strings.Split(format, "%s")
+// formatToRegex converts a format string containing %s and %v
+// into a regex pattern.
+//   - %s => (.+?)    (capturing group)
+//   - %v => (?:.+?)  (non-capturing group)
+//
+// Everything else is escaped literally.
+// Example:
+//
+//	Input:  "PostGIS datatypes... column: %s and type: %v."
+//	Output: "^PostGIS\\ datatypes\\.\\.\\. column:\\ (.+?) and type:\\ (?:.+?)\\.$"
+//
+// NOTE: This function is written for handling issue description, please test it before using for other purposes.
+func formatToRegex(format string) (string, error) {
+	var sb strings.Builder
 
-	// Escape each part to make it a literal string.
-	lo.ForEach(parts, func(part string, i int) {
-		parts[i] = regexp.QuoteMeta(part)
-	})
+	// Anchor start
+	sb.WriteString("^")
 
-	regexPattern := fmt.Sprintf("^%s$", strings.Join(parts, "(.+?)"))
-	return regexPattern, nil
+	// Iterate rune-by-rune so we can detect '%s' or '%v'
+	runes := []rune(format)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '%' && i+1 < len(runes) {
+			// Look at the next character
+			switch runes[i+1] {
+			case 's':
+				// %s => capturing group
+				sb.WriteString(`(.+?)`)
+				i++
+			case 'v':
+				// %v => non-capturing group
+				sb.WriteString(`(?:.+?)`)
+				i++
+			default:
+				// If it's % followed by something else, treat '%' literally (escape it)
+				sb.WriteString(regexp.QuoteMeta(string(runes[i])))
+			}
+		} else {
+			// Normal character - escape it
+			sb.WriteString(regexp.QuoteMeta(string(runes[i])))
+		}
+	}
+
+	// Anchor end
+	sb.WriteString("$")
+	return sb.String(), nil
 }
 
 // ObfuscateFormatDetails obfuscates the captured groups in the final string with the provided obfuscation string.
 // It assumes that the format string matches the final string.
 func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error) {
-	regexPattern, err := FormatToRegex(format)
+	regexPattern, err := formatToRegex(format)
 	if err != nil {
 		return "", err
 	}
