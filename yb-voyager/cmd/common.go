@@ -1129,7 +1129,13 @@ type AssessMigrationDBConfig struct {
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.1" // version(s) till now: 1.0, 1.1
+/*
+Version History
+1.0: Introduced AssessmentIssue field for storing assessment issues in flattened format
+1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
+1.2: Syncing it with origianl AssessmentIssue; adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType
+*/
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.1"
 
 type AssessMigrationPayload struct {
 	PayloadVersion        string
