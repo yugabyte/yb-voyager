@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -61,6 +62,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	batchSizeInNumRows = batchSizeRows
 
 	state := NewImportDataState(lexportDir)
+	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 	return ldataDir, lexportDir, state, nil
 }
 

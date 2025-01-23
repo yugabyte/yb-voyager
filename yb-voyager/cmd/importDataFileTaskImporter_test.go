@@ -24,8 +24,6 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -35,20 +33,11 @@ type TestDB struct {
 	tgtdb.TargetDB
 }
 
-func TestBasicTaskImport(t *testing.T) {
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
-	testutils.FatalIfError(t, err)
+var testYugabyteDBTarget *TestDB
 
-	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
-	}
-	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
-	}
-
-	// yb
+func setupYugabyteTestDb(t *testing.T) {
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err = yugabytedbContainer.Start(context.Background())
+	err := yugabytedbContainer.Start(context.Background())
 	testutils.FatalIfError(t, err)
 	host, port, err := yugabytedbContainer.GetHostPort()
 	testutils.FatalIfError(t, err)
@@ -69,16 +58,26 @@ func TestBasicTaskImport(t *testing.T) {
 		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
 	)
 
-	err = testYugabyteDBTarget.Init()
-	testutils.FatalIfError(t, err)
-	defer testYugabyteDBTarget.Finalize()
 	tdb = testYugabyteDBTarget.TargetDB
+	err = tdb.Init()
+	testutils.FatalIfError(t, err)
 	err = tdb.CreateVoyagerSchema()
 	testutils.FatalIfError(t, err)
 	err = tdb.InitConnPool()
 	testutils.FatalIfError(t, err)
+}
 
-	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
+func TestBasicTaskImport(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+	setupYugabyteTestDb(t)
 
 	// file import
 	fileContents := `id,val
