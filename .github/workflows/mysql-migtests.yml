@@ -2,7 +2,7 @@ name: "MySQL: Migration Tests"
 
 on:
   push:
-    branches: ['*']
+    branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
     branches: ['*']
 
