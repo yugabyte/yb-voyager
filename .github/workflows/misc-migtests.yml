@@ -116,7 +116,9 @@ jobs:
 
             echo "Setup the gcp credentials"
             migtests/scripts/gcs/create_gcs_credentials_file
-
+            
+            export RUN_GCS_TESTS_IMPORT_FILE_TESTS=true
+            
             echo "TEST: import-data-file"
             migtests/tests/import-file/run-import-file-test
 
