@@ -92,17 +92,14 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessmentIssueCallhome Struct Definition",
 			actualType: reflect.TypeOf(AssessmentIssueCallhome{}),
 			expectedType: struct {
-				Category              string                          `json:"category"`
-				CategoryDescription   string                          `json:"category_description"`
-				Type                  string                          `json:"type"`
-				Name                  string                          `json:"name"`
-				Description           string                          `json:"description"`
-				Impact                string                          `json:"impact"`
-				ObjectType            string                          `json:"object_type"`
-				ObjectName            string                          `json:"object_name"`
-				SqlStatement          string                          `json:"sql_statement"`
-				DocsLink              string                          `json:"docs_link"`
-				MinimumVersionFixedIn map[string]*ybversion.YBVersion `json:"minimum_version_fixed_in"`
+				Category            string `json:"category"`
+				CategoryDescription string `json:"category_description"`
+				Type                string `json:"type"`
+				Name                string `json:"name"`
+				Description         string `json:"description"`
+				Impact              string `json:"impact"`
+				ObjectType          string `json:"object_type"`
+				ObjectName          string `json:"object_name"`
 			}{},
 		},
 		{

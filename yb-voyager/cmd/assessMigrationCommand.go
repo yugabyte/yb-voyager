@@ -193,17 +193,14 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
 		obfuscatedIssue := callhome.AssessmentIssueCallhome{
-			Category:              issue.Category,
-			CategoryDescription:   issue.CategoryDescription,
-			Type:                  issue.Type,
-			Name:                  issue.Name,
-			Description:           issue.Description,
-			Impact:                issue.Impact,
-			ObjectType:            issue.ObjectType,
-			ObjectName:            constants.OBFUSCATE_STRING,
-			SqlStatement:          constants.OBFUSCATE_STRING, // TODO(future): we can obfuscate sensitive info in SQL statement
-			DocsLink:              issue.DocsLink,
-			MinimumVersionFixedIn: issue.MinimumVersionFixedIn,
+			Category:            issue.Category,
+			CategoryDescription: issue.CategoryDescription,
+			Type:                issue.Type,
+			Name:                issue.Name,
+			Description:         issue.Description,
+			Impact:              issue.Impact,
+			ObjectType:          issue.ObjectType,
+			ObjectName:          constants.OBFUSCATE_STRING,
 		}
 
 		// allowing object name for unsupported extension issue type
