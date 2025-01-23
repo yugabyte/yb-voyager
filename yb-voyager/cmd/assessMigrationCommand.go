@@ -524,7 +524,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			ObjectName:             issue.ObjectName,
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
-			MinimumVersionsFixedIn: issue.MinimumVersionFixedIn,
+			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 		}
 		result = append(result, ybdIssue)
 	}
@@ -1170,10 +1170,10 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			})
 		}
 		feature := UnsupportedFeature{
-			FeatureName: issueName,
-			DisplayDDL:  true,
-			DocsLink:    docsLink,
-			Objects:     objects,
+			FeatureName:            issueName,
+			DisplayDDL:             true,
+			DocsLink:               docsLink,
+			Objects:                objects,
 			MinimumVersionsFixedIn: minVersionsFixedIn,
 		}
 		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
