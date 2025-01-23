@@ -109,7 +109,6 @@ func TestLatestStable(t *testing.T) {
 	err = json.Unmarshal(body, &releases)
 	assert.NoErrorf(t, err, "could not unmarshal response %q", string(body))
 	assert.NotEmpty(t, releases, "no releases found")
-
 	for _, r := range releases {
 		// sample -  v2.20.7.1 (Released October 16, 2024)
 		releaseName := r.Name

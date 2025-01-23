@@ -24,6 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -74,7 +75,7 @@ func createFileAndTask(lexportDir string, fileContents string, ldataDir string, 
 		EscapeChar: '\\',
 		NullString: "NULL",
 	}
-	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents)
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents, dataFileDescriptor.FileFormat)
 	if err != nil {
 		return "", nil, err
 	}

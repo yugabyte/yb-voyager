@@ -1083,7 +1083,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(FETCH_WITH_TIES_FEATURE, "", queryissue.FETCH_WITH_TIES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_QUERY_FUNCTIONS_NAME, "", queryissue.JSON_QUERY_FUNCTION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.AGGREGATION_FUNCTIONS_NAME, "", queryissue.AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ANY_VALUE_AGGREGATE_FUNCTION_NAME, "", queryissue.ANY_VALUE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_AGGREGATE_FUNCTION_NAME, "", queryissue.RANGE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.DETERMINISTIC_OPTION_WITH_COLLATION_NAME, "", queryissue.DETERMINISTIC_OPTION_WITH_COLLATION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.UNIQUE_NULLS_NOT_DISTINCT_NAME, "", queryissue.UNIQUE_NULLS_NOT_DISTINCT, schemaAnalysisReport, false))
@@ -1262,6 +1263,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			DisplayDDL:  true,
 			DocsLink:    docsLink,
 			Objects:     objects,
+			MinimumVersionsFixedIn: minVersionsFixedIn,
 		}
 		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
 	}
