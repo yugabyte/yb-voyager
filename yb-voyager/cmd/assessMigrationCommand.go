@@ -120,29 +120,6 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-// assessment issue descriptions to modify before sending to callhome as will have sensitive information
-// copy of reasonsIncludingSensitiveInformationToCallhome
-var descriptionsIncludingSensitiveInformationToCallhome = []string{
-	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
-	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION + " " + queryissue.STORED_GENERATED_COLUMN_ISSUE_SUGGESTION,
-	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION + " " + queryissue.POLICY_ROLE_ISSUE_SUGGESTION,
-	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION + " " + queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION,
-	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.XML_DATATYPE_ISSUE_SUGGESTION,
-	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.XID_DATATYPE_ISSUE_SUGGESTION,
-	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
-	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION,
-	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION + " " + queryissue.MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION,
-
-	// extras because suggestion contains sensitive information
-	queryissue.FOREIGN_TABLE_ISSUE_DESCRIPTION + " " + queryissue.FOREIGN_TABLE_ISSUE_SUGGESTION,
-	queryissue.ALTER_TABLE_DISABLE_RULE_ISSUE_DESCRIPTION + " " + queryissue.ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION,
-}
-
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
