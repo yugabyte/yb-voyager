@@ -199,32 +199,16 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			CategoryDescription: issue.CategoryDescription,
 			Type:                issue.Type,
 			Name:                issue.Name,
-			Description:         issue.Description,
 			Impact:              issue.Impact,
 			ObjectType:          issue.ObjectType,
-			ObjectName:          constants.OBFUSCATE_STRING,
 		}
 
-		// allowing object name for unsupported extension issue type
-		if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
-			// object name(i.e. extension name here) might be qualified with schema so just taking the last part
-			obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
-		}
+		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
 
-		for _, sensitiveDescription := range descriptionsIncludingSensitiveInformationToCallhome {
-			if sensitiveDescription == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(obfuscatedIssue.Description, sensitiveDescription) {
-				obfuscatedIssue.Description = sensitiveDescription
-			} else {
-				match, err := utils.MatchesFormatString(sensitiveDescription, obfuscatedIssue.Description)
-				if match {
-					obfuscatedIssue.Description, err = utils.ObfuscateFormatDetails(sensitiveDescription, obfuscatedIssue.Description, constants.OBFUSCATE_STRING)
-				}
-				if err != nil {
-					log.Errorf("error while matching issue description with sensitive descriptions: %v", err)
-					obfuscatedIssue.Description = constants.OBFUSCATE_STRING
-				}
-			}
-		}
+		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
+		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
+		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
+		// }
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)

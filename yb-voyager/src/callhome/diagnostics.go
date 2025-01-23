@@ -117,10 +117,8 @@ type AssessmentIssueCallhome struct {
 	CategoryDescription string `json:"category_description"`
 	Type                string `json:"type"`
 	Name                string `json:"name"`
-	Description         string `json:"description"`
 	Impact              string `json:"impact"`
 	ObjectType          string `json:"object_type"`
-	ObjectName          string `json:"object_name"`
 }
 
 type ObjectSizingStats struct {
