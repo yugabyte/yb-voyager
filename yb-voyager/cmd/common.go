@@ -1057,7 +1057,7 @@ type AssessmentReport struct {
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
-	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                          []string                              `json:"Notes"`
 
@@ -1139,7 +1139,7 @@ type AssessMigrationPayload struct {
 	TargetRecommendations TargetSizingRecommendations
 	ConversionIssues      []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
-	AssessmentJsonReport AssessmentReport
+	AssessmentJsonReport AssessmentReportYugabyteD
 }
 
 type AssessmentIssueYugabyteD struct {
@@ -1154,6 +1154,23 @@ type AssessmentIssueYugabyteD struct {
 
 	// Store Type-specific details - extensible, can refer any struct
 	Details json.RawMessage `json:"Details,omitempty"`
+}
+
+type AssessmentReportYugabyteD struct {
+	VoyagerVersion             string                                `json:"VoyagerVersion"`
+	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity        string                                `json:"MigrationComplexity"`
+	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
+	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                      []string                              `json:"Notes"`
+	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"` // using utils.TableColumnsDataTypes struct for ybd since it's unlikely to change rather removed
+	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
+	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"` // using UnsupportedFeature struct for ybd since it's unlikely to change rather removed
+	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
 /*
