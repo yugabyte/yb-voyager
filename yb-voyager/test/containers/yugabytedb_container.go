@@ -138,6 +138,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			}) {
 				break
 			}
+			time.Sleep(2 * time.Second)
 		}
 		if err != nil {
 			utils.ErrExit("failed to execute sql: %v", err)
