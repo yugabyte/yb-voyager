@@ -166,7 +166,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
 	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
 	if err != nil {
-		log.Errorf("failed to build migration complexity explanation: %v", err)
+		log.Errorf("failed to build migration complexity explanation for callhome assessment payload: %v", err)
 	}
 
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
@@ -463,14 +463,21 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	}
 
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
+	// we will build this twice for json and html reports both, at the time of report generation.
+	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
+	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
+	if err != nil {
+		log.Errorf("failed to build migration complexity explanation for yugabyted assessment payload: %v", err)
+	}
 
 	payload := AssessMigrationPayload{
-		PayloadVersion:      ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
-		VoyagerVersion:      assessmentReport.VoyagerVersion,
-		TargetDBVersion:     assessmentReport.TargetDBVersion,
-		MigrationComplexity: assessmentReport.MigrationComplexity,
-		SchemaSummary:       assessmentReport.SchemaSummary,
-		AssessmentIssues:    assessmentIssues,
+		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
+		VoyagerVersion:                 assessmentReport.VoyagerVersion,
+		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		MigrationComplexity:            assessmentReport.MigrationComplexity,
+		MigrationComplexityExplanation: explanation,
+		SchemaSummary:                  assessmentReport.SchemaSummary,
+		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
 			TotalTableSize:     assessmentReport.GetTotalTableSize(),
