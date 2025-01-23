@@ -120,23 +120,29 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-// Assessment feature names to send the object names for to callhome
-var featuresToSendObjectsToCallhome = []string{}
-
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
 
+	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
+	payload.Status = status
+	if assessmentMetadataDirFlag == "" {
+		sourceDBDetails := callhome.SourceDBDetails{
+			DBType:    source.DBType,
+			DBVersion: source.DBVersion,
+			DBSize:    source.DBSize,
+		}
+		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	}
 
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
 				//redacting schema and object name
-				ObjectName:      "XXX",
+				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
@@ -156,87 +162,51 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}),
 	}
 
-	unsupportedDatatypesList := lo.Map(assessmentReport.UnsupportedDataTypes, func(datatype utils.TableColumnsDataTypes, _ int) string {
-		return datatype.DataType
-	})
+	// we will build this twice for json and html reports both, at the time of report generation.
+	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
+	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
+	if err != nil {
+		log.Errorf("failed to build migration complexity explanation: %v", err)
+	}
 
-	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
-		return q.ConstructTypeName
-	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
-		return len(constructs)
-	})
-
-	var unsupportedFeatures []callhome.UnsupportedFeature
-	for _, feature := range assessmentReport.UnsupportedFeatures {
-		if feature.FeatureName == EXTENSION_FEATURE {
-			// For extensions, we need to send the extension name in the feature name
-			// for better categorization in callhome
-			for _, object := range feature.Objects {
-				unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
-					FeatureName:      fmt.Sprintf("%s - %s", feature.FeatureName, object.ObjectName),
-					ObjectCount:      1,
-					TotalOccurrences: 1,
-				})
-			}
-		} else {
-			var objects []string
-			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
-				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
-					return o.ObjectName
-				})
-			}
-			unsupportedFeatures = append(unsupportedFeatures, callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				Objects:          objects,
-				TotalOccurrences: len(feature.Objects),
-			})
+	var obfuscatedIssues []callhome.AssessmentIssueCallhome
+	for _, issue := range assessmentReport.Issues {
+		obfuscatedIssue := callhome.AssessmentIssueCallhome{
+			Category:            issue.Category,
+			CategoryDescription: issue.CategoryDescription,
+			Type:                issue.Type,
+			Name:                issue.Name,
+			Impact:              issue.Impact,
+			ObjectType:          issue.ObjectType,
 		}
+
+		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
+
+		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
+		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
+		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
+		// }
+
+		// appending the issue after obfuscating sensitive information
+		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		TargetDBVersion:            assessmentReport.TargetDBVersion,
-		MigrationComplexity:        assessmentReport.MigrationComplexity,
-		UnsupportedFeatures:        callhome.MarshalledJsonString(unsupportedFeatures),
-		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
-		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
-		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			return callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				TotalOccurrences: len(feature.Objects),
-			}
-		})),
-		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			groupedObjects := groupByObjectName(plpgsql.Objects)
-			return callhome.UnsupportedFeature{
-				FeatureName:      plpgsql.FeatureName,
-				ObjectCount:      len(lo.Keys(groupedObjects)),
-				TotalOccurrences: len(plpgsql.Objects),
-			}
-		})),
-		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
-		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
-		IopsInterval:     intervalForCapturingIOPS,
-		Error:            callhome.SanitizeErrorMsg(errMsg),
+		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
+		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		MigrationComplexity:            assessmentReport.MigrationComplexity,
+		MigrationComplexityExplanation: explanation,
+		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
+		Issues:                         callhome.MarshalledJsonString(obfuscatedIssues),
+		Error:                          callhome.SanitizeErrorMsg(errMsg),
+		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
+		SourceConnectivity:             assessmentMetadataDirFlag == "",
+		IopsInterval:                   intervalForCapturingIOPS,
 	}
 
-	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
-		}
-		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-		assessPayload.SourceConnectivity = true
-	} else {
-		assessPayload.SourceConnectivity = false
-	}
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	payload.Status = status
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
@@ -495,7 +465,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
 
 	payload := AssessMigrationPayload{
-		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
+		PayloadVersion:      ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:      assessmentReport.VoyagerVersion,
 		TargetDBVersion:     assessmentReport.TargetDBVersion,
 		MigrationComplexity: assessmentReport.MigrationComplexity,
@@ -1038,12 +1008,12 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
 		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
 
-		Impact:                analyzeSchemaIssue.Impact,
-		ObjectType:            analyzeSchemaIssue.ObjectType,
-		ObjectName:            analyzeSchemaIssue.ObjectName,
-		SqlStatement:          analyzeSchemaIssue.SqlStatement,
-		DocsLink:              analyzeSchemaIssue.DocsLink,
-		MinimumVersionFixedIn: minVersionsFixedIn,
+		Impact:                 analyzeSchemaIssue.Impact,
+		ObjectType:             analyzeSchemaIssue.ObjectType,
+		ObjectName:             analyzeSchemaIssue.ObjectName,
+		SqlStatement:           analyzeSchemaIssue.SqlStatement,
+		DocsLink:               analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn: minVersionsFixedIn,
 	}
 }
 
@@ -1246,16 +1216,16 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			docsLink = issue.DocsLink
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:              UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-				Type:                  issue.Type,
-				Name:                  issue.Name,
-				Impact:                issue.Impact,
-				Description:           issue.Reason,
-				ObjectType:            issue.ObjectType,
-				ObjectName:            issue.ObjectName,
-				SqlStatement:          issue.SqlStatement,
-				DocsLink:              issue.DocsLink,
-				MinimumVersionFixedIn: issue.MinimumVersionsFixedIn,
+				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Reason,
+				ObjectType:             issue.ObjectType,
+				ObjectName:             issue.ObjectName,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			})
 		}
 		feature := UnsupportedFeature{
@@ -1335,14 +1305,14 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			result = append(result, uqc)
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:              UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
-				Type:                  issue.Type,
-				Name:                  issue.Name,
-				Impact:                issue.Impact,
-				Description:           issue.Description,
-				SqlStatement:          issue.SqlStatement,
-				DocsLink:              issue.DocsLink,
-				MinimumVersionFixedIn: issue.MinimumVersionsFixedIn,
+				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Description,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			})
 		}
 	}
@@ -1441,16 +1411,16 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 		issue := AssessmentIssue{
-			Category:              UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:   GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:           "",               // TODO
-			Impact:                constants.IMPACT_LEVEL_3,
-			ObjectType:            constants.COLUMN,
-			ObjectName:            qualifiedColName,
-			DocsLink:              "",  // TODO
-			MinimumVersionFixedIn: nil, // TODO
+			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Description:            "",               // TODO
+			Impact:                 constants.IMPACT_LEVEL_3,
+			ObjectType:             constants.COLUMN,
+			ObjectName:             qualifiedColName,
+			DocsLink:               "",  // TODO
+			MinimumVersionsFixedIn: nil, // TODO
 		}
 		assessmentIssues = append(assessmentIssues, issue)
 	}

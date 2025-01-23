@@ -103,7 +103,7 @@
             "ObjectName": "test_1, constraint: (test_1_id_fkey)",
             "Reason": "Foreign key references to partitioned table are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL REFERENCES sales_data(sales_id),\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "Suggestion": "No workaround available ",
+            "Suggestion": "No workaround available.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2093,7 +2093,7 @@
             "ObjectName": "public.asterisks1",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION public.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);",
-            "Suggestion": "No workaround available",
+            "Suggestion": "No workaround available.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2106,7 +2106,7 @@
             "ObjectName": "public.asterisks",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;",
-            "Suggestion": "No workaround available",
+            "Suggestion": "No workaround available.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2119,7 +2119,7 @@
             "ObjectName": "add",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;",
-            "Suggestion": "No workaround available",
+            "Suggestion": "No workaround available.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {

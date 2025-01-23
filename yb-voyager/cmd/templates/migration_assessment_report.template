@@ -402,7 +402,7 @@
                                         </tr>
 
                                         <!-- Only show if there is a supported version -->
-                                        {{ $verStr := getSupportedVersionString $issue.MinimumVersionFixedIn }}
+                                        {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
                                         {{ if $verStr }}
                                         <tr>
                                             <th>Supported In (versions)</th>

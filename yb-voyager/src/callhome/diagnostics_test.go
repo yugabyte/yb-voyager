@@ -72,32 +72,32 @@ func TestCallhomeStructs(t *testing.T) {
 			}{},
 		},
 		{
-			name:       "Validate UnsupportedFeature Struct Definition",
-			actualType: reflect.TypeOf(UnsupportedFeature{}),
-			expectedType: struct {
-				FeatureName      string   `json:"FeatureName"`
-				Objects          []string `json:"Objects,omitempty"`
-				ObjectCount      int      `json:"ObjectCount"`
-				TotalOccurrences int      `json:"TotalOccurrences"`
-			}{},
-		},
-		{
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
-				MigrationComplexity        string               `json:"migration_complexity"`
-				UnsupportedFeatures        string               `json:"unsupported_features"`
-				UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
-				UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
-				MigrationCaveats           string               `json:"migration_caveats"`
-				UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-				Error                      string               `json:"error"`
-				TableSizingStats           string               `json:"table_sizing_stats"`
-				IndexSizingStats           string               `json:"index_sizing_stats"`
-				SchemaSummary              string               `json:"schema_summary"`
-				SourceConnectivity         bool                 `json:"source_connectivity"`
-				IopsInterval               int64                `json:"iops_interval"`
+				PayloadVersion                 string               `json:"payload_version"`
+				TargetDBVersion                *ybversion.YBVersion `json:"target_db_version"`
+				MigrationComplexity            string               `json:"migration_complexity"`
+				MigrationComplexityExplanation string               `json:"migration_complexity_explanation"`
+				SchemaSummary                  string               `json:"schema_summary"`
+				Issues                         string               `json:"assessment_issues"`
+				Error                          string               `json:"error"`
+				TableSizingStats               string               `json:"table_sizing_stats"`
+				IndexSizingStats               string               `json:"index_sizing_stats"`
+				SourceConnectivity             bool                 `json:"source_connectivity"`
+				IopsInterval                   int64                `json:"iops_interval"`
+			}{},
+		},
+		{
+			name:       "Validate AssessmentIssueCallhome Struct Definition",
+			actualType: reflect.TypeOf(AssessmentIssueCallhome{}),
+			expectedType: struct {
+				Category            string `json:"category"`
+				CategoryDescription string `json:"category_description"`
+				Type                string `json:"type"`
+				Name                string `json:"name"`
+				Impact              string `json:"impact"`
+				ObjectType          string `json:"object_type"`
 			}{},
 		},
 		{
