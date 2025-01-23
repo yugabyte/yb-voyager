@@ -1051,11 +1051,13 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
         0x1527D27F2 AS hex,
         0o52237223762 AS oct,
         0b10101001001111101001001111111`
+	sql5 := `SELECT 5678901234, 0O52237223762 as octal;` // captial "0O" case
 	sqls := map[string]QueryIssue{
 		sql1: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql1),
 		sql2: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql2),
 		sql3: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql3),
 		sql4: NewNonDecimalIntegerLiteralIssue("VIEW", "zz", sql4),
+		sql5: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql5),
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for sql, expectedIssue := range sqls {

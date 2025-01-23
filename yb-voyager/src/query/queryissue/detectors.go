@@ -592,9 +592,21 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 			lexpr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"&"}} lexpr:{column_ref:{fields:{string:{sval:"flags"}} location:94}} rexpr:{a_const:{ival:{ival:1}
 			location:102}} location:100}} rexpr:{a_const:{ival:{ival:1} location:109}} location:107}} ..
 
+		So mostly be detecting this in PLPGSQL cases
 	*/
 	switch {
 	case aConstNode.GetFval() != nil:
+		/*
+		fval - float val representation in postgres
+		ival - integer val 
+		Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
+		select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}} 
+		target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
+
+		ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
+		select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}} 
+		target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
+		*/
 		fval := aConstNode.GetFval().Fval
 		for _, literal := range nonDecimalIntegerLiterals {
 			if strings.HasPrefix(fval, literal) {
