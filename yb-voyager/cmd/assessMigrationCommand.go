@@ -462,7 +462,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
-	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
+	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
 
 	payload := AssessMigrationPayload{
 		PayloadVersion:      ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
@@ -510,84 +510,25 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	return ev
 }
 
-// flatten UnsupportedDataTypes, UnsupportedFeatures, MigrationCaveats
-func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssueYugabyteD {
-	var issues []AssessmentIssueYugabyteD
-
-	var dataTypesDocsLink string
-	switch source.DBType {
-	case POSTGRESQL:
-		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK
-	case ORACLE:
-		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
-	}
-	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
-		issues = append(issues, AssessmentIssueYugabyteD{
-			Type:            constants.DATATYPE,
-			TypeDescription: GetCategoryDescription(constants.DATATYPE),
-			Subtype:         unsupportedDataType.DataType,
-			ObjectName:      fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
-			SqlStatement:    "",
-			DocsLink:        dataTypesDocsLink,
-		})
-	}
-
-	for _, unsupportedFeature := range ar.UnsupportedFeatures {
-		for _, object := range unsupportedFeature.Objects {
-			issues = append(issues, AssessmentIssueYugabyteD{
-				Type:                   constants.FEATURE,
-				TypeDescription:        GetCategoryDescription(constants.FEATURE),
-				Subtype:                unsupportedFeature.FeatureName,
-				SubtypeDescription:     unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               unsupportedFeature.DocsLink,
-				MinimumVersionsFixedIn: unsupportedFeature.MinimumVersionsFixedIn,
-			})
+func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
+	var result []AssessmentIssueYugabyteD
+	for _, issue := range ar.Issues {
+		ybdIssue := AssessmentIssueYugabyteD{
+			Category:               issue.Category,
+			CategoryDescription:    issue.CategoryDescription,
+			Type:                   issue.Type, // Ques: should we be just sending Name in AssessmentIssueYugabyteD payload
+			Name:                   issue.Name,
+			Description:            issue.Description,
+			Impact:                 issue.Impact,
+			ObjectType:             issue.ObjectType,
+			ObjectName:             issue.ObjectName,
+			SqlStatement:           issue.SqlStatement,
+			DocsLink:               issue.DocsLink,
+			MinimumVersionsFixedIn: issue.MinimumVersionFixedIn,
 		}
+		result = append(result, ybdIssue)
 	}
-
-	for _, migrationCaveat := range ar.MigrationCaveats {
-		for _, object := range migrationCaveat.Objects {
-			issues = append(issues, AssessmentIssueYugabyteD{
-				Type:                   constants.MIGRATION_CAVEATS,
-				TypeDescription:        GetCategoryDescription(constants.MIGRATION_CAVEATS),
-				Subtype:                migrationCaveat.FeatureName,
-				SubtypeDescription:     migrationCaveat.FeatureDescription,
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               migrationCaveat.DocsLink,
-				MinimumVersionsFixedIn: migrationCaveat.MinimumVersionsFixedIn,
-			})
-		}
-	}
-
-	for _, uqc := range ar.UnsupportedQueryConstructs {
-		issues = append(issues, AssessmentIssueYugabyteD{
-			Type:                   constants.QUERY_CONSTRUCT,
-			TypeDescription:        GetCategoryDescription(constants.QUERY_CONSTRUCT),
-			Subtype:                uqc.ConstructTypeName,
-			SqlStatement:           uqc.Query,
-			DocsLink:               uqc.DocsLink,
-			MinimumVersionsFixedIn: uqc.MinimumVersionsFixedIn,
-		})
-	}
-
-	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
-		for _, object := range plpgsqlObjects.Objects {
-			issues = append(issues, AssessmentIssueYugabyteD{
-				Type:                   constants.PLPGSQL_OBJECT,
-				TypeDescription:        GetCategoryDescription(constants.PLPGSQL_OBJECT),
-				Subtype:                plpgsqlObjects.FeatureName,
-				SubtypeDescription:     plpgsqlObjects.FeatureDescription,
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               plpgsqlObjects.DocsLink,
-				MinimumVersionsFixedIn: plpgsqlObjects.MinimumVersionsFixedIn,
-			})
-		}
-	}
-	return issues
+	return result
 }
 
 func runAssessment() error {
