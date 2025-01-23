@@ -44,9 +44,9 @@
             },
             {
                 "ObjectType": "FUNCTION",
-                "TotalCount": 10,
-                "InvalidCount": 10,
-                "ObjectNames": "public.asterisks, add, public.asterisks1, create_and_populate_tables, public.get_employeee_salary, get_employee_details, calculate_tax, log_salary_change, list_high_earners, copy_high_earners"
+                "TotalCount": 11,
+                "InvalidCount": 11,
+                "ObjectNames": "public.insert_non_decimal, public.asterisks, add, public.asterisks1, create_and_populate_tables, public.get_employeee_salary, get_employee_details, calculate_tax, log_salary_change, list_high_earners, copy_high_earners"
             },
             {
                 "ObjectType": "PROCEDURE",
@@ -56,9 +56,9 @@
             },
             {
                 "ObjectType": "VIEW",
-                "TotalCount": 7,
-                "InvalidCount": 7,
-                "ObjectNames": "public.my_films_view, v1, v2, test, public.orders_view, view_name, top_employees_view"
+                "TotalCount": 8,
+                "InvalidCount": 8,
+                "ObjectNames": "zz, public.my_films_view, v1, v2, test, public.orders_view, view_name, top_employees_view"
             },
             {
                 "ObjectType": "TRIGGER",

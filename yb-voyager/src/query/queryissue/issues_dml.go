@@ -277,3 +277,17 @@ func NewMergeStatementIssue(objectType string, objectName string, sqlStatement s
 	//MERGE STATEMENT is PG15 feature but  MERGE .... RETURNING clause is PG17 feature so need to report it separately later.
 	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var nonDecimalIntegerLiteralIssue = issue.Issue{
+	Type:        NON_DECIMAL_INTEGER_LITERAL,
+	Name:        NON_DECIMAL_INTEGER_LITERAL_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: "Non decimal integer literals are not supported in YugabyteDB",
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewNonDecimalIntegerLiteralIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(nonDecimalIntegerLiteralIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

@@ -159,3 +159,14 @@ var catalogFunctionsReturningJsonb = mapset.NewThreadUnsafeSet([]string{
 	"jsonb_path_query_array_tz", "jsonb_path_query_first", "jsonb_path_query_first_tz", "jsonb_recv",
 	"jsonb_set", "jsonb_set_lax", "jsonb_strip_nulls", "to_jsonb", "ts_headline",
 }...)
+
+var nonDecimalIntegerLiterals = []string{
+	"0x",
+	"0X",
+	"0o",
+	"0O",
+	"0b",
+	"0B",
+	//https://github.com/pganalyze/pg_query_go/blob/38c866daa3fdb0a7af78741476d6b89029c19afe/parser/src_backend_utils_adt_numutils.c#L59C30-L61C76
+	// the prefix "0x" could be "0X" as well so should check both
+}

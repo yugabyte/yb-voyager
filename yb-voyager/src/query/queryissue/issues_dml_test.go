@@ -334,6 +334,32 @@ GROUP BY department;`
 
 }
 
+func testNonDecimalIntegerLiteralIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	sqls := []string{
+		`CREATE VIEW zz AS
+    SELECT
+        5678901234 as DEC,
+        0x1527D27F2 as hex,
+        0o52237223762 as oct,
+        0b101010010011111010010011111110010 as bin;`,
+		`SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`,
+	}
+	for _, sql := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		var errMsg string
+		switch {
+		case testYbVersion.Equal(ybversion.V2_25_0_0):
+			errMsg = `trailing junk after numeric literal at or near`
+		default:
+			errMsg = `syntax error at or near "as"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, nonDecimalIntegerLiteralIssue)
+	}
+}
 func testCTEWithMaterializedIssue(t *testing.T) {
 	sqls := map[string]string{`
 	CREATE TABLE big_table(key text, ref text, c1 int, c2 int);
@@ -418,6 +444,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "Non-decimal integer literal", ybVersion), testNonDecimalIntegerLiteralIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "cte with materialized cluase", ybVersion), testCTEWithMaterializedIssue)

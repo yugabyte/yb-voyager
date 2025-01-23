@@ -748,6 +748,17 @@
             "MinimumVersionsFixedIn": null
         },
         {
+            "IssueType": "unsupported_plpgsql_objects",
+            "ObjectType": "FUNCTION",
+            "ObjectName": "public.insert_non_decimal",
+            "Reason": "Non decimal integer literals are not supported in YugabyteDB",
+            "SqlStatement": "SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
             "IssueType": "unsupported_features",
             "ObjectType": "TRIGGER",
             "ObjectName": "some_trig ON xyz_schema.abc",
@@ -2151,6 +2162,17 @@
             "MinimumVersionsFixedIn": {
                 "2.25": "2.25.0.0"
             }
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "VIEW",
+            "ObjectName": "zz",
+            "Reason": "Non decimal integer literals are not supported in YugabyteDB",
+            "SqlStatement": "CREATE VIEW zz AS\n    SELECT\n        5678901234 AS DEC,\n        0x1527D27F2 AS hex,\n        0o52237223762 AS oct,\n        0b101010010011111010010011111110010 AS bin;",
+            "Suggestion": "",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_datatypes",
