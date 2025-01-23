@@ -109,7 +109,7 @@ const (
 )
 
 // Issues Description
-// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome slice in analyzeSchema.go
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
 const (
 	// for DMLs
 	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
@@ -181,4 +181,35 @@ const (
 	POLICY_OBJECT_TYPE        = "POLICY"
 	TRIGGER_OBJECT_TYPE       = "TRIGGER"
 	DML_QUERY_OBJECT_TYPE     = "DML_QUERY"
+)
+
+// Issue Suggestions
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
+const (
+	STORED_GENERATED_COLUMN_ISSUE_SUGGESTION                  = "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details."
+	UNLOGGED_TABLES_ISSUE_SUGGESTION                          = "Remove UNLOGGED keyword to make it work"
+	STORAGE_PARAMETERS_ISSUE_SUGGESTION                       = "Remove the storage parameters from the DDL"
+	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_SUGGESTION         = "Remove it from the exported schema"
+	ALTER_TABLE_CLUSTER_ON_ISSUE_SUGGESTION                   = "Remove it from the exported schema."
+	ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION                 = "Remove this and the rule '%s' from the exported schema to be not enabled on the table."
+	EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION                     = "Refer docs link for details on possible workaround"
+	DEFERRABLE_CONSTRAINT_ISSUE_SUGGESTION                    = "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly"
+	POLICY_ROLE_ISSUE_SUGGESTION                              = "Create the Users manually to make the policies work."
+	BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION    = "Create the triggers on individual partitions."
+	ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_SUGGESTION          = "After export schema, the ALTER table should be merged with CREATE table for partitioned tables."
+	EXPRESSION_PARTITION_ISSUE_SUGGESTION                     = "Remove the Constriant from the table definition"
+	MULTI_COLUMN_LIST_PARTITION_ISSUE_SUGGESTION              = "Make it a single column partition by list or choose other supported Partitioning methods"
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION = "Add all Partition columns to Primary Key"
+	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
+	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
+	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
+	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
+	FOREIGN_TABLE_ISSUE_SUGGESTION                            = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
+	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION              = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+	LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION                    = "Large objects are not yet supported in YugabyteDB, no workaround available currently"
+	MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION                     = "Multirange data type is not yet supported in YugabyteDB, no workaround available currently"
+	SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION                   = "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently"
+	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION      = "This feature is not supported in YugabyteDB yet"
+	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION = "No workaround available."
+	SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION                     = "No workaround available."
 )
