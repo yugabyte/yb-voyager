@@ -185,6 +185,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}),
 	}
 
+	// we will build this twice for json and html reports both, at the time of report generation.
+	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
 	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
 	if err != nil {
 		log.Errorf("failed to build migration complexity explanation: %v", err)
