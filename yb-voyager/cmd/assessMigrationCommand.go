@@ -511,8 +511,23 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: totalColocatedSize,
 			TotalShardedSize:   totalShardedSize,
 		},
-		ConversionIssues:     schemaAnalysisReport.Issues,
-		AssessmentJsonReport: assessmentReport,
+		ConversionIssues: schemaAnalysisReport.Issues,
+		AssessmentJsonReport: AssessmentReportYugabyteD{
+			VoyagerVersion:             assessmentReport.VoyagerVersion,
+			TargetDBVersion:            assessmentReport.TargetDBVersion,
+			MigrationComplexity:        assessmentReport.MigrationComplexity,
+			SchemaSummary:              assessmentReport.SchemaSummary,
+			Sizing:                     assessmentReport.Sizing,
+			TableIndexStats:            assessmentReport.TableIndexStats,
+			Notes:                      assessmentReport.Notes,
+			UnsupportedDataTypes:       assessmentReport.UnsupportedDataTypes,
+			UnsupportedDataTypesDesc:   assessmentReport.UnsupportedDataTypesDesc,
+			UnsupportedFeatures:        assessmentReport.UnsupportedFeatures,
+			UnsupportedFeaturesDesc:    assessmentReport.UnsupportedFeaturesDesc,
+			UnsupportedQueryConstructs: assessmentReport.UnsupportedQueryConstructs,
+			UnsupportedPlPgSqlObjects:  assessmentReport.UnsupportedPlPgSqlObjects,
+			MigrationCaveats:           assessmentReport.MigrationCaveats,
+		},
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -1075,7 +1090,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSONB_SUBSCRIPTING_NAME, "", queryissue.JSONB_SUBSCRIPTING, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME, "", queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_TYPE_PREDICATE_NAME, "", queryissue.JSON_TYPE_PREDICATE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false,))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.CTE_WITH_MATERIALIZED_CLAUSE_NAME, "", queryissue.CTE_WITH_MATERIALIZED_CLAUSE, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {

@@ -126,6 +126,23 @@ func TestAssessmentReportStructs(t *testing.T) {
 			}{},
 		},
 		{
+			name:       "Validate Assessment Issue Struct Definition",
+			actualType: reflect.TypeOf(AssessmentIssue{}),
+			expectedType: struct {
+				Category              string                          `json:"Category"`
+				CategoryDescription   string                          `json:"CategoryDescription"`
+				Type                  string                          `json:"Type"`
+				Name                  string                          `json:"Name"`
+				Description           string                          `json:"Description"`
+				Impact                string                          `json:"Impact"`
+				ObjectType            string                          `json:"ObjectType"`
+				ObjectName            string                          `json:"ObjectName"`
+				SqlStatement          string                          `json:"SqlStatement"`
+				DocsLink              string                          `json:"DocsLink"`
+				MinimumVersionFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionFixedIn"`
+			}{},
+		},
+		{
 			name:       "Validate AssessmentReport Struct Definition",
 			actualType: reflect.TypeOf(AssessmentReport{}),
 			expectedType: struct {
@@ -135,7 +152,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 				SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
 				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
-				Issues                         []AssessmentIssue                     `json:"-"`
+				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 				Notes                          []string                              `json:"Notes"`
 				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
@@ -199,6 +216,7 @@ func TestAssessmentReportJson(t *testing.T) {
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
+		// TODO add expected values for Issues field
 		Issues: nil,
 		TableIndexStats: &[]migassessment.TableIndexStats{
 			{
@@ -346,6 +364,7 @@ func TestAssessmentReportJson(t *testing.T) {
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
+	"AssessmentIssues": null,
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
