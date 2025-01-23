@@ -53,7 +53,7 @@ func setupYugabyteTestDb(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	host, port, err := yugabytedbContainer.GetHostPort()
 	testutils.FatalIfError(t, err)
-	testYugabyteDBTarget := &TestDB{
+	testYugabyteDBTarget = &TestDB{
 		TestContainer: yugabytedbContainer,
 		TargetDB: tgtdb.NewTargetDB(&tgtdb.TargetConf{
 			TargetDBType: "yugabytedb",
@@ -66,9 +66,6 @@ func setupYugabyteTestDb(t *testing.T) {
 			Port:         port,
 		}),
 	}
-	testYugabyteDBTarget.TestContainer.ExecuteSqls(
-		`CREATE TABLE test_table (id INT PRIMARY KEY, val TEXT);`,
-	)
 
 	tdb = testYugabyteDBTarget.TargetDB
 	err = tdb.Init()
