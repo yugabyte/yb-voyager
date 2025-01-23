@@ -210,6 +210,6 @@ const (
 	MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION                     = "Multirange data type is not yet supported in YugabyteDB, no workaround available currently"
 	SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION                   = "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently"
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION      = "This feature is not supported in YugabyteDB yet"
-	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION = "No workaround available "
-	SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION                     = "No workaround available "
+	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION = "No workaround available."
+	SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION                     = "No workaround available."
 )
