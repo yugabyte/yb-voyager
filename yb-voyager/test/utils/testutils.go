@@ -406,3 +406,20 @@ func FatalIfError(t *testing.T, err error) {
 		t.Fatalf("error: %v", err)
 	}
 }
+
+func CreateTempFile(dir string, fileContents string) (string, error) {
+	// Create a temporary file
+	file, err := os.CreateTemp(dir, "temp-*.txt")
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+
+	// Write some text to the file
+	_, err = file.WriteString(fileContents)
+	if err != nil {
+		return "", err
+	}
+
+	return file.Name(), nil
+}
