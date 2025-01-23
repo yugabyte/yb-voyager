@@ -112,7 +112,7 @@ func createFileAndTask(lexportDir string, fileContents string, ldataDir string, 
 		EscapeChar: '\\',
 		NullString: "NULL",
 	}
-	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents)
+	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents, dataFileDescriptor.FileFormat)
 	if err != nil {
 		return "", nil, err
 	}

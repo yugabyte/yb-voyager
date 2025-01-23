@@ -31,8 +31,11 @@ var generatedColumnsIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10695",
-	Suggestion:  "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+	Suggestion:  STORED_GENERATED_COLUMN_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewGeneratedColumnsIssue(objectType string, objectName string, sqlStatement string, generatedColumns []string) QueryIssue {
@@ -47,10 +50,11 @@ var unloggedTableIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNLOGGED_TABLES_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1129/",
-	Suggestion:  "Remove UNLOGGED keyword to make it work",
+	Suggestion:  UNLOGGED_TABLES_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unlogged-table-is-not-supported",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
 }
 
@@ -80,7 +84,7 @@ var storageParameterIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: STORAGE_PARAMETERS_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/23467",
-	Suggestion:  "Remove the storage parameters from the DDL",
+	Suggestion:  STORAGE_PARAMETERS_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
 }
 
@@ -95,7 +99,7 @@ var setColumnAttributeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1124",
-	Suggestion:  "Remove it from the exported schema",
+	Suggestion:  ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
@@ -110,7 +114,7 @@ var alterTableClusterOnIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: ALTER_TABLE_CLUSTER_ON_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1124",
-	Suggestion:  "Remove it from the exported schema.",
+	Suggestion:  ALTER_TABLE_CLUSTER_ON_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-alter-table-ddl-variants-in-source-schema",
 }
 
@@ -142,7 +146,7 @@ var exclusionConstraintIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: EXCLUSION_CONSTRAINT_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/3944",
-	Suggestion:  "Refer docs link for details on possible workaround",
+	Suggestion:  EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
 }
 
@@ -159,7 +163,7 @@ var deferrableConstraintIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: DEFERRABLE_CONSTRAINT_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1709",
-	Suggestion:  "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly",
+	Suggestion:  DEFERRABLE_CONSTRAINT_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
 }
 
@@ -201,7 +205,7 @@ var policyRoleIssue = issue.Issue{
 	Name:        "Policy with Roles",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: POLICY_ROLE_ISSUE_DESCRIPTION,
-	Suggestion:  "Create the Users manually to make the policies work.",
+	Suggestion:  POLICY_ROLE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1655",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
 }
@@ -246,7 +250,10 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	Description: BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_DESCRIPTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24830",
-	Suggestion:  "Create the triggers on individual partitions.",
+	Suggestion:  BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION,
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewBeforeRowOnPartitionTableIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -258,13 +265,14 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	Name:        "Adding Primary Key to a partitioned table",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_DESCRIPTION,
-	Suggestion:  "After export schema, the ALTER table should be merged with CREATE table for partitioned tables.",
+	Suggestion:  ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#adding-primary-key-to-a-partitioned-table-results-in-an-error",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/10074",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
+		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
 }
 
@@ -278,7 +286,7 @@ var expressionPartitionIssue = issue.Issue{
 	Name:        "Tables partitioned using expressions containing primary or unique keys",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: EXPRESSION_PARTITION_ISSUE_DESCRIPTION,
-	Suggestion:  "Remove the Constriant from the table definition",
+	Suggestion:  EXPRESSION_PARTITION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/698",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#tables-partitioned-with-expressions-cannot-contain-primary-unique-keys",
 }
@@ -292,7 +300,7 @@ var multiColumnListPartition = issue.Issue{
 	Name:        "Multi-column partition by list",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MULTI_COLUMN_LIST_PARTITION_ISSUE_DESCRIPTION,
-	Suggestion:  "Make it a single column partition by list or choose other supported Partitioning methods",
+	Suggestion:  MULTI_COLUMN_LIST_PARTITION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/699",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/mysql/#multi-column-partition-by-list-is-not-supported",
 }
@@ -306,7 +314,7 @@ var insufficientColumnsInPKForPartition = issue.Issue{
 	Name:        "Partition key columns not part of Primary Key",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION,
-	Suggestion:  "Add all Partition columns to Primary Key",
+	Suggestion:  INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/578",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/oracle/#partition-key-column-not-part-of-primary-key-columns",
 }
@@ -322,7 +330,7 @@ var xmlDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - xml",
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: XML_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+	Suggestion:  XML_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 }
@@ -338,7 +346,7 @@ var xidDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - xid",
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: XID_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  "Functions for this type e.g. txid_current are not supported in YugabyteDB yet",
+	Suggestion:  XID_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/15638",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
 }
@@ -415,7 +423,7 @@ var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  "Refer to the docs link for the workaround",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
@@ -434,7 +442,7 @@ var indexOnComplexDatatypesIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  "Refer to the docs link for the workaround",
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -450,7 +458,7 @@ var foreignTableIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: FOREIGN_TABLE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1627",
-	Suggestion:  "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table",
+	Suggestion:  FOREIGN_TABLE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
 }
 
@@ -478,7 +486,7 @@ var percentTypeSyntax = issue.Issue{
 	Name:        "Referencing type declaration of variables",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION,
-	Suggestion:  "Fix the syntax to include the actual type name instead of referencing the type of a column",
+	Suggestion:  REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/23619",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#type-syntax-is-not-supported",
 }
@@ -492,7 +500,7 @@ var loDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - lo",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  "Large objects are not yet supported in YugabyteDB, no workaround available currently",
+	Suggestion:  LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
 }
@@ -508,9 +516,12 @@ var multiRangeDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - Multirange",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+	Suggestion:  MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
@@ -524,9 +535,12 @@ var securityInvokerViewIssue = issue.Issue{
 	Name:        "Security Invoker Views",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION,
-	Suggestion:  "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently",
+	Suggestion:  SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -538,9 +552,13 @@ var deterministicOptionCollationIssue = issue.Issue{
 	Name:        DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION,
-	Suggestion:  "This feature is not supported in YugabyteDB yet",
+	Suggestion:  DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0, // TODO: understand why docs says coming soon non-deterministic collation but the CREATE COLLAITON works on 2.25
+		//https://docs.yugabyte.com/preview/develop/pg15-features/#:~:text=Consider%20strings%20to%20be%20equal%20even%20if%20they%20consist%20of%20different%20bytes%2C%20for%20example%2C%20case%2Dinsensitive%2C%20or%20accent%2Dinsensitive%20comparisons.
+	},
 }
 
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -552,9 +570,12 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION,
-	Suggestion:  "No workaround available ",
+	Suggestion:  FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName string, SqlStatement string, constraintName string) QueryIssue {
@@ -569,9 +590,12 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	Name:        SQL_BODY_IN_FUNCTION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: "SQL Body for sql languages in function statement is not supported in YugabyteDB",
-	Suggestion:  "No workaround available",
+	Suggestion:  SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
@@ -586,6 +610,9 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
 }
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
