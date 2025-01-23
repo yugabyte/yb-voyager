@@ -112,21 +112,21 @@ const (
 // Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome slice in analyzeSchema.go
 const (
 	// for DMLs
-	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB"
-	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns are not yet supported in YugabyteDB"
-	XML_FUNCTIONS_ISSUE_DESCRIPTION                = "XML functions are not yet supported in YugabyteDB"
-	REGEX_FUNCTIONS_ISSUE_DESCRIPTION              = "Regex functions are not yet supported in YugabyteDB"
-	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION = "any_value function are not supported yet in YugabyteDB"
-	RANGE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION     = "range_agg, range_intersect_agg function are not supported yet in YugabyteDB"
-	JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION    = "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB"
-	JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION          = "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB"
-	LO_FUNCTIONS_ISSUE_DESCRIPTION                 = "Large Objects functions are not supported in YugabyteDB"
-	JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION           = "Jsonb subscripting is not yet supported in YugabyteDB"
-	JSON_PREDICATE_ISSUE_DESCRIPTION               = "IS JSON predicate expressions are not yet supported in YugabyteDB"
-	COPY_FROM_WHERE_ISSUE_DESCRIPTION              = "COPY FROM ... WHERE is not yet supported in YugabyteDB"
-	COPY_ON_ERROR_ISSUE_DESCRIPTION                = "COPY ... ON_ERROR is not yet supported in YugabyteDB"
-	FETCH_WITH_TIES_ISSUE_DESCRIPTION              = "FETCH .. WITH TIES is not yet supported in YugabyteDB"
-	MERGE_STATEMENT_ISSUE_DESCRIPTION              = "MERGE statement is not yet supported in YugabyteDB"
+	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
+	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns are not yet supported in YugabyteDB."
+	XML_FUNCTIONS_ISSUE_DESCRIPTION                = "XML functions are not yet supported in YugabyteDB."
+	REGEX_FUNCTIONS_ISSUE_DESCRIPTION              = "Regex functions are not yet supported in YugabyteDB."
+	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION = "any_value function are not supported yet in YugabyteDB."
+	RANGE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION     = "range_agg, range_intersect_agg function are not supported yet in YugabyteDB."
+	JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION    = "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB."
+	JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION          = "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB."
+	LO_FUNCTIONS_ISSUE_DESCRIPTION                 = "Large Objects functions are not supported in YugabyteDB."
+	JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION           = "Jsonb subscripting is not yet supported in YugabyteDB."
+	JSON_PREDICATE_ISSUE_DESCRIPTION               = "IS JSON predicate expressions are not yet supported in YugabyteDB."
+	COPY_FROM_WHERE_ISSUE_DESCRIPTION              = "COPY FROM ... WHERE is not yet supported in YugabyteDB."
+	COPY_ON_ERROR_ISSUE_DESCRIPTION                = "COPY ... ON_ERROR is not yet supported in YugabyteDB."
+	FETCH_WITH_TIES_ISSUE_DESCRIPTION              = "FETCH .. WITH TIES is not yet supported in YugabyteDB."
+	MERGE_STATEMENT_ISSUE_DESCRIPTION              = "MERGE statement is not yet supported in YugabyteDB."
 
 	// for DDLs
 	// NOTE: In Description string we something can be sensitive information(like object names) which should not be sent to callhome

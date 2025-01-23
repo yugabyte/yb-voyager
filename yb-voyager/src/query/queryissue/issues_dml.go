@@ -268,7 +268,7 @@ var mergeStatementIssue = issue.Issue{
 	Name:        "Merge Statement",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: MERGE_STATEMENT_ISSUE_DESCRIPTION,
-	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality",
+	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25574",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
 }
