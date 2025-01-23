@@ -1129,27 +1129,37 @@ type AssessMigrationDBConfig struct {
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
 
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.1" // version(s) till now: 1.0, 1.1
+/*
+Version History
+1.0: Introduced AssessmentIssue field for storing assessment issues in flattened format
+1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
+1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
+*/
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.2"
 
 type AssessMigrationPayload struct {
-	PayloadVersion        string
-	VoyagerVersion        string
-	TargetDBVersion       *ybversion.YBVersion
-	MigrationComplexity   string
-	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssueYugabyteD
-	SourceSizeDetails     SourceDBSizeDetails
-	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.AnalyzeSchemaIssue
+	PayloadVersion                 string
+	VoyagerVersion                 string
+	TargetDBVersion                *ybversion.YBVersion
+	MigrationComplexity            string
+	MigrationComplexityExplanation string
+	SchemaSummary                  utils.SchemaSummary
+	AssessmentIssues               []AssessmentIssueYugabyteD
+	SourceSizeDetails              SourceDBSizeDetails
+	TargetRecommendations          TargetSizingRecommendations
+	ConversionIssues               []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReportYugabyteD
 }
 
 type AssessmentIssueYugabyteD struct {
-	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
-	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
-	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc
-	SubtypeDescription     string                          `json:"SubtypeDescription"`     // description based on subtype
+	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"`                   // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                   string                          `json:"Name"`                   // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
+	Description            string                          `json:"Description"`            // description based on type/name
+	Impact                 string                          `json:"Impact"`                 // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
 	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
