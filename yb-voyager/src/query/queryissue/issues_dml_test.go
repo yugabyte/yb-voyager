@@ -350,8 +350,14 @@ func testNonDecimalIntegerLiteralIssue(t *testing.T) {
 	for _, sql := range sqls {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "as"`, nonDecimalIntegerLiteralIssue)
+		var errMsg string
+		switch {
+		case testYbVersion.Equal(ybversion.V2_25_0_0):
+			errMsg = `trailing junk after numeric literal at or near`
+		default:
+			errMsg = `syntax error at or near "as"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, nonDecimalIntegerLiteralIssue)
 	}
 }
 func testCTEWithMaterializedIssue(t *testing.T) {
