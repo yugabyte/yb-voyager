@@ -478,6 +478,25 @@ CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
     NULLS NOT DISTINCT;
 
 
+CREATE OR REPLACE FUNCTION insert_non_decimal()
+RETURNS VOID AS $$
+BEGIN
+    -- Create a table for demonstration
+    CREATE TEMP TABLE non_decimal_table (
+        id SERIAL,
+        binary_value INTEGER,
+        octal_value INTEGER,
+        hex_value INTEGER
+    );
+    SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;
+    -- Insert values into the table
+    --not reported as parser converted these values to decimal ones while giving parseTree
+    INSERT INTO non_decimal_table (binary_value, octal_value, hex_value)
+    VALUES (0b1010, 0o012, 0xA); -- Binary (10), Octal (10), Hexadecimal (10)
+
+    RAISE NOTICE 'Row inserted with non-decimal integers.';
+END;
+$$ LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION asterisks(n int)
   RETURNS SETOF text
