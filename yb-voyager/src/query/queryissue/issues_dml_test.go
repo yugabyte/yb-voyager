@@ -97,9 +97,6 @@ func testCopyOnErrorIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
-	tmpFile, err := os.CreateTemp("/tmp", "copy_where_example.csv")
-	assert.NoError(t, err)
-
 	// Write the csv content to the file
 	//4th row has error
 	csvData := `id,name,value
@@ -113,10 +110,9 @@ func testCopyOnErrorIssue(t *testing.T) {
 8,Item8,80
 9,Item9,90
 10,Item10,100`
-	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644)
-	assert.NoError(t, err)
 
-	defer tmpFile.Close()
+	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
+	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
 
@@ -129,16 +125,13 @@ func testCopyOnErrorIssue(t *testing.T) {
 	
 		COPY my_table_copy_error (id, name, value) 
 	FROM '%s'
-	WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`, tmpFile.Name()))
+	WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`, fileName))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
 }
 
 func testCopyFromWhereIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
-	assert.NoError(t, err)
-
-	tmpFile, err := os.CreateTemp("/tmp", "copy_where_example.csv")
 	assert.NoError(t, err)
 
 	// Write the csv content to the file
@@ -153,10 +146,9 @@ func testCopyFromWhereIssue(t *testing.T) {
 8,Item8,80
 9,Item9,90
 10,Item10,100`
-	err = os.WriteFile(tmpFile.Name(), []byte(csvData), 0644)
-	assert.NoError(t, err)
 
-	defer tmpFile.Close()
+	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
+	assert.NoError(t, err)
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, fmt.Sprintf(`
@@ -169,7 +161,7 @@ func testCopyFromWhereIssue(t *testing.T) {
 	COPY my_table_copy_where (id, name, value) 
 FROM '%s'
 WITH (FORMAT csv, HEADER true)
-WHERE id <=5;`, tmpFile.Name()))
+WHERE id <=5;`, fileName))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
 }
 
