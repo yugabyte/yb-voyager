@@ -1045,12 +1045,12 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
 		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
 
-		Impact:                analyzeSchemaIssue.Impact,
-		ObjectType:            analyzeSchemaIssue.ObjectType,
-		ObjectName:            analyzeSchemaIssue.ObjectName,
-		SqlStatement:          analyzeSchemaIssue.SqlStatement,
-		DocsLink:              analyzeSchemaIssue.DocsLink,
-		MinimumVersionFixedIn: minVersionsFixedIn,
+		Impact:                 analyzeSchemaIssue.Impact,
+		ObjectType:             analyzeSchemaIssue.ObjectType,
+		ObjectName:             analyzeSchemaIssue.ObjectName,
+		SqlStatement:           analyzeSchemaIssue.SqlStatement,
+		DocsLink:               analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn: minVersionsFixedIn,
 	}
 }
 
@@ -1253,16 +1253,16 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			docsLink = issue.DocsLink
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:              UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-				Type:                  issue.Type,
-				Name:                  issue.Name,
-				Impact:                issue.Impact,
-				Description:           issue.Reason,
-				ObjectType:            issue.ObjectType,
-				ObjectName:            issue.ObjectName,
-				SqlStatement:          issue.SqlStatement,
-				DocsLink:              issue.DocsLink,
-				MinimumVersionFixedIn: issue.MinimumVersionsFixedIn,
+				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Reason,
+				ObjectType:             issue.ObjectType,
+				ObjectName:             issue.ObjectName,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			})
 		}
 		feature := UnsupportedFeature{
@@ -1342,14 +1342,14 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 			result = append(result, uqc)
 
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:              UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
-				Type:                  issue.Type,
-				Name:                  issue.Name,
-				Impact:                issue.Impact,
-				Description:           issue.Description,
-				SqlStatement:          issue.SqlStatement,
-				DocsLink:              issue.DocsLink,
-				MinimumVersionFixedIn: issue.MinimumVersionsFixedIn,
+				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Description,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			})
 		}
 	}
@@ -1448,16 +1448,16 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 		issue := AssessmentIssue{
-			Category:              UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:   GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                  colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:           "",               // TODO
-			Impact:                constants.IMPACT_LEVEL_3,
-			ObjectType:            constants.COLUMN,
-			ObjectName:            qualifiedColName,
-			DocsLink:              "",  // TODO
-			MinimumVersionFixedIn: nil, // TODO
+			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Description:            "",               // TODO
+			Impact:                 constants.IMPACT_LEVEL_3,
+			ObjectType:             constants.COLUMN,
+			ObjectName:             qualifiedColName,
+			DocsLink:               "",  // TODO
+			MinimumVersionsFixedIn: nil, // TODO
 		}
 		assessmentIssues = append(assessmentIssues, issue)
 	}
