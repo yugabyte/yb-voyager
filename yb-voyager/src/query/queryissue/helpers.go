@@ -102,12 +102,14 @@ var UnsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
-var unsupportedAggFunctions = mapset.NewThreadUnsafeSet([]string{
-	//agg function added in PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
-	"any_value", "range_agg", "range_intersect_agg",
+var unsupportedRangeAggFunctions = mapset.NewThreadUnsafeSet([]string{
+	//range agg function added in PG15 - https://www.postgresql.org/docs/15/functions-aggregate.html#:~:text=Yes-,range_agg,-(%20value%20anyrange
+	"range_agg", "range_intersect_agg",
 }...)
 
 const (
+	ANY_VALUE = "any_value" //any_value function is added in  PG16 - https://www.postgresql.org/docs/16/functions-aggregate.html#id-1.5.8.27.5.2.4.1.1.1.1
+
 	// // json functions, refer - https://www.postgresql.org/about/featurematrix/detail/395/
 	JSON_OBJECTAGG = "JSON_OBJECTAGG"
 	JSON_ARRAY     = "JSON_ARRAY"

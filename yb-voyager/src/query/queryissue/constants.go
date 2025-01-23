@@ -49,8 +49,11 @@ const (
 	FOREIGN_TABLE                                  = "FOREIGN_TABLE"
 	INHERITANCE                                    = "INHERITANCE"
 
-	AGGREGATE_FUNCTION             = "AGGREGATE_FUNCTION"
-	AGGREGATION_FUNCTIONS_NAME     = "Aggregate Functions"
+	ANY_VALUE_AGGREGATE_FUNCTION      = "ANY_VALUE_AGGREGATE_FUNCTION"
+	ANY_VALUE_AGGREGATE_FUNCTION_NAME = "ANY_VALUE() aggregate Function"
+	RANGE_AGGREGATE_FUNCTION          = "RANGE_AGGREGATE_FUNCTION"
+	RANGE_AGGREGATE_FUNCTION_NAME     = "Range aggregate Functions"
+
 	JSON_TYPE_PREDICATE            = "JSON_TYPE_PREDICATE"
 	JSON_TYPE_PREDICATE_NAME       = "Json Type Predicate"
 	JSON_CONSTRUCTOR_FUNCTION      = "JSON_CONSTRUCTOR_FUNCTION"
@@ -109,23 +112,24 @@ const (
 )
 
 // Issues Description
-// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome slice in analyzeSchema.go
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
 const (
 	// for DMLs
-	ADVISORY_LOCKS_ISSUE_DESCRIPTION            = "Advisory locks are not yet implemented in YugabyteDB"
-	SYSTEM_COLUMNS_ISSUE_DESCRIPTION            = "System columns are not yet supported in YugabyteDB"
-	XML_FUNCTIONS_ISSUE_DESCRIPTION             = "XML functions are not yet supported in YugabyteDB"
-	REGEX_FUNCTIONS_ISSUE_DESCRIPTION           = "Regex functions are not yet supported in YugabyteDB"
-	AGGREGATE_FUNCTION_ISSUE_DESCRIPTION        = "any_value, range_agg and range_intersect_agg functions are not supported yet in YugabyteDB"
-	JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION = "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB"
-	JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION       = "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB"
-	LO_FUNCTIONS_ISSUE_DESCRIPTION              = "Large Objects functions are not supported in YugabyteDB"
-	JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION        = "Jsonb subscripting is not yet supported in YugabyteDB"
-	JSON_PREDICATE_ISSUE_DESCRIPTION            = "IS JSON predicate expressions are not yet supported in YugabyteDB"
-	COPY_FROM_WHERE_ISSUE_DESCRIPTION           = "COPY FROM ... WHERE is not yet supported in YugabyteDB"
-	COPY_ON_ERROR_ISSUE_DESCRIPTION             = "COPY ... ON_ERROR is not yet supported in YugabyteDB"
-	FETCH_WITH_TIES_ISSUE_DESCRIPTION           = "FETCH .. WITH TIES is not yet supported in YugabyteDB"
-	MERGE_STATEMENT_ISSUE_DESCRIPTION           = "MERGE statement is not yet supported in YugabyteDB"
+	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
+	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns are not yet supported in YugabyteDB."
+	XML_FUNCTIONS_ISSUE_DESCRIPTION                = "XML functions are not yet supported in YugabyteDB."
+	REGEX_FUNCTIONS_ISSUE_DESCRIPTION              = "Regex functions are not yet supported in YugabyteDB."
+	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION = "any_value function are not supported yet in YugabyteDB."
+	RANGE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION     = "range_agg, range_intersect_agg function are not supported yet in YugabyteDB."
+	JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION    = "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB."
+	JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION          = "JSON query functions from PostgreSQL 17 are not yet supported in YugabyteDB."
+	LO_FUNCTIONS_ISSUE_DESCRIPTION                 = "Large Objects functions are not supported in YugabyteDB."
+	JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION           = "Jsonb subscripting is not yet supported in YugabyteDB."
+	JSON_PREDICATE_ISSUE_DESCRIPTION               = "IS JSON predicate expressions are not yet supported in YugabyteDB."
+	COPY_FROM_WHERE_ISSUE_DESCRIPTION              = "COPY FROM ... WHERE is not yet supported in YugabyteDB."
+	COPY_ON_ERROR_ISSUE_DESCRIPTION                = "COPY ... ON_ERROR is not yet supported in YugabyteDB."
+	FETCH_WITH_TIES_ISSUE_DESCRIPTION              = "FETCH .. WITH TIES is not yet supported in YugabyteDB."
+	MERGE_STATEMENT_ISSUE_DESCRIPTION              = "MERGE statement is not yet supported in YugabyteDB."
 
 	// for DDLs
 	// NOTE: In Description string we something can be sensitive information(like object names) which should not be sent to callhome
@@ -180,4 +184,35 @@ const (
 	POLICY_OBJECT_TYPE        = "POLICY"
 	TRIGGER_OBJECT_TYPE       = "TRIGGER"
 	DML_QUERY_OBJECT_TYPE     = "DML_QUERY"
+)
+
+// Issue Suggestions
+// Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
+const (
+	STORED_GENERATED_COLUMN_ISSUE_SUGGESTION                  = "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details."
+	UNLOGGED_TABLES_ISSUE_SUGGESTION                          = "Remove UNLOGGED keyword to make it work"
+	STORAGE_PARAMETERS_ISSUE_SUGGESTION                       = "Remove the storage parameters from the DDL"
+	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_SUGGESTION         = "Remove it from the exported schema"
+	ALTER_TABLE_CLUSTER_ON_ISSUE_SUGGESTION                   = "Remove it from the exported schema."
+	ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION                 = "Remove this and the rule '%s' from the exported schema to be not enabled on the table."
+	EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION                     = "Refer docs link for details on possible workaround"
+	DEFERRABLE_CONSTRAINT_ISSUE_SUGGESTION                    = "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly"
+	POLICY_ROLE_ISSUE_SUGGESTION                              = "Create the Users manually to make the policies work."
+	BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION    = "Create the triggers on individual partitions."
+	ALTER_TABLE_ADD_PK_ON_PARTITION_ISSUE_SUGGESTION          = "After export schema, the ALTER table should be merged with CREATE table for partitioned tables."
+	EXPRESSION_PARTITION_ISSUE_SUGGESTION                     = "Remove the Constriant from the table definition"
+	MULTI_COLUMN_LIST_PARTITION_ISSUE_SUGGESTION              = "Make it a single column partition by list or choose other supported Partitioning methods"
+	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION = "Add all Partition columns to Primary Key"
+	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
+	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
+	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
+	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
+	FOREIGN_TABLE_ISSUE_SUGGESTION                            = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
+	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION              = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+	LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION                    = "Large objects are not yet supported in YugabyteDB, no workaround available currently"
+	MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION                     = "Multirange data type is not yet supported in YugabyteDB, no workaround available currently"
+	SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION                   = "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently"
+	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION      = "This feature is not supported in YugabyteDB yet"
+	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION = "No workaround available."
+	SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION                     = "No workaround available."
 )
