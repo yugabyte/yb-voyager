@@ -157,7 +157,7 @@ func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
 }
 
 func (fti *FileTaskImporter) PostProcess() {
-	// TODO: close fileBatchProducer properly
+	fti.batchProducer.Close()
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup.ForKey(),

@@ -234,3 +234,7 @@ func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch 
 	p.lastBatchNumber = batchNum
 	return batch, nil
 }
+
+func (p *FileBatchProducer) Close() {
+	p.dataFile.Close()
+}
