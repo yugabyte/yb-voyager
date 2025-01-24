@@ -285,6 +285,10 @@ func validateTargetSchemaFlag() {
 		}
 	}
 
+	if tconf.Schema != "" && sourceDBType == "postgresql" {
+		fmt.Printf("Ignoring target-db-schema flag.\n")
+	}
+
 	if tconf.Schema == "" {
 		if tconf.TargetDBType == YUGABYTEDB {
 			tconf.Schema = YUGABYTEDB_DEFAULT_SCHEMA
