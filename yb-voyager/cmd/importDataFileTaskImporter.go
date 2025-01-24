@@ -89,12 +89,50 @@ func (fti *FileTaskImporter) SubmitNextBatch() error {
 	return fti.submitBatch(batch)
 }
 
+func (fti *FileTaskImporter) importBatch(batch *Batch) {
+	err := batch.MarkPending()
+	if err != nil {
+		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+	}
+	log.Infof("Importing %q", batch.FilePath)
+
+	importBatchArgs := *fti.importBatchArgsProto
+	importBatchArgs.FilePath = batch.FilePath
+	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+
+	var rowsAffected int64
+	sleepIntervalSec := 0
+	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
+		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
+		if err == nil || tdb.IsNonRetryableCopyError(err) {
+			break
+		}
+		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
+			sleepIntervalSec, batch.FilePath, attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+	}
+	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
+	if err != nil {
+		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+	}
+	err = batch.MarkDone()
+	if err != nil {
+		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+	}
+}
+
 func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 	fti.workerPool.Go(func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		importBatch(batch, fti.importBatchArgsProto)
+		fti.importBatch(batch)
 		if reportProgressInBytes {
 			fti.updateProgress(batch.ByteCount)
 		} else {
@@ -206,42 +244,4 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
-}
-
-func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
-	err := batch.MarkPending()
-	if err != nil {
-		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
-	}
-	log.Infof("Importing %q", batch.FilePath)
-
-	importBatchArgs := *importBatchArgsProto
-	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
-
-	var rowsAffected int64
-	sleepIntervalSec := 0
-	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
-			break
-		}
-		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
-		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
-		}
-		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, batch.FilePath, attempt)
-		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	}
-	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
-	}
 }

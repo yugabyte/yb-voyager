@@ -595,26 +595,6 @@ func importData(importFileTasks []*ImportFileTask) {
 					utils.ErrExit("Failed to create file task importer: %s", err)
 				}
 
-				// totalProgressAmount := getTotalProgressAmount(task)
-				// progressReporter.ImportFileStarted(task, totalProgressAmount)
-				// importedProgressAmount := getImportedProgressAmount(task, state)
-				// progressReporter.AddProgressAmount(task, importedProgressAmount)
-
-				// var currentProgress int64
-				// updateProgressFn := func(progressAmount int64) {
-				// 	currentProgress += progressAmount
-				// 	progressReporter.AddProgressAmount(task, progressAmount)
-
-				// 	if importerRole == TARGET_DB_IMPORTER_ROLE && totalProgressAmount > currentProgress {
-				// 		importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
-				// 			currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
-				// 		// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
-				// 		controlPlane.UpdateImportedRowCount(
-				// 			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
-				// 	}
-				// }
-
-				// importFile(state, task, updateProgressFn)
 				for !taskImporter.AllBatchesSubmitted() {
 					err := taskImporter.SubmitNextBatch()
 					if err != nil {
@@ -624,14 +604,6 @@ func importData(importFileTasks []*ImportFileTask) {
 
 				batchImportPool.Wait() // Wait for the file import to finish.
 				taskImporter.PostProcess()
-				// if importerRole == TARGET_DB_IMPORTER_ROLE {
-				// 	importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
-				// 		currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
-				// 	controlPlane.UpdateImportedRowCount(
-				// 		[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
-				// }
-
-				// progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
 			}
 			time.Sleep(time.Second * 2)
 		}
@@ -961,31 +933,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-// func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
-
-// 	origDataFile := task.FilePath
-// 	importBatchArgsProto := getImportBatchArgsProto(task.TableNameTup, task.FilePath)
-// 	log.Infof("Start splitting table %q: data-file: %q", task.TableNameTup, origDataFile)
-
-// 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
-// 	if err != nil {
-// 		utils.ErrExit("preparing for file import: %s", err)
-// 	}
-
-// 	fileBatchProducer, err := NewFileBatchProducer(task, state)
-// 	if err != nil {
-// 		utils.ErrExit("creating file batch producer: %s", err)
-// 	}
-
-// 	for !fileBatchProducer.Done() {
-// 		batch, err := fileBatchProducer.NextBatch()
-// 		if err != nil {
-// 			utils.ErrExit("getting next batch: %s", err)
-// 		}
-// 		submitBatch(batch, updateProgressFn, importBatchArgsProto)
-// 	}
-// }
-
 func executePostSnapshotImportSqls() error {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
@@ -997,21 +944,6 @@ func executePostSnapshotImportSqls() error {
 	}
 	return nil
 }
-
-// func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
-// 	batchImportPool.Go(func() {
-// 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
-// 		// But the `connPool` will allow only `parallelism` number of connections to be
-// 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-// 		importBatch(batch, importBatchArgsProto)
-// 		if reportProgressInBytes {
-// 			updateProgressFn(batch.ByteCount)
-// 		} else {
-// 			updateProgressFn(batch.RecordCount)
-// 		}
-// 	})
-// 	log.Infof("Queued batch: %s", spew.Sdump(batch))
-// }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
 	// Return the index name itself if it is aleady qualified with schema name
