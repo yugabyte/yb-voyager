@@ -39,7 +39,6 @@ func TestBasicTaskImport(t *testing.T) {
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
-	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
 		`CREATE TABLE test_table_basic (id INT PRIMARY KEY, val TEXT);`,
 	)
@@ -81,7 +80,6 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
-	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
 		`CREATE TABLE test_table_all (id INT PRIMARY KEY, val TEXT);`,
 	)
@@ -131,7 +129,6 @@ func TestTaskImportResumable(t *testing.T) {
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
-	// defer testYugabyteDBTarget.TestContainer.Terminate(context.Background())
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
 		`CREATE TABLE test_table_resume (id INT PRIMARY KEY, val TEXT);`,
 	)
@@ -155,14 +152,14 @@ func TestTaskImportResumable(t *testing.T) {
 	err = taskImporter.SubmitNextBatch()
 	assert.NoError(t, err)
 
-	// simulate restart
-	workerPool.Wait()
 	// check that the first batch was imported
+	workerPool.Wait()
 	var rowCount int64
 	err = tdb.QueryRow("SELECT count(*) FROM test_table_resume").Scan(&rowCount)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(2), rowCount)
 
+	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
 	workerPool = pool.New().WithMaxGoroutines(2)
 	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter)
