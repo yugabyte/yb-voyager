@@ -109,7 +109,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 7061504
 		},
@@ -123,7 +123,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -137,7 +137,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -151,7 +151,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -165,7 +165,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -179,7 +179,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -193,7 +193,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 16384
 		},
@@ -207,7 +207,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -221,7 +221,35 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 8500,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.spatial_ref_sys",
+			"SizeInBytes": 212992
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		}
