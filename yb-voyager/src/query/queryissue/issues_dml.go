@@ -282,7 +282,7 @@ var listenNotifyIssue = issue.Issue{
 	Type:        LISTEN_NOTIFY,
 	Name:        LISTEN_NOTIFY_NAME,
 	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm impact
-	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB",
+	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
 	DocsLink:    "", //TODO:
 }

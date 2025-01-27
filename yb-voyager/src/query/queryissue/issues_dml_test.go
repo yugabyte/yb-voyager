@@ -402,7 +402,6 @@ func testEventsListenNotifyIssue(t *testing.T) {
 
 		connConfig := conn.Config()
 		connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
-			fmt.Printf("%s: %s", n.Severity, n.Message)
 			if n != nil {
 				assert.Contains(t, n.Message, warnMsg)
 			}
