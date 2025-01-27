@@ -1084,8 +1084,8 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:            UNSUPPORTED_FEATURES_CATEGORY,
 				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
-				Type:                UNSUPPORTED_INDEXES_FEATURE,
-				Name:                UNSUPPORTED_INDEXES_ISSUE_TYPE,
+				Type:                UNSUPPORTED_INDEXES_ISSUE_TYPE,
+				Name:                UNSUPPORTED_INDEXES_FEATURE,
 				Description:         "", // TODO
 				ObjectType:          constants.INDEX,
 				// TODO: here it should be only ObjectName, to populate Index Type there should be a separate field
