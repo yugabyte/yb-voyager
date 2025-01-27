@@ -1540,6 +1540,13 @@ func postProcessingOfAssessmentReport() {
 				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
 			}
 		}
+
+		// redact Impact info from the assessment report for Oracle
+		// TODO: Remove this processing step in future when supporting Explanation for Oracle
+		for i := range assessmentReport.Issues {
+			assessmentReport.Issues[i].Impact = "-"
+		}
+
 	}
 }
 
