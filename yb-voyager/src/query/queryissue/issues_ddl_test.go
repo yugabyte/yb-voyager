@@ -433,6 +433,22 @@ ORDER BY name;`)
 			names = append(names, name)
 		}
 
+		/*
+			order of the name column is depending on non-deterministic collations, example is of case-insensitive and accent-sensitive collation
+			and output is different from PG - which means functionality is not proper
+			postgres=# SELECT name
+				FROM collation_ex
+				order by name;
+				name
+				-------
+				andre
+				ANDRE
+				André
+				andrÉ
+				Ándre
+				(5 rows)
+		*/
+
 		assert.Equal(t, []string{"andre", "ANDRE", "andrÉ", "André", "Ándre"}, names)
 
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", nonDeterministicCollationIssue)
