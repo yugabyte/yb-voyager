@@ -2,7 +2,7 @@ name: "PG 13: Migration Tests"
 
 on:
   push:
-    branches: ['*']
+    branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
     branches: ['*']
 
