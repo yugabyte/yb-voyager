@@ -60,6 +60,12 @@ SELECT *
 FROM sales.json_data
 WHERE array_column IS JSON ARRAY;
 
+-- PG 15 supports the non-decimal integer literals e.g. hexadecimal, octal, binary
+-- but this won't be reported as the PGSS will change the constant integers to parameters - $1, $2...
+SELECT 1234, 0x4D2 as hex, 0o2322 as octal, 0b10011010010 as binary;
+
+SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010 \gdesc
+
 WITH w AS NOT MATERIALIZED (                                                               
     SELECT * FROM sales.big_table
 )           

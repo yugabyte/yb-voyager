@@ -52,7 +52,7 @@ func testJsonbSubscriptingIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, `SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", loDatatypeIssue)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "cannot subscript type jsonb because it is not an array", jsonbSubscriptingIssue)
 }
 
 func testRegexFunctionsIssue(t *testing.T) {
@@ -81,7 +81,8 @@ func testFetchWithTiesIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 
 	stmts := []string{
-		`SELECT * FROM employees
+		`CREATE TABLE fetch_table(id int, salary bigint);
+		SELECT * FROM fetch_table
 		ORDER BY salary DESC
 		FETCH FIRST 2 ROWS WITH TIES;`,
 	}
@@ -97,10 +98,35 @@ func testCopyOnErrorIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
+	// Write the csv content to the file
+	//4th row has error
+	csvData := `id,name,value
+1,Item1,10
+2,Item2,20
+3,Item3,30
+4|Item4,40
+5,Item5,50
+6,Item6,60
+7,Item7,70
+8,Item8,80
+9,Item9,90
+10,Item10,100`
+
+	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
+	assert.NoError(t, err)
+
 	defer conn.Close(context.Background())
 
 	// In case the COPY ... ON_ERROR construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
-	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE);`)
+	_, err = conn.Exec(ctx, fmt.Sprintf(`	CREATE TABLE my_table_copy_error (
+		id INT,
+		name TEXT,
+		value INT
+	);
+	
+		COPY my_table_copy_error (id, name, value) 
+	FROM '%s'
+	WITH (FORMAT csv, HEADER true, ON_ERROR IGNORE)`, fileName))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: option \"on_error\" not recognized (SQLSTATE 42601)", copyOnErrorIssue)
 }
 
@@ -109,9 +135,34 @@ func testCopyFromWhereIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
+	// Write the csv content to the file
+	csvData := `id,name,value
+1,Item1,10
+2,Item2,20
+3,Item3,30
+4,Item4,40
+5,Item5,50
+6,Item6,60
+7,Item7,70
+8,Item8,80
+9,Item9,90
+10,Item10,100`
+
+	fileName, err := testutils.CreateTempFile("/tmp", csvData, "csv")
+	assert.NoError(t, err)
+
 	defer conn.Close(context.Background())
-	// In case the COPY FROM ...  WHERE construct gets supported in the future, this test will fail with a different error message-something related to the data.csv file not being found.
-	_, err = conn.Exec(ctx, `COPY pg_largeobject (loid, pageno, data) FROM '/path/to/data.csv' WHERE loid = 1 WITH (FORMAT csv, HEADER true);`)
+	_, err = conn.Exec(ctx, fmt.Sprintf(`
+	CREATE TABLE my_table_copy_where (
+    id INT,
+    name TEXT,
+    value INT
+);
+
+	COPY my_table_copy_where (id, name, value) 
+FROM '%s'
+WITH (FORMAT csv, HEADER true)
+WHERE id <=5;`, fileName))
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "ERROR: syntax error at or near \"WHERE\" (SQLSTATE 42601)", copyFromWhereIssue)
 }
 
@@ -213,15 +264,50 @@ RETURNING merge_action(), w.*;
 	for _, sql := range sqls {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
-
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `syntax error at or near "MERGE"`, mergeStatementIssue)
+		var errMsg string
+		switch {
+		case testYbVersion.Equal(ybversion.V2_25_0_0):
+			errMsg = "This statement not supported yet"
+		default:
+			errMsg = `syntax error at or near "MERGE"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, mergeStatementIssue)
 	}
 
 }
 
-func testAggFunctions(t *testing.T) {
+func testRangeAggFunctionsIssue(t *testing.T) {
 	sqls := []string{
-		`CREATE TABLE any_value_ex (
+		`CREATE TABLE events (
+    id SERIAL PRIMARY KEY,
+    event_range daterange
+);
+
+INSERT INTO events (event_range) VALUES
+    ('[2024-01-01, 2024-01-10]'::daterange),
+    ('[2024-01-05, 2024-01-15]'::daterange),
+    ('[2024-01-20, 2024-01-25]'::daterange);
+
+SELECT range_agg(event_range) AS union_of_ranges
+FROM events;`,
+
+		`SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM events;`,
+	}
+
+	for _, sql := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, rangeAggregateFunctionIssue)
+	}
+}
+
+func testAnyValueAggFunctions(t *testing.T) {
+	sql := `CREATE TABLE any_value_ex (
     department TEXT,
     employee_name TEXT,
     salary NUMERIC
@@ -237,52 +323,58 @@ SELECT
     department,
     any_value(employee_name) AS any_employee
 FROM any_value_ex
-GROUP BY department;`,
+GROUP BY department;`
 
-		`CREATE TABLE events (
-    id SERIAL PRIMARY KEY,
-    event_range daterange
-);
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
 
-INSERT INTO events (event_range) VALUES
-    ('[2024-01-01, 2024-01-10]'::daterange),
-    ('[2024-01-05, 2024-01-15]'::daterange),
-    ('[2024-01-20, 2024-01-25]'::daterange);
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, sql)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, anyValueAggregateFunction)
 
-SELECT range_agg(event_range) AS union_of_ranges
-FROM events;
-
-SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM events;`,
-	}
-
-	for _, sql := range sqls {
-		ctx := context.Background()
-		conn, err := getConn()
-		assert.NoError(t, err)
-
-		defer conn.Close(context.Background())
-		_, err = conn.Exec(ctx, sql)
-
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `does not exist`, aggregateFunctionIssue)
-	}
 }
 
+func testNonDecimalIntegerLiteralIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	sqls := []string{
+		`CREATE VIEW zz AS
+    SELECT
+        5678901234 as DEC,
+        0x1527D27F2 as hex,
+        0o52237223762 as oct,
+        0b101010010011111010010011111110010 as bin;`,
+		`SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`,
+	}
+	for _, sql := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		var errMsg string
+		switch {
+		case testYbVersion.Equal(ybversion.V2_25_0_0):
+			errMsg = `trailing junk after numeric literal at or near`
+		default:
+			errMsg = `syntax error at or near "as"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, nonDecimalIntegerLiteralIssue)
+	}
+}
 func testCTEWithMaterializedIssue(t *testing.T) {
-	sqls := map[string]string{`WITH w AS NOT MATERIALIZED (
+	sqls := map[string]string{`
+	CREATE TABLE big_table(key text, ref text, c1 int, c2 int);
+	WITH w AS NOT MATERIALIZED (
 		SELECT * FROM big_table
 	)
 	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-	WHERE w2.key = 123;`: `syntax error at or near "NOT"`,
-		`WITH moved_rows AS MATERIALIZED (
-		DELETE FROM products
-		WHERE
-			"date" >= '2010-10-01' AND
-			"date" < '2010-11-01'
-		RETURNING *
+	WHERE w2.key = '123';`: `syntax error at or near "NOT"`,
+		`CREATE TABLE big_table1(key text, ref text, c1 int, c2 int);
+		WITH w AS MATERIALIZED (
+		SELECT * FROM big_table1
 	)
-	INSERT INTO products_log
-	SELECT * FROM moved_rows;`: `syntax error at or near "MATERIALIZED"`,
+	SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+	WHERE w2.key = '123';`: `syntax error at or near "MATERIALIZED"`,
 	}
 	for sql, errMsg := range sqls {
 		ctx := context.Background()
@@ -372,10 +464,16 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json subscripting", ybVersion), testJsonbSubscriptingIssue)
 	assert.True(t, success)
-	success = t.Run(fmt.Sprintf("%s-%s", "aggregate functions", ybVersion), testAggFunctions)
+	success = t.Run(fmt.Sprintf("%s-%s", "any-value aggregate functions", ybVersion), testAnyValueAggFunctions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "range aggregate functions", ybVersion), testRangeAggFunctionsIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "Non-decimal integer literal", ybVersion), testNonDecimalIntegerLiteralIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "cte with materialized cluase", ybVersion), testCTEWithMaterializedIssue)

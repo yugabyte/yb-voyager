@@ -96,32 +96,29 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
-type UnsupportedFeature struct {
-	FeatureName      string   `json:"FeatureName"`
-	Objects          []string `json:"Objects,omitempty"`
-	ObjectCount      int      `json:"ObjectCount"`
-	TotalOccurrences int      `json:"TotalOccurrences"`
-}
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type AssessMigrationPhasePayload struct {
-	TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
-	MigrationComplexity        string               `json:"migration_complexity"`
-	UnsupportedFeatures        string               `json:"unsupported_features"`
-	UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
-	UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
-	MigrationCaveats           string               `json:"migration_caveats"`
-	UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-	Error                      string               `json:"error"`
-	TableSizingStats           string               `json:"table_sizing_stats"`
-	IndexSizingStats           string               `json:"index_sizing_stats"`
-	SchemaSummary              string               `json:"schema_summary"`
-	SourceConnectivity         bool                 `json:"source_connectivity"`
-	IopsInterval               int64                `json:"iops_interval"`
+	PayloadVersion                 string               `json:"payload_version"`
+	TargetDBVersion                *ybversion.YBVersion `json:"target_db_version"`
+	MigrationComplexity            string               `json:"migration_complexity"`
+	MigrationComplexityExplanation string               `json:"migration_complexity_explanation"`
+	SchemaSummary                  string               `json:"schema_summary"`
+	Issues                         string               `json:"assessment_issues"`
+	Error                          string               `json:"error"`
+	TableSizingStats               string               `json:"table_sizing_stats"`
+	IndexSizingStats               string               `json:"index_sizing_stats"`
+	SourceConnectivity             bool                 `json:"source_connectivity"`
+	IopsInterval                   int64                `json:"iops_interval"`
 }
 
-type AssessMigrationBulkPhasePayload struct {
-	FleetConfigCount int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
-	Error            string `json:"error"`
+type AssessmentIssueCallhome struct {
+	Category            string `json:"category"`
+	CategoryDescription string `json:"category_description"`
+	Type                string `json:"type"`
+	Name                string `json:"name"`
+	Impact              string `json:"impact"`
+	ObjectType          string `json:"object_type"`
 }
 
 type ObjectSizingStats struct {
@@ -130,6 +127,11 @@ type ObjectSizingStats struct {
 	ReadsPerSecond  int64  `json:"reads_per_second"`
 	WritesPerSecond int64  `json:"writes_per_second"`
 	SizeInBytes     int64  `json:"size_in_bytes"`
+}
+
+type AssessMigrationBulkPhasePayload struct {
+	FleetConfigCount int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+	Error            string `json:"error"`
 }
 
 type ExportSchemaPhasePayload struct {

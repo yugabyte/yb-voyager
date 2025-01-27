@@ -1057,7 +1057,7 @@ type AssessmentReport struct {
 	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
 	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
 	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
-	Issues                         []AssessmentIssue                     `json:"-"` // disabled in reports till corresponding UI changes are done(json and html reports)
+	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 	Notes                          []string                              `json:"Notes"`
 
@@ -1073,17 +1073,17 @@ type AssessmentReport struct {
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available
 type AssessmentIssue struct {
-	Category              string // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
-	CategoryDescription   string
-	Type                  string // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
-	Name                  string // Ex: "Stored generated columns are not supported."
-	Description           string
-	Impact                string // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
-	ObjectType            string // For datatype category, ObjectType will be datatype (for eg "geometry")
-	ObjectName            string
-	SqlStatement          string
-	DocsLink              string
-	MinimumVersionFixedIn map[string]*ybversion.YBVersion
+	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"` // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                   string                          `json:"Name"` // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
+	Description            string                          `json:"Description"`
+	Impact                 string                          `json:"Impact"`     // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	ObjectType             string                          `json:"ObjectType"` // For datatype category, ObjectType will be datatype (for eg "geometry")
+	ObjectName             string                          `json:"ObjectName"`
+	SqlStatement           string                          `json:"SqlStatement"`
+	DocsLink               string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
 }
 
 type UnsupportedFeature struct {
@@ -1128,25 +1128,38 @@ type AssessMigrationDBConfig struct {
 
 // =============== for yugabyted controlplane ==============//
 // TODO: see if this can be accommodated in controlplane pkg, facing pkg cyclic dependency issue
+
+/*
+Version History
+1.0: Introduced AssessmentIssue field for storing assessment issues in flattened format
+1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
+1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
+*/
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.2"
+
 type AssessMigrationPayload struct {
-	PayloadVersion        string
-	VoyagerVersion        string
-	TargetDBVersion       *ybversion.YBVersion
-	MigrationComplexity   string
-	SchemaSummary         utils.SchemaSummary
-	AssessmentIssues      []AssessmentIssueYugabyteD
-	SourceSizeDetails     SourceDBSizeDetails
-	TargetRecommendations TargetSizingRecommendations
-	ConversionIssues      []utils.AnalyzeSchemaIssue
+	PayloadVersion                 string
+	VoyagerVersion                 string
+	TargetDBVersion                *ybversion.YBVersion
+	MigrationComplexity            string
+	MigrationComplexityExplanation string
+	SchemaSummary                  utils.SchemaSummary
+	AssessmentIssues               []AssessmentIssueYugabyteD
+	SourceSizeDetails              SourceDBSizeDetails
+	TargetRecommendations          TargetSizingRecommendations
+	ConversionIssues               []utils.AnalyzeSchemaIssue
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
-	AssessmentJsonReport AssessmentReport
+	AssessmentJsonReport AssessmentReportYugabyteD
 }
 
 type AssessmentIssueYugabyteD struct {
-	Type                   string                          `json:"Type"`                   // Feature, DataType, MigrationCaveat, UQC
-	TypeDescription        string                          `json:"TypeDescription"`        // Based on AssessmentIssue type
-	Subtype                string                          `json:"Subtype"`                // GIN Indexes, Advisory Locks etc
-	SubtypeDescription     string                          `json:"SubtypeDescription"`     // description based on subtype
+	Category               string                          `json:"Category"` // expected values: unsupported_features, unsupported_query_constructs, migration_caveats, unsupported_plpgsql_objects, unsupported_datatype
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"`                   // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
+	Name                   string                          `json:"Name"`                   // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
+	Description            string                          `json:"Description"`            // description based on type/name
+	Impact                 string                          `json:"Impact"`                 // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)
 	DocsLink               string                          `json:"DocsLink"`               // docs link based on the subtype
@@ -1154,6 +1167,23 @@ type AssessmentIssueYugabyteD struct {
 
 	// Store Type-specific details - extensible, can refer any struct
 	Details json.RawMessage `json:"Details,omitempty"`
+}
+
+type AssessmentReportYugabyteD struct {
+	VoyagerVersion             string                                `json:"VoyagerVersion"`
+	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity        string                                `json:"MigrationComplexity"`
+	SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
+	TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                      []string                              `json:"Notes"`
+	UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"` // using utils.TableColumnsDataTypes struct for ybd since it's unlikely to change rather removed
+	UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
+	UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"` // using UnsupportedFeature struct for ybd since it's unlikely to change rather removed
+	UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
+	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
 }
 
 /*
@@ -1176,8 +1206,6 @@ type TargetSizingRecommendations struct {
 	TotalColocatedSize int64
 	TotalShardedSize   int64
 }
-
-var ASSESS_MIGRATION_PAYLOAD_VERSION = "1.1"
 
 //====== AssesmentReport struct methods ======//
 
