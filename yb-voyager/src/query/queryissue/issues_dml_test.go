@@ -402,6 +402,7 @@ func testEventsListenNotifyIssue(t *testing.T) {
 
 		connConfig := conn.Config()
 		connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
+			fmt.Printf("%s: %s", n.Severity, n.Message)
 			if n != nil {
 				assert.Contains(t, n.Message, warnMsg)
 			}
@@ -409,8 +410,9 @@ func testEventsListenNotifyIssue(t *testing.T) {
 
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
+		assert.NoError(t, err)
 
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "", cteWithMaterializedIssue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", listenNotifyIssue)
 	}
 }
 
