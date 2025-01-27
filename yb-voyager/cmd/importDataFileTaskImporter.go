@@ -73,9 +73,12 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
 }
 
-func (fti *FileTaskImporter) AllBatchesImported() error {
-	// TODO: check importDataState for status.
-	panic("not implemented")
+func (fti *FileTaskImporter) AllBatchesImported() (bool, error) {
+	taskStatus, err := fti.state.GetFileImportState(fti.task.FilePath, fti.task.TableNameTup)
+	if err != nil {
+		return false, fmt.Errorf("getting file import state: %s", err)
+	}
+	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
 func (fti *FileTaskImporter) SubmitNextBatch() error {
