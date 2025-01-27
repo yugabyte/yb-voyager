@@ -20,6 +20,8 @@ const (
 	TABLE    = "TABLE"
 	FUNCTION = "FUNCTION"
 	COLUMN   = "COLUMN"
+	INDEX    = "INDEX"
+	TYPE     = "TYPE"
 
 	// Source DB Types
 	YUGABYTEDB = "yugabytedb"

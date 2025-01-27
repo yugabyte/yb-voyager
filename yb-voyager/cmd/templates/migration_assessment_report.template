@@ -308,7 +308,7 @@
                         Type <span class="sort-indicator">&#8597</span>
                     </th>
                     <th>Object/SQL Preview</th>
-                    <th style="cursor: pointer;" onclick="sortTableBy('impact')">
+                    <th style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
                         Impact <span class="sort-indicator">&#8597</span>
                     </th>
                 </tr>
@@ -336,7 +336,7 @@
                                 {{ end }}
                             </td>
 
-                            <td>{{ snakeCaseToTitleCase $issue.Impact }}</td>
+                            <td style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
