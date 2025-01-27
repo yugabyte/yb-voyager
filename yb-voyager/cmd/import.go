@@ -279,7 +279,7 @@ func validateTargetPortRange() {
 
 func validateTargetSchemaFlag() {
 	// do not check for source and source-replica imports
-	if !(importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE || importerRole == SOURCE_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) {
+	if !slices.Contains([]string{SOURCE_REPLICA_DB_IMPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		if tconf.Schema != "" && sourceDBType == "postgresql" {
 			utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
 		}
