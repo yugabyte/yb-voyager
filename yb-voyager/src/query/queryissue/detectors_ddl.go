@@ -640,13 +640,22 @@ func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		return nil, fmt.Errorf("invalid object type: expected Collation")
 	}
 	issues := make([]QueryIssue, 0)
-	if slices.Contains(collation.Options, "deterministic") {
-		// deterministic attribute is itself not supported in YB either true or false so checking only whether option is present or not
-		issues = append(issues, NewDeterministicOptionCollationIssue(
-			collation.GetObjectType(),
-			collation.GetObjectName(),
-			"",
-		))
+	if val, ok := collation.Options["deterministic"]; ok {
+		switch val {
+		case "false":
+			issues = append(issues, NewNonDeterministicCollationIssue(
+				collation.GetObjectType(),
+				collation.GetObjectName(),
+				"",
+			))
+		default:
+			// deterministic attribute is itself not supported in YB either true or false so checking only whether option is present or not
+			issues = append(issues, NewDeterministicOptionCollationIssue(
+				collation.GetObjectType(),
+				collation.GetObjectName(),
+				"",
+			))
+		}
 	}
 	return issues, nil
 }

@@ -393,6 +393,51 @@ EXECUTE FUNCTION public.check_sales_region();`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `"sales_region" is a partitioned table`, beforeRowTriggerOnPartitionTableIssue)
 }
 
+func testNonDeterministicCollationIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE COLLATION case_insensitive_accent_sensitive (
+    provider = icu,
+    locale = 'en-u-ks-level2',
+    deterministic = false
+);
+CREATE TABLE collation_ex (
+    id SERIAL PRIMARY KEY,
+    name TEXT COLLATE case_insensitive_accent_sensitive
+);
+INSERT INTO collation_ex (name) VALUES
+('André'),
+('andre'),
+('ANDRE'),
+('Ándre'),
+('andrÉ');
+	;`)
+	assert.NoError(t, err)
+
+	rows, err := conn.Query(context.Background(), `SELECT name
+FROM collation_ex
+ORDER BY name;`)
+	assert.NoError(t, err)
+
+	var names []string
+
+	for rows.Next() {
+		var name string
+		err := rows.Scan(&name)
+		assert.NoError(t, err)
+		names = append(names, name)
+	}
+
+	assert.Equal(t, []string{"andre", "ANDRE", "andrÉ", "André", "Ándre"}, names)
+
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", nonDeterministicCollationIssue)
+
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -453,6 +498,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "deterministic attribute in collation", ybVersion), testDeterministicCollationIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "non-deterministic collations", ybVersion), testNonDeterministicCollationIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "foreign key referenced partitioned table", ybVersion), testForeignKeyReferencesPartitionedTableIssue)

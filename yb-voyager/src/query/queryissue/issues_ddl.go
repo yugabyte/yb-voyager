@@ -565,6 +565,20 @@ func NewDeterministicOptionCollationIssue(objectType string, objectName string, 
 	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
+var nonDeterministicCollationIssue = issue.Issue{
+	Type:        NON_DETERMINISTIC_COLLATION,
+	Name:        NON_DETERMINISTIC_COLLATION_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION,
+	Suggestion:  DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewNonDeterministicCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(nonDeterministicCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Type:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
