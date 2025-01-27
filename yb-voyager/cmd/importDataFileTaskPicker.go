@@ -61,14 +61,17 @@ func (s *SequentialTaskPicker) NextTask() (*ImportFileTask, error) {
 }
 
 func (s *SequentialTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
-	for i, t := range s.pendingTasks {
-		if t.ID == task.ID {
-			s.pendingTasks = append(s.pendingTasks[:i], s.pendingTasks[i+1:]...)
-			s.doneTasks = append(s.doneTasks, task)
-			return nil
-		}
+	// it is assumed that the task is in pendingTasks and the first task in the list.
+	// because SequentialTaskPicker will always pick the first task from the list.
+	if !s.HasMoreTasks() {
+		return fmt.Errorf("no more pending tasks to mark as done")
 	}
-	return fmt.Errorf("task not found")
+	if s.pendingTasks[0].ID != task.ID {
+		return fmt.Errorf("Task provided is not the first pending task. task's id = %d, first pending task's id = %d. ", task.ID, s.pendingTasks[0].ID)
+	}
+	s.pendingTasks = s.pendingTasks[1:]
+	s.doneTasks = append(s.doneTasks, task)
+	return nil
 }
 
 func (s *SequentialTaskPicker) HasMoreTasks() bool {
