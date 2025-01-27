@@ -1080,40 +1080,51 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 			unsupportedIndexes = append(unsupportedIndexes, ObjectInfo{
 				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
 			})
-
+			// For oracle migration complexity comes from ora2pg, so defining Impact not required right now
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:   UNSUPPORTED_FEATURES_CATEGORY,
-				Type:       "", // TODO
-				Name:       UNSUPPORTED_INDEXES_FEATURE,
-				ObjectType: "INDEX",
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                UNSUPPORTED_INDEXES_ISSUE_TYPE,
+				Name:                UNSUPPORTED_INDEXES_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.INDEX,
+				// TODO: here it should be only ObjectName, to populate Index Type there should be a separate field
 				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
 			})
 		} else if objectType == VIRTUAL_COLUMN {
 			virtualColumns = append(virtualColumns, ObjectInfo{ObjectName: objectName})
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:   UNSUPPORTED_FEATURES_CATEGORY,
-				Type:       "", // TODO
-				Name:       VIRTUAL_COLUMNS_FEATURE,
-				ObjectName: objectName,
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                VIRTUAL_COLUMNS_ISSUE_TYPE,
+				Name:                VIRTUAL_COLUMNS_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.COLUMN,
+				ObjectName:          objectName,
 			})
 		} else if objectType == INHERITED_TYPE {
 			inheritedTypes = append(inheritedTypes, ObjectInfo{ObjectName: objectName})
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:   UNSUPPORTED_FEATURES_CATEGORY,
-				Type:       "", // TODO
-				Name:       INHERITED_TYPES_FEATURE,
-				ObjectName: objectName,
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                INHERITED_TYPES_ISSUE_TYPE,
+				Name:                INHERITED_TYPES_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.TYPE,
+				ObjectName:          objectName,
 			})
 		} else if objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION {
 			referenceOrTablePartitionPresent = true
 			unsupportedPartitionTypes = append(unsupportedPartitionTypes, ObjectInfo{ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType)})
 
-			// For oracle migration complexity comes from ora2pg, so defining Impact not required right now
 			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:   UNSUPPORTED_FEATURES_CATEGORY,
-				Type:       "", // TODO
-				Name:       UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
-				ObjectType: "TABLE",
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                UNSUPPORTED_PARTITIONING_METHODS_ISSUE_TYPE,
+				Name:                UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.TABLE,
+				// TODO: here it should be only ObjectName, to populate Partition Method there should be a separate field
 				ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType),
 			})
 		}
@@ -1540,6 +1551,13 @@ func postProcessingOfAssessmentReport() {
 				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
 			}
 		}
+
+		// redact Impact info from the assessment report for Oracle
+		// TODO: Remove this processing step in future when supporting Explanation for Oracle
+		for i := range assessmentReport.Issues {
+			assessmentReport.Issues[i].Impact = "-"
+		}
+
 	}
 }
 

@@ -195,6 +195,12 @@ const (
 	UNSUPPORTED_PARTITIONING_METHODS_FEATURE = "Unsupported Partitioning Methods"
 	COMPOUND_TRIGGER_FEATURE                 = "Compound Triggers"
 
+	// Oracle Issue Type
+	UNSUPPORTED_INDEXES_ISSUE_TYPE              = "UNSUPPORTED_INDEXES"
+	VIRTUAL_COLUMNS_ISSUE_TYPE                  = "VIRTUAL_COLUMNS"
+	INHERITED_TYPES_ISSUE_TYPE                  = "INHERITED_TYPES"
+	UNSUPPORTED_PARTITIONING_METHODS_ISSUE_TYPE = "UNSUPPORTED_PARTITIONING_METHODS"
+
 	//POSTGRESQL
 	CONSTRAINT_TRIGGERS_FEATURE                               = "Constraint triggers"
 	INHERITED_TABLES_FEATURE                                  = "Inherited tables"
