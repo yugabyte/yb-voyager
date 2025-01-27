@@ -416,25 +416,29 @@ INSERT INTO collation_ex (name) VALUES
 ('Ándre'),
 ('andrÉ');
 	;`)
-	assert.NoError(t, err)
-
-	rows, err := conn.Query(context.Background(), `SELECT name
+	switch {
+	case testYbVersion.Equal(ybversion.V2_25_0_0):
+		assert.NoError(t, err)
+		rows, err := conn.Query(context.Background(), `SELECT name
 FROM collation_ex
 ORDER BY name;`)
-	assert.NoError(t, err)
-
-	var names []string
-
-	for rows.Next() {
-		var name string
-		err := rows.Scan(&name)
 		assert.NoError(t, err)
-		names = append(names, name)
+
+		var names []string
+
+		for rows.Next() {
+			var name string
+			err := rows.Scan(&name)
+			assert.NoError(t, err)
+			names = append(names, name)
+		}
+
+		assert.Equal(t, []string{"andre", "ANDRE", "andrÉ", "André", "Ándre"}, names)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", nonDeterministicCollationIssue)
+	default:
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, deterministicOptionCollationIssue)
 	}
-
-	assert.Equal(t, []string{"andre", "ANDRE", "andrÉ", "André", "Ándre"}, names)
-
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", nonDeterministicCollationIssue)
 
 }
 
