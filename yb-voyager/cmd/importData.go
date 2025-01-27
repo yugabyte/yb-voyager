@@ -155,6 +155,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
+	log.Debugf("Discovered import file tasks: %v", importFileTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 
 		importType = record.ExportType
@@ -314,6 +315,10 @@ type ImportFileTask struct {
 	TableNameTup sqlname.NameTuple
 	RowCount     int64
 	FileSize     int64
+}
+
+func (task *ImportFileTask) String() string {
+	return fmt.Sprintf("{ID: %d, FilePath: %s, TableName: %s, RowCount: %d, FileSize: %d}", task.ID, task.FilePath, task.TableNameTup.ForOutput(), task.RowCount, task.FileSize)
 }
 
 // func quoteTableNameIfRequired() {
@@ -543,6 +548,8 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
 	}
+	log.Debugf("pending tasks: %v", pendingTasks)
+	log.Debugf("completed tasks: %v", completedTasks)
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
@@ -577,10 +584,6 @@ func importData(importFileTasks []*ImportFileTask) {
 				}
 				poolSize = yb.GetNumMaxConnectionsInPool() * 2
 			}
-			// The code can produce `poolSize` number of batches at a time. But, it can consume only
-			// `parallelism` number of batches at a time.
-			batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-			log.Infof("created batch import pool of size: %d", poolSize)
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -588,68 +591,36 @@ func importData(importFileTasks []*ImportFileTask) {
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 			}
 
-			taskPicker, err := NewSequentialTaskPicker(pendingTasks, state)
-			if err != nil {
-				utils.ErrExit("Failed to create task picker: %w", err)
-			}
-			taskImporters := map[int]*FileTaskImporter{}
-
-			for taskPicker.HasMoreTasks() {
-				task, err := taskPicker.NextTask()
+			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
+			if useTaskPicker {
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, poolSize)
 				if err != nil {
-					utils.ErrExit("Failed to get next task: %w", err)
+					utils.ErrExit("Failed to import tasks via task picker: %s", err)
 				}
-				var taskImporter *FileTaskImporter
-				var ok bool
-				taskImporter, ok = taskImporters[task.ID]
-				if !ok {
-					taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+			} else {
+				for _, task := range pendingTasks {
+					// The code can produce `poolSize` number of batches at a time. But, it can consume only
+					// `parallelism` number of batches at a time.
+					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+					log.Infof("created batch import pool of size: %d", poolSize)
+
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
-					taskImporters[task.ID] = taskImporter
-				}
 
-				if taskImporter.AllBatchesSubmitted() {
-					// All batches for this task have been submitted.
-					// task could have been completed OR in progress
-					// in case task is done, we should inform task picker.
-					taskDone, err := taskImporter.AllBatchesImported()
-					if err != nil {
-						utils.ErrExit("Failed to check if all batches are imported: task: %v err :%w", task, err)
-					}
-					if taskDone {
-						taskImporter.PostProcess()
-						err = taskPicker.MarkTaskAsDone(task)
+					for !taskImporter.AllBatchesSubmitted() {
+						err := taskImporter.SubmitNextBatch()
 						if err != nil {
-							utils.ErrExit("Failed to mark task as done: task: %v, err: %w", task, err)
+							utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
 						}
 					}
-					continue
+
+					taskImporter.PostProcess()
 				}
-				err = taskImporter.SubmitNextBatch()
-				if err != nil {
-					utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
-				}
+				batchImportPool.Wait() // just ensure all tasks are done.
+				time.Sleep(time.Second * 2)
 			}
-
-			// for _, task := range pendingTasks {
-			// 	taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter)
-			// 	if err != nil {
-			// 		utils.ErrExit("Failed to create file task importer: %s", err)
-			// 	}
-
-			// 	for !taskImporter.AllBatchesSubmitted() {
-			// 		err := taskImporter.SubmitNextBatch()
-			// 		if err != nil {
-			// 			utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
-			// 		}
-			// 	}
-
-			// 	taskImporter.PostProcess()
-			// }
-			batchImportPool.Wait() // just ensure all tasks are done.
-			time.Sleep(time.Second * 2)
 		}
 		utils.PrintAndLog("snapshot data import complete\n\n")
 	}
@@ -726,6 +697,60 @@ func importData(importFileTasks []*ImportFileTask) {
 		packAndSendImportDataToSourcePayload(COMPLETE, "")
 	}
 
+}
+
+func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int) error {
+	// The code can produce `poolSize` number of batches at a time. But, it can consume only
+	// `parallelism` number of batches at a time.
+	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+	log.Infof("created batch import pool of size: %d", poolSize)
+
+	taskPicker, err := NewSequentialTaskPicker(pendingTasks, state)
+	if err != nil {
+		return fmt.Errorf("create task picker: %w", err)
+	}
+	taskImporters := map[int]*FileTaskImporter{}
+
+	for taskPicker.HasMoreTasks() {
+		task, err := taskPicker.NextTask()
+		if err != nil {
+			return fmt.Errorf("get next task: %w", err)
+		}
+		var taskImporter *FileTaskImporter
+		var ok bool
+		taskImporter, ok = taskImporters[task.ID]
+		if !ok {
+			taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+			if err != nil {
+				return fmt.Errorf("create file task importer: %s", err)
+			}
+			log.Infof("created file task importer for table: %s, task: %v", task.TableNameTup.ForOutput(), task)
+			taskImporters[task.ID] = taskImporter
+		}
+
+		if taskImporter.AllBatchesSubmitted() {
+			// All batches for this task have been submitted.
+			// task could have been completed (all batches imported) OR still in progress
+			// in case task is done, we should inform task picker so that we stop picking that task.
+			taskDone, err := taskImporter.AllBatchesImported()
+			if err != nil {
+				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
+			}
+			if taskDone {
+				taskImporter.PostProcess()
+				err = taskPicker.MarkTaskAsDone(task)
+				if err != nil {
+					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
+				}
+			}
+			continue
+		}
+		err = taskImporter.SubmitNextBatch()
+		if err != nil {
+			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
+		}
+	}
+	return nil
 }
 
 func startAdaptiveParallelism() (bool, error) {
