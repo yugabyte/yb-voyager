@@ -616,9 +616,9 @@ func importData(importFileTasks []*ImportFileTask) {
 						}
 					}
 
+					batchImportPool.Wait() // wait for file import to finish
 					taskImporter.PostProcess()
 				}
-				batchImportPool.Wait() // just ensure all tasks are done.
 				time.Sleep(time.Second * 2)
 			}
 		}
