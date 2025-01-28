@@ -25,6 +25,10 @@ type FileTaskPicker interface {
 	HasMoreTasks() bool
 }
 
+/*
+A sequential task picker ensures that mulitple tasks are not being processed at the same time.
+It will always pick the same task (first task in the pending list) until it is marked as done.
+*/
 type SequentialTaskPicker struct {
 	pendingTasks []*ImportFileTask
 	doneTasks    []*ImportFileTask
