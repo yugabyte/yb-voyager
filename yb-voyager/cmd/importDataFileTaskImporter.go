@@ -50,16 +50,18 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	}
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
-	progressReporter.AddProgressAmount(task, getImportedProgressAmount(task, state))
+	currentProgressAmount := getImportedProgressAmount(task, state)
+	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	fti := &FileTaskImporter{
-		task:                 task,
-		state:                state,
-		batchProducer:        batchProducer,
-		workerPool:           workerPool,
-		importBatchArgsProto: getImportBatchArgsProto(task.TableNameTup, task.FilePath),
-		progressReporter:     progressReporter,
-		totalProgressAmount:  getTotalProgressAmount(task),
+		task:                  task,
+		state:                 state,
+		batchProducer:         batchProducer,
+		workerPool:            workerPool,
+		importBatchArgsProto:  getImportBatchArgsProto(task.TableNameTup, task.FilePath),
+		progressReporter:      progressReporter,
+		totalProgressAmount:   totalProgressAmount,
+		currentProgressAmount: currentProgressAmount,
 	}
 	return fti, nil
 }
