@@ -39,7 +39,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 
 	fileContents := `id,val
 1, "hello"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -71,7 +71,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -122,7 +122,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 2, "ghijk"
 3, "mnopq"
 4, "stuvw"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -182,7 +182,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 2, "ghijk"
 3, "mnopq1234567899876543"
 4, "stuvw"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -218,7 +218,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -274,7 +274,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
