@@ -1700,9 +1700,15 @@ func validateAssessmentMetadataDirFlag() {
 
 func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
-		targetDbVersion = ybversion.LatestStable
-		return nil
+		if utils.AskPrompt("No target-db-version has been specified.\nDo you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
+			targetDbVersion = ybversion.LatestStable
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
 	}
+
 	var err error
 	targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
 
