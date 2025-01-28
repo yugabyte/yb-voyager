@@ -238,6 +238,10 @@ func reportCase(filePath string, issueType string, reason string, ghIssue string
 		DocsLink:     docsLink,
 	}
 
+	// Note: Here for each regexp report analyze issue(eventually converted to assessment issue) consider issue name same as issue type
+	// Ideally we should declare constant vars for each issue name, but future plan is to move to parser based issue detection hence quick workaround for now
+	issue.Name = utils.SnakeCaseToTitleCase(issue.Type)
+
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
