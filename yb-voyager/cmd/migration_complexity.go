@@ -16,14 +16,12 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
 	"encoding/csv"
 	"fmt"
 	"math"
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -45,9 +43,9 @@ var (
 )
 
 // Migration complexity calculation based on the detected assessment issues
-func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, assessmentReport AssessmentReport) string {
+func calculateMigrationComplexityAndExplanation(sourceDBType string, schemaDirectory string, assessmentReport AssessmentReport) (string, string) {
 	if sourceDBType != ORACLE && sourceDBType != POSTGRESQL {
-		return NOT_AVAILABLE
+		return NOT_AVAILABLE, ""
 	}
 
 	log.Infof("calculating migration complexity for %s...", sourceDBType)
@@ -56,19 +54,19 @@ func calculateMigrationComplexity(sourceDBType string, schemaDirectory string, a
 		migrationComplexity, err := calculateMigrationComplexityForOracle(schemaDirectory)
 		if err != nil {
 			log.Errorf("failed to get migration complexity for oracle: %v", err)
-			return NOT_AVAILABLE
+			return NOT_AVAILABLE, ""
 		}
-		return migrationComplexity
+		return migrationComplexity, ""
 	case POSTGRESQL:
-		return calculateMigrationComplexityForPG(assessmentReport)
+		return calculateMigrationComplexityAndExplanationForPG(assessmentReport)
 	default:
 		panic(fmt.Sprintf("unsupported source db type '%s' for migration complexity", sourceDBType))
 	}
 }
 
-func calculateMigrationComplexityForPG(assessmentReport AssessmentReport) string {
+func calculateMigrationComplexityAndExplanationForPG(assessmentReport AssessmentReport) (string, string) {
 	if assessmentReport.MigrationComplexity != "" {
-		return assessmentReport.MigrationComplexity
+		return assessmentReport.MigrationComplexity, assessmentReport.MigrationComplexityExplanation
 	}
 
 	counts := lo.CountValuesBy(assessmentReport.Issues, func(issue AssessmentIssue) string {
@@ -97,7 +95,7 @@ func calculateMigrationComplexityForPG(assessmentReport AssessmentReport) string
 	}
 
 	migrationComplexityRationale = buildRationale(finalComplexity, l1IssueCount, l2IssueCount, l3IssueCount)
-	return finalComplexity
+	return finalComplexity, migrationComplexityRationale
 }
 
 // This is a temporary logic to get migration complexity for oracle based on the migration level from ora2pg report.
@@ -212,90 +210,10 @@ func getComplexityForLevel(level string, count int) string {
 }
 
 // ======================================= Migration Complexity Explanation ==========================================
-
-// TODO: discuss if the html should be in main report or here
-const explainTemplateHTML = `
-{{- if .Summaries }}
-	<p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
-	<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-		<thead>
-			<tr>
-				<th>Category</th>
-				<th>Level 1</th>
-				<th>Level 2</th>
-				<th>Level 3</th>
-				<th>Total</th>
-			</tr>
-		</thead>
-		<tbody>
-		{{- range .Summaries }}
-			<tr>
-				<td>{{ .Category }}</td>
-				<td>{{ index .ImpactCounts "LEVEL_1" }}</td>
-				<td>{{ index .ImpactCounts "LEVEL_2" }}</td>
-				<td>{{ index .ImpactCounts "LEVEL_3" }}</td>
-				<td>{{ .TotalIssueCount }}</td>
-			</tr>
-		{{- end }}
-		</tbody>
-	</table>
-{{- end }}
-
-<p>
-	<strong>Complexity:</strong> {{ .Complexity }}</br>
-	<strong>Reasoning:</strong> {{ .ComplexityRationale }}
-</p>
-
-<p>
-<strong>Impact Levels:</strong></br>
-	Level 1: Resolutions are available with minimal effort.<br/>
-	Level 2: Resolutions are available requiring moderate effort.<br/>
-	Level 3: Resolutions may not be available or are complex.
-</p>
-`
-
-const explainTemplateText = `{{ .ComplexityRationale }}`
-
-type MigrationComplexityExplanationData struct {
-	Summaries           []MigrationComplexityCategorySummary
-	Complexity          string
-	ComplexityRationale string // short reasoning or explanation text
-}
-
 type MigrationComplexityCategorySummary struct {
 	Category        string
 	TotalIssueCount int
 	ImpactCounts    map[string]int // e.g. {"Level-1": 3, "Level-2": 5, "Level-3": 2}
-}
-
-func buildMigrationComplexityExplanation(sourceDBType string, assessmentReport AssessmentReport, reportFormat string) (string, error) {
-	if sourceDBType != POSTGRESQL {
-		return "", nil
-	}
-
-	var explanation MigrationComplexityExplanationData
-	explanation.Complexity = assessmentReport.MigrationComplexity
-	explanation.ComplexityRationale = migrationComplexityRationale
-
-	explanation.Summaries = buildCategorySummary(assessmentReport.Issues)
-
-	var tmpl *template.Template
-	var err error
-	if reportFormat == "html" {
-		tmpl, err = template.New("Explain").Parse(explainTemplateHTML)
-	} else {
-		tmpl, err = template.New("Explain").Parse(explainTemplateText)
-	}
-
-	if err != nil {
-		return "", fmt.Errorf("failed creating the explanation template: %w", err)
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, explanation); err != nil {
-		return "", fmt.Errorf("failed executing the template with data: %w", err)
-	}
-	return buf.String(), nil
 }
 
 func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count int) string {
@@ -310,10 +228,11 @@ func buildRationale(finalComplexity string, l1Count int, l2Count int, l3Count in
 	return ""
 }
 
-func buildCategorySummary(issues []AssessmentIssue) []MigrationComplexityCategorySummary {
+func buildCategorySummary(sourceDBType string, issues []AssessmentIssue) []MigrationComplexityCategorySummary {
 	if len(issues) == 0 {
 		return nil
-
+	} else if sourceDBType != POSTGRESQL {
+		return nil
 	}
 
 	summaryMap := make(map[string]*MigrationComplexityCategorySummary)
