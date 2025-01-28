@@ -35,9 +35,9 @@ import (
 	"github.com/jackc/pgx/v4"
 	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/tiendc/go-deepcopy"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -246,8 +246,8 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	yb.connPool = NewConnectionPool(params)
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
-	err := deepcopy.Copy(redactedParams, params)
-	if err!= nil {
+	err := copier.Copy(redactedParams, params)
+	if err != nil {
 		log.Errorf("couldn't get the copy of connection params for logging: %v", err)
 		return nil
 	}
