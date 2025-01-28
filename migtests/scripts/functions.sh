@@ -359,6 +359,7 @@ export_data() {
 analyze_schema() {
 	args="--export-dir ${EXPORT_DIR}
 		--send-diagnostics=false
+		--yes
 	"
     yb-voyager analyze-schema ${args} $*
 }
