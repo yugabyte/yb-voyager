@@ -1736,24 +1736,25 @@ func validateAssessmentMetadataDirFlag() {
 }
 
 func validateAndSetTargetDbVersionFlag() error {
-	isMentioned := true
 	if targetDbVersionStrFlag == "" {
-		fmt.Printf("Specific YugabyteDB not mentioned. Defaulting to latest stable YugabyteDB version.\n")
-		isMentioned = false
+		if utils.AskPrompt("No target-db-version has been specified.\nDo you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
+			targetDbVersion = ybversion.LatestStable
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
 	}
 
 	var err error
-	if isMentioned {
-		targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
+	targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
 
-		if err == nil || !errors.Is(err, ybversion.ErrUnsupportedSeries) {
-			return err
-		}
-
-		// error is ErrUnsupportedSeries
-		utils.PrintAndLog("%v", err)
+	if err == nil || !errors.Is(err, ybversion.ErrUnsupportedSeries) {
+		return err
 	}
 
+	// error is ErrUnsupportedSeries
+	utils.PrintAndLog("%v", err)
 	if utils.AskPrompt("Do you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
 		targetDbVersion = ybversion.LatestStable
 		return nil
