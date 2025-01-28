@@ -50,16 +50,18 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	}
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
-	progressReporter.AddProgressAmount(task, getImportedProgressAmount(task, state))
+	currentProgressAmount := getImportedProgressAmount(task, state)
+	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	fti := &FileTaskImporter{
-		task:                 task,
-		state:                state,
-		batchProducer:        batchProducer,
-		workerPool:           workerPool,
-		importBatchArgsProto: getImportBatchArgsProto(task.TableNameTup, task.FilePath),
-		progressReporter:     progressReporter,
-		totalProgressAmount:  getTotalProgressAmount(task),
+		task:                  task,
+		state:                 state,
+		batchProducer:         batchProducer,
+		workerPool:            workerPool,
+		importBatchArgsProto:  getImportBatchArgsProto(task.TableNameTup, task.FilePath),
+		progressReporter:      progressReporter,
+		totalProgressAmount:   totalProgressAmount,
+		currentProgressAmount: currentProgressAmount,
 	}
 	return fti, nil
 }
@@ -150,12 +152,9 @@ func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
 	fti.currentProgressAmount += progressAmount
 	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
 
-	if importerRole == TARGET_DB_IMPORTER_ROLE && fti.totalProgressAmount > fti.currentProgressAmount {
-		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup.ForKey(),
-			fti.currentProgressAmount, fti.totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
-		// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
-		controlPlane.UpdateImportedRowCount(
-			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
+	if fti.totalProgressAmount > fti.currentProgressAmount {
+		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
 	}
 }
 
@@ -164,14 +163,18 @@ func (fti *FileTaskImporter) PostProcess() {
 		fti.batchProducer.Close()
 	}
 
+	fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_COMPLETED)
+
+	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
+}
+
+func (fti *FileTaskImporter) updateProgressInControlPlane(status int) {
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 		importDataTableMetrics := createImportDataTableMetrics(fti.task.TableNameTup.ForKey(),
-			fti.currentProgressAmount, fti.totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
+			fti.currentProgressAmount, fti.totalProgressAmount, status)
 		controlPlane.UpdateImportedRowCount(
 			[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
 	}
-
-	fti.progressReporter.FileImportDone(fti.task) // Remove the progress-bar for the file.\
 }
 
 // ============================================================================= //
