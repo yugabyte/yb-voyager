@@ -232,6 +232,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 }
 
 /*
+singleTask
 maxTasksInProgressEqualToTotalTasks
 maxTasksInProgressGreaterThanTotalTasks
 MixOfColocatedAndShardedTables - ensure all are getting picked with proper weights
