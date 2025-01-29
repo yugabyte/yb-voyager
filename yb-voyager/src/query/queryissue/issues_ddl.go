@@ -629,7 +629,7 @@ var databaseOptionsPG15Issue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	// MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 	// 	ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	// },// Not marking it as supported for as it seems these might be actually supported https://github.com/yugabyte/yugabyte-db/issues/25541
+	// },// Not marking it as supported for 2.25 as it seems these might be actually not supported at least the locale and collation ones https://github.com/yugabyte/yugabyte-db/issues/25541
 }
 
 func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatement string, options []string) QueryIssue {
