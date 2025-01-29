@@ -134,7 +134,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
+func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
 
@@ -149,7 +149,7 @@ func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	_, colocatedTask1, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated1", 2)
 	testutils.FatalIfError(t, err)
-	_, colocatedTask2, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated2", 2)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated2", 3)
 	testutils.FatalIfError(t, err)
 
 	tasks := []*ImportFileTask{
@@ -183,7 +183,7 @@ func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		assert.True(t, task == pickedTask1 || task == pickedTask2)
+		assert.Truef(t, task == pickedTask1 || task == pickedTask2, "task: %v, pickedTask1: %v, pickedTask2: %v", task, pickedTask1, pickedTask2)
 	}
 
 	// mark task1 as done
@@ -207,7 +207,7 @@ func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		assert.True(t, task == pickedTask2 || task == pickedTask3)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
 	}
 
 	// mark task3 as done
@@ -218,15 +218,15 @@ func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		assert.True(t, task == pickedTask2)
+		assert.Truef(t, task == pickedTask2, "task: %v, pickedTask2: %v", task, pickedTask2)
 	}
 
-	// // mark task2 as done
-	// err = picker.MarkTaskAsDone(pickedTask2)
-	// assert.NoError(t, err)
+	// mark task2 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
 
-	// // now, there should be no more tasks
-	// assert.False(t, picker.HasMoreTasks())
-	// _, err = picker.NextTask()
-	// assert.Error(t, err)
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.NextTask()
+	assert.Error(t, err)
 }
