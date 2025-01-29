@@ -699,7 +699,7 @@ func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
 	if err != nil {
 		return err
 	}
-	for _, defName := range defNames {
+	for defName, _ := range defNames {
 		if unsupportedDatabaseOptionsFromPG15.ContainsOne(defName) {
 			d.pg15OptionsDetected.Add(defName)
 		}
