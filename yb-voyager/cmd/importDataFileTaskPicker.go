@@ -208,6 +208,11 @@ func (c *ColocatedAwareRandomTaskPicker) NextTask() (*ImportFileTask, error) {
 		return c.PickTaskFromInProgressTasks()
 	}
 
+	// if we have less than maxTasksInProgress tasks in progress, but no pending tasks, pick a task from inProgressTasks
+	if len(c.inProgressTasks) < c.maxTasksInProgress && len(c.tableWisePendingTasks.Keys()) == 0 {
+		return c.PickTaskFromInProgressTasks()
+	}
+
 	// pick a new task from pending tasks
 	return c.PickTaskFromPendingTasks()
 }
@@ -268,6 +273,8 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 			colocatedCount++
 		}
 	}
+	colocatedWeight := 1
+	shardedWeight := lo.Ternary(colocatedCount == 0, 1, colocatedCount)
 
 	choices := []weightedrand.Choice[sqlname.NameTuple, int]{}
 	for _, tableName := range tableNames {
@@ -276,9 +283,9 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 			return fmt.Errorf("table type not found for table: %v", tableName)
 		}
 		if tableType == COLOCATED {
-			choices = append(choices, weightedrand.NewChoice(tableName, 1))
+			choices = append(choices, weightedrand.NewChoice(tableName, colocatedWeight))
 		} else {
-			choices = append(choices, weightedrand.NewChoice(tableName, colocatedCount))
+			choices = append(choices, weightedrand.NewChoice(tableName, shardedWeight))
 		}
 
 		var err error

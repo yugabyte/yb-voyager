@@ -21,8 +21,27 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
+
+type dummyYb struct {
+	colocatedTables []sqlname.NameTuple
+	shardedTables   []sqlname.NameTuple
+}
+
+func (d *dummyYb) IsTableColocated(tableName sqlname.NameTuple) (bool, error) {
+	for _, t := range d.colocatedTables {
+		if t.Key() == tableName.Key() {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (d *dummyYb) IsDBColocated() (bool, error) {
+	return len(d.colocatedTables) > 0, nil
+}
 
 func TestSequentialTaskPickerBasic(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
@@ -113,4 +132,101 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 	// marking any task as done now should return an error
 	err = picker.MarkTaskAsDone(task1)
 	assert.Error(t, err)
+}
+
+func TestColocatedAwareRandomTaskPickerAdheresMaxInProgress(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated1", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		colocatedTask1,
+		colocatedTask2,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+		},
+	}
+
+	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// initially because maxInprogressTasks is 2, we will get 2 different tasks
+	pickedTask1, err := picker.NextTask()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.NextTask()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickedTask1, pickedTask2)
+
+	// no matter how many times we call NextTask therefater,
+	// it should return either pickedTask1 or pickedTask2
+	for i := 0; i < 100; i++ {
+		task, err := picker.NextTask()
+		assert.NoError(t, err)
+		assert.True(t, task == pickedTask1 || task == pickedTask2)
+	}
+
+	// mark task1 as done
+	err = picker.MarkTaskAsDone(pickedTask1)
+	assert.NoError(t, err)
+
+	// keep picking tasks until we get a task that is not pickedTask2
+	var pickedTask3 *ImportFileTask
+	for {
+		task, err := picker.NextTask()
+		if err != nil {
+			break
+		}
+		if task != pickedTask2 {
+			pickedTask3 = task
+			break
+		}
+	}
+
+	// now, next task should be either pickedTask2 or pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.NextTask()
+		assert.NoError(t, err)
+		assert.True(t, task == pickedTask2 || task == pickedTask3)
+	}
+
+	// mark task3 as done
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, next task should be pickedTask2
+	for i := 0; i < 100; i++ {
+		task, err := picker.NextTask()
+		assert.NoError(t, err)
+		assert.True(t, task == pickedTask2)
+	}
+
+	// // mark task2 as done
+	// err = picker.MarkTaskAsDone(pickedTask2)
+	// assert.NoError(t, err)
+
+	// // now, there should be no more tasks
+	// assert.False(t, picker.HasMoreTasks())
+	// _, err = picker.NextTask()
+	// assert.Error(t, err)
 }
