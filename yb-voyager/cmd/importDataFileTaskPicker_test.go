@@ -241,7 +241,8 @@ AllShardedTables - ensure all are getting picked with proper weights
 dynamicTasks - create 100s of tasks randmoly colocated/shared,
 	get next tasks in a large loop,
 	mark them as done occasionally,
-	ensure all are getting picked at the end
+	ensure all are getting picked at least once.
+	ensure tasks getting picked remain constant between marking them as done. and adhere to max.
 
 all of the above cases for
 multipleTasksPerTable (importDataFileCase)
