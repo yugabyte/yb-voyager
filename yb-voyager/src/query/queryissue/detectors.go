@@ -606,15 +606,15 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 	switch {
 	case aConstNode.GetFval() != nil:
 		/*
-		fval - float val representation in postgres
-		ival - integer val 
-		Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
-		select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}} 
-		target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
+			fval - float val representation in postgres
+			ival - integer val
+			Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
+			select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}}
+			target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
 
-		ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
-		select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}} 
-		target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
+			ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
+			select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}}
+			target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
 		*/
 		fval := aConstNode.GetFval().Fval
 		for _, literal := range nonDecimalIntegerLiterals {
@@ -668,6 +668,54 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if c.materializedClauseDetected {
 		issues = append(issues, NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", c.query))
+	}
+	return issues
+}
+
+type ListenNotifyIssueDetector struct {
+	query    string
+	detected bool
+}
+
+func NewListenNotifyIssueDetector(query string) *ListenNotifyIssueDetector {
+	return &ListenNotifyIssueDetector{
+		query: query,
+	}
+}
+
+func (ln *ListenNotifyIssueDetector) Detect(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		/*
+			example-SELECT pg_notify('my_notification', 'Payload from pg_notify');
+				parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_notify"}}
+				args:{a_const:{sval:{sval:"my_notification"}  location:129}}  args:{a_const:{sval:{sval:"Payload from pg_notify"}
+		*/
+		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
+		if funcName == PG_NOTIFY_FUNC {
+			ln.detected = true
+		}
+	case queryparser.PG_QUERY_LISTEN_STMT_NODE, queryparser.PG_QUERY_NOTIFY_STMT_NODE, queryparser.PG_QUERY_UNLISTEN_STMT_NODE:
+		/*
+			examples -
+				LISTEN my_table_changes;
+				NOTIFY my_notification, 'Payload from pg_notify';
+				UNLISTEN my_notification;
+			parseTrees-
+				stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}}  stmt_len:25}
+				stmts:{stmt:{notify_stmt:{conditionname:"my_table_changes" payload:"Row inserted: id=1, name=Alice"}}  stmt_location:26  stmt_len:58}
+				stmts:{stmt:{unlisten_stmt:{conditionname:"my_notification"}}  stmt_location:85  stmt_len:25}
+		*/
+		ln.detected = true
+	}
+
+	return nil
+}
+
+func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if ln.detected {
+		issues = append(issues, NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", ln.query))
 	}
 	return issues
 }

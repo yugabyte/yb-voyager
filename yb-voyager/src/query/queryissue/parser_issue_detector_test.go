@@ -1208,3 +1208,66 @@ $func$;`,
 		}
 	}
 }
+
+func TestListenNotifyIssues(t *testing.T) {
+	sqls := []string{
+		`LISTEN my_table_changes;`,
+		`NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`,
+		`UNLISTEN my_notification;`,
+		`SELECT pg_notify('my_notification', 'Payload from pg_notify');`,
+		`CREATE OR REPLACE FUNCTION notify_on_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM pg_notify('row_inserted', 'New row added with id: ' || NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;`,
+`CREATE OR REPLACE FUNCTION notify_and_insert()
+RETURNS VOID AS $$
+BEGIN
+	LISTEN my_table_changes;
+    INSERT INTO my_table (name) VALUES ('Charlie');
+	NOTIFY my_table_changes, 'New row added with name: Charlie';
+    PERFORM pg_notify('my_table_changes', 'New row added with name: Charlie');
+	UNLISTEN my_table_changes;
+END;
+$$ LANGUAGE plpgsql;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
+		},
+		sqls[1]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
+		},
+		sqls[2]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
+		},
+		sqls[3]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3]),
+		},
+		sqls[4]: []QueryIssue{
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_on_insert", "SELECT pg_notify('row_inserted', 'New row added with id: ' || NEW.id);"),
+		},
+		sqls[5]: []QueryIssue{
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "LISTEN my_table_changes;"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "NOTIFY my_table_changes, 'New row added with name: Charlie';"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "SELECT pg_notify('my_table_changes', 'New row added with name: Charlie');"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "UNLISTEN my_table_changes;"),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}

@@ -399,6 +399,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonPredicateExprDetector(query),
 		NewNonDecimalIntegerLiteralDetector(query),
 		NewCommonTableExpressionDetector(query),
+		NewListenNotifyIssueDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {
