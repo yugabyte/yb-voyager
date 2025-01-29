@@ -400,6 +400,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewNonDecimalIntegerLiteralDetector(query),
 		NewCommonTableExpressionDetector(query),
 		NewDatabaseOptionsDetector(query),
+		NewListenNotifyIssueDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {

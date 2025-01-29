@@ -88,3 +88,5 @@ CREATE DATABASE strategy_example
     WITH STRATEGY = 'wal_log';
 
 DROP DATABASE strategy_example;
+
+LISTEN my_table_changes;

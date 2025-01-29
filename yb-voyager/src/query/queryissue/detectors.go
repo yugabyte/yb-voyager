@@ -16,7 +16,6 @@ limitations under the License.
 package queryissue
 
 import (
-	"slices"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -339,11 +338,11 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	}
 
 	// Check for COPY ... ON_ERROR clause
-	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	defNamesWithValues, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
 	if err != nil {
 		log.Errorf("error extracting defnames from COPY statement: %v", err)
 	}
-	if slices.Contains(defNames, "on_error") {
+	if _, ok := defNamesWithValues["on_error"]; ok {
 		d.copyOnErrorConstructDetected = true
 	}
 
@@ -718,6 +717,54 @@ func (d *DatabaseOptionsDetector) GetIssues() []QueryIssue {
 	}
 	if d.pg17OptionsDetected.Cardinality() > 0 {
 		issues = append(issues, NewDatabaseOptionsPG17Issue("DATABASE", d.dbName, d.query, d.pg17OptionsDetected.ToSlice()))
+	}
+	return issues
+}
+
+type ListenNotifyIssueDetector struct {
+	query    string
+	detected bool
+}
+
+func NewListenNotifyIssueDetector(query string) *ListenNotifyIssueDetector {
+	return &ListenNotifyIssueDetector{
+		query: query,
+	}
+}
+
+func (ln *ListenNotifyIssueDetector) Detect(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		/*
+			example-SELECT pg_notify('my_notification', 'Payload from pg_notify');
+				parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_notify"}}
+				args:{a_const:{sval:{sval:"my_notification"}  location:129}}  args:{a_const:{sval:{sval:"Payload from pg_notify"}
+		*/
+		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
+		if funcName == PG_NOTIFY_FUNC {
+			ln.detected = true
+		}
+	case queryparser.PG_QUERY_LISTEN_STMT_NODE, queryparser.PG_QUERY_NOTIFY_STMT_NODE, queryparser.PG_QUERY_UNLISTEN_STMT_NODE:
+		/*
+			examples -
+				LISTEN my_table_changes;
+				NOTIFY my_notification, 'Payload from pg_notify';
+				UNLISTEN my_notification;
+			parseTrees-
+				stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}}  stmt_len:25}
+				stmts:{stmt:{notify_stmt:{conditionname:"my_table_changes" payload:"Row inserted: id=1, name=Alice"}}  stmt_location:26  stmt_len:58}
+				stmts:{stmt:{unlisten_stmt:{conditionname:"my_notification"}}  stmt_location:85  stmt_len:25}
+		*/
+		ln.detected = true
+	}
+
+	return nil
+}
+
+func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if ln.detected {
+		issues = append(issues, NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", ln.query))
 	}
 	return issues
 }

@@ -904,15 +904,15 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 	*/
 	log.Infof("checking the view '%s' is security invoker view", qualifiedViewName)
 	msg := GetProtoMessageFromParseTree(parseTree)
-	defNames, err := TraverseAndExtractDefNamesFromDefElem(msg)
+	defNamesWithValues, err := TraverseAndExtractDefNamesFromDefElem(msg)
 	if err != nil {
 		return nil, err
 	}
-
+	_, securityInvokerOptionPresent := defNamesWithValues["security_invoker"]
 	view := View{
 		SchemaName:      viewSchemaName,
 		ViewName:        viewName,
-		SecurityInvoker: slices.Contains(defNames, "security_invoker"),
+		SecurityInvoker: securityInvokerOptionPresent,
 	}
 	return &view, nil
 }
@@ -976,14 +976,14 @@ func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 		return nil, fmt.Errorf("not a CREATE COLLATION statement")
 	}
 	schema, colName := getSchemaAndObjectName(defineStmt.Defnames)
-	defNames, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
+	defNamesWithValues, err := TraverseAndExtractDefNamesFromDefElem(defineStmt.ProtoReflect())
 	if err != nil {
 		return nil, fmt.Errorf("error getting the defElems in collation: %v", err)
 	}
 	collation := Collation{
 		SchemaName:    schema,
 		CollationName: colName,
-		Options:       defNames,
+		Options:       defNamesWithValues,
 	}
 	return &collation, nil
 }
@@ -991,7 +991,7 @@ func (cp *CollationProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 type Collation struct {
 	SchemaName    string
 	CollationName string
-	Options       []string
+	Options       map[string]string
 }
 
 func (c *Collation) GetObjectName() string {

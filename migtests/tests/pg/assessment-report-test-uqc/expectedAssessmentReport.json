@@ -263,6 +263,12 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"ConstructTypeName": "Events Listen / Notify",
+			"Query": "LISTEN my_table_changes",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"ConstructTypeName": "Range aggregate Functions",
 			"Query": "SELECT range_intersect_agg(event_range) AS intersection_of_ranges\nFROM sales.events",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
