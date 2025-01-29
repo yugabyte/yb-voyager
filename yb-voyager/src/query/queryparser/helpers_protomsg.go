@@ -473,6 +473,7 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 			defElemVal := arg.GetString_().Sval
 			defNamesWithValues[defName] = defElemVal
 		} else {
+			log.Warnf("defElem Node doesn't have arg or the arg is not the string type [%s]", defElemNode)
 			//TODO: see how to handle this later where GetString_() is not directly available or arg is of different type
 			//e.g. defname:"provider"  arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:37}}  defaction:DEFELEM_UNSPEC  location:26defname:"locale"
 			defNamesWithValues[defName] = ""

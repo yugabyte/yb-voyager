@@ -908,13 +908,11 @@ func (v *ViewProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 	if err != nil {
 		return nil, err
 	}
-
+	_, securityInvokerOptionPresent := defNamesWithValues["security_invoker"]
 	view := View{
-		SchemaName: viewSchemaName,
-		ViewName:   viewName,
-	}
-	if _, ok := defNamesWithValues["security_invoker"]; ok {
-		view.SecurityInvoker = true
+		SchemaName:      viewSchemaName,
+		ViewName:        viewName,
+		SecurityInvoker: securityInvokerOptionPresent,
 	}
 	return &view, nil
 }

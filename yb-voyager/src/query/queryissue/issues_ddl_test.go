@@ -434,6 +434,7 @@ ORDER BY name;`)
 		}
 
 		/*
+			GH Issue for the support - https://github.com/yugabyte/yugabyte-db/issues/25541
 			order of the name column is depending on non-deterministic collations, example is of case-insensitive and accent-sensitive collation
 			and output is different from PG - which means functionality is not proper
 			postgres=# SELECT name

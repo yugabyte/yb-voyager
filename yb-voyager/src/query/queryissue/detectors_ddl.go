@@ -641,6 +641,8 @@ func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	}
 	issues := make([]QueryIssue, 0)
 	if val, ok := collation.Options["deterministic"]; ok {
+		//we have two issues for this - one is fixed in 2.25 where deterministic option is recognized and 
+		//the other one is for non-determinisitic collaiton which is not fixed in 2.25
 		switch val {
 		case "false":
 			issues = append(issues, NewNonDeterministicCollationIssue(
