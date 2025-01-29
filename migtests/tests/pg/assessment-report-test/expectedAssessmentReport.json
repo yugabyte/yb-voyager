@@ -1396,7 +1396,7 @@
 			"Impact": "LEVEL_1",
 			"ObjectType": "COLLATION",
 			"ObjectName": "schema2.ignore_accents",
-			"SqlStatement": "CREATE COLLATION schema2.ignore_accents (provider = icu, deterministic = false, locale = 'und-u-kc-true-ks-level1');",
+			"SqlStatement": "CREATE COLLATION schema2.ignore_accents (provider = icu, deterministic = false, locale = 'und-u-kc-ks-level1');",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": null
 		},
