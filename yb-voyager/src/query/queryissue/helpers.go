@@ -120,6 +120,9 @@ const (
 	JSON_QUERY  = "JSON_QUERY"
 	JSON_VALUE  = "JSON_VALUE"
 	JSON_TABLE  = "JSON_TABLE"
+
+	//https://www.postgresql.org/docs/current/sql-notify.html#:~:text=two%2Dphase%20commit.-,pg_notify,-To%20send%20a
+	PG_NOTIFY_FUNC = "pg_notify" 
 )
 
 var unsupportedLargeObjectFunctions = mapset.NewThreadUnsafeSet([]string{
