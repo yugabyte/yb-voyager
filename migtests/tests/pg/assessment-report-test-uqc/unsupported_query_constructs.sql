@@ -83,3 +83,8 @@ WITH w AS (
 )           
 SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
 WHERE w2.key = 123;
+
+CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log';
+
+DROP DATABASE strategy_example;
