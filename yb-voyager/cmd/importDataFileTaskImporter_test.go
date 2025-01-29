@@ -18,7 +18,6 @@ limitations under the License.
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"testing"
 
@@ -32,10 +31,10 @@ func TestBasicTaskImport(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+		defer os.RemoveAll(ldataDir)
 	}
 	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+		defer os.RemoveAll(lexportDir)
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
@@ -73,10 +72,10 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+		defer os.RemoveAll(ldataDir)
 	}
 	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+		defer os.RemoveAll(lexportDir)
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
@@ -122,10 +121,10 @@ func TestTaskImportResumable(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+		defer os.RemoveAll(ldataDir)
 	}
 	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+		defer os.RemoveAll(lexportDir)
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
@@ -181,10 +180,10 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	if ldataDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+		defer os.RemoveAll(ldataDir)
 	}
 	if lexportDir != "" {
-		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+		defer os.RemoveAll(lexportDir)
 	}
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
