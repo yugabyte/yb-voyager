@@ -120,6 +120,7 @@ type ColocatedAwareRandomTaskPicker struct {
 
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
 	tableTypes            *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
+	tableProbabilities    *utils.StructMap[sqlname.NameTuple, float64]
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -189,6 +190,40 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
 	}, nil
+}
+
+func (c *ColocatedAwareRandomTaskPicker) NextTask() (*ImportFileTask, error) {
+	if !c.HasMoreTasks() {
+		return nil, fmt.Errorf("no more tasks")
+	}
+
+	// compute probabilities if not already
+	if c.tableProbabilities == nil {
+		c.computeProbabilities()
+	}
+
+}
+
+func (c *ColocatedAwareRandomTaskPicker) computeProbabilities() error {
+	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
+	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
+		tableNames = append(tableNames, k)
+		return true, nil
+	})
+
+	totalCount := len(tableNames)
+	colocatedCount := 0
+	for _, tableName := range tableNames {
+		tableType, ok := c.tableTypes.Get(tableName)
+		if !ok {
+			return fmt.Errorf("table type not found for table: %v", tableName)
+		}
+
+		if tableType == COLOCATED {
+			colocatedCount++
+		}
+	}
+
 }
 
 func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
