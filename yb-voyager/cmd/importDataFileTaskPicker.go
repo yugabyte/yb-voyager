@@ -18,8 +18,14 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+const (
+	SHARDED   = "sharded"
+	COLOCATED = "colocated"
 )
 
 type FileTaskPicker interface {
@@ -106,14 +112,14 @@ At any given time, only X  distinct tables can be IN-PROGRESS. If X=4, after pic
 	X  >= N (no. of nodes in the cluster). This will lead to a better chance of achieving even load on the cluster.
 */
 type ColocatedAwareRandomTaskPicker struct {
-	pendingTasks    []*ImportFileTask
+	// pendingTasks    []*ImportFileTask
 	doneTasks       []*ImportFileTask
 	inProgressTasks []*ImportFileTask
 
 	maxTasksInProgress int
 
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
-	tableType             *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
+	tableTypes            *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -121,11 +127,37 @@ type YbTargetDBColocatedChecker interface {
 	IsTableColocated(tableName sqlname.NameTuple) (bool, error)
 }
 
-func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState) (*ColocatedAwareRandomTaskPicker, error) {
-	var pendingTasks []*ImportFileTask
+func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
+	// var pendingTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 	var inProgressTasks []*ImportFileTask
+	tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
+	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
+
+	isDBColocated, err := yb.IsDBColocated()
+	if err != nil {
+		return nil, fmt.Errorf("checking if db is colocated: %w", err)
+	}
+
 	for _, task := range tasks {
+		tableName := task.TableNameTup
+
+		// set tableType if not already set
+		if _, ok := tableTypes.Get(tableName); !ok {
+			var tableType string
+			if !isDBColocated {
+				tableType = SHARDED
+			} else {
+				isColocated, err := yb.IsTableColocated(tableName)
+				if err != nil {
+					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", tableName, err)
+				}
+				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
+			}
+			tableTypes.Put(tableName, tableType)
+		}
+
+		// put task into right bucket.
 		taskStatus, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
 			return nil, fmt.Errorf("getting file import state for tasl: %v: %w", task, err)
@@ -136,15 +168,25 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		case FILE_IMPORT_IN_PROGRESS:
 			inProgressTasks = append(inProgressTasks, task)
 		case FILE_IMPORT_NOT_STARTED:
-			pendingTasks = append(pendingTasks, task)
+			// put into the table wise pending tasks.
+			var tablePendingTasks []*ImportFileTask
+			var ok bool
+			tablePendingTasks, ok = tableWisePendingTasks.Get(tableName)
+			if !ok {
+				tablePendingTasks = []*ImportFileTask{}
+			}
+			tablePendingTasks = append(tablePendingTasks, task)
+			tableWisePendingTasks.Put(tableName, tablePendingTasks)
 		default:
 			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
+
 	return &ColocatedAwareRandomTaskPicker{
-		pendingTasks:       pendingTasks,
-		doneTasks:          doneTasks,
-		inProgressTasks:    inProgressTasks,
-		maxTasksInProgress: maxTasksInProgress,
+		doneTasks:             doneTasks,
+		inProgressTasks:       inProgressTasks,
+		maxTasksInProgress:    maxTasksInProgress,
+		tableWisePendingTasks: tableWisePendingTasks,
+		tableTypes:            tableTypes,
 	}, nil
 }
