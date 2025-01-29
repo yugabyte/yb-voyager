@@ -144,7 +144,7 @@ func testSetAttributeIssue(t *testing.T) {
 
 	var errMsg string
 	switch {
-	case testYbVersion.Equal(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 		errMsg = `ALTER action ALTER COLUMN ... SET not supported yet`
 	default:
 		errMsg = "ALTER TABLE ALTER column not supported yet"
@@ -171,7 +171,7 @@ func testClusterOnIssue(t *testing.T) {
 
 	var errMsg string
 	switch {
-	case testYbVersion.Equal(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 		errMsg = "ALTER action CLUSTER ON not supported yet"
 	default:
 		errMsg = "ALTER TABLE CLUSTER not supported yet"
@@ -194,7 +194,7 @@ func testDisableRuleIssue(t *testing.T) {
 
 	var errMsg string
 	switch {
-	case testYbVersion.Equal(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 		errMsg = "ALTER action DISABLE RULE not supported yet"
 	default:
 		errMsg = "ALTER TABLE DISABLE RULE not supported yet"
@@ -417,7 +417,7 @@ INSERT INTO collation_ex (name) VALUES
 ('andrÉ');
 	;`)
 	switch {
-	case testYbVersion.Equal(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 		assert.NoError(t, err)
 		rows, err := conn.Query(context.Background(), `SELECT name
 FROM collation_ex
