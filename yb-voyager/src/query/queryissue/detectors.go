@@ -673,15 +673,17 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 }
 
 type DatabaseOptionsDetector struct {
-	query string
-	dbName string
-	isPG15optionsDetected bool
-	isPG17optionsDetected bool
+	query               string
+	dbName              string
+	pg15OptionsDetected mapset.Set[string]
+	pg17OptionsDetected mapset.Set[string]
 }
 
 func NewDatabaseOptionsDetector(query string) *DatabaseOptionsDetector {
 	return &DatabaseOptionsDetector{
-		query: query,
+		query:               query,
+		pg15OptionsDetected: mapset.NewThreadUnsafeSet[string](),
+		pg17OptionsDetected: mapset.NewThreadUnsafeSet[string](),
 	}
 }
 
@@ -690,8 +692,8 @@ func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 	/*
-	stmts:{stmt:{createdb_stmt:{dbname:"test" options:{def_elem:{defname:"oid" arg:{integer:{ival:121231}} defaction:DEFELEM_UNSPEC 
-	location:22}}}} stmt_len:32} stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}} stmt_location:33 stmt_len:25}
+		stmts:{stmt:{createdb_stmt:{dbname:"test" options:{def_elem:{defname:"oid" arg:{integer:{ival:121231}} defaction:DEFELEM_UNSPEC
+		location:22}}}} stmt_len:32} stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}} stmt_location:33 stmt_len:25}
 	*/
 	d.dbName = queryparser.GetStringField(msg, "dbname")
 	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
@@ -700,10 +702,10 @@ func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
 	}
 	for _, defName := range defNames {
 		if unsupportedDatabaseOptionsFromPG15.ContainsOne(defName) {
-			d.isPG15optionsDetected = true
+			d.pg15OptionsDetected.Add(defName)
 		}
 		if unsupportedDatabaseOptionsFromPG17.ContainsOne(defName) {
-			d.isPG17optionsDetected = true
+			d.pg17OptionsDetected.Add(defName)
 		}
 	}
 	return nil
@@ -711,11 +713,11 @@ func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
 
 func (d *DatabaseOptionsDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
-	if d.isPG15optionsDetected {
-		issues = append(issues, NewDatabaseOptionsPG15Issue("DATABASE", d.dbName, d.query))
+	if d.pg15OptionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewDatabaseOptionsPG15Issue("DATABASE", d.dbName, d.query, d.pg15OptionsDetected.ToSlice()))
 	}
-	if d.isPG17optionsDetected {
-		issues = append(issues, NewDatabaseOptionsPG17Issue("DATABASE", d.dbName, d.query))
+	if d.pg17OptionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewDatabaseOptionsPG17Issue("DATABASE", d.dbName, d.query, d.pg17OptionsDetected.ToSlice()))
 	}
 	return issues
 }

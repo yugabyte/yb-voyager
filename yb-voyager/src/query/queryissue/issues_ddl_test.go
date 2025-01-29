@@ -393,6 +393,55 @@ EXECUTE FUNCTION public.check_sales_region();`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `"sales_region" is a partitioned table`, beforeRowTriggerOnPartitionTableIssue)
 }
 
+func testDatabaseOptions(t *testing.T) {
+	sqlsforPG15 := []string{
+		` CREATE DATABASE locale_example
+    WITH LOCALE = 'en_US.UTF-8'
+         TEMPLATE = template0;`,
+		 `CREATE DATABASE locale_provider_example
+    WITH ICU_LOCALE = 'en_US'
+         LOCALE_PROVIDER = 'icu'
+         TEMPLATE = template0;`,
+		 `CREATE DATABASE oid_example
+    WITH OID = 123456;`,
+	`CREATE DATABASE collation_version_example
+    WITH COLLATION_VERSION = '153.128';`,
+	`CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log';`,
+	}
+	sqlsForPG17 := []string{
+		`CREATE DATABASE icu_rules_example
+    WITH ICU_RULES = '&a < b < c';`,
+	`CREATE DATABASE builtin_locale_example
+    WITH BUILTIN_LOCALE = 'C';`,
+	}
+
+	for _, sql := range sqlsforPG15 {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		switch {
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+			assert.NoError(t, err)
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)	
+		default:
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG15Issue)	
+		}
+	}
+	for _, sql := range sqlsForPG17 {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG17Issue)	
+	}
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -466,4 +515,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "before row triggers on partitioned table", ybVersion), testBeforeRowTriggerOnPartitionedTable)
 	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "database options", ybVersion), testDatabaseOptions)
+	assert.True(t, success)
+
 }
