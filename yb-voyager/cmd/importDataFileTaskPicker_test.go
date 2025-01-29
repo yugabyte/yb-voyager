@@ -236,8 +236,11 @@ singleTask
 maxTasksInProgressEqualToTotalTasks
 maxTasksInProgressGreaterThanTotalTasks
 MixOfColocatedAndShardedTables - ensure all are getting picked with proper weights
+	test that weights change when tasks are marked as done
 AllColocatedTables - ensure all are getting picked with proper weights
+	test that weights change when tasks are marked as done
 AllShardedTables - ensure all are getting picked with proper weights
+	test that weights change when tasks are marked as done
 dynamicTasks - create 100s of tasks randmoly colocated/shared,
 	get next tasks in a large loop,
 	mark them as done occasionally,
