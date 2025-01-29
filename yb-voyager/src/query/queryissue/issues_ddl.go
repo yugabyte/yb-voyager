@@ -556,13 +556,26 @@ var deterministicOptionCollationIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, // TODO: understand why docs says coming soon non-deterministic collation but the CREATE COLLAITON works on 2.25
-		//https://docs.yugabyte.com/preview/develop/pg15-features/#:~:text=Consider%20strings%20to%20be%20equal%20even%20if%20they%20consist%20of%20different%20bytes%2C%20for%20example%2C%20case%2Dinsensitive%2C%20or%20accent%2Dinsensitive%20comparisons.
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0, 
 	},
 }
 
 func NewDeterministicOptionCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
 	return newQueryIssue(deterministicOptionCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var nonDeterministicCollationIssue = issue.Issue{
+	Type:        NON_DETERMINISTIC_COLLATION,
+	Name:        NON_DETERMINISTIC_COLLATION_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION,
+	Suggestion:  DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewNonDeterministicCollationIssue(objectType string, objectName string, SqlStatement string) QueryIssue {
+	return newQueryIssue(nonDeterministicCollationIssue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{

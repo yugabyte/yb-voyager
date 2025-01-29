@@ -299,10 +299,10 @@ func TestDDLIssues(t *testing.T) {
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
 		},
 		stmt21: []QueryIssue{
-			NewDeterministicOptionCollationIssue("COLLATION", "case_insensitive", stmt21),
+			NewNonDeterministicCollationIssue("COLLATION", "case_insensitive", stmt21),
 		},
 		stmt22: []QueryIssue{
-			NewDeterministicOptionCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
+			NewNonDeterministicCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
 		},
 		stmt23: []QueryIssue{
 			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),

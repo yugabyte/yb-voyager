@@ -620,7 +620,7 @@
 		    "MinimumVersionsFixedIn": null
         },
 		{
-			"FeatureName": "Deterministic attribute in collation",
+			"FeatureName": "Non-Deterministic collations",
 			"Objects": [
 				{
 					"ObjectName": "schema2.ignore_accents",
@@ -628,9 +628,7 @@
 				}
 			],
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-			"MinimumVersionsFixedIn": {
-				"2.25": "2.25.0.0"
-			}
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"FeatureName": "Primary / Unique key constraints on complex datatypes",

@@ -104,6 +104,7 @@ func (ybv *YBVersion) OriginalSegmentsLen() int {
 }
 
 func (ybv *YBVersion) GreaterThanOrEqual(other *YBVersion) bool {
+	//TODO: should fail in case the ybv and other version is of different release type
 	return ybv.Version.GreaterThanOrEqual(other.Version)
 }
 

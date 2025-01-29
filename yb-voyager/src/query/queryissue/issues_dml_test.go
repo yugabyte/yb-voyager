@@ -266,7 +266,7 @@ RETURNING merge_action(), w.*;
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
 		switch {
-		case testYbVersion.Equal(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 			errMsg = "This statement not supported yet"
 		default:
 			errMsg = `syntax error at or near "MERGE"`
@@ -353,7 +353,7 @@ func testNonDecimalIntegerLiteralIssue(t *testing.T) {
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
 		switch {
-		case testYbVersion.Equal(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 			errMsg = `trailing junk after numeric literal at or near`
 		default:
 			errMsg = `syntax error at or near "as"`

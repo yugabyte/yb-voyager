@@ -84,6 +84,8 @@ const (
 
 	DETERMINISTIC_OPTION_WITH_COLLATION      = "DETERMINISTIC_OPTION_WITH_COLLATION"
 	DETERMINISTIC_OPTION_WITH_COLLATION_NAME = "Deterministic attribute in collation"
+	NON_DETERMINISTIC_COLLATION              = "NON_DETERMINISTIC_COLLATION"
+	NON_DETERMINISTIC_COLLATION_NAME         = "Non-Deterministic collations"
 
 	MERGE_STATEMENT                               = "MERGE_STATEMENT"
 	MERGE_STATEMENT_NAME                          = "Merge Statement"
@@ -171,6 +173,7 @@ const (
 	MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION                           = "Multi-range data type is not yet supported in YugabyteDB. Affected column: %s and type: %v."
 	SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION                         = "Security invoker views are not yet supported in YugabyteDB."
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION            = "Deterministic option/attribute with collation is not yet supported in YugabyteDB."
+	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION                    = "Non-Deterministic collations are not yet supported in YugabyteDB."
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION       = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                      = "Unique constraint on columns with NULL values is not yet supported in YugabyteDB."
 )
