@@ -16,7 +16,6 @@ limitations under the License.
 package queryissue
 
 import (
-	"slices"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -339,11 +338,11 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	}
 
 	// Check for COPY ... ON_ERROR clause
-	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	defNamesWithValues, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
 	if err != nil {
 		log.Errorf("error extracting defnames from COPY statement: %v", err)
 	}
-	if slices.Contains(defNames, "on_error") {
+	if _, ok := defNamesWithValues["on_error"]; ok {
 		d.copyOnErrorConstructDetected = true
 	}
 
