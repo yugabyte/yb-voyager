@@ -190,3 +190,31 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		tableTypes:            tableTypes,
 	}, nil
 }
+
+func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
+	for i, t := range c.inProgressTasks {
+		if t.ID == task.ID {
+			c.inProgressTasks = append(c.inProgressTasks[:i], c.inProgressTasks[i+1:]...)
+			c.doneTasks = append(c.doneTasks, task)
+			return nil
+		}
+	}
+	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks)
+}
+
+func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
+	if len(c.inProgressTasks) > 0 {
+		return true
+	}
+
+	pendingTasks := false
+	c.tableWisePendingTasks.IterKV(func(tableName sqlname.NameTuple, tasks []*ImportFileTask) (bool, error) {
+		if len(tasks) > 0 {
+			pendingTasks = true
+			return false, nil
+		}
+		return true, nil
+	})
+
+	return pendingTasks
+}
