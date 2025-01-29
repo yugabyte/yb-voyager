@@ -606,15 +606,15 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 	switch {
 	case aConstNode.GetFval() != nil:
 		/*
-		fval - float val representation in postgres
-		ival - integer val 
-		Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
-		select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}} 
-		target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
+			fval - float val representation in postgres
+			ival - integer val
+			Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
+			select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}}
+			target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
 
-		ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
-		select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}} 
-		target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
+			ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
+			select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}}
+			target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
 		*/
 		fval := aConstNode.GetFval().Fval
 		for _, literal := range nonDecimalIntegerLiterals {
@@ -668,6 +668,54 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if c.materializedClauseDetected {
 		issues = append(issues, NewCTEWithMaterializedIssue(DML_QUERY_OBJECT_TYPE, "", c.query))
+	}
+	return issues
+}
+
+type DatabaseOptionsDetector struct {
+	query string
+	dbName string
+	isPG15optionsDetected bool
+	isPG17optionsDetected bool
+}
+
+func NewDatabaseOptionsDetector(query string) *DatabaseOptionsDetector {
+	return &DatabaseOptionsDetector{
+		query: query,
+	}
+}
+
+func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CREATEDB_STMT_NODE {
+		return nil
+	}
+	/*
+	stmts:{stmt:{createdb_stmt:{dbname:"test" options:{def_elem:{defname:"oid" arg:{integer:{ival:121231}} defaction:DEFELEM_UNSPEC 
+	location:22}}}} stmt_len:32} stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}} stmt_location:33 stmt_len:25}
+	*/
+	d.dbName = queryparser.GetStringField(msg, "dbname")
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		return err
+	}
+	for _, defName := range defNames {
+		if unsupportedDatabaseOptionsFromPG15.ContainsOne(defName) {
+			d.isPG15optionsDetected = true
+		}
+		if unsupportedDatabaseOptionsFromPG17.ContainsOne(defName) {
+			d.isPG17optionsDetected = true
+		}
+	}
+	return nil
+}
+
+func (d *DatabaseOptionsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.isPG15optionsDetected {
+		issues = append(issues, NewDatabaseOptionsPG15Issue("DATABASE", d.dbName, d.query))
+	}
+	if d.isPG17optionsDetected {
+		issues = append(issues, NewDatabaseOptionsPG17Issue("DATABASE", d.dbName, d.query))
 	}
 	return issues
 }

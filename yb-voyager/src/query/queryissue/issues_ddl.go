@@ -618,3 +618,34 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var databaseOptionsPG15Issue = issue.Issue{
+	Type:        DATABASE_OPTIONS,
+	Name:        "Database options related to locale, collation, oid and strategy",
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: "Database options related to locale, collation, oid and strategy introduced in PG15 are not supported yet in YugabyteDB.",
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(databaseOptionsPG15Issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var databaseOptionsPG17Issue = issue.Issue{
+	Type:        DATABASE_OPTIONS,
+	Name:        "Database options related to locale",
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: "Database options related to locale introduced in PG17 are not supported yet in YugabyteDB.",
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewDatabaseOptionsPG17Issue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(databaseOptionsPG17Issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

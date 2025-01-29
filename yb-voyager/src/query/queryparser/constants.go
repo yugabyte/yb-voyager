@@ -88,6 +88,7 @@ const (
 	PG_QUERY_DEFINE_STMT_NODE                = "pg_query.DefineStmt"
 	PG_QUERY_MERGE_STMT_NODE                 = "pg_query.MergeStmt"
 	PG_QUERY_INDEX_STMT_NODE                 = "pg_query.IndexStmt"
+	PG_QUERY_CREATEDB_STMT_NODE = "pg_query.CreatedbStmt"
 
 	LIMIT_OPTION_WITH_TIES   = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
 	CTE_MATERIALIZED_DEFAULT = pg_query.CTEMaterialize_CTEMaterializeDefault
