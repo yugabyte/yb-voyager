@@ -233,10 +233,10 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 
 /*
 maxTasksInProgressEqualToTotalTasks
-maxTasksInProgressLessThanTotalTasks
-MixOfColocatedAndShardedTables - ensure all are getting picked.
-AllColocatedTables - ensure all are getting picked
-AllShardedTables - ensure all are getting picked
+maxTasksInProgressGreaterThanTotalTasks
+MixOfColocatedAndShardedTables - ensure all are getting picked with proper weights
+AllColocatedTables - ensure all are getting picked with proper weights
+AllShardedTables - ensure all are getting picked with proper weights
 
 all of the above cases for
 multipleTasksPerTable (importDataFileCase)
