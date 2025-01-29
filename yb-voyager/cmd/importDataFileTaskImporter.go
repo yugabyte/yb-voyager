@@ -81,7 +81,7 @@ func (fti *FileTaskImporter) AllBatchesImported() error {
 }
 
 func (fti *FileTaskImporter) SubmitNextBatch() error {
-	if fti.batchProducer.Done() {
+	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
 	}
 	batch, err := fti.batchProducer.NextBatch()
@@ -92,7 +92,7 @@ func (fti *FileTaskImporter) SubmitNextBatch() error {
 }
 
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
-	err := batch.MarkPending()
+	err := batch.MarkInProgress()
 	if err != nil {
 		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
 	}

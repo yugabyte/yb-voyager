@@ -40,12 +40,12 @@ func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
 	return d.maxSizeBytes
 }
 
-type TestDB struct {
+type TestTargetDB struct {
 	testcontainers.TestContainer
 	tgtdb.TargetDB
 }
 
-var testYugabyteDBTarget *TestDB
+var testYugabyteDBTarget *TestTargetDB
 
 func setupYugabyteTestDb(t *testing.T) {
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
@@ -53,7 +53,7 @@ func setupYugabyteTestDb(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	host, port, err := yugabytedbContainer.GetHostPort()
 	testutils.FatalIfError(t, err)
-	testYugabyteDBTarget = &TestDB{
+	testYugabyteDBTarget = &TestTargetDB{
 		TestContainer: yugabytedbContainer,
 		TargetDB: tgtdb.NewTargetDB(&tgtdb.TargetConf{
 			TargetDBType: "yugabytedb",
