@@ -4,6 +4,43 @@
 
 Included here are the release notes for the [YugabyteDB Voyager](https://docs.yugabyte.com/preview/migrate/) v1 release series. Content will be added as new notable features and changes are available in the patch releases of the YugabyteDB v1 series.
 
+## v1.8.10 - January 28, 2025
+
+### Enhancements
+
+- **Air-gapped Installation:** Improved air-gapped installation to no longer require `gcc` on the client machine running `yb-voyager`.
+- **Enhanced Assessment and Schema Analysis reports:**
+  - Enhanced the **Assessment Report** with a single section summarizing all issues in a table. Each issue includes a summary and an expandable section for more details. You can now sort issues based on criteria such as category, type, or impact.
+  - Detects the following unsupported features from PostgreSQL -
+    - SQL Body in Create Function
+    - Common table expressions (WITH queries) that have MATERIALIZED clause.
+    - Non-decimal integer literals
+  - When running assess-migration/analyze-schema against YugabyteDB [v2.25.0.0](https://deploy-preview-25758--infallible-bardeen-164bc9.netlify.app/preview/releases/ybdb-releases/v2.25#v2.25.0.0) and later, the following issues are no longer reported, as they are fixed:
+    - Stored generated columns
+    - Before Row triggers on partitioned tables
+    - Multi-range datatypes
+    - Security invoker issues
+    - Deterministic attribute with COLLATION
+    - Foreign key references to partitioned tables
+    - SQL body in function
+    - Unique Nulls Not distinct
+    - Regex functions
+    - Range aggregate functions
+    - JSONB subscripting
+    - Copy FROM .. WHERE
+    - CTE with Materialized clause
+- **yugabyted control plane:** Enhanced the information sent to yugabyted for the migration assessment phase to also include the Migration Complexity Explanation.
+
+### Bug fixes
+
+- Fixed an [issue](https://github.com/yugabyte/yb-voyager/issues/2155) where data migration for the `hstore` datatype in live migration from source PostgreSQL was failing with errors and causing panics during the `import-data` step.
+- Fixed an [issue](https://github.com/yugabyte/yb-voyager/issues/2200) in `import schema` where SQL bodies in `FUNCTION` DDL statements were not being parsed correctly.
+
+## v1.8.9.1 - January 20, 2025
+
+- Fixed a [regression](https://github.com/yugabyte/yb-voyager/issues/2204) introduced in v1.8.8, for password authentication in the `import data` command, where the command fails with error `failed to connect to target-host server error (FATAL: password authentication failed for user (SQLSTATE 28P01)`.
+
+
 ## v1.8.9 - January 14, 2025
 
 ### New Features
