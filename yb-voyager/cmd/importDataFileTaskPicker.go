@@ -18,9 +18,11 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"golang.org/x/exp/rand"
 )
 
 const (
@@ -113,14 +115,14 @@ At any given time, only X  distinct tables can be IN-PROGRESS. If X=4, after pic
 */
 type ColocatedAwareRandomTaskPicker struct {
 	// pendingTasks    []*ImportFileTask
-	doneTasks       []*ImportFileTask
-	inProgressTasks []*ImportFileTask
-
-	maxTasksInProgress int
-
+	doneTasks             []*ImportFileTask
+	inProgressTasks       []*ImportFileTask
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
-	tableTypes            *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
-	tableProbabilities    *utils.StructMap[sqlname.NameTuple, float64]
+	maxTasksInProgress    int
+
+	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
+
+	tableChooser *weightedrand.Chooser[sqlname.NameTuple, int]
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -197,21 +199,64 @@ func (c *ColocatedAwareRandomTaskPicker) NextTask() (*ImportFileTask, error) {
 		return nil, fmt.Errorf("no more tasks")
 	}
 
-	// compute probabilities if not already
-	if c.tableProbabilities == nil {
-		c.computeProbabilities()
+	if c.tableChooser == nil {
+		c.initializeChooser()
 	}
 
+	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
+	if len(c.inProgressTasks) == c.maxTasksInProgress {
+		return c.PickTaskFromInProgressTasks()
+	}
+
+	// pick a new task from pending tasks
+	return c.PickTaskFromPendingTasks()
 }
 
-func (c *ColocatedAwareRandomTaskPicker) computeProbabilities() error {
+func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportFileTask, error) {
+	if len(c.inProgressTasks) == 0 {
+		return nil, fmt.Errorf("no tasks in progress")
+	}
+
+	// pick a random task from inProgressTasks
+	taskIndex := rand.Intn(len(c.inProgressTasks))
+	return c.inProgressTasks[taskIndex], nil
+}
+
+func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFileTask, error) {
+	if len(c.tableWisePendingTasks.Keys()) == 0 {
+		return nil, fmt.Errorf("no pending tasks to pick from")
+	}
+	tablePick := c.tableChooser.Pick()
+	tablePendingTasks, ok := c.tableWisePendingTasks.Get(tablePick)
+	if !ok {
+		return nil, fmt.Errorf("no pending tasks for table picked: %s: %v", tablePick, c.tableWisePendingTasks)
+	}
+
+	pickedTask := tablePendingTasks[0]
+	tablePendingTasks = tablePendingTasks[1:]
+
+	if len(tablePendingTasks) == 0 {
+		c.tableWisePendingTasks.Delete(tablePick)
+
+		// reinitialize chooser because we have removed a table from the pending list, so weights will change.
+		err := c.initializeChooser()
+		if err != nil {
+			return nil, fmt.Errorf("re-initializing chooser after picking task: %v: %w", pickedTask, err)
+		}
+	} else {
+		c.tableWisePendingTasks.Put(tablePick, tablePendingTasks)
+	}
+	c.inProgressTasks = append(c.inProgressTasks, pickedTask)
+	return pickedTask, nil
+}
+
+func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
 	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
 		tableNames = append(tableNames, k)
 		return true, nil
 	})
 
-	totalCount := len(tableNames)
 	colocatedCount := 0
 	for _, tableName := range tableNames {
 		tableType, ok := c.tableTypes.Get(tableName)
@@ -224,6 +269,25 @@ func (c *ColocatedAwareRandomTaskPicker) computeProbabilities() error {
 		}
 	}
 
+	choices := []weightedrand.Choice[sqlname.NameTuple, int]{}
+	for _, tableName := range tableNames {
+		tableType, ok := c.tableTypes.Get(tableName)
+		if !ok {
+			return fmt.Errorf("table type not found for table: %v", tableName)
+		}
+		if tableType == COLOCATED {
+			choices = append(choices, weightedrand.NewChoice(tableName, 1))
+		} else {
+			choices = append(choices, weightedrand.NewChoice(tableName, colocatedCount))
+		}
+
+		var err error
+		c.tableChooser, err = weightedrand.NewChooser(choices...)
+		if err != nil {
+			return fmt.Errorf("creating chooser: %w", err)
+		}
+	}
+	return nil
 }
 
 func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
