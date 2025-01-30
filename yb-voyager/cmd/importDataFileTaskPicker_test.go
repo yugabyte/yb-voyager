@@ -541,6 +541,78 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
 	}
 }
 
+func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+		},
+	}
+
+	// 5 tasks, 10 max tasks in progress
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call NextTask therefater,
+	// it should return one of the tasks with equal probability.
+	taskCounter := map[*ImportFileTask]int{}
+	for i := 0; i < 100000; i++ {
+		task, err := picker.NextTask()
+		assert.NoError(t, err)
+		taskCounter[task]++
+	}
+
+	totalTasks := len(tasks)
+	assert.Equal(t, totalTasks, len(taskCounter))
+	tc := 0
+	for _, v := range taskCounter {
+		tc += v
+	}
+
+	expectedCountForEachTask := tc / totalTasks
+	for task, v := range taskCounter {
+		fmt.Printf("task: %v, count: %v, expectedCountForEachTask: %v\n", task, v, expectedCountForEachTask)
+		diff := math.Abs(float64(v - expectedCountForEachTask))
+		diffPct := diff / float64(expectedCountForEachTask) * 100
+		// pct difference from expected count should be less than 5%
+		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	}
+}
+
 /*
 singleTask
 maxTasksInProgressEqualToTotalTasks

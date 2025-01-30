@@ -244,9 +244,11 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		c.tableWisePendingTasks.Delete(tablePick)
 
 		// reinitialize chooser because we have removed a table from the pending list, so weights will change.
-		err := c.initializeChooser()
-		if err != nil {
-			return nil, fmt.Errorf("re-initializing chooser after picking task: %v: %w", pickedTask, err)
+		if len(c.tableWisePendingTasks.Keys()) > 0 {
+			err := c.initializeChooser()
+			if err != nil {
+				return nil, fmt.Errorf("re-initializing chooser after picking task: %v: %w", pickedTask, err)
+			}
 		}
 	} else {
 		c.tableWisePendingTasks.Put(tablePick, tablePendingTasks)
@@ -256,6 +258,9 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 }
 
 func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
+	if len(c.tableWisePendingTasks.Keys()) == 0 {
+		return fmt.Errorf("no pending tasks to initialize chooser")
+	}
 	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
 	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
 		tableNames = append(tableNames, k)
@@ -288,11 +293,11 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 			choices = append(choices, weightedrand.NewChoice(tableName, shardedWeight))
 		}
 
-		var err error
-		c.tableChooser, err = weightedrand.NewChooser(choices...)
-		if err != nil {
-			return fmt.Errorf("creating chooser: %w", err)
-		}
+	}
+	var err error
+	c.tableChooser, err = weightedrand.NewChooser(choices...)
+	if err != nil {
+		return fmt.Errorf("creating chooser: %w", err)
 	}
 	return nil
 }
