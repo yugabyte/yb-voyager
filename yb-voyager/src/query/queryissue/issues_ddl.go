@@ -556,7 +556,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, 
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
@@ -630,4 +630,33 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var compressionClauseForToastingInCreate = issue.Issue{
+	Type:        COMPRESSION_CLAUSE_IN_TABLE,
+	Name:        COMPRESSION_CLAUSE_IN_TABLE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "TOASTing is not supported in YugabyteDB and hence this clause is not relevant.",
+	Suggestion:  "Remove the clause from the DDL.",
+	GH:          "", //TODO
+	DocsLink:    "", //TODO
+}
+
+func NewCompressionClauseForToastingInCreate(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(compressionClauseForToastingInCreate, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+
+var compressionClauseForToastingInAlter = issue.Issue{
+	Type:        COMPRESSION_CLAUSE_IN_TABLE,
+	Name:        COMPRESSION_CLAUSE_IN_TABLE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "TOASTing is disabled by default in YugabyteDB and hence this clause is not relevant.",
+	Suggestion:  "Remove the DDL from exported schema to not execute on target YugabyteDB.",
+	GH:          "", //TODO
+	DocsLink:    "", //TODO
+}
+
+func NewCompressionClauseForToastingInAlter(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(compressionClauseForToastingInAlter, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
