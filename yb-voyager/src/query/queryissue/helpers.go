@@ -173,3 +173,11 @@ var nonDecimalIntegerLiterals = []string{
 	//https://github.com/pganalyze/pg_query_go/blob/38c866daa3fdb0a7af78741476d6b89029c19afe/parser/src_backend_utils_adt_numutils.c#L59C30-L61C76
 	// the prefix "0x" could be "0X" as well so should check both
 }
+
+var unsupportedDatabaseOptionsFromPG15 = mapset.NewThreadUnsafeSet([]string{
+	"icu_locale", "locale_provider", "locale", "strategy", "collation_version", "oid",
+}...)
+
+var unsupportedDatabaseOptionsFromPG17 = mapset.NewThreadUnsafeSet([]string{
+	"builtin_locale", "icu_rules",
+}...)

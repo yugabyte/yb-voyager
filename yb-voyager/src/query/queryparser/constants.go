@@ -88,6 +88,7 @@ const (
 	PG_QUERY_DEFINE_STMT_NODE                = "pg_query.DefineStmt"
 	PG_QUERY_MERGE_STMT_NODE                 = "pg_query.MergeStmt"
 	PG_QUERY_INDEX_STMT_NODE                 = "pg_query.IndexStmt"
+	PG_QUERY_CREATEDB_STMT_NODE              = "pg_query.CreatedbStmt"
 	PG_QUERY_LISTEN_STMT_NODE                = "pg_query.ListenStmt"
 	PG_QUERY_NOTIFY_STMT_NODE                = "pg_query.NotifyStmt"
 	PG_QUERY_UNLISTEN_STMT_NODE              = "pg_query.UnlistenStmt"

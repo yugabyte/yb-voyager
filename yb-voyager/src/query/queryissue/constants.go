@@ -104,6 +104,8 @@ const (
 	LISTEN_NOTIFY_NAME               = "Events Listen / Notify"
 	NON_DECIMAL_INTEGER_LITERAL      = "NON_DECIMAL_INTEGER_LITERAL"
 	NON_DECIMAL_INTEGER_LITERAL_NAME = "Non-decimal integer literal"
+
+	DATABASE_OPTIONS = "DATABASE_OPTIONS"
 )
 
 const (
