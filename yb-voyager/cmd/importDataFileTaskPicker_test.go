@@ -588,7 +588,9 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 
 	// no matter how many times we call NextTask therefater,
-	// it should return one of the tasks with equal probability.
+	// it should return one of the tasks with equal probability,
+	// because they will get picked with their own probability, but once they are picked,
+	// and are placed in inProgressTasks, their probability will all be equal.
 	taskCounter := map[*ImportFileTask]int{}
 	for i := 0; i < 100000; i++ {
 		task, err := picker.NextTask()
