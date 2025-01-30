@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -662,6 +663,7 @@ var databaseOptionsPG17Issue = issue.Issue{
 }
 
 func NewDatabaseOptionsPG17Issue(objectType string, objectName string, sqlStatement string, options []string) QueryIssue {
+	sort.Strings(options)
 	issue := databaseOptionsPG17Issue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
