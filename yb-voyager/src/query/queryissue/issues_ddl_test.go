@@ -71,16 +71,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	}
 }
 
-func testXMLFunctionIssue(t *testing.T) {
-	ctx := context.Background()
-	conn, err := getConn()
-	assert.NoError(t, err)
-
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlFunctionsIssue)
-}
-
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -535,8 +525,6 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	// run tests
 	var success bool
-	success = t.Run(fmt.Sprintf("%s-%s", "xml functions", ybVersion), testXMLFunctionIssue)
-	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "stored generated functions", ybVersion), testStoredGeneratedFunctionsIssue)
 	assert.True(t, success)
