@@ -1001,7 +1001,7 @@ replace_files() {
 
 bulk_assessment() {
 	yb-voyager assess-migration-bulk --bulk-assessment-dir "${BULK_ASSESSMENT_DIR}" \
-	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv
+	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv --yes
 }
 
 fix_config_file() {
