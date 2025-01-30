@@ -168,7 +168,8 @@ func prepareImportFileTasks() []*ImportFileTask {
 		return result
 	}
 	kvs := strings.Split(fileTableMapping, ",")
-	for i, kv := range kvs {
+	idIndex := 0
+	for _, kv := range kvs {
 		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 		filePaths, err := dataStore.Glob(globPattern)
 		if err != nil {
@@ -187,12 +188,13 @@ func prepareImportFileTasks() []*ImportFileTask {
 				utils.ErrExit("calculating file size in bytes: %q: %v", filePath, err)
 			}
 			task := &ImportFileTask{
-				ID:           i,
+				ID:           idIndex,
 				FilePath:     filePath,
 				TableNameTup: tableNameTuple,
 				FileSize:     fileSize,
 			}
 			result = append(result, task)
+			idIndex++
 		}
 	}
 	return result
