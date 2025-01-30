@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/docker/go-connections/nat"
 	"github.com/jackc/pgx/v5"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -120,8 +122,24 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	}
 	defer conn.Close(context.Background())
 
+	retryCount := 3
+	retryErrors := []string{
+		"Restart read required at",
+	}
 	for _, sql := range sqls {
-		_, err := conn.Exec(context.Background(), sql)
+		var err error
+		for i := 0; i < retryCount; i++ {
+			_, err = conn.Exec(context.Background(), sql)
+			if err == nil {
+				break
+			}
+			if !lo.ContainsBy(retryErrors, func(r string) bool {
+				return strings.Contains(err.Error(), r)
+			}) {
+				break
+			}
+			time.Sleep(2 * time.Second)
+		}
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}

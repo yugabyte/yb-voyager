@@ -24,72 +24,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
-	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
-
-type dummyTDB struct {
-	maxSizeBytes int64
-	tgtdb.TargetYugabyteDB
-}
-
-func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
-	return d.maxSizeBytes
-}
-
-func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, error) {
-	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	ldataDir, err := os.MkdirTemp("/tmp", "data-dir-*")
-	if err != nil {
-		return "", "", nil, err
-	}
-
-	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
-	tdb = &dummyTDB{maxSizeBytes: batchSizeBytes}
-	valueConverter = &dbzm.NoOpValueConverter{}
-	dataStore = datastore.NewDataStore(ldataDir)
-
-	batchSizeInNumRows = batchSizeRows
-
-	state := NewImportDataState(lexportDir)
-	return ldataDir, lexportDir, state, nil
-}
-
-func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string) (string, *ImportFileTask, error) {
-	dataFileDescriptor = &datafile.Descriptor{
-		FileFormat: "csv",
-		Delimiter:  ",",
-		HasHeader:  true,
-		ExportDir:  lexportDir,
-		QuoteChar:  '"',
-		EscapeChar: '\\',
-		NullString: "NULL",
-	}
-	tempFile, err := testutils.CreateTempFile(ldataDir, fileContents, dataFileDescriptor.FileFormat)
-	if err != nil {
-		return "", nil, err
-	}
-
-	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", tableName)
-	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
-	task := &ImportFileTask{
-		ID:           1,
-		FilePath:     tempFile,
-		TableNameTup: tableNameTup,
-		RowCount:     1,
-	}
-	return tempFile, task, nil
-}
 
 func TestBasicFileBatchProducer(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
