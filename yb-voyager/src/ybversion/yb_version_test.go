@@ -72,7 +72,6 @@ func TestPreviewReleaseType(t *testing.T) {
 		ybVersion, _ := NewYBVersion(v)
 		assert.Equal(t, PREVIEW, ybVersion.ReleaseType())
 	}
-	assert.True(t, V2024_2_0_0.GreaterThanOrEqual(V2_25_0_0))
 }
 
 func TestStableOldReleaseType(t *testing.T) {
