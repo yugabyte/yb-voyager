@@ -109,6 +109,9 @@ jobs:
           echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
+      - name: docker ps 
+        run: docker ps
+
       - name: Log yb_servers()
         run: |
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT * from yb_servers();"
