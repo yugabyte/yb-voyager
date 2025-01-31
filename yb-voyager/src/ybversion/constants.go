@@ -65,5 +65,5 @@ func init() {
 	if err != nil {
 		panic("could not create version 2.25.0.0")
 	}
-	LatestStable = V2024_2_1_0
+	LatestStable = V2024_2_0_0
 }
