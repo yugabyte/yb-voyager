@@ -459,6 +459,39 @@ ORDER BY name;`)
 
 }
 
+func testCompressionClauseIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `CREATE TABLE tbl_comp1(id int, v text COMPRESSION pglz);`)
+	//CREATE works on 2.25
+
+	var errMsg string
+	switch {
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		assert.NoError(t, err)
+		err = fmt.Errorf("")
+		errMsg = ""
+	default:
+		errMsg = `syntax error at or near "COMPRESSION"`
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
+
+	_, err = conn.Exec(ctx, `ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
+	//ALTER not supported in 2.25
+	switch {
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		errMsg = "This ALTER TABLE command is not yet supported."
+	default:
+		errMsg = `syntax error at or near "COMPRESSION"`
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
+
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -534,5 +567,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "before row triggers on partitioned table", ybVersion), testBeforeRowTriggerOnPartitionedTable)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "compression clause", ybVersion), testCompressionClauseIssue)
 	assert.True(t, success)
 }

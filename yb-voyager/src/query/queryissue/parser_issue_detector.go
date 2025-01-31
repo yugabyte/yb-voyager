@@ -169,7 +169,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 		issues = append(issues, issuesInQuery...)
 	}
 	if errorneousQueriesStr != "" {
-		log.Errorf("Found some PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
+		log.Warnf("Found some errorneous PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
 	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
