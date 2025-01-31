@@ -184,9 +184,28 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
+	sizingRecommendation := callhome.SizingRecommendationCallhome{
+		NumColocatedTables:              len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables),
+		ColocatedReasoning:              assessmentReport.Sizing.SizingRecommendation.ColocatedReasoning,
+		NumShardedTables:                len(assessmentReport.Sizing.SizingRecommendation.ShardedTables),
+		NumNodes:                        assessmentReport.Sizing.SizingRecommendation.NumNodes,
+		VCPUsPerInstance:                assessmentReport.Sizing.SizingRecommendation.VCPUsPerInstance,
+		MemoryPerInstance:               assessmentReport.Sizing.SizingRecommendation.MemoryPerInstance,
+		OptimalSelectConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalSelectConnectionsPerNode,
+		OptimalInsertConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalInsertConnectionsPerNode,
+		EstimatedTimeInMinForImport:     assessmentReport.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
+		ParallelVoyagerJobs:             assessmentReport.Sizing.SizingRecommendation.ParallelVoyagerJobs,
+	}
+
+	sizingAssessmentReport := callhome.SizingAssessmentReportCallhome{
+		SizingRecommendation: &sizingRecommendation,
+		FailureReasoning:     assessmentReport.Sizing.FailureReasoning,
+	}
+
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		SizingAssessmentReport:         &sizingAssessmentReport,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
