@@ -157,26 +157,19 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 		return nil, fmt.Errorf("error getting all the queries from query: %w", err)
 	}
 	var issues []QueryIssue
-	errorneousQueries := make(map[string]error)
+	errorneousQueriesStr := ""
 	for _, plpgsqlQuery := range plpgsqlQueries {
 		issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 		if err != nil {
 			//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
-			// log.Errorf("error getting issues in query-%s: %v", query, err)
-			errorneousQueries[plpgsqlQuery] = err
+			logErr := strings.TrimPrefix(err.Error(), "error getting plpgsql issues: ") // Remove the context added via getAllIssues function when it failed first as it is unneccesary
+			errorneousQueriesStr += fmt.Sprintf("PL/pgSQL query - %s and error - %s, ", plpgsqlQuery, logErr)
 			continue
 		}
 		issues = append(issues, issuesInQuery...)
 	}
-	stringfyMap := func(m map[string]error) string {
-		res := ""
-		for k, v := range m {
-			res += fmt.Sprintf("PL/pgSQL query - %s and error - %s, ", k, v)
-		}
-		return res
-	}
-	if len(lo.Keys(errorneousQueries)) > 0 {
-		log.Errorf("Found some PL/pgSQL queries in stmt [%s]: %s", query, stringfyMap(errorneousQueries))
+	if errorneousQueriesStr != "" {
+		log.Errorf("Found some PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
 	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
