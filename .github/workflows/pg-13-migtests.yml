@@ -109,13 +109,6 @@ jobs:
           echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
 
-      - name: docker ps 
-        run: docker ps
-
-      - name: Log yb_servers()
-        run: |
-          psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT * from yb_servers();"
-
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests
