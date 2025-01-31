@@ -96,14 +96,7 @@ public class DebeziumRecordTransformer implements RecordTransformer {
 		            LOGGER.debug("[MAP] after transforming key - {}", key);
                     LOGGER.debug("[MAP] after transforming value - {}", val);
                     
-                    mapString.append("\"");
-                    mapString.append(key);
-                    mapString.append("\"");
-                    mapString.append(" => ");
-                    mapString.append("\"");
-                    mapString.append(val);
-                    mapString.append("\"");
-                    mapString.append(",");
+                    mapString.append(String.format("\"%s\" => \"%s\",", key, val));
                 }
 		        if(mapString.length() == 0) {
                     return "";

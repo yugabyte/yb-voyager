@@ -138,14 +138,12 @@
             "IssueType": "unsupported_features",
             "ObjectType": "COLLATION",
             "ObjectName": "ignore_accents",
-            "Reason": "Deterministic option/attribute with collation is not yet supported in YugabyteDB.",
+            "Reason": "Non-Deterministic collations are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE COLLATION ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);",
             "Suggestion": "This feature is not supported in YugabyteDB yet",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
-            }
+            "MinimumVersionsFixedIn": null
         },
         {
             "IssueType": "unsupported_features",

@@ -744,17 +744,16 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 //============================================================================
 
 type Batch struct {
-	Number              int64
-	TableNameTup        sqlname.NameTuple
-	SchemaName          string
-	FilePath            string // Path of the batch file.
-	BaseFilePath        string // Path of the original data file.
-	OffsetStart         int64
-	OffsetEnd           int64
-	RecordCount         int64
-	ByteCount           int64
-	TmpConnectionString string
-	Interrupted         bool
+	Number       int64
+	TableNameTup sqlname.NameTuple
+	SchemaName   string
+	FilePath     string // Path of the batch file.
+	BaseFilePath string // Path of the original data file.
+	OffsetStart  int64
+	OffsetEnd    int64
+	RecordCount  int64
+	ByteCount    int64
+	Interrupted  bool
 }
 
 func (batch *Batch) Open() (*os.File, error) {
@@ -783,7 +782,7 @@ func (batch *Batch) IsDone() bool {
 	return strings.HasSuffix(batch.FilePath, ".D")
 }
 
-func (batch *Batch) MarkPending() error {
+func (batch *Batch) MarkInProgress() error {
 	// Rename the file to .P
 	inProgressFilePath := batch.getInProgressFilePath()
 	log.Infof("Renaming file from %q to %q", batch.FilePath, inProgressFilePath)

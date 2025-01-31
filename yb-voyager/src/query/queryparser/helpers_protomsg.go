@@ -423,6 +423,14 @@ func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error)
 	return cteNode, nil
 }
 
+func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, error) {
+	defElemNode, ok := msg.Interface().(*pg_query.DefElem)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+	}
+	return defElemNode, nil
+}
+
 func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
 	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
 	if !ok {
@@ -447,19 +455,29 @@ options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defacti
 options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
 Extract all defnames from the def_eleme node
 */
-func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, error) {
-	var defNames []string
+func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string]string, error) {
+	defNamesWithValues := make(map[string]string)
 	collectorFunc := func(msg protoreflect.Message) error {
 		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
 			return nil
 		}
 
-		defName := GetStringField(msg, "defname")
-		// TODO(future):
-		//      defValNode = GetMessageField(msg, "arg")
-		//      defVal     = GetStringField(defValNode, "sval")
+		defElemNode, err := ProtoAsDefElemNode(msg)
+		if err != nil {
+			return err
+		}
 
-		defNames = append(defNames, defName)
+		defName := defElemNode.Defname
+		arg := defElemNode.GetArg()
+		if arg != nil && arg.GetString_()!= nil {
+			defElemVal := arg.GetString_().Sval
+			defNamesWithValues[defName] = defElemVal
+		} else {
+			log.Warnf("defElem Node doesn't have arg or the arg is not the string type [%s]", defElemNode)
+			//TODO: see how to handle this later where GetString_() is not directly available or arg is of different type
+			//e.g. defname:"provider"  arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:37}}  defaction:DEFELEM_UNSPEC  location:26defname:"locale"
+			defNamesWithValues[defName] = ""
+		}
 		return nil
 	}
 	visited := make(map[protoreflect.Message]bool)
@@ -468,7 +486,7 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) ([]string, 
 		return nil, fmt.Errorf("failed to traverse parse tree for fetching defnames: %w", err)
 	}
 
-	return defNames, nil
+	return defNamesWithValues, nil
 }
 
 func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {

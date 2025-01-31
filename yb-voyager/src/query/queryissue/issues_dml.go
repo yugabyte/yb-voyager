@@ -255,7 +255,7 @@ var cteWithMaterializedIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25:   ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0, //TODO: understand in NOT MATERIALIZED works as expected internally
 	},
 }
 
@@ -276,6 +276,19 @@ var mergeStatementIssue = issue.Issue{
 func NewMergeStatementIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	//MERGE STATEMENT is PG15 feature but  MERGE .... RETURNING clause is PG17 feature so need to report it separately later.
 	return newQueryIssue(mergeStatementIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var listenNotifyIssue = issue.Issue{
+	Type:        LISTEN_NOTIFY,
+	Name:        LISTEN_NOTIFY_NAME,
+	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm impact
+	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
+	DocsLink:    "", //TODO:
+}
+
+func NewListenNotifyIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(listenNotifyIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var nonDecimalIntegerLiteralIssue = issue.Issue{

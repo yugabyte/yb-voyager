@@ -510,3 +510,14 @@ CREATE OR REPLACE FUNCTION asterisks1(n int)
   RETURNS text
   LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
 RETURN repeat('*', n);
+
+CREATE OR REPLACE FUNCTION notify_and_insert()
+RETURNS VOID AS $$
+BEGIN
+	LISTEN my_table_changes;
+    INSERT INTO my_table (name) VALUES ('Charlie');
+	NOTIFY my_table_changes, 'New row added with name: Charlie';
+    PERFORM pg_notify('my_table_changes', 'New row added with name: Charlie');
+	UNLISTEN my_table_changes;
+END;
+$$ LANGUAGE plpgsql;
