@@ -522,7 +522,8 @@
 				}
 			],
 			"FeatureDescription": "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features"
 		},
 		{
 			"FeatureName": "SQL Body in function",
