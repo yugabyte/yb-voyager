@@ -408,12 +408,18 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 		missingTools = utils.CheckTools("strings")
 
 	case MYSQL:
-		// TODO: For mysql and oracle, we can probably remove the ora2pg check in case it is a live migration
-		// Issue Link: https://github.com/yugabyte/yb-voyager/issues/2102
-		missingTools = utils.CheckTools("ora2pg")
+		// In case if it is not a live migration, then we need to check for ora2pg
+		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
+			missingTools = utils.CheckTools("ora2pg")
+		}
 
 	case ORACLE:
-		missingTools = utils.CheckTools("ora2pg", "sqlplus")
+		// In case if it is not a live migration, then we need to check for ora2pg
+		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
+			missingTools = utils.CheckTools("ora2pg", "sqlplus")
+		} else {
+			missingTools = utils.CheckTools("sqlplus")
+		}
 
 	case YUGABYTEDB:
 		missingTools = utils.CheckTools("strings")
