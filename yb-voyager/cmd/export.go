@@ -415,7 +415,7 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 
 	case ORACLE:
 		// In case if it is not a live migration, then we need to check for ora2pg
-		if !(changeStreamingIsEnabled(exportType) || !useDebezium) {
+		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
 			missingTools = utils.CheckTools("ora2pg")
 		}
 		missingTools = utils.CheckTools("sqlplus")
