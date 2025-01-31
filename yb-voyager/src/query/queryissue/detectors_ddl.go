@@ -165,7 +165,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		}
 
 		if col.Compression != "" {
-			issues = append(issues, NewCompressionClauseForToastingInCreate(
+			issues = append(issues, NewCompressionClauseForToasting(
 				obj.GetObjectType(),
 				obj.GetObjectName(),
 				"",
@@ -522,7 +522,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 			cmds:{alter_table_cmd:{subtype:AT_SetCompression name:"v" def:{string:{sval:"pglz"}} behavior:DROP_RESTRICT}}
 			objtype:OBJECT_TABLE}} stmt_len:71}
 		*/
-		issues = append(issues, NewCompressionClauseForToastingInAlter(
+		issues = append(issues, NewCompressionClauseForToasting(
 			obj.GetObjectType(),
 			obj.GetObjectName(),
 			"",

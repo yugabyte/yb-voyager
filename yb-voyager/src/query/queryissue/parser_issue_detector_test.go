@@ -1346,10 +1346,10 @@ func TestCompressionClause(t *testing.T) {
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		stmts[0]: []QueryIssue{
-			NewCompressionClauseForToastingInCreate("TABLE", "tbl_comp1", stmts[0]),
+			NewCompressionClauseForToasting("TABLE", "tbl_comp1", stmts[0]),
 		},
 		stmts[1]: []QueryIssue{
-			NewCompressionClauseForToastingInAlter("TABLE", "public.tbl_comp", stmts[1]),
+			NewCompressionClauseForToasting("TABLE", "public.tbl_comp", stmts[1]),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
