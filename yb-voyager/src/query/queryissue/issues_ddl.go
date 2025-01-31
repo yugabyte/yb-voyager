@@ -556,7 +556,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, 
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
@@ -630,4 +630,18 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var compressionClauseForToasting = issue.Issue{
+	Type:        COMPRESSION_CLAUSE_IN_TABLE,
+	Name:        COMPRESSION_CLAUSE_IN_TABLE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
+	Suggestion:  "Remove the clause from the DDL.",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewCompressionClauseForToasting(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(compressionClauseForToasting, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
