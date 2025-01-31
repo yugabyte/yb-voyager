@@ -480,7 +480,9 @@ func testCompressionClauseIssue(t *testing.T) {
 	}
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
 
-	_, err = conn.Exec(ctx, `ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE tbl_comp(id int, v text);
+	ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
 	//ALTER not supported in 2.25
 	switch {
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
