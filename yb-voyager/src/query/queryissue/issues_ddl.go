@@ -638,8 +638,8 @@ var compressionClauseForToasting = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
 	Suggestion:  "Remove the clause from the DDL.",
-	GH:          "", //TODO
-	DocsLink:    "", //TODO
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
 
 func NewCompressionClauseForToasting(objectType string, objectName string, sqlStatement string) QueryIssue {
