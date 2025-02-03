@@ -6,16 +6,16 @@ from bs4 import BeautifulSoup
 import difflib
 import sys
 
-def normalize_text(text):
-    # Replace non-breaking spaces and other similar characters
-    text = text.replace('\xa0', ' ')
-    text = text.replace('\u200B', '')
-    text = re.sub(r'\s+', ' ', text)
-    return text.strip()
-
 def extract_html_data(html_content):
     """Extracts structured data from HTML content and normalizes it."""
     soup = BeautifulSoup(html_content, 'html.parser')
+
+    def normalize_text(text):
+        # Replace non-breaking spaces and other similar characters
+        text = text.replace('\xa0', ' ')
+        text = text.replace('\u200B', '')
+        text = re.sub(r'\s+', ' ', text)
+        return text.strip()
 
     def extract_texts(elements):
         """Extract and normalize inner text while keeping structure."""
@@ -55,6 +55,9 @@ def extract_html_data(html_content):
             if not skip_first_paragraph:
                 skip_first_paragraph = True
                 continue
+        # Skip paragraph that start with "Database Version:"
+        if p.find("strong") and "Database Version:" in p.get_text():
+            continue
         filtered_paragraphs.append(p)
 
     def normalize_table_names(tds):
