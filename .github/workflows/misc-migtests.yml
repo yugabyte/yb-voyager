@@ -54,7 +54,7 @@ jobs:
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
-          sudo pip3 install bs4
+          pip3 install bs4
 
       #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
