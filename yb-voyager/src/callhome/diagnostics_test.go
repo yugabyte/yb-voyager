@@ -75,18 +75,18 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				PayloadVersion                 string               `json:"payload_version"`
-				TargetDBVersion                *ybversion.YBVersion `json:"target_db_version"`
-				Sizing                         *SizingCallhome      `json:"sizing"`
-				MigrationComplexity            string               `json:"migration_complexity"`
-				MigrationComplexityExplanation string               `json:"migration_complexity_explanation"`
-				SchemaSummary                  string               `json:"schema_summary"`
-				Issues                         string               `json:"assessment_issues"`
-				Error                          string               `json:"error"`
-				TableSizingStats               string               `json:"table_sizing_stats"`
-				IndexSizingStats               string               `json:"index_sizing_stats"`
-				SourceConnectivity             bool                 `json:"source_connectivity"`
-				IopsInterval                   int64                `json:"iops_interval"`
+				PayloadVersion                 string                    `json:"payload_version"`
+				TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
+				Sizing                         *SizingCallhome           `json:"sizing"`
+				MigrationComplexity            string                    `json:"migration_complexity"`
+				MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
+				SchemaSummary                  string                    `json:"schema_summary"`
+				Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
+				Error                          string                    `json:"error"`
+				TableSizingStats               string                    `json:"table_sizing_stats"`
+				IndexSizingStats               string                    `json:"index_sizing_stats"`
+				SourceConnectivity             bool                      `json:"source_connectivity"`
+				IopsInterval                   int64                     `json:"iops_interval"`
 			}{},
 		},
 		{
@@ -151,8 +151,9 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AnalyzePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AnalyzePhasePayload{}),
 			expectedType: struct {
+				PayloadVersion string `json:"payload_version"`
 				TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
-				Issues          string               `json:"issues"`
+				Issues          []AnalyzeIssueCallhome `json:"issues"`
 				DatabaseObjects string               `json:"database_objects"`
 				Error           string               `json:"error"`
 			}{},

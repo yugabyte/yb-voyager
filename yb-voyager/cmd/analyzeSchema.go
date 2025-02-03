@@ -1316,6 +1316,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 		Issues:          callhomeIssues,
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		})),
 		Error: callhome.SanitizeErrorMsg(errorMsg),
