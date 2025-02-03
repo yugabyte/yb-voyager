@@ -1233,22 +1233,22 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 }
 
 // analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
-var reasonsIncludingSensitiveInformationToCallhome = []string{
-	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
-	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION,
-	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION,
-	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION,
-	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
-	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
-}
+// var reasonsIncludingSensitiveInformationToCallhome = []string{
+// 	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
+// 	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION,
+// 	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION,
+// 	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION,
+// 	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+// 	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+// 	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
+// 	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
+// }
 
 // analyze issue reasons to send the object names for to callhome
 var reasonsToSendObjectNameToCallhome = []string{
@@ -1260,44 +1260,67 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 		return
 	}
 	payload := createCallhomePayload()
-
 	payload.MigrationPhase = ANALYZE_PHASE
-	var callhomeIssues []utils.AnalyzeSchemaIssue
-	for _, issue := range schemaAnalysisReport.Issues {
-		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
-		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
-			return strings.Contains(issue.Reason, r)
+
+	var callhomeIssues []callhome.AnalyzeIssueCallhome
+	for _, origIssue := range schemaAnalysisReport.Issues {
+		var callhomeIssue = callhome.AnalyzeIssueCallhome{
+			Category:   origIssue.IssueType,
+			Type:       origIssue.Type,
+			Name:       origIssue.Name,
+			Impact:     origIssue.Impact,
+			ObjectType: origIssue.ObjectType,
+			ObjectName: constants.OBFUSCATE_STRING,
+		}
+
+		// No need to send Reason/Description as we already plan to break down required issues into individual issue for each type
+		if lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
+			return strings.Contains(origIssue.Reason, r)
 		}) {
-			issue.ObjectName = constants.OBFUSCATE_STRING // Redacting object name before sending in case reason is not in list
+			callhomeIssue.ObjectName = origIssue.ObjectName
 		}
-		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
-			if sensitiveReason == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Reason, sensitiveReason) {
-				issue.Reason = sensitiveReason
-			} else {
-				match, err := utils.MatchesFormatString(sensitiveReason, issue.Reason)
-				if match {
-					issue.Reason, err = utils.ObfuscateFormatDetails(sensitiveReason, issue.Reason, constants.OBFUSCATE_STRING)
-				}
-				if err != nil {
-					log.Errorf("error while matching issue reason with sensitive reasons: %v", err)
-					issue.Reason = constants.OBFUSCATE_STRING
-				}
-			}
-		}
-		//no need to send suggestion in callhome as we already have it documented.
-		issue.Suggestion = constants.OBFUSCATE_STRING
-		callhomeIssues = append(callhomeIssues, issue)
+
+		callhomeIssues = append(callhomeIssues, callhomeIssue)
 	}
 
+	// // var callhomeIssues []utils.AnalyzeSchemaIssue
+	// for _, issue := range schemaAnalysisReport.Issues {
+	// 	issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
+	// 	if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
+	// 		return strings.Contains(issue.Reason, r)
+	// 	}) {
+	// 		issue.ObjectName = constants.OBFUSCATE_STRING // Redacting object name before sending in case reason is not in list
+	// 	}
+	// 	for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
+	// 		if sensitiveReason == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Reason, sensitiveReason) {
+	// 			issue.Reason = sensitiveReason
+	// 		} else {
+	// 			match, err := utils.MatchesFormatString(sensitiveReason, issue.Reason)
+	// 			if match {
+	// 				issue.Reason, err = utils.ObfuscateFormatDetails(sensitiveReason, issue.Reason, constants.OBFUSCATE_STRING)
+	// 			}
+	// 			if err != nil {
+	// 				log.Errorf("error while matching issue reason with sensitive reasons: %v", err)
+	// 				issue.Reason = constants.OBFUSCATE_STRING
+	// 			}
+	// 		}
+	// 	}
+	// 	//no need to send suggestion in callhome as we already have it documented.
+	// 	issue.Suggestion = constants.OBFUSCATE_STRING
+	// 	callhomeIssues = append(callhomeIssues, issue)
+	// }
+
 	analyzePayload := callhome.AnalyzePhasePayload{
+		PayloadVersion:  callhome.ANALYZE_PHASE_PAYLOAD_VERSION,
 		TargetDBVersion: schemaAnalysisReport.TargetDBVersion,
-		Issues:          callhome.MarshalledJsonString(callhomeIssues),
+		Issues:          callhomeIssues,
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
 			return dbObject
 		})),
 		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
 
