@@ -31,6 +31,7 @@ var LatestStable *YBVersion
 var V2024_1_0_0 *YBVersion
 var V2024_1_3_1 *YBVersion
 var V2024_2_0_0 *YBVersion
+var V2024_2_1_0 *YBVersion
 
 var V2_23_0_0 *YBVersion
 
@@ -51,6 +52,11 @@ func init() {
 		panic("could not create version 2024.2.0.0")
 	}
 
+	V2024_2_1_0, err = NewYBVersion("2024.2.1.0")
+	if err != nil {
+		panic("could not create version 2024.2.1.0")
+	}
+
 	V2_23_0_0, err = NewYBVersion("2.23.0.0")
 	if err != nil {
 		panic("could not create version 2.23.0.0")
@@ -59,5 +65,7 @@ func init() {
 	if err != nil {
 		panic("could not create version 2.25.0.0")
 	}
+	// Not updating the latest stable to 2024.2.1 as there is an issue for docker YB and yb_servers where host is not appropriate in yb_servers()'s output.
+	//TODO: once update the latest stable remove the condition to skip 2024.2.1 in TestLatestStable
 	LatestStable = V2024_2_0_0
 }
