@@ -47,6 +47,7 @@ const (
 	PK_UK_ON_COMPLEX_DATATYPE                      = "PK_UK_ON_COMPLEX_DATATYPE"
 	INDEX_ON_COMPLEX_DATATYPE                      = "INDEX_ON_COMPLEX_DATATYPE"
 	INDEX_ON_ARRAY_DATATYPE                        = "INDEX_ON_ARRAY_DATATYPE"
+	INDEX_ON_USER_DEFINED_DATATYPE                 = "INDEX_ON_USER_DEFINED_DATATYPE"
 	FOREIGN_TABLE                                  = "FOREIGN_TABLE"
 	INHERITANCE                                    = "INHERITANCE"
 
@@ -118,6 +119,7 @@ const (
 	// Issue Names
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Index on column with complex datatype"
 	INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME                        = "Index on column with array datatype"
+	INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME                 = "Index on column with user defined datatype"
 	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME                       = "Index with access method"
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Primary/Unique key on column with complex datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME            = "Unsupported datatype for Live migration"
@@ -176,6 +178,7 @@ const (
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Primary key and Unique constraints on columns with complex data types like '%v' are not yet supported in YugabyteDB."
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Indexes on columns with complex data types like '%v' are not yet supported in YugabyteDB."
 	INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION                        = "Indexes on columns with array data type are not yet supported in YugabyteDB."
+	INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION                 = "Indexes on columns with user defined data types are not yet supported in YugabyteDB."
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                                  = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                                    = "Table inheritance is not yet supported in YugabyteDB."
 	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION                    = "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB."
@@ -223,6 +226,8 @@ const (
 	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
+	INDEX_ON_ARRAY_DATATYPE_ISSUE_SUGGESTION                  = "Refer to the docs link for the workaround"
+	INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_SUGGESTION           = "Refer to the docs link for the workaround"
 	FOREIGN_TABLE_ISSUE_SUGGESTION                            = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION              = "Fix the syntax to include the actual type name instead of referencing the type of a column"
 )

@@ -378,13 +378,15 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						"",
-						"array",
 					))
-				} else if isUnsupportedType || isUDTType {
+				} else if isUDTType {
+					issues = append(issues, NewIndexOnUserDefinedTypeIssue(
+						obj.GetObjectType(),
+						index.GetObjectName(),
+						"",
+					))
+				} else if isUnsupportedType {
 					reportTypeName := param.ExprCastTypeName
-					if isUDTType {
-						reportTypeName = "user_defined_type"
-					}
 					issues = append(issues, NewIndexOnComplexDatatypesIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),

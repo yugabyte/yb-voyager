@@ -442,13 +442,28 @@ var indexOnArrayDatatypeIssue = issue.Issue{
 	Name:        INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  INDEX_ON_ARRAY_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
-func NewIndexOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string) QueryIssue {
+func NewIndexOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := indexOnArrayDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var indexOnUserDefinedDatatypeIssue = issue.Issue{
+	Type:        INDEX_ON_USER_DEFINED_DATATYPE,
+	Name:        INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+}
+
+func NewIndexOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := indexOnUserDefinedDatatypeIssue
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
