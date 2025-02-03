@@ -119,11 +119,50 @@ def dict_to_list(dict_data):
     """Convert dictionary to list of formatted strings."""
     return [f"{k} -> {v}" for k, v in dict_data.items()]
 
+# def compare_html_reports(file1, file2):
+#     """Compares two HTML reports and prints structured differences."""
+#     with open(file1, "r", encoding="utf-8") as f1, open(file2, "r", encoding="utf-8") as f2:
+#         html_data1 = extract_html_data(f1.read())
+#         html_data2 = extract_html_data(f2.read())
+
+#     differences = {}
+
+#     for key in html_data1.keys():
+#         if html_data1[key] != html_data2[key]:
+#             if isinstance(html_data1[key], list):  # For headings, paragraphs, spans, divs
+#                 diff = generate_diff_list(html_data1[key], html_data2[key], key, file1, file2)
+#             elif isinstance(html_data1[key], dict):  # For links dictionary
+#                 diff = generate_diff_list(
+#                     dict_to_list(html_data1[key]),
+#                     dict_to_list(html_data2[key]),
+#                     key, file1, file2
+#                 )
+#             else:  # Title (single string)
+#                 diff = generate_diff_list([html_data1[key]], [html_data2[key]], key, file1, file2)
+
+#             if diff:  # Only store sections that have differences
+#                 differences[key] = diff
+
+#     if not differences:
+#         print("The reports are identical.")
+#     else:
+#         print("Differences found:")
+#         for section, diff_text in differences.items():
+#             print(f"\n=== {section.upper()} DIFFERENCES ===")
+#             print(diff_text)
+#         sys.exit(1)
+
+
+
 def compare_html_reports(file1, file2):
     """Compares two HTML reports and prints structured differences."""
     with open(file1, "r", encoding="utf-8") as f1, open(file2, "r", encoding="utf-8") as f2:
-        html_data1 = extract_html_data(f1.read())
-        html_data2 = extract_html_data(f2.read())
+        file1_content = f1.read()
+        file2_content = f2.read()
+
+    # Extract structured data from HTML content
+    html_data1 = extract_html_data(file1_content)
+    html_data2 = extract_html_data(file2_content)
 
     differences = {}
 
@@ -150,6 +189,11 @@ def compare_html_reports(file1, file2):
         for section, diff_text in differences.items():
             print(f"\n=== {section.upper()} DIFFERENCES ===")
             print(diff_text)
+        
+        # Print entire file2 before exiting
+        print("\n=== FULL CONTENT OF FILE 2 ===")
+        print(file2_content)
+
         sys.exit(1)
 
 if __name__ == "__main__":
