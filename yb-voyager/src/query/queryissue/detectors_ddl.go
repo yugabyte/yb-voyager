@@ -366,7 +366,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
 				if param.IsExprCastArrayType {
-					issues = append(issues, NewIndexOnComplexDatatypesIssue(
+					issues = append(issues, NewIndexOnArrayDatatypeIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						"",
@@ -641,7 +641,7 @@ func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	}
 	issues := make([]QueryIssue, 0)
 	if val, ok := collation.Options["deterministic"]; ok {
-		//we have two issues for this - one is fixed in 2.25 where deterministic option is recognized and 
+		//we have two issues for this - one is fixed in 2.25 where deterministic option is recognized and
 		//the other one is for non-determinisitic collaiton which is not fixed in 2.25
 		switch val {
 		case "false":
