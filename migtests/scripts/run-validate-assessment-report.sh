@@ -70,12 +70,22 @@ main() {
 	# Checking if the assessment reports were created
 	if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 		echo "Assessment reports created successfully."
+		
 		echo "Checking for Failures"
 		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
+
 		echo "Comparing Report contents"
-        expected_file="${TEST_DIR}/expectedAssessmentReport.json"
-        actual_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
-	    compare_json_reports ${expected_file} ${actual_file}
+
+		echo "Comparing JSON report"
+        expected_json_file="${TEST_DIR}/expectedAssessmentReport.json"
+        actual_json_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
+	    compare_json_reports ${expected_json_file} ${actual_json_file}
+
+		echo "Comparing HTML report"
+		expected_html_file="${TEST_DIR}/expectedAssessmentReport.html"
+		actual_html_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.html"
+		${SCRIPTS}/compare-html-reports.py ${expected_html_file} ${actual_html_file}
+
 	else
 		echo "Error: Assessment reports were not created successfully."
 		cat_log_file "yb-voyager-assess-migration.log"
