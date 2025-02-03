@@ -128,7 +128,7 @@ type SizingCallhome struct {
 	NumShardedTables                int     `json:"num_sharded_tables"`
 	NumNodes                        float64 `json:"num_nodes"`
 	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
-	MemoryPerInstance               int     `json:"mem_per_instance"`
+	MemoryPerInstance               int     `json:"memory_per_instance"`
 	OptimalSelectConnectionsPerNode int64   `json:"optimial_select_connections_per_node"`
 	OptimalInsertConnectionsPerNode int64   `json:"optimial_insert_connections_per_node"`
 	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
