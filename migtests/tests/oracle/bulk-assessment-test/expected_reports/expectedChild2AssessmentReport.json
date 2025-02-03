@@ -109,6 +109,7 @@
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": null,
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"AssessmentIssues": null,
 	"TableIndexStats": [
 		{
 			"SchemaName": "TEST_SCHEMA2",
