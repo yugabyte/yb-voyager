@@ -46,6 +46,7 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB"
 	PK_UK_ON_COMPLEX_DATATYPE                      = "PK_UK_ON_COMPLEX_DATATYPE"
 	INDEX_ON_COMPLEX_DATATYPE                      = "INDEX_ON_COMPLEX_DATATYPE"
+	INDEX_ON_ARRAY_DATATYPE                        = "INDEX_ON_ARRAY_DATATYPE"
 	FOREIGN_TABLE                                  = "FOREIGN_TABLE"
 	INHERITANCE                                    = "INHERITANCE"
 
@@ -116,6 +117,7 @@ const (
 const (
 	// Issue Names
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Index on column with complex datatype"
+	INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME                        = "Index on column with array datatype"
 	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME                       = "Index with access method"
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME                      = "Primary/Unique key on column with complex datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME            = "Unsupported datatype for Live migration"
@@ -173,6 +175,7 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION = "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s and type: %v. These columns will be excluded when exporting and importing data in live migration workflows."
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Primary key and Unique constraints on columns with complex data types like '%v' are not yet supported in YugabyteDB."
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Indexes on columns with complex data types like '%v' are not yet supported in YugabyteDB."
+	INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION                        = "Indexes on columns with array data type are not yet supported in YugabyteDB."
 	FOREIGN_TABLE_ISSUE_DESCRIPTION                                  = "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager."
 	INHERITANCE_ISSUE_DESCRIPTION                                    = "Table inheritance is not yet supported in YugabyteDB."
 	REFERENCED_TYPE_DECLARATION_ISSUE_DESCRIPTION                    = "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB."

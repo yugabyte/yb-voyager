@@ -374,7 +374,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
 				if param.IsExprCastArrayType {
-					issues = append(issues, NewIndexOnComplexDatatypesIssue(
+					issues = append(issues, NewIndexOnArrayDatatypeIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						"",

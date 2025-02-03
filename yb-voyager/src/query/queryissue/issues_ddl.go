@@ -437,6 +437,21 @@ func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objec
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
+var indexOnArrayDatatypeIssue = issue.Issue{
+	Type:        INDEX_ON_ARRAY_DATATYPE,
+	Name:        INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+}
+
+func NewIndexOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string) QueryIssue {
+	issue := indexOnArrayDatatypeIssue
+	issue.Description = fmt.Sprintf(issue.Description, typeName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var indexOnComplexDatatypesIssue = issue.Issue{
 	Type:        INDEX_ON_COMPLEX_DATATYPE,
 	Name:        INDEX_ON_COMPLEX_DATATYPE_ISSUE_NAME,
