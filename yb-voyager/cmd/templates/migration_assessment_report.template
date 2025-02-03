@@ -189,7 +189,7 @@
             {{range $i, $a := .SchemaSummary.SchemaNames}}
                 {{$a}}&nbsp;
             {{end}}
-            <p>
+            </p>
         {{end}}
         {{with .SchemaSummary.DBVersion}}
         <p><strong>Database Version:</strong> {{.}}</p>
