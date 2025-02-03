@@ -184,7 +184,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	sizingRecommendation := callhome.SizingRecommendationCallhome{
+	sizingAssessmentReport := callhome.SizingCallhome{
 		NumColocatedTables:              len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables),
 		ColocatedReasoning:              assessmentReport.Sizing.SizingRecommendation.ColocatedReasoning,
 		NumShardedTables:                len(assessmentReport.Sizing.SizingRecommendation.ShardedTables),
@@ -197,15 +197,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		ParallelVoyagerJobs:             assessmentReport.Sizing.SizingRecommendation.ParallelVoyagerJobs,
 	}
 
-	sizingAssessmentReport := callhome.SizingAssessmentReportCallhome{
-		SizingRecommendation: &sizingRecommendation,
-		FailureReasoning:     assessmentReport.Sizing.FailureReasoning,
-	}
-
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
-		SizingAssessmentReport:         &sizingAssessmentReport,
+		Sizing:                         &sizingAssessmentReport,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
