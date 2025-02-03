@@ -97,6 +97,60 @@
         }
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"AssessmentIssues": [
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEX_METHOD",
+			"Name": "Index with access method",
+			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB. ",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "changeset_geom_gist ON public.osm_changeset",
+			"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "",
+			"Description": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions. ",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "postgis",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "public.geometry",
+			"Name": "public.geometry",
+			"Description": "",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.osm_changeset.geom",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.osm_changeset.tags",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		}
+	],
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",

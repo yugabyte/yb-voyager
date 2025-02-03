@@ -139,6 +139,292 @@
 		}
 	],
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"AssessmentIssues": [
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "ANY_VALUE_AGGREGATE_FUNCTION",
+			"Name": "ANY_VALUE() aggregate Function",
+			"Description": "any_value function are not supported yet in YugabyteDB. ",
+			"Impact": "LEVEL_2",
+			"ObjectType": "VIEW",
+			"ObjectName": "sales.employ_depart_view",
+			"SqlStatement": "CREATE VIEW sales.employ_depart_view AS\n SELECT any_value(name) AS any_employee\n   FROM public.employees;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "RANGE_AGGREGATE_FUNCTION",
+			"Name": "Range aggregate Functions",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB. ",
+			"Impact": "LEVEL_2",
+			"ObjectType": "VIEW",
+			"ObjectName": "sales.event_analysis_view",
+			"SqlStatement": "CREATE VIEW sales.event_analysis_view AS\n SELECT range_agg(event_range) AS all_event_ranges\n   FROM sales.events;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "RANGE_AGGREGATE_FUNCTION",
+			"Name": "Range aggregate Functions",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB. ",
+			"Impact": "LEVEL_2",
+			"ObjectType": "VIEW",
+			"ObjectName": "sales.event_analysis_view2",
+			"SqlStatement": "CREATE VIEW sales.event_analysis_view2 AS\n SELECT range_intersect_agg(event_range) AS overlapping_range\n   FROM sales.events;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-\u003e / -\u003e\u003e) to access the jsonb fields.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "TABLE",
+			"ObjectName": "sales.test_json_chk",
+			"SqlStatement": "CREATE TABLE sales.test_json_chk (\n    id integer,\n    name text,\n    email text,\n    active text,\n    data jsonb,\n    CONSTRAINT test_json_chk_data_check CHECK ((data['key'::text] \u003c\u003e '{}'::jsonb))\n);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "JSON_TYPE_PREDICATE",
+			"Name": "Json Type Predicate",
+			"Description": "IS JSON predicate expressions are not yet supported in YugabyteDB. ",
+			"Impact": "LEVEL_2",
+			"ObjectType": "TABLE",
+			"ObjectName": "sales.json_data",
+			"SqlStatement": "CREATE TABLE sales.json_data (\n    id integer NOT NULL,\n    array_column text,\n    unique_keys_column text,\n    CONSTRAINT json_data_array_column_check CHECK ((array_column IS JSON ARRAY)),\n    CONSTRAINT json_data_unique_keys_column_check CHECK ((unique_keys_column IS JSON WITH UNIQUE KEYS))\n);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_plpgsql_objects",
+			"CategoryDescription": "",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "FUNCTION",
+			"ObjectName": "sales.get_user_info",
+			"SqlStatement": "SELECT\n        data,\n        data['name'] AS name,\n        (data['active']) as active\n    FROM sales.test_json_chk;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "JSON_TYPE_PREDICATE",
+			"Name": "Json Type Predicate",
+			"Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT * \nFROM sales.json_data\nWHERE array_column IS JSON ARRAY",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT \n    data,\n    data[$1] AS name, \n    (data[$2]) as active\nFROM sales.test_json_chk",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "RANGE_AGGREGATE_FUNCTION",
+			"Name": "Range aggregate Functions",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT range_agg(event_range) AS union_of_ranges\nFROM sales.events",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "MERGE_STATEMENT",
+			"Name": "Merge Statement",
+			"Description": "MERGE statement is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "MERGE INTO sales.customer_account ca\nUSING sales.recent_transactions t      \nON t.customer_id = ca.customer_id\nWHEN MATCHED THEN\n  UPDATE SET balance = balance + transaction_value\nWHEN NOT MATCHED THEN\n  INSERT (customer_id, balance)\n  VALUES (t.customer_id, t.transaction_value)",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "ANY_VALUE_AGGREGATE_FUNCTION",
+			"Name": "ANY_VALUE() aggregate Function",
+			"Description": "any_value function are not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT\n        any_value(name) AS any_employee\n    FROM employees",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT (sales.get_user_info($1))[$2] AS user_info",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "RANGE_AGGREGATE_FUNCTION",
+			"Name": "Range aggregate Functions",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT range_intersect_agg(event_range) AS intersection_of_ranges\nFROM sales.events",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "LISTEN_NOTIFY",
+			"Name": "Events Listen / Notify",
+			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "LISTEN my_table_changes",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "CTE_WITH_MATERIALIZED_CLAUSE",
+			"Name": "CTE with MATERIALIZE clause",
+			"Description": "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "WITH w AS NOT MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "JSONB_SUBSCRIPTING",
+			"Name": "Jsonb Subscripting",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT ($1 :: jsonb)[$2][$3] as b",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "CTE_WITH_MATERIALIZED_CLAUSE",
+			"Name": "CTE with MATERIALIZE clause",
+			"Description": "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "WITH w AS MATERIALIZED (                                                               \n    SELECT * FROM sales.big_table\n)           \nSELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref\nWHERE w2.key = $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "ADVISORY_LOCKS",
+			"Name": "Advisory Locks",
+			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "SELECT metric_name, pg_advisory_lock(metric_id)\nFROM analytics.metrics\nWHERE metric_value \u003e $1",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "datemultirange",
+			"Name": "datemultirange",
+			"Description": "",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "sales.event_analysis_view.all_event_ranges",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		}
+	],
 	"TableIndexStats": [
 		{
 			"SchemaName": "sales",

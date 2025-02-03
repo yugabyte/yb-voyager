@@ -81,6 +81,60 @@
 	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
 	"UnsupportedFeatures": null,
 	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"AssessmentIssues": [
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "FOREIGN_TABLE",
+			"Name": "Foreign Table",
+			"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+			"Impact": "LEVEL_1",
+			"ObjectType": "FOREIGN TABLE",
+			"ObjectName": "public.f_c",
+			"SqlStatement": "CREATE FOREIGN TABLE public.f_c (\n    i integer NOT NULL,\n    t integer,\n    x text\n)\nSERVER p10\nOPTIONS (\n    table_name 'c'\n);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "FOREIGN_TABLE",
+			"Name": "Foreign Table",
+			"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'p10', and USER MAPPING should be created manually on the target to create and use the foreign table",
+			"Impact": "LEVEL_1",
+			"ObjectType": "FOREIGN TABLE",
+			"ObjectName": "public.f_t",
+			"SqlStatement": "CREATE FOREIGN TABLE public.f_t (\n    i integer NOT NULL,\n    ts timestamp(0) with time zone DEFAULT now(),\n    j json,\n    t text,\n    e public.myenum,\n    c public.mycomposit\n)\nSERVER p10\nOPTIONS (\n    table_name 't'\n);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.t.c",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.f_t.c",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		}
+	],
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
