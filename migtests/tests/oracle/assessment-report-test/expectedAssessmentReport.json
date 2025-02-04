@@ -496,7 +496,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -510,7 +510,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -524,7 +524,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -538,7 +538,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -552,7 +552,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -566,7 +566,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -580,7 +580,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -594,7 +594,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -608,7 +608,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -622,7 +622,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -636,7 +636,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -650,7 +650,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -664,7 +664,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -678,7 +678,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -692,7 +692,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -706,7 +706,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -720,7 +720,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -734,7 +734,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -748,7 +748,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -762,7 +762,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -776,7 +776,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -790,7 +790,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -804,7 +804,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -818,7 +818,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -832,7 +832,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -846,7 +846,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -860,7 +860,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -874,7 +874,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -888,7 +888,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -902,7 +902,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -916,7 +916,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -930,7 +930,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -944,7 +944,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -958,7 +958,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -972,7 +972,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -986,7 +986,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1000,7 +1000,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1014,7 +1014,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1028,7 +1028,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1042,7 +1042,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1056,7 +1056,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1070,7 +1070,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1084,7 +1084,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1098,7 +1098,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1112,7 +1112,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -1126,7 +1126,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1140,7 +1140,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -1154,7 +1154,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1168,7 +1168,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1182,7 +1182,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1196,7 +1196,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1210,7 +1210,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1224,7 +1224,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1238,7 +1238,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1252,7 +1252,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -1266,7 +1266,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -1280,7 +1280,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1294,7 +1294,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1308,7 +1308,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1322,7 +1322,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1336,7 +1336,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1350,7 +1350,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1364,7 +1364,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1378,7 +1378,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1392,7 +1392,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -1406,7 +1406,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -1420,7 +1420,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1434,7 +1434,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1448,7 +1448,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1462,7 +1462,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1476,7 +1476,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1490,7 +1490,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1504,7 +1504,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1518,7 +1518,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -1532,7 +1532,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "BITMAP INDEX",
 			"ParentTableName": "TEST_SCHEMA.SALES_BITMAP_IDX_TABLE",
 			"SizeInBytes": 65536
 		},
@@ -1546,7 +1546,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "BITMAP INDEX",
 			"ParentTableName": "TEST_SCHEMA.ORDERS",
 			"SizeInBytes": 65536
 		},
@@ -1560,7 +1560,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "FUNCTION-BASED NORMAL INDEX",
 			"ParentTableName": "TEST_SCHEMA.EMPLOYEE_MV_IMMEDIATE",
 			"SizeInBytes": 65536
 		},
@@ -1574,7 +1574,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "FUNCTION-BASED NORMAL INDEX",
 			"ParentTableName": "TEST_SCHEMA.FUNC_BASED_TABLE",
 			"SizeInBytes": 65536
 		}
