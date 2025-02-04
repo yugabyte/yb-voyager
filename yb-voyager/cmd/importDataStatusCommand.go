@@ -139,25 +139,21 @@ func runImportDataStatusCmd() error {
 
 func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error) {
 	var dataFileDescriptor datafile.Descriptor
-
-	tableToFilesMapping, err := state.DiscoverTableToFilesMapping()
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("discover table to files mapping: %w", err)
+		return nil, fmt.Errorf("getting migration status record: %v", err)
 	}
-	for tableName, filePaths := range tableToFilesMapping {
-		for _, filePath := range filePaths {
-			fileSize, err := datastore.NewDataStore(filePath).FileSize(filePath)
-			if err != nil {
-				return nil, fmt.Errorf("get file size of %q: %w", filePath, err)
-			}
-			dataFileDescriptor.DataFileList = append(dataFileDescriptor.DataFileList, &datafile.FileEntry{
-				FilePath:  filePath,
-				TableName: tableName,
-				FileSize:  fileSize,
-				RowCount:  -1,
-			})
-		}
+	dataStore = datastore.NewDataStore(msr.DataDir)
+	importFileTasksForFTM := getImportFileTasks(msr.FileTableMapping)
+	for _, task := range importFileTasksForFTM {
+		dataFileDescriptor.DataFileList = append(dataFileDescriptor.DataFileList, &datafile.FileEntry{
+			FilePath:  task.FilePath,
+			TableName: task.TableNameTup.ForKey(),
+			FileSize:  task.FileSize,
+			RowCount:  -1,
+		})
 	}
+
 	return &dataFileDescriptor, nil
 }
 
@@ -220,7 +216,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
-		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "NOT_STARTED": 3, "STREAMING": 4}
+		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "NOT STARTED": 3, "STREAMING": 4}
 		row1 := table[i]
 		row2 := table[j]
 		if row1.Status == row2.Status {
@@ -262,12 +258,16 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if totalCount != 0 {
 		perc = float64(importedCount) * 100.0 / float64(totalCount)
 	}
-	switch true {
-	case importedCount == totalCount:
+	fileState, err := state.GetFileImportState(dataFile.FilePath, dataFileNt)
+	if err != nil {
+		utils.ErrExit("error getting file import state of %s:%v", dataFile.FilePath, dataFileNt)
+	}
+	switch fileState {
+	case FILE_IMPORT_COMPLETED:
 		status = "DONE"
-	case importedCount == 0:
-		status = "NOT_STARTED"
-	case importedCount < totalCount:
+	case FILE_IMPORT_NOT_STARTED:
+		status = "NOT STARTED"
+	case FILE_IMPORT_IN_PROGRESS:
 		status = "MIGRATING"
 	}
 	row := &tableMigStatusOutputRow{
