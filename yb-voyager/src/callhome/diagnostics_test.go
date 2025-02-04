@@ -151,11 +151,23 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AnalyzePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AnalyzePhasePayload{}),
 			expectedType: struct {
-				PayloadVersion string `json:"payload_version"`
-				TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
+				PayloadVersion  string                 `json:"payload_version"`
+				TargetDBVersion *ybversion.YBVersion   `json:"target_db_version"`
 				Issues          []AnalyzeIssueCallhome `json:"issues"`
-				DatabaseObjects string               `json:"database_objects"`
-				Error           string               `json:"error"`
+				DatabaseObjects string                 `json:"database_objects"`
+				Error           string                 `json:"error"`
+			}{},
+		},
+		{
+			name:       "Validate AnalyzeIssueCallhome Struct Definition",
+			actualType: reflect.TypeOf(AnalyzeIssueCallhome{}),
+			expectedType: struct {
+				Category   string `json:"category"`
+				Type       string `json:"type"`
+				Name       string `json:"name"`
+				Impact     string `json:"impact"`
+				ObjectType string `json:"object_type"`
+				ObjectName string `json:"object_name"`
 			}{},
 		},
 		{
