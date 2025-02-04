@@ -146,7 +146,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -160,9 +160,23 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "t_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 9,
+			"Writes": 142,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.t",
+			"SizeInBytes": 16384
 		}
 	],
 	"Notes": null,
