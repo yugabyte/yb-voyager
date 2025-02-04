@@ -1158,7 +1158,7 @@ type AssessmentIssueYugabyteD struct {
 	Type                   string                          `json:"Type"`                   // Ex: GIN_INDEXES, SECURITY_INVOKER_VIEWS, STORED_GENERATED_COLUMNS
 	Name                   string                          `json:"Name"`                   // Ex: GIN Indexes, Security Invoker Views, Stored Generated Columns
 	Description            string                          `json:"Description"`            // description based on type/name
-	Impact                 string                          `json:"Impact"`                 // // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
+	Impact                 string                          `json:"Impact"`                 // Level-1, Level-2, Level-3 (no default: need to be assigned for each issue)
 	ObjectType             string                          `json:"ObjectType"`             // For datatype category, ObjectType will be datatype (for eg "geometry")
 	ObjectName             string                          `json:"ObjectName"`             // Fully qualified object name(empty if NA, eg UQC)
 	SqlStatement           string                          `json:"SqlStatement"`           // DDL or DML(UQC)

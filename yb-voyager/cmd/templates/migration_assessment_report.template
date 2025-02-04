@@ -273,8 +273,44 @@
 
         {{if and (ne .MigrationComplexity "NOT AVAILABLE") (ne (len .MigrationComplexityExplanation) 0)}}
             <h2>Migration Complexity Explanation</h2>
-            <p>{{ .MigrationComplexityExplanation }}</p>
-        {{end}}
+            {{- if .MigrationComplexityCategorySummary }}
+            <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+                <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Level 1</th>
+                            <th>Level 2</th>
+                            <th>Level 3</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    {{ range $idx, $summary :=  .MigrationComplexityCategorySummary }}
+                        <tr>
+                            <td>{{ $summary.Category }}</td>
+                            <td>{{ index $summary.ImpactCounts "LEVEL_1" }}</td>
+                            <td>{{ index $summary.ImpactCounts "LEVEL_2" }}</td>
+                            <td>{{ index $summary.ImpactCounts "LEVEL_3" }}</td>
+                            <td>{{ $summary.TotalIssueCount }}</td>
+                        </tr>
+                    {{- end }}
+                    </tbody>
+                </table>
+            {{- end }}
+
+            <p>
+                <strong>Complexity:</strong> {{ .MigrationComplexity }}</br>
+                <strong>Reasoning:</strong> {{ .MigrationComplexityExplanation }}
+            </p>
+
+            <p>
+            <strong>Impact Levels:</strong></br>
+                Level 1: Resolutions are available with minimal effort.<br/>
+                Level 2: Resolutions are available requiring moderate effort.<br/>
+                Level 3: Resolutions may not be available or are complex.
+            </p>
+            {{end}}
 
         <h2>Assessment Issues</h2>
         {{ if .Issues }}
