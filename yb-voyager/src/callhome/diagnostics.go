@@ -101,6 +101,7 @@ var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.0"
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string               `json:"payload_version"`
 	TargetDBVersion                *ybversion.YBVersion `json:"target_db_version"`
+	Sizing                         *SizingCallhome      `json:"sizing"`
 	MigrationComplexity            string               `json:"migration_complexity"`
 	MigrationComplexityExplanation string               `json:"migration_complexity_explanation"`
 	SchemaSummary                  string               `json:"schema_summary"`
@@ -119,6 +120,19 @@ type AssessmentIssueCallhome struct {
 	Name                string `json:"name"`
 	Impact              string `json:"impact"`
 	ObjectType          string `json:"object_type"`
+}
+
+type SizingCallhome struct {
+	NumColocatedTables              int     `json:"num_colocated_tables"`
+	ColocatedReasoning              string  `json:"colocated_reasoning"`
+	NumShardedTables                int     `json:"num_sharded_tables"`
+	NumNodes                        float64 `json:"num_nodes"`
+	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
+	MemoryPerInstance               int     `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode int64   `json:"optimial_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode int64   `json:"optimial_insert_connections_per_node"`
+	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 }
 
 type ObjectSizingStats struct {
