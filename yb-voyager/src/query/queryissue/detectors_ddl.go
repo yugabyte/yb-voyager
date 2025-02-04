@@ -386,12 +386,10 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isUnsupportedType {
-					reportTypeName := param.ExprCastTypeName
-					issues = append(issues, NewIndexOnComplexDatatypesIssue(
+					issues = append(issues, reportIndexOnComplexDatatypesIssue(
 						obj.GetObjectType(),
 						index.GetObjectName(),
-						"",
-						reportTypeName,
+						param.ExprCastTypeName,
 					))
 				}
 
@@ -401,10 +399,10 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				if !ok {
 					continue
 				}
-				issues = append(issues, NewIndexOnComplexDatatypesIssue(
+				fmt.Printf("I was here with %s", typeName)
+				issues = append(issues, reportIndexOnComplexDatatypesIssue(
 					obj.GetObjectType(),
 					index.GetObjectName(),
-					"",
 					typeName,
 				))
 			}
@@ -412,6 +410,191 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	return issues, nil
+}
+
+func reportIndexOnComplexDatatypesIssue(objType string, objName string, typeName string) QueryIssue {
+	var queryIssue QueryIssue
+	switch typeName {
+	case "citext":
+		queryIssue = NewIndexOnCitextDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "tsvector":
+		queryIssue = NewIndexOnTsVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "tsquery":
+		queryIssue = NewIndexOnTsQueryDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "jsonb":
+		queryIssue = NewIndexOnJsonbDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "inet":
+		queryIssue = NewIndexOnInetDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "json":
+		queryIssue = NewIndexOnJsonDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "macaddr":
+		queryIssue = NewIndexOnMacaddrDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "macaddr8":
+		queryIssue = NewIndexOnMacaddr8DatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "cidr":
+		queryIssue = NewIndexOnCidrDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "bit":
+		queryIssue = NewIndexOnBitDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "varbit":
+		queryIssue = NewIndexOnVarbitDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "daterange":
+		queryIssue = NewIndexOnDaterangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "tsrange":
+		queryIssue = NewIndexOnTsrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "tstzrange":
+		queryIssue = NewIndexOnTstzrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "numrange":
+		queryIssue = NewIndexOnNumrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "int4range":
+		queryIssue = NewIndexOnInt4rangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "int8range":
+		queryIssue = NewIndexOnInt8rangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "interval":
+		queryIssue = NewIndexOnIntervalDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "circle":
+		queryIssue = NewIndexOnCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "box":
+		queryIssue = NewIndexOnBoxDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "line":
+		queryIssue = NewIndexOnLineDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "lseg":
+		queryIssue = NewIndexOnLsegDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "point":
+		queryIssue = NewIndexOnPointDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "pg_lsn":
+		queryIssue = NewIndexOnPgLsnDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "path":
+		queryIssue = NewIndexOnPathDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "polygon":
+		queryIssue = NewIndexOnPolygonDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "txid_snapshot":
+		queryIssue = NewIndexOnTxidSnapshotDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "array":
+		queryIssue = NewIndexOnArrayDatatypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	case "user_defined_type":
+		queryIssue = NewIndexOnUserDefinedTypeIssue(
+			objType,
+			objName,
+			"",
+		)
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported index data type %s", typeName)
+	}
+	return queryIssue
 }
 
 //=============ALTER TABLE ISSUE DETECTOR ===========================
