@@ -214,7 +214,7 @@ main() {
 
                 log "INFO" "argument pgss_enabled=$pgss_enabled"
                 if [[ "$pgss_enabled" == "false" ]]; then
-                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements are not enabled"
+                    print_and_log "WARN" "Skipping $script_action: pg_stat_statements extension is not enabled"
                     continue
                 fi
 
