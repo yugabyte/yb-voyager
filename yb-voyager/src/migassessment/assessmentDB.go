@@ -25,6 +25,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -295,11 +296,11 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 	}
 
 	switch SourceDBType {
-	case "postgresql":
+	case constants.POSTGRESQL:
 		statements = append(statements,
 			fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
 			UpdateStatsWithRates)
-	case "oracle":
+	case constants.ORACLE:
 		// already accounted
 	default:
 		panic("invalid source db type")
@@ -318,7 +319,7 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
 	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, 
-       reads_per_second, writes_per_second, is_index, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+       reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
 	rows, err := adb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
@@ -331,7 +332,7 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 		var rowCount, columnCount, reads, writes, readsPerSecond, writesPerSecond, sizeInBytes sql.NullInt64
 		var parentTableName sql.NullString
 		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes,
-			&readsPerSecond, &writesPerSecond, &stat.IsIndex, &parentTableName, &sizeInBytes); err != nil {
+			&readsPerSecond, &writesPerSecond, &stat.IsIndex, &stat.ObjectType, &parentTableName, &sizeInBytes); err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", err)
 		}
 

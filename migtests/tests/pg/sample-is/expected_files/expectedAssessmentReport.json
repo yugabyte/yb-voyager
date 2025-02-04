@@ -142,7 +142,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -156,7 +156,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -170,7 +170,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -184,7 +184,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -198,7 +198,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -212,7 +212,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -226,7 +226,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -240,7 +240,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -254,7 +254,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -268,7 +268,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.reports",
 			"SizeInBytes": 16384
 		},
@@ -282,7 +282,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.reports",
 			"SizeInBytes": 16384
 		},
@@ -296,8 +296,50 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.secret_missions",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "agents_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.agents",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "secret_missions_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.secret_missions",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "countries_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.countries",
 			"SizeInBytes": 8192
 		}
 	],
