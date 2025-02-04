@@ -105,7 +105,8 @@ jobs:
 
       - name: Enable yb-cluster-test name resolution
         run: |
-          echo "127.0.0.1	yb-cluster-test" | sudo tee -a /etc/hosts
+          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
+          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: Test create CDC stream 
