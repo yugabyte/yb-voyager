@@ -235,7 +235,7 @@ func TestAllIssues(t *testing.T) {
 			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "no_time_overlap_constr"),
 		},
 		stmt13: []QueryIssue{
-			NewIndexOnComplexDatatypesIssue("INDEX", "idx_on_daterange ON test_dt", stmt13, "daterange"),
+			NewIndexOnDaterangeDatatypeIssue("INDEX", "idx_on_daterange ON test_dt", stmt13),
 		},
 	}
 
@@ -1280,6 +1280,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;`,
 		`CREATE OR REPLACE FUNCTION notify_and_insert()
+		`CREATE OR REPLACE FUNCTION notify_and_insert()
 RETURNS VOID AS $$
 BEGIN
 	LISTEN my_table_changes;
@@ -1328,6 +1329,7 @@ $$ LANGUAGE plpgsql;`,
 		}
 	}
 }
+
 
 func TestTwoPhaseCommit(t *testing.T) {
 	sqls := []string{
