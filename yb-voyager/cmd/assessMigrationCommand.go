@@ -162,13 +162,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		}),
 	}
 
-	// we will build this twice for json and html reports both, at the time of report generation.
-	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
-	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
-	if err != nil {
-		log.Errorf("failed to build migration complexity explanation for callhome assessment payload: %v", err)
-	}
-
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
 		obfuscatedIssue := callhome.AssessmentIssueCallhome{
@@ -195,7 +188,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
-		MigrationComplexityExplanation: explanation,
+		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
 		Issues:                         callhome.MarshalledJsonString(obfuscatedIssues),
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
@@ -206,7 +199,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err = callhome.SendPayload(&payload)
+	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
@@ -463,19 +456,13 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	}
 
 	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
-	// we will build this twice for json and html reports both, at the time of report generation.
-	// whatever happens later will be stored in the struct's field. so to be on safer side, we will build it again here as per required format.
-	explanation, err := buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
-	if err != nil {
-		log.Errorf("failed to build migration complexity explanation for yugabyted assessment payload: %v", err)
-	}
 
 	payload := AssessMigrationPayload{
 		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
 		VoyagerVersion:                 assessmentReport.VoyagerVersion,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
-		MigrationComplexityExplanation: explanation,
+		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  assessmentReport.SchemaSummary,
 		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
@@ -828,7 +815,10 @@ func generateAssessmentReport() (err error) {
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
 	// calculating migration complexity after collecting all assessment issues
-	assessmentReport.MigrationComplexity = calculateMigrationComplexity(source.DBType, schemaDir, assessmentReport)
+	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
+	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
+	assessmentReport.MigrationComplexity = complexity
+	assessmentReport.MigrationComplexityExplanation = explanation
 
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
@@ -1566,13 +1556,6 @@ func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
 
-	var err error
-	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "")
-	if err != nil {
-		return fmt.Errorf("unable to build migration complexity explanation for json report: %w", err)
-	}
-	log.Infof("migration complexity explanation: %q", assessmentReport.MigrationComplexityExplanation)
-
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -1590,12 +1573,6 @@ func generateAssessmentReportJson(reportDir string) error {
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
-
-	var err error
-	assessmentReport.MigrationComplexityExplanation, err = buildMigrationComplexityExplanation(source.DBType, assessmentReport, "html")
-	if err != nil {
-		return fmt.Errorf("unable to build migration complexity explanation for html report: %w", err)
-	}
 
 	file, err := os.Create(htmlReportFilePath)
 	if err != nil {
@@ -1626,7 +1603,17 @@ func generateAssessmentReportHtml(reportDir string) error {
 		// marking this as empty to not display this in html report for PG
 		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
-	err = tmpl.Execute(file, assessmentReport)
+
+	type CombinedStruct struct {
+		AssessmentReport
+		MigrationComplexityCategorySummary []MigrationComplexityCategorySummary
+	}
+	combined := CombinedStruct{
+		AssessmentReport:                   assessmentReport,
+		MigrationComplexityCategorySummary: buildCategorySummary(source.DBType, assessmentReport.Issues),
+	}
+
+	err = tmpl.Execute(file, combined)
 	if err != nil {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
