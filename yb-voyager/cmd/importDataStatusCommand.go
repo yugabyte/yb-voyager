@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"fmt"
+	"math"
 	"path"
 	"path/filepath"
 	"sort"
@@ -256,7 +257,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	}
 
 	if totalCount != 0 {
-		perc = float64(importedCount) * 100.0 / float64(totalCount)
+		perc = math.Min(float64(importedCount) * 100.0 / float64(totalCount), 100.00) //just to handle the case reportProgressInBytes case where importedCount can be more than totalCount if it has header
 	}
 	fileState, err := state.GetFileImportState(dataFile.FilePath, dataFileNt)
 	if err != nil {
