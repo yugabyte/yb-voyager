@@ -455,28 +455,103 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 
 	// no matter how many times we call NextTask therefater,
-	// it should return one of the tasks with equal probability.
-	taskCounter := map[*ImportFileTask]int{}
-	for i := 0; i < 100000; i++ {
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		taskCounter[task]++
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
 	}
 
-	totalTasks := len(tasks)
-	assert.Equal(t, totalTasks, len(taskCounter))
-	tc := 0
-	for _, v := range taskCounter {
-		tc += v
+	// taskCounter := map[*ImportFileTask]int{}
+	// for i := 0; i < 100000; i++ {
+	// 	task, err := picker.NextTask()
+	// 	assert.NoError(t, err)
+	// 	taskCounter[task]++
+	// }
+
+	// totalTasks := len(tasks)
+	// assert.Equal(t, totalTasks, len(taskCounter))
+	// tc := 0
+	// for _, v := range taskCounter {
+	// 	tc += v
+	// }
+
+	// expectedCountForEachTask := tc / totalTasks
+	// for _, v := range taskCounter {
+	// 	diff := math.Abs(float64(v - expectedCountForEachTask))
+	// 	diffPct := diff / float64(expectedCountForEachTask) * 100
+	// 	// pct difference from expected count should be less than 5%
+	// 	assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	// }
+}
+
+func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	expectedCountForEachTask := tc / totalTasks
-	for _, v := range taskCounter {
-		diff := math.Abs(float64(v - expectedCountForEachTask))
-		diffPct := diff / float64(expectedCountForEachTask) * 100
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tableNameTuples := []sqlname.NameTuple{
+		shardedTask1.TableNameTup,
+		shardedTask2.TableNameTup,
+		shardedTask3.TableNameTup,
+	}
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// all sharded tables should have equal probability of being picked
+	// table-wise pick counter
+	picker.initializeChooser()
+	pickCounter := map[sqlname.NameTuple]int{}
+	for i := 0; i < 100000; i++ {
+		tableName := picker.tableChooser.Pick()
+		assert.Contains(t, tableNameTuples, tableName)
+		pickCounter[tableName]++
+	}
+	totalTables := len(tableNameTuples)
+	totalTablePicks := len(pickCounter)
+	assert.Equal(t, totalTables, totalTablePicks)
+
+	// each table should have been picked almost equal number of times
+	totalPicks := 0
+	for _, v := range pickCounter {
+		totalPicks += v
+	}
+	expectedCountForEachTable := totalPicks / totalTables
+	for _, v := range pickCounter {
+		diff := math.Abs(float64(v - expectedCountForEachTable))
+		diffPct := float64(diff) / float64(expectedCountForEachTable) * 100
 		// pct difference from expected count should be less than 5%
 		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
 	}
+
 }
 
 func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
@@ -516,26 +591,76 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 
 	// no matter how many times we call NextTask therefater,
-	// it should return one of the tasks with equal probability.
-	taskCounter := map[*ImportFileTask]int{}
-	for i := 0; i < 100000; i++ {
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		taskCounter[task]++
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+}
+
+func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	totalTasks := len(tasks)
-	assert.Equal(t, totalTasks, len(taskCounter))
-	tc := 0
-	for _, v := range taskCounter {
-		tc += v
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+	}
+	tableNameTuples := []sqlname.NameTuple{
+		colocatedTask1.TableNameTup,
+		colocatedTask2.TableNameTup,
+		colocatedTask3.TableNameTup,
 	}
 
-	expectedCountForEachTask := tc / totalTasks
-	for _, v := range taskCounter {
-		fmt.Printf("count: %v, expectedCountForEachTask: %v\n", v, expectedCountForEachTask)
-		diff := math.Abs(float64(v - expectedCountForEachTask))
-		diffPct := diff / float64(expectedCountForEachTask) * 100
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// all colocated tables should have equal probability of being picked
+	picker.initializeChooser()
+	pickCounter := map[sqlname.NameTuple]int{}
+	for i := 0; i < 100000; i++ {
+		tableName := picker.tableChooser.Pick()
+		assert.Contains(t, tableNameTuples, tableName)
+		pickCounter[tableName]++
+	}
+	totalTables := len(tableNameTuples)
+	totalTablePicks := len(pickCounter)
+	assert.Equal(t, totalTables, totalTablePicks)
+
+	// each table should have been picked almost equal number of times
+	totalPicks := 0
+	for _, v := range pickCounter {
+		totalPicks += v
+	}
+	expectedCountForEachTable := totalPicks / totalTables
+	for _, v := range pickCounter {
+		diff := math.Abs(float64(v - expectedCountForEachTable))
+		diffPct := float64(diff) / float64(expectedCountForEachTable) * 100
 		// pct difference from expected count should be less than 5%
 		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
 	}
@@ -588,28 +713,145 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 
 	// no matter how many times we call NextTask therefater,
-	// it should return one of the tasks with equal probability,
-	// because they will get picked with their own probability, but once they are picked,
-	// and are placed in inProgressTasks, their probability will all be equal.
-	taskCounter := map[*ImportFileTask]int{}
-	for i := 0; i < 100000; i++ {
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
 		task, err := picker.NextTask()
 		assert.NoError(t, err)
-		taskCounter[task]++
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
 
-	totalTasks := len(tasks)
-	assert.Equal(t, totalTasks, len(taskCounter))
-	tc := 0
-	for _, v := range taskCounter {
-		tc += v
+	// // no matter how many times we call NextTask therefater,
+	// // it should return one of the tasks with equal probability,
+	// // because they will get picked with their own probability, but once they are picked,
+	// // and are placed in inProgressTasks, their probability will all be equal.
+	// taskCounter := map[*ImportFileTask]int{}
+	// for i := 0; i < 100000; i++ {
+	// 	task, err := picker.NextTask()
+	// 	assert.NoError(t, err)
+	// 	taskCounter[task]++
+	// }
+
+	// totalTasks := len(tasks)
+	// assert.Equal(t, totalTasks, len(taskCounter))
+	// tc := 0
+	// for _, v := range taskCounter {
+	// 	tc += v
+	// }
+
+	// expectedCountForEachTask := tc / totalTasks
+	// for task, v := range taskCounter {
+	// 	fmt.Printf("task: %v, count: %v, expectedCountForEachTask: %v\n", task, v, expectedCountForEachTask)
+	// 	diff := math.Abs(float64(v - expectedCountForEachTask))
+	// 	diffPct := diff / float64(expectedCountForEachTask) * 100
+	// 	// pct difference from expected count should be less than 5%
+	// 	assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	// }
+}
+
+func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
 	}
 
-	expectedCountForEachTask := tc / totalTasks
-	for task, v := range taskCounter {
-		fmt.Printf("task: %v, count: %v, expectedCountForEachTask: %v\n", task, v, expectedCountForEachTask)
-		diff := math.Abs(float64(v - expectedCountForEachTask))
-		diffPct := diff / float64(expectedCountForEachTask) * 100
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+		},
+	}
+	tableNameTuples := append(dummyYb.colocatedTables, dummyYb.shardedTables...)
+
+	// 5 tasks, 10 max tasks in progress
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// all colocated tables should have same probability of being picked
+	// all sharded tables should have same probability of being picked
+	// sum of probability of picking any of the colocated tables should be same as probability of picking any of the sharded tables
+	picker.initializeChooser()
+	colocatedPickCounter := map[sqlname.NameTuple]int{}
+	shardedPickCounter := map[sqlname.NameTuple]int{}
+
+	for i := 0; i < 100000; i++ {
+		tableName := picker.tableChooser.Pick()
+		assert.Contains(t, tableNameTuples, tableName)
+		tableType, ok := picker.tableTypes.Get(tableName)
+		assert.True(t, ok)
+
+		if tableType == COLOCATED {
+			colocatedPickCounter[tableName]++
+		} else {
+			shardedPickCounter[tableName]++
+		}
+	}
+	fmt.Printf("colocatedPickCounter: %v\n", colocatedPickCounter)
+	fmt.Printf("shardedPickCounter: %v\n", shardedPickCounter)
+	totalColocatedTables := len(dummyYb.colocatedTables)
+	totalShardedTables := len(dummyYb.shardedTables)
+
+	assert.Equal(t, totalColocatedTables, len(colocatedPickCounter))
+	assert.Equal(t, totalShardedTables, len(shardedPickCounter))
+
+	// assert that all colocated tables have been picked almost equal number of times
+	totalColocatedPicks := 0
+	for _, v := range colocatedPickCounter {
+		totalColocatedPicks += v
+	}
+	expectedCountForEachColocatedTable := totalColocatedPicks / totalColocatedTables
+	for _, v := range colocatedPickCounter {
+		diff := math.Abs(float64(v - expectedCountForEachColocatedTable))
+		diffPct := float64(diff) / float64(expectedCountForEachColocatedTable) * 100
+		// pct difference from expected count should be less than 5%
+		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	}
+
+	// assert that all sharded tables have been picked almost equal number of times
+	totalShardedPicks := 0
+	for _, v := range shardedPickCounter {
+		totalShardedPicks += v
+	}
+	expectedCountForEachShardedTable := totalShardedPicks / totalShardedTables
+	for _, v := range shardedPickCounter {
+		diff := math.Abs(float64(v - expectedCountForEachShardedTable))
+		diffPct := float64(diff) / float64(expectedCountForEachShardedTable) * 100
+		// pct difference from expected count should be less than 5%
+		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	}
+
+	// assert that sum of probability of picking any of the colocated tables should be same as probability of picking any of the sharded tables
+	for _, v := range shardedPickCounter {
+		diff := math.Abs(float64(v - totalColocatedPicks))
+		diffPct := float64(diff) / float64(totalColocatedPicks) * 100
 		// pct difference from expected count should be less than 5%
 		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
 	}

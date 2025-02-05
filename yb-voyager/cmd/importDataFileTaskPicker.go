@@ -111,7 +111,7 @@ At any given time, only X  distinct tables can be IN-PROGRESS. If X=4, after pic
 	we will not pick a new 5th table. Only when one of the four is completely imported,
 	we can go on to pick a different table. This is just to make it slightly easier from a
 	status reporting/debugging perspective.
-	X  >= N (no. of nodes in the cluster). This will lead to a better chance of achieving even load on the cluster.
+	During this time, each of the in-progress tables will be picked with equal probability.
 */
 type ColocatedAwareRandomTaskPicker struct {
 	// pendingTasks    []*ImportFileTask
