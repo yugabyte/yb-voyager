@@ -461,28 +461,6 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
 	}
-
-	// taskCounter := map[*ImportFileTask]int{}
-	// for i := 0; i < 100000; i++ {
-	// 	task, err := picker.NextTask()
-	// 	assert.NoError(t, err)
-	// 	taskCounter[task]++
-	// }
-
-	// totalTasks := len(tasks)
-	// assert.Equal(t, totalTasks, len(taskCounter))
-	// tc := 0
-	// for _, v := range taskCounter {
-	// 	tc += v
-	// }
-
-	// expectedCountForEachTask := tc / totalTasks
-	// for _, v := range taskCounter {
-	// 	diff := math.Abs(float64(v - expectedCountForEachTask))
-	// 	diffPct := diff / float64(expectedCountForEachTask) * 100
-	// 	// pct difference from expected count should be less than 5%
-	// 	assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
-	// }
 }
 
 func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
@@ -719,33 +697,6 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
-
-	// // no matter how many times we call NextTask therefater,
-	// // it should return one of the tasks with equal probability,
-	// // because they will get picked with their own probability, but once they are picked,
-	// // and are placed in inProgressTasks, their probability will all be equal.
-	// taskCounter := map[*ImportFileTask]int{}
-	// for i := 0; i < 100000; i++ {
-	// 	task, err := picker.NextTask()
-	// 	assert.NoError(t, err)
-	// 	taskCounter[task]++
-	// }
-
-	// totalTasks := len(tasks)
-	// assert.Equal(t, totalTasks, len(taskCounter))
-	// tc := 0
-	// for _, v := range taskCounter {
-	// 	tc += v
-	// }
-
-	// expectedCountForEachTask := tc / totalTasks
-	// for task, v := range taskCounter {
-	// 	fmt.Printf("task: %v, count: %v, expectedCountForEachTask: %v\n", task, v, expectedCountForEachTask)
-	// 	diff := math.Abs(float64(v - expectedCountForEachTask))
-	// 	diffPct := diff / float64(expectedCountForEachTask) * 100
-	// 	// pct difference from expected count should be less than 5%
-	// 	assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
-	// }
 }
 
 func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testing.T) {
@@ -867,11 +818,6 @@ AllColocatedTables - ensure all are getting picked with proper weights
 	test that weights change when tasks are marked as done
 AllShardedTables - ensure all are getting picked with proper weights
 	test that weights change when tasks are marked as done
-dynamicTasks - create 100s of tasks randmoly colocated/shared,
-	get next tasks in a large loop,
-	mark them as done occasionally,
-	ensure all are getting picked at least once.
-	ensure tasks getting picked remain constant between marking them as done. and adhere to max.
 
 all of the above cases for
 multipleTasksPerTable (importDataFileCase)
