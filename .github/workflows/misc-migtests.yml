@@ -110,7 +110,7 @@ jobs:
             ./migtests/scripts/yugabytedb/create_yb_user
 
             echo "Enable yb-cluster-test name resolution"
-            docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
+            docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb-$version)
             echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
             psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
