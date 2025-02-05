@@ -874,6 +874,7 @@ normalize_json() {
     local input_file="$1"
     local output_file="$2"
     local temp_file="/tmp/temp_file.json"
+	# local temp_file2="/tmp/temp_file2.json"
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
@@ -893,7 +894,6 @@ normalize_json() {
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
             .RowCount? = "IGNORED" |
 			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
-			.AssessmentIssues? = "IGNORED" | # Ignore AssessmentIssues until all tests are updated
             # Replace newline characters in SqlStatement with spaces
 			.SqlStatement? |= (
 				if type == "string" then
@@ -908,6 +908,18 @@ normalize_json() {
             .
         end
     )' "$input_file" > "$temp_file"
+
+	# Sample code: how to ignore nested fields with a specific parent in a json
+	# TODO: For fields like SqlStatement or others we can more explicit regarding changing them
+    # jq --sort-keys 'walk(
+    #     if type == "object" and (.UnsupportedFeatures?|type) == "array" then
+	# 		.UnsupportedFeatures |= map(
+	# 			.FeatureName? = "IGNORED"
+	# 		)
+    #     else
+	# 		.
+    #     end
+    # )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
     sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
@@ -1001,7 +1013,7 @@ replace_files() {
 
 bulk_assessment() {
 	yb-voyager assess-migration-bulk --bulk-assessment-dir "${BULK_ASSESSMENT_DIR}" \
-	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv
+	--fleet-config-file "${TEST_DIR}"/fleet-config-file.csv --yes
 }
 
 fix_config_file() {
