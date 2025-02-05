@@ -158,6 +158,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		Notes: assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		}),
 	}
@@ -204,7 +205,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         callhome.MarshalledJsonString(obfuscatedIssues),
+		Issues:                         obfuscatedIssues,
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
