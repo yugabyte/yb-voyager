@@ -24,6 +24,7 @@ require (
 	github.com/jackc/pgconn v1.14.3
 	github.com/jackc/pgx/v4 v4.18.3
 	github.com/jackc/pgx/v5 v5.0.3
+	github.com/jinzhu/copier v0.4.0
 	github.com/mattn/go-sqlite3 v1.14.17
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-ps v1.0.0
@@ -37,7 +38,6 @@ require (
 	github.com/tebeka/atexit v0.3.0
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/yugabytedb v0.34.0
-	github.com/tiendc/go-deepcopy v1.2.0
 	github.com/vbauerster/mpb/v8 v8.4.0
 	gocloud.dev v0.29.0
 	golang.org/x/exp v0.0.0-20231110203233-9a3e6036ecaa

@@ -16,7 +16,7 @@ limitations under the License.
 package queryissue
 
 import (
-	"slices"
+	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
 	log "github.com/sirupsen/logrus"
@@ -338,11 +338,11 @@ func (d *CopyCommandUnsupportedConstructsDetector) Detect(msg protoreflect.Messa
 	}
 
 	// Check for COPY ... ON_ERROR clause
-	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	defNamesWithValues, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
 	if err != nil {
 		log.Errorf("error extracting defnames from COPY statement: %v", err)
 	}
-	if slices.Contains(defNames, "on_error") {
+	if _, ok := defNamesWithValues["on_error"]; ok {
 		d.copyOnErrorConstructDetected = true
 	}
 
@@ -564,6 +564,75 @@ func (j *JsonPredicateExprDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type NonDecimalIntegerLiteralDetector struct {
+	query    string
+	detected bool
+}
+
+func NewNonDecimalIntegerLiteralDetector(query string) *NonDecimalIntegerLiteralDetector {
+	return &NonDecimalIntegerLiteralDetector{
+		query: query,
+	}
+}
+func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_ACONST_NODE {
+		return nil
+	}
+	aConstNode, err := queryparser.ProtoAsAConstNode(msg)
+	if err != nil {
+		return err
+	}
+	/*
+		Caveats can't report this issue for cases like -
+		1. DML having the constant change to parameters in PGSS - SELECT $1, $2 as binary;
+		2. DDL having the CHECK or DEFAULT -
+			- pg_dump will not dump non-decimal literal, it will give out the decimal constant only
+			- even if in some user added DDL in schema file during analyze-schema it can't be detected as parse tree doesn't info
+			e.g. -
+			CREATE TABLE bitwise_example (
+				id SERIAL PRIMARY KEY,
+				flags INT DEFAULT 0x0F CHECK (flags & 0x01 = 0x01) -- Hexadecimal bitwise check
+			);
+			parseTree - create_stmt:{relation:{relname:"bitwise_example" inh:true relpersistence:"p" location:15} ...
+			table_elts:{column_def:{colname:"flags" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} typemod:-1
+			location:70} is_local:true constraints:{constraint:{contype:CONSTR_DEFAULT raw_expr:{a_const:{ival:{ival:15} location:82}}
+			location:74}} constraints:{constraint:{contype:CONSTR_CHECK initially_valid:true raw_expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}}
+			lexpr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"&"}} lexpr:{column_ref:{fields:{string:{sval:"flags"}} location:94}} rexpr:{a_const:{ival:{ival:1}
+			location:102}} location:100}} rexpr:{a_const:{ival:{ival:1} location:109}} location:107}} ..
+
+		So mostly be detecting this in PLPGSQL cases
+	*/
+	switch {
+	case aConstNode.GetFval() != nil:
+		/*
+			fval - float val representation in postgres
+			ival - integer val
+			Fval is only one which stores the non-decimal integers information if used in queries, e.g. SELECT 5678901234, 0o52237223762 as octal;
+			select_stmt:{target_list:{res_target:{val:{a_const:{fval:{fval:"5678901234"} location:9}} location:9}}
+			target_list:{res_target:{name:"octal" val:{a_const:{fval:{fval:"0o52237223762"} location:21}} location:21}}
+
+			ival stores the decimal integers if non-decimal is not used in the query, e.g. SELECT 1, 2;
+			select_stmt:{target_list:{res_target:{val:{a_const:{ival:{ival:1} location:8}} location:8}}
+			target_list:{res_target:{val:{a_const:{ival:{ival:2} location:10}} location:10}}
+		*/
+		fval := aConstNode.GetFval().Fval
+		for _, literal := range nonDecimalIntegerLiterals {
+			if strings.HasPrefix(fval, literal) {
+				n.detected = true
+			}
+		}
+	}
+	return nil
+}
+
+func (n *NonDecimalIntegerLiteralDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if n.detected {
+		issues = append(issues, NewNonDecimalIntegerLiteralIssue(DML_QUERY_OBJECT_TYPE, "", n.query))
+	}
+	return issues
+}
+
 type CommonTableExpressionDetector struct {
 	query                      string
 	materializedClauseDetected bool
@@ -580,8 +649,8 @@ func (c *CommonTableExpressionDetector) Detect(msg protoreflect.Message) error {
 		return nil
 	}
 	/*
-	with_clause:{ctes:{common_table_expr:{ctename:"cte" ctematerialized:CTEMaterializeNever 
-	ctequery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:939}} location:939}} from_clause:{range_var:{relname:"a" inh:true relpersistence:"p" location:946}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}} location:906}} location:901} op:SETOP_NONE}} stmt_location:898
+		with_clause:{ctes:{common_table_expr:{ctename:"cte" ctematerialized:CTEMaterializeNever
+		ctequery:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}} location:939}} location:939}} from_clause:{range_var:{relname:"a" inh:true relpersistence:"p" location:946}} limit_option:LIMIT_OPTION_DEFAULT op:SETOP_NONE}} location:906}} location:901} op:SETOP_NONE}} stmt_location:898
 	*/
 	cteNode, err := queryparser.ProtoAsCTENode(msg)
 	if err != nil {
@@ -602,3 +671,50 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type ListenNotifyIssueDetector struct {
+	query    string
+	detected bool
+}
+
+func NewListenNotifyIssueDetector(query string) *ListenNotifyIssueDetector {
+	return &ListenNotifyIssueDetector{
+		query: query,
+	}
+}
+
+func (ln *ListenNotifyIssueDetector) Detect(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_FUNCCALL_NODE:
+		/*
+			example-SELECT pg_notify('my_notification', 'Payload from pg_notify');
+				parseTree - stmts:{stmt:{select_stmt:{target_list:{res_target:{val:{func_call:{funcname:{string:{sval:"pg_notify"}}
+				args:{a_const:{sval:{sval:"my_notification"}  location:129}}  args:{a_const:{sval:{sval:"Payload from pg_notify"}
+		*/
+		_, funcName := queryparser.GetFuncNameFromFuncCall(msg)
+		if funcName == PG_NOTIFY_FUNC {
+			ln.detected = true
+		}
+	case queryparser.PG_QUERY_LISTEN_STMT_NODE, queryparser.PG_QUERY_NOTIFY_STMT_NODE, queryparser.PG_QUERY_UNLISTEN_STMT_NODE:
+		/*
+			examples -
+				LISTEN my_table_changes;
+				NOTIFY my_notification, 'Payload from pg_notify';
+				UNLISTEN my_notification;
+			parseTrees-
+				stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}}  stmt_len:25}
+				stmts:{stmt:{notify_stmt:{conditionname:"my_table_changes" payload:"Row inserted: id=1, name=Alice"}}  stmt_location:26  stmt_len:58}
+				stmts:{stmt:{unlisten_stmt:{conditionname:"my_notification"}}  stmt_location:85  stmt_len:25}
+		*/
+		ln.detected = true
+	}
+
+	return nil
+}
+
+func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if ln.detected {
+		issues = append(issues, NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", ln.query))
+	}
+	return issues
+}

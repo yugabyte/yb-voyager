@@ -49,3 +49,10 @@ SELECT jt.* FROM
     NESTED PATH '$.films[*]' COLUMNS (
       title text FORMAT JSON PATH '$.title' OMIT QUOTES,
       director text PATH '$.director' KEEP QUOTES))) AS jt;
+
+CREATE VIEW zz AS
+    SELECT
+        5678901234 AS DEC,
+        0x1527D27F2 AS hex,
+        0o52237223762 AS oct,
+        0b101010010011111010010011111110010 AS bin;

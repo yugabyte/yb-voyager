@@ -23,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
@@ -265,7 +266,7 @@ RETURNING merge_action(), w.*;
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
 		switch {
-		case testYbVersion.Equal(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 			errMsg = "This statement not supported yet"
 		default:
 			errMsg = `syntax error at or near "MERGE"`
@@ -334,6 +335,32 @@ GROUP BY department;`
 
 }
 
+func testNonDecimalIntegerLiteralIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+	sqls := []string{
+		`CREATE VIEW zz AS
+    SELECT
+        5678901234 as DEC,
+        0x1527D27F2 as hex,
+        0o52237223762 as oct,
+        0b101010010011111010010011111110010 as bin;`,
+		`SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`,
+	}
+	for _, sql := range sqls {
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		var errMsg string
+		switch {
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+			errMsg = `trailing junk after numeric literal at or near`
+		default:
+			errMsg = `syntax error at or near "as"`
+		}
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, nonDecimalIntegerLiteralIssue)
+	}
+}
 func testCTEWithMaterializedIssue(t *testing.T) {
 	sqls := map[string]string{`
 	CREATE TABLE big_table(key text, ref text, c1 int, c2 int);
@@ -358,6 +385,33 @@ func testCTEWithMaterializedIssue(t *testing.T) {
 		_, err = conn.Exec(ctx, sql)
 
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, cteWithMaterializedIssue)
+	}
+}
+
+func testEventsListenNotifyIssue(t *testing.T) {
+	sqls := map[string]string{
+		`LISTEN my_table_changes;`:                                       `LISTEN not supported yet and will be ignored`,
+		`NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`:     `NOTIFY not supported yet and will be ignored`,
+		`UNLISTEN my_notification;`:                                      `UNLISTEN not supported yet and will be ignored`,
+		`SELECT pg_notify('my_notification', 'Payload from pg_notify');`: `NOTIFY not supported yet and will be ignored`,
+	}
+	for sql, warnMsg := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		connConfig := conn.Config()
+		connConfig.OnNotice = func(conn *pgconn.PgConn, n *pgconn.Notice) {
+			if n != nil {
+				assert.Contains(t, n.Message, warnMsg)
+			}
+		}
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		assert.NoError(t, err)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", listenNotifyIssue)
 	}
 }
 
@@ -420,7 +474,13 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "json type predicate", ybVersion), testJsonPredicateIssue)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "Non-decimal integer literal", ybVersion), testNonDecimalIntegerLiteralIssue)
+	assert.True(t, success)
+
 	success = t.Run(fmt.Sprintf("%s-%s", "cte with materialized cluase", ybVersion), testCTEWithMaterializedIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "events listen / notify", ybVersion), testEventsListenNotifyIssue)
 	assert.True(t, success)
 
 }
