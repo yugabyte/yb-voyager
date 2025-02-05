@@ -634,14 +634,15 @@ func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlSta
 }
 
 /*
-Database options works on 2.25 but not marking it as supported in 2.25 for now but as per this ticket 
- https://github.com/yugabyte/yugabyte-db/issues/25541, DB will be blocking this support so its not supported technically
+Database options works on 2.25 but not marking it as supported in 2.25 for now but as per this ticket
+
+	https://github.com/yugabyte/yugabyte-db/issues/25541, DB will be blocking this support so its not supported technically
 */
 var databaseOptionsPG15Issue = issue.Issue{
 	Type:        DATABASE_OPTIONS_PG15,
 	Name:        "Database options",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
+	Description: DATABASE_OPTIONS_DESCRIPTION,
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
@@ -660,7 +661,7 @@ var databaseOptionsPG17Issue = issue.Issue{
 	Type:        DATABASE_OPTIONS_PG17,
 	Name:        "Database options",
 	Impact:      constants.IMPACT_LEVEL_2,
-	Description: "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
+	Description: DATABASE_OPTIONS_DESCRIPTION,
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",

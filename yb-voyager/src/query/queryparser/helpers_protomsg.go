@@ -415,14 +415,6 @@ func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
 	return aConstNode, nil
 }
 
-func ProtoAsCreateDBStmtNode(msg protoreflect.Message) (*pg_query.CreatedbStmt, error) {
-	node, ok := msg.Interface().(*pg_query.CreatedbStmt)
-	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CREATEDB_STMT_NODE)
-	}
-	return node, nil
-}
-
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
 	cteNode, ok := msg.Interface().(*pg_query.CommonTableExpr)
 	if !ok {
