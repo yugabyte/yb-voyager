@@ -633,6 +633,10 @@ func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlSta
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+/*
+Database options works on 2.25 but not marking it as supported in 2.25 for now but as per this ticket 
+ https://github.com/yugabyte/yugabyte-db/issues/25541, DB will be blocking this support so its not supported technically
+*/
 var databaseOptionsPG15Issue = issue.Issue{
 	Type:        DATABASE_OPTIONS_PG15,
 	Name:        "Database options",
