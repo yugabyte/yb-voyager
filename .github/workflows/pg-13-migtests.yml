@@ -10,7 +10,7 @@ jobs:
   run-pg-13-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.1.0-b185, 2.20.8.0-b53, 2024.1.3.1-b8, 2.23.1.0-b220]
+        version: [2024.2.1.0-b185, 2.20.9.0-b47, 2024.1.4.0-b108, 2.23.1.0-b220]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -108,15 +108,6 @@ jobs:
           docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
-
-      - name: Test create CDC stream 
-        run: |
-          java -jar /opt/yb-voyager/debezium-server/debezium-server-1.9.5/yb-client-cdc-stream-wrapper.jar -list_masters -master_addresses yb-cluster-test:7100 -tserver_port 9100
-          
-
-      - name: Log yb_servers()
-        run: |
-          psql "postgresql://yugabyte@127.0.0.1:5433/yugabyte" -c "SELECT * from  yb_servers();"
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
