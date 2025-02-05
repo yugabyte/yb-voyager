@@ -6,34 +6,32 @@ from bs4 import BeautifulSoup
 import difflib
 import sys
 
-def extract_html_data(html_content):
-    """Extracts structured data from HTML content and normalizes it."""
-    soup = BeautifulSoup(html_content, 'html.parser')
+def normalize_text(text):
+    """Normalize and clean up text content."""
+    text = text.replace('\xa0', ' ')  # Replace non-breaking spaces with regular spaces
+    text = text.replace('\u200B', '')  # Remove zero-width spaces
+    text = re.sub(r'\s+', ' ', text)  # Collapse any whitespace sequences
+    return text.strip()  # Remove leading/trailing spaces
 
-    def normalize_text(text):
-        # Replace non-breaking spaces and other similar characters
-        text = text.replace('\xa0', ' ')
-        text = text.replace('\u200B', '')
-        text = re.sub(r'\s+', ' ', text)
-        return text.strip()
+def extract_and_normalize_texts(elements):
+    """Extract and normalize inner text from HTML elements."""
+    return [normalize_text(el.get_text(separator=" ")) for el in elements]
 
-    def extract_texts(elements):
-        """Extract and normalize inner text while keeping structure."""
-        return [normalize_text(el.get_text(separator=" ")) for el in elements]
-
+def extract_divs(soup):
+    """Extract and normalize divs, optionally sorting them based on certain conditions."""
     all_divs = soup.find_all("div")
     filtered_divs = []
     should_sort = False
 
     for div in all_divs:
+        # Sorting the content within "Sharding Recommendations" since the tables can be in different order
         prev_h2 = div.find_previous("h2")
         if prev_h2 and "Sharding Recommendations" in prev_h2.get_text():
             should_sort = True
-
-        if "wrapper" not in div.get("class", []):  # Keep the wrapper exclusion
+        # Skipping the parent wrapper div since it causes issues to be reported twice
+        if "wrapper" not in div.get("class", []):  # Exclude wrapper divs
             filtered_divs.append((div, should_sort))
 
-    # Extract and process div text
     div_texts_sorted = []
     for div, should_sort in filtered_divs:
         div_text = normalize_text(div.get_text(separator=" ")).strip()
@@ -41,63 +39,70 @@ def extract_html_data(html_content):
             div_text = " ".join(sorted(div_text.split()))  # Sort content within div
         div_texts_sorted.append(div_text)
 
-    div_texts_sorted = sorted(div_texts_sorted) if any(s for _, s in filtered_divs) else div_texts_sorted
+    return sorted(div_texts_sorted) if any(s for _, s in filtered_divs) else div_texts_sorted
 
+def extract_paragraphs(soup):
+    """Extract and filter paragraphs, skipping specific ones based on conditions."""
     paragraphs = soup.find_all("p")
-
-    # Flag to skip the first <p> after the <h2> Migration Complexity Explanation
     skip_first_paragraph = False
     filtered_paragraphs = []
 
     for p in paragraphs:
+        # Skip the first <p> after the <h2> Migration Complexity Explanation since nesting causes issues to be reported twice
         prev_element = p.find_previous("h2")
         if prev_element and "Migration Complexity Explanation" in prev_element.get_text():
             if not skip_first_paragraph:
                 skip_first_paragraph = True
                 continue
-        # Skip paragraph that start with "Database Version:"
+        # Skip paragraph that starts with "Database Version:" as it vary according to the environment
         if p.find("strong") and "Database Version:" in p.get_text():
             continue
         filtered_paragraphs.append(p)
 
-    def normalize_table_names(tds):
-        """Extract and normalize the table names from <td> and sort them."""
-        table_names = []
-        for td in tds:
-            names = [normalize_text(name).strip() for name in td.get_text(separator="\n").split("\n") if name.strip()]
-            table_names.extend(names)
-        return sorted(table_names)
+    return extract_and_normalize_texts(filtered_paragraphs)
 
-    def sort_table_data(tables):
-        """Sort tables by rows and within rows by their contents."""
-        sorted_tables = []
-        for table in tables:
-            rows = table.find_all("tr")
-            table_data = []
-            for row in rows:
-                cols = row.find_all("td")
-                if len(cols) > 1:
-                    table_data.append(normalize_table_names(cols))
-            if table_data:
-                sorted_tables.append(table_data)
-        return sorted_tables
+def normalize_table_names(tds):
+    """Extract and normalize the table names from <td> elements."""
+    table_names = []
+    for td in tds:
+        names = [normalize_text(name).strip() for name in td.get_text(separator="\n").split("\n") if name.strip()]
+        table_names.extend(names)
+    return sorted(table_names)
+
+def sort_table_data(tables):
+    """Sort tables by rows and their contents, including headers."""
+    sorted_tables = []
+    for table in tables:
+        rows = table.find_all("tr")
+        table_data = []
+        for row_index, row in enumerate(rows):
+            cols = row.find_all("th") + row.find_all("td")
+            if cols:
+                normalized_cols = [normalize_text(col.get_text(separator="\n")).strip() for col in cols]
+                table_data.append(normalized_cols)
+        if table_data:
+            sorted_tables.append(table_data)
+    return sorted_tables
+
+def extract_html_data(html_content):
+    """Main function to extract structured data from HTML content."""
+    soup = BeautifulSoup(html_content, 'html.parser')
 
     data = {
         "title": normalize_text(soup.title.string) if soup.title and soup.title.string else "No Title",
-        "headings": extract_texts(soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])),
-        "paragraphs": extract_texts(filtered_paragraphs),
+        "headings": extract_and_normalize_texts(soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])),
+        "paragraphs": extract_paragraphs(soup),
         "tables": sort_table_data(soup.find_all("table")),
         "links": {
             k: v for k, v in sorted(
                 {normalize_text(a.get("href") or ""): normalize_text(a.text) for a in soup.find_all("a")}.items()
             )
         },
-        "spans": extract_texts(soup.find_all("span")),
-        "divs": div_texts_sorted
+        "spans": extract_and_normalize_texts(soup.find_all("span")),
+        "divs": extract_divs(soup)
     }
 
     return data
-
 
 def generate_diff_list(list1, list2, section_name, file1_path, file2_path):
     """Generate a structured diff for ordered lists (headings, paragraphs, spans, divs) showing only differences."""
@@ -127,26 +132,23 @@ def compare_html_reports(file1, file2):
 
     differences = {}
 
-    for key in html_data1.keys():
+    def compare_and_store(key):
         if html_data1[key] != html_data2[key]:
-            if isinstance(html_data1[key], list):  # For headings, paragraphs, spans, divs
-                diff = generate_diff_list(html_data1[key], html_data2[key], key, file1, file2)
-            elif isinstance(html_data1[key], dict):  # For links dictionary
-                diff = generate_diff_list(
-                    dict_to_list(html_data1[key]),
-                    dict_to_list(html_data2[key]),
-                    key, file1, file2
-                )
-            else:  # Title (single string)
-                diff = generate_diff_list([html_data1[key]], [html_data2[key]], key, file1, file2)
-
-            if diff:  # Only store sections that have differences
+            diff = generate_diff_list(
+                dict_to_list(html_data1[key]) if isinstance(html_data1[key], dict) else html_data1[key],
+                dict_to_list(html_data2[key]) if isinstance(html_data2[key], dict) else html_data2[key],
+                key, file1, file2
+            )
+            if diff:
                 differences[key] = diff
 
+    for key in html_data1.keys():
+        compare_and_store(key)
+
     if not differences:
-        print("The reports are identical.")
+        print("The reports are matching.")
     else:
-        print("Differences found:")
+        print("The reports are not matching.")
         for section, diff_text in differences.items():
             print(f"\n=== {section.upper()} DIFFERENCES ===")
             print(diff_text)
