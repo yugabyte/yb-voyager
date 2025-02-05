@@ -204,7 +204,7 @@ const (
 	UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE  = "UNSUPPORTED_PG_SYNTAX"
 
 	CREATE_CONVERSION_ISSUE_REASON     = "CREATE CONVERSION is not supported yet"
-	UNSUPPORTED_EXTENSION_ISSUE_REASON = "This extension is not supported in YugabyteDB by default."
+	UNSUPPORTED_EXTENSION_ISSUE_REASON = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
 	VIEW_CHECK_OPTION_ISSUE_REASON     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER not supported in YugabyteDB."
 	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON = "SQL statement(s) might be unsupported please review and edit to match PostgreSQL syntax if required"
@@ -692,7 +692,7 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE_TYPE, UNSUPPORTED_EXTENSION_ISSUE_REASON+" Refer to the docs link for the more information on supported extensions.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE_TYPE, UNSUPPORTED_EXTENSION_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
 				sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, EXTENSION_DOC_LINK, constants.IMPACT_LEVEL_3)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {
@@ -1232,27 +1232,9 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
-// analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
-var reasonsIncludingSensitiveInformationToCallhome = []string{
-	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
-	queryissue.STORED_GENERATED_COLUMNS_ISSUE_DESCRIPTION,
-	queryissue.POLICY_ROLE_ISSUE_DESCRIPTION,
-	queryissue.INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_DESCRIPTION,
-	queryissue.XML_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.XID_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
-	queryissue.PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
-	queryissue.MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
-}
-
-// analyze issue reasons to send the object names for to callhome
-var reasonsToSendObjectNameToCallhome = []string{
-	UNSUPPORTED_EXTENSION_ISSUE_REASON,
+// analyze issue types to send the object names for to callhome
+var includeObjectNameInCallhomePayloadForIssueTypes = []string{
+	UNSUPPORTED_EXTENSION_ISSUE_TYPE,
 }
 
 func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
@@ -1260,44 +1242,39 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 		return
 	}
 	payload := createCallhomePayload()
-
 	payload.MigrationPhase = ANALYZE_PHASE
-	var callhomeIssues []utils.AnalyzeSchemaIssue
-	for _, issue := range schemaAnalysisReport.Issues {
-		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
-		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
-			return strings.Contains(issue.Reason, r)
-		}) {
-			issue.ObjectName = constants.OBFUSCATE_STRING // Redacting object name before sending in case reason is not in list
+
+	var callhomeIssues []callhome.AnalyzeIssueCallhome
+	for _, origIssue := range schemaAnalysisReport.Issues {
+		// No need to send Reason/Description as we already plan to break down required issues into individual issue for each type
+		var callhomeIssue = callhome.AnalyzeIssueCallhome{
+			Category:   origIssue.IssueType,
+			Type:       origIssue.Type,
+			Name:       origIssue.Name,
+			Impact:     origIssue.Impact,
+			ObjectType: origIssue.ObjectType,
+			ObjectName: constants.OBFUSCATE_STRING,
 		}
-		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
-			if sensitiveReason == UNSUPPORTED_PG_SYNTAX_ISSUE_REASON && strings.HasPrefix(issue.Reason, sensitiveReason) {
-				issue.Reason = sensitiveReason
-			} else {
-				match, err := utils.MatchesFormatString(sensitiveReason, issue.Reason)
-				if match {
-					issue.Reason, err = utils.ObfuscateFormatDetails(sensitiveReason, issue.Reason, constants.OBFUSCATE_STRING)
-				}
-				if err != nil {
-					log.Errorf("error while matching issue reason with sensitive reasons: %v", err)
-					issue.Reason = constants.OBFUSCATE_STRING
-				}
-			}
+
+		if slices.Contains(includeObjectNameInCallhomePayloadForIssueTypes, origIssue.Type) {
+			callhomeIssue.ObjectName = origIssue.ObjectName
 		}
-		//no need to send suggestion in callhome as we already have it documented.
-		issue.Suggestion = constants.OBFUSCATE_STRING
-		callhomeIssues = append(callhomeIssues, issue)
+
+		callhomeIssues = append(callhomeIssues, callhomeIssue)
 	}
 
 	analyzePayload := callhome.AnalyzePhasePayload{
+		PayloadVersion:  callhome.ANALYZE_PHASE_PAYLOAD_VERSION,
 		TargetDBVersion: schemaAnalysisReport.TargetDBVersion,
-		Issues:          callhome.MarshalledJsonString(callhomeIssues),
+		Issues:          callhomeIssues,
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		})),
 		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
 
