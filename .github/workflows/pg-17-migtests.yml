@@ -122,7 +122,7 @@ jobs:
         run: migtests/scripts/run-schema-migration.sh pg/omnibus
 
       - name: "TEST: PG sample schemas (adventureworks)"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' && matrix.version != '2024.2.1.0-b185'}}
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-schema-migration.sh pg/adventureworks
 
       - name: "TEST: PG sample schemas (sample-is)"

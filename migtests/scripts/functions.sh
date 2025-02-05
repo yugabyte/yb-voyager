@@ -922,7 +922,7 @@ normalize_json() {
     # )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+    sed -i '' '/Review and manually import.*uncategorized.sql/d' "$temp_file"
 
     # Move cleaned file to output
     mv "$temp_file" "$output_file"
@@ -940,9 +940,14 @@ compare_sql_files() {
     grep -v '^File :' "$sql_file1" > "$normalized_file1"
     grep -v '^File :' "$sql_file2" > "$normalized_file2"
 
-    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
-    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
+    sed -i '' -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
+    sed -i '' -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
 
+	# Modifying the ALTER error msg changes for different yb versions in the failed.sql to match expected failed.sql
+ 	sed -i '' -E 's#ALTER action CLUSTER ON#ALTER TABLE CLUSTER#g' "$normalized_file1"
+	sed -i '' -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
+	sed -i '' -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
+	
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
     
