@@ -393,6 +393,11 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
+	err = validateSourceDBIOPSForAssessMigration()
+	if err != nil {
+		return fmt.Errorf("failed to validate source database IOPS: %v", err)
+	}
+
 	err = runAssessment()
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
@@ -1739,4 +1744,42 @@ func validateAndSetTargetDbVersionFlag() error {
 		utils.ErrExit("Aborting..")
 		return nil
 	}
+}
+
+func validateSourceDBIOPSForAssessMigration() error {
+	var totalIOPS int64
+	totalIOPS = 0
+
+	tableIndexStats, err := assessmentDB.FetchAllStats()
+	if err != nil {
+		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
+	}
+
+	// Checking if source schema has zero objects.
+	if len(*tableIndexStats) == 0 {
+		if utils.AskPrompt("No objects found in mentioned schemas. Do you want to continue with the assessment:") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	for _, stat := range *tableIndexStats {
+		fmt.Printf("%s\n", stat.ObjectName)
+		totalIOPS += utils.SafeDereferenceInt64(stat.ReadsPerSecond)
+		totalIOPS += utils.SafeDereferenceInt64(stat.WritesPerSecond)
+	}
+
+	// Checking if source schema IOPS is not zero.
+	if totalIOPS == 0 {
+		if utils.AskPrompt("Detected mentioned schema IOPS as zero. Do you want to continue the assessment:") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+	// fmt.Printf("%d\n", totalIOPS)
+	return nil
 }
