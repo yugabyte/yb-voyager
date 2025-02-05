@@ -25,6 +25,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const FIRST_BATCH_NUM = 1
+
 type FileBatchProducer struct {
 	task  *ImportFileTask
 	state *ImportDataState
@@ -235,7 +237,8 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
-	if p.header != "" {
+	if p.header != "" && batchNum == FIRST_BATCH_NUM {
+		//in the import-data-state of the batch include the header bytes only for the first batch so imported Bytes count is same as total bytes count
 		bytesInBatch += p.headerByteCount
 	}
 	batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
