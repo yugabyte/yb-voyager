@@ -634,7 +634,7 @@ func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlSta
 }
 
 var databaseOptionsPG15Issue = issue.Issue{
-	Type:        DATABASE_OPTIONS,
+	Type:        DATABASE_OPTIONS_PG15,
 	Name:        "Database options",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
@@ -653,7 +653,7 @@ func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatem
 }
 
 var databaseOptionsPG17Issue = issue.Issue{
-	Type:        DATABASE_OPTIONS,
+	Type:        DATABASE_OPTIONS_PG17,
 	Name:        "Database options",
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
