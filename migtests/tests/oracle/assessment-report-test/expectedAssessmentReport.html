@@ -144,7 +144,7 @@
         // Keep track of the current sort direction per field, so we can toggle it
         let sortState = {
             category: 'asc',
-            type: 'asc',
+            name: 'asc',
             impact: 'asc'
         };
         function sortTableBy(field) {
@@ -690,7 +690,7 @@
             <!-- Summary Row Header for the issue -->
             <colgroup>
                 <col style="width: 20%;"> <!-- Category + arrow -->
-                <col style="width: 20%;"> <!-- Type -->  <!-- TODO: replace Type with Name field -->
+                <col style="width: 20%;"> <!-- Issue Name -->
                 <col style="width: 50%;"> <!-- Object/SQL Preview -->
                 <col style="width: 10%;"> <!-- Impact -->
             </colgroup>
@@ -700,8 +700,8 @@
                     <th style="cursor: pointer;" onclick="sortTableBy('category')">
                         Category <span class="sort-indicator">&#8597</span>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTableBy('type')">
-                        Type <span class="sort-indicator">&#8597</span>
+                    <th style="cursor: pointer;" onclick="sortTableBy('name')">
+                        Issue <span class="sort-indicator">&#8597</span>
                     </th>
                     <th>Object/SQL Preview</th>
                     <th style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
@@ -714,7 +714,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="COMPOUND_TRIGGER"
+                        data-name="Compound Trigger"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0')">
@@ -815,7 +815,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_INDEXES"
+                        data-name="Unsupported Indexes"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1')">
@@ -912,7 +912,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_INDEXES"
+                        data-name="Unsupported Indexes"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2')">
@@ -1009,7 +1009,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_INDEXES"
+                        data-name="Unsupported Indexes"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3')">
@@ -1106,7 +1106,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_INDEXES"
+                        data-name="Unsupported Indexes"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4')">
@@ -1203,7 +1203,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_INDEXES"
+                        data-name="Unsupported Indexes"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5')">
@@ -1300,7 +1300,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="INHERITED_TYPES"
+                        data-name="Inherited Types"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6')">
@@ -1397,7 +1397,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="VIRTUAL_COLUMNS"
+                        data-name="Virtual Columns"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7')">
@@ -1494,7 +1494,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="VIRTUAL_COLUMNS"
+                        data-name="Virtual Columns"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8')">
@@ -1591,7 +1591,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_PARTITIONING_METHODS"
+                        data-name="Unsupported Partitioning Methods"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9')">
@@ -1688,7 +1688,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="UNSUPPORTED_PARTITIONING_METHODS"
+                        data-name="Unsupported Partitioning Methods"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10')">
@@ -1785,7 +1785,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="XMLTYPE"
+                        data-name="XMLTYPE"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11')">
@@ -1794,7 +1794,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Xmltype</td>
+                            <td>XMLTYPE</td>
                             <td>
                                 
                                     TEST_SCHEMA.XML_TABLE.DATA
@@ -1882,7 +1882,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="NCLOB"
+                        data-name="BFILE"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12')">
@@ -1891,10 +1891,10 @@
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Nclob</td>
+                            <td>BFILE</td>
                             <td>
                                 
-                                    TEST_SCHEMA.NCLOB_TABLE.DATA
+                                    TEST_SCHEMA.BFILE_TABLE.DATA
                                 
                             </td>
 
@@ -1933,7 +1933,7 @@
                                         
                                         <tr>
                                             <th>Object Name</th>
-                                            <td>TEST_SCHEMA.NCLOB_TABLE.DATA</td>
+                                            <td>TEST_SCHEMA.BFILE_TABLE.DATA</td>
                                         </tr>
                                         
 
@@ -1979,7 +1979,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="CLOB"
+                        data-name="BLOB"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13')">
@@ -1988,104 +1988,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Clob</td>
-                            <td>
-                                
-                                    TEST_SCHEMA.CLOB_TABLE.DATA
-                                
-                            </td>
-
-                            <td style="text-align: center;">-</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-13" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-                                        <tr>
-                                            <th>Category Description</th>
-                                            <td>
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                    Data types of the source database that are not supported on the target YugabyteDB.
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-                                        <tr>
-                                            <th>Object Type</th>
-                                            <td>COLUMN</td>
-                                        </tr>
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-                                        <tr>
-                                            <th>Object Name</th>
-                                            <td>TEST_SCHEMA.CLOB_TABLE.DATA</td>
-                                        </tr>
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <!-- display N/A if Sql Statement not present -->
-                                                N/A
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <!-- display N/A if docs link not present -->
-                                                N/A
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <!-- display N/A if description not present -->
-                                                    N/A
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_datatypes"
-                        data-type="BLOB"
-                        data-impact="-">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
-                            <td>
-                                <span id="arrow-14" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Datatypes
-                            </td>
-                            <td>Blob</td>
+                            <td>BLOB</td>
                             <td>
                                 
                                     TEST_SCHEMA.BLOB_TABLE.DATA
@@ -2096,7 +1999,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-14" class="details-row" style="display: none;">
+                        <tr id="details-13" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -2173,7 +2076,104 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="CLOB"
+                        data-name="CLOB"
+                        data-impact="-">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
+                            <td>
+                                <span id="arrow-14" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Datatypes
+                            </td>
+                            <td>CLOB</td>
+                            <td>
+                                
+                                    TEST_SCHEMA.CLOB_TABLE.DATA
+                                
+                            </td>
+
+                            <td style="text-align: center;">-</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-14" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+                                        <tr>
+                                            <th>Category Description</th>
+                                            <td>
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                    Data types of the source database that are not supported on the target YugabyteDB.
+                                                </div>
+                                            </td>
+                                        </tr>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+                                        <tr>
+                                            <th>Object Type</th>
+                                            <td>COLUMN</td>
+                                        </tr>
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+                                        <tr>
+                                            <th>Object Name</th>
+                                            <td>TEST_SCHEMA.CLOB_TABLE.DATA</td>
+                                        </tr>
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <!-- display N/A if Sql Statement not present -->
+                                                N/A
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <!-- display N/A if docs link not present -->
+                                                N/A
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <!-- display N/A if description not present -->
+                                                    N/A
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_datatypes"
+                        data-name="CLOB"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15')">
@@ -2182,7 +2182,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Clob</td>
+                            <td>CLOB</td>
                             <td>
                                 
                                     TEST_SCHEMA.TEXT_TABLE.TEXT_DATA
@@ -2270,7 +2270,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="BFILE"
+                        data-name="NCLOB"
                         data-impact="-">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16')">
@@ -2279,10 +2279,10 @@
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Bfile</td>
+                            <td>NCLOB</td>
                             <td>
                                 
-                                    TEST_SCHEMA.BFILE_TABLE.DATA
+                                    TEST_SCHEMA.NCLOB_TABLE.DATA
                                 
                             </td>
 
@@ -2321,7 +2321,7 @@
                                         
                                         <tr>
                                             <th>Object Name</th>
-                                            <td>TEST_SCHEMA.BFILE_TABLE.DATA</td>
+                                            <td>TEST_SCHEMA.NCLOB_TABLE.DATA</td>
                                         </tr>
                                         
 

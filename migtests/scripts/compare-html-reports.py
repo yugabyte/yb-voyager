@@ -61,13 +61,13 @@ def extract_paragraphs(soup):
 
     return extract_and_normalize_texts(filtered_paragraphs)
 
-def normalize_table_names(tds):
-    """Extract and normalize the table names from <td> elements."""
-    table_names = []
-    for td in tds:
-        names = [normalize_text(name).strip() for name in td.get_text(separator="\n").split("\n") if name.strip()]
-        table_names.extend(names)
-    return sorted(table_names)
+def normalize_table_names(values):
+        """Extract and normalize the table names from <td> and <th> and sort them."""
+        table_names = []
+        for v in values:
+            names = [normalize_text(name).strip() for name in v.get_text(separator="\n").split("\n") if name.strip()]
+            table_names.extend(names)
+        return sorted(table_names)
 
 def sort_table_data(tables):
     """Sort tables by rows and their contents, including headers."""
@@ -75,14 +75,20 @@ def sort_table_data(tables):
     for table in tables:
         rows = table.find_all("tr")
         table_data = []
-        for row_index, row in enumerate(rows):
-            cols = row.find_all("th") + row.find_all("td")
-            if cols:
-                normalized_cols = [normalize_text(col.get_text(separator="\n")).strip() for col in cols]
-                table_data.append(normalized_cols)
+        table_headers = []
+        for row in rows:
+            columns = row.find_all("td")
+            headers = row.find_all("th")
+            if len(columns) > 1:
+                table_data.append(normalize_table_names(columns))
+            if len(headers) > 1:
+                table_headers.append(normalize_table_names(headers))
         if table_data:
             sorted_tables.append(table_data)
+        if table_headers:
+            sorted_tables.append(table_headers)
     return sorted_tables
+
 
 def extract_html_data(html_content):
     """Main function to extract structured data from HTML content."""
@@ -132,23 +138,26 @@ def compare_html_reports(file1, file2):
 
     differences = {}
 
-    def compare_and_store(key):
-        if html_data1[key] != html_data2[key]:
-            diff = generate_diff_list(
-                dict_to_list(html_data1[key]) if isinstance(html_data1[key], dict) else html_data1[key],
-                dict_to_list(html_data2[key]) if isinstance(html_data2[key], dict) else html_data2[key],
-                key, file1, file2
-            )
-            if diff:
-                differences[key] = diff
-
     for key in html_data1.keys():
-        compare_and_store(key)
+        if html_data1[key] != html_data2[key]:
+            if isinstance(html_data1[key], list):  # For headings, paragraphs, spans, divs
+                diff = generate_diff_list(html_data1[key], html_data2[key], key, file1, file2)
+            elif isinstance(html_data1[key], dict):  # For links dictionary
+                diff = generate_diff_list(
+                    dict_to_list(html_data1[key]),
+                    dict_to_list(html_data2[key]),
+                    key, file1, file2
+                )
+            else:  # Title (single string)
+                diff = generate_diff_list([html_data1[key]], [html_data2[key]], key, file1, file2)
+
+            if diff:  # Only store sections that have differences
+                differences[key] = diff
 
     if not differences:
         print("The reports are matching.")
     else:
-        print("The reports are not matching.")
+        print("The reports are not matching:")
         for section, diff_text in differences.items():
             print(f"\n=== {section.upper()} DIFFERENCES ===")
             print(diff_text)

@@ -144,7 +144,7 @@
         // Keep track of the current sort direction per field, so we can toggle it
         let sortState = {
             category: 'asc',
-            type: 'asc',
+            name: 'asc',
             impact: 'asc'
         };
         function sortTableBy(field) {
@@ -315,15 +315,15 @@
                                         
                                             sales.json_data<br>
                                         
-                                            sales.customer_account<br>
-                                        
-                                            sales.test_json_chk<br>
+                                            sales.recent_transactions<br>
                                         
                                             sales.orders<br>
                                         
                                             sales.events<br>
                                         
-                                            sales.recent_transactions<br>
+                                            sales.customer_account<br>
+                                        
+                                            sales.test_json_chk<br>
                                         
                                             analytics.metrics<br>
                                         
@@ -358,63 +358,62 @@
 
         
             <h2>Migration Complexity Explanation</h2>
+            <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+                <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Level 1</th>
+                            <th>Level 2</th>
+                            <th>Level 3</th>
+                            <th>Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                    
+                        <tr>
+                            <td>Unsupported Features</td>
+                            <td>0</td>
+                            <td>5</td>
+                            <td>0</td>
+                            <td>5</td>
+                        </tr>
+                        <tr>
+                            <td>Unsupported Plpgsql Objects</td>
+                            <td>0</td>
+                            <td>1</td>
+                            <td>0</td>
+                            <td>1</td>
+                        </tr>
+                        <tr>
+                            <td>Unsupported Query Constructs</td>
+                            <td>0</td>
+                            <td>13</td>
+                            <td>0</td>
+                            <td>13</td>
+                        </tr>
+                        <tr>
+                            <td>Unsupported Datatypes</td>
+                            <td>0</td>
+                            <td>0</td>
+                            <td>1</td>
+                            <td>1</td>
+                        </tr>
+                    </tbody>
+                </table>
+
             <p>
-	<p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
-	<table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
-		<thead>
-			<tr>
-				<th>Category</th>
-				<th>Level 1</th>
-				<th>Level 2</th>
-				<th>Level 3</th>
-				<th>Total</th>
-			</tr>
-		</thead>
-		<tbody>
-			<tr>
-				<td>Unsupported Query Constructs</td>
-				<td>0</td>
-				<td>13</td>
-				<td>0</td>
-				<td>13</td>
-			</tr>
-			<tr>
-				<td>Unsupported Datatypes</td>
-				<td>0</td>
-				<td>0</td>
-				<td>1</td>
-				<td>1</td>
-			</tr>
-			<tr>
-				<td>Unsupported Features</td>
-				<td>0</td>
-				<td>5</td>
-				<td>0</td>
-				<td>5</td>
-			</tr>
-			<tr>
-				<td>Unsupported Plpgsql Objects</td>
-				<td>0</td>
-				<td>1</td>
-				<td>0</td>
-				<td>1</td>
-			</tr>
-		</tbody>
-	</table>
+                <strong>Complexity:</strong> MEDIUM</br>
+                <strong>Reasoning:</strong> Found 0 Level 1 issue(s), 19 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity
+            </p>
 
-<p>
-	<strong>Complexity:</strong> MEDIUM</br>
-	<strong>Reasoning:</strong> Found 0 Level 1 issue(s), 19 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity
-</p>
-
-<p>
-<strong>Impact Levels:</strong></br>
-	Level 1: Resolutions are available with minimal effort.<br/>
-	Level 2: Resolutions are available requiring moderate effort.<br/>
-	Level 3: Resolutions may not be available or are complex.
-</p>
-</p>
-        
+            <p>
+            <strong>Impact Levels:</strong></br>
+                Level 1: Resolutions are available with minimal effort.<br/>
+                Level 2: Resolutions are available requiring moderate effort.<br/>
+                Level 3: Resolutions may not be available or are complex.
+            </p>
+            
 
         <h2>Assessment Issues</h2>
         
@@ -434,7 +433,7 @@
             <!-- Summary Row Header for the issue -->
             <colgroup>
                 <col style="width: 20%;"> <!-- Category + arrow -->
-                <col style="width: 20%;"> <!-- Type -->  <!-- TODO: replace Type with Name field -->
+                <col style="width: 20%;"> <!-- Issue Name -->
                 <col style="width: 50%;"> <!-- Object/SQL Preview -->
                 <col style="width: 10%;"> <!-- Impact -->
             </colgroup>
@@ -444,8 +443,8 @@
                     <th style="cursor: pointer;" onclick="sortTableBy('category')">
                         Category <span class="sort-indicator">&#8597</span>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTableBy('type')">
-                        Type <span class="sort-indicator">&#8597</span>
+                    <th style="cursor: pointer;" onclick="sortTableBy('name')">
+                        Issue <span class="sort-indicator">&#8597</span>
                     </th>
                     <th>Object/SQL Preview</th>
                     <th style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
@@ -458,7 +457,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="ANY_VALUE_AGGREGATE_FUNCTION"
+                        data-name="ANY_VALUE() aggregate Function"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0')">
@@ -467,7 +466,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Features
                             </td>
-                            <td>Any Value Aggregate Function</td>
+                            <td>ANY_VALUE() aggregate Function</td>
                             <td>
                                 
                                     sales.employ_depart_view
@@ -558,7 +557,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="RANGE_AGGREGATE_FUNCTION"
+                        data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1')">
@@ -567,7 +566,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Features
                             </td>
-                            <td>Range Aggregate Function</td>
+                            <td>Range aggregate Functions</td>
                             <td>
                                 
                                     sales.event_analysis_view
@@ -665,7 +664,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="RANGE_AGGREGATE_FUNCTION"
+                        data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2')">
@@ -674,7 +673,7 @@
                                 &nbsp;&nbsp;
                                 Unsupported Features
                             </td>
-                            <td>Range Aggregate Function</td>
+                            <td>Range aggregate Functions</td>
                             <td>
                                 
                                     sales.event_analysis_view2
@@ -772,7 +771,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="JSONB_SUBSCRIPTING"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3')">
@@ -884,7 +883,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
-                        data-type="JSON_TYPE_PREDICATE"
+                        data-name="Json Type Predicate"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4')">
@@ -988,7 +987,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_plpgsql_objects"
-                        data-type="JSONB_SUBSCRIPTING"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5')">
@@ -1088,7 +1087,7 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="RANGE_AGGREGATE_FUNCTION"
+                        data-name="ANY_VALUE() aggregate Function"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6')">
@@ -1097,7 +1096,90 @@
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
-                            <td>Range Aggregate Function</td>
+                            <td>ANY_VALUE() aggregate Function</td>
+                            <td>
+                                
+                                    SELECT
+        any_value(name) AS any_employee
+    FROM employees
+                                
+                            </td>
+
+                            <td style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-6" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT
+        any_value(name) AS any_employee
+    FROM employees</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">any_value function are not supported yet in YugabyteDB.</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="Range aggregate Functions"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7')">
+                            <td>
+                                <span id="arrow-7" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Query Constructs
+                            </td>
+                            <td>Range aggregate Functions</td>
                             <td>
                                 
                                     SELECT range_agg(event_range) AS union_of_ranges
@@ -1109,7 +1191,7 @@ FROM sales.events
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-6" class="details-row" style="display: none;">
+                        <tr id="details-7" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -1176,19 +1258,19 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="JSONB_SUBSCRIPTING"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7')">
+                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8')">
                             <td>
-                                <span id="arrow-7" style="display:inline-block;">&#x25B6;</span>
+                                <span id="arrow-8" style="display:inline-block;">&#x25B6;</span>
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
                             <td>Jsonb Subscripting</td>
                             <td>
                                 
-                                    SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj
+                                    SELECT ($1 :: jsonb)[$2][$3] as b
                                 
                             </td>
 
@@ -1196,7 +1278,7 @@ FROM sales.events</pre>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-7" class="details-row" style="display: none;">
+                        <tr id="details-8" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -1217,7 +1299,7 @@ FROM sales.events</pre>
                                             <td>
                                                 
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj</pre>
+                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT ($1 :: jsonb)[$2][$3] as b</pre>
                                                 </div>
                                                 
                                             </td>
@@ -1262,90 +1344,7 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="ANY_VALUE_AGGREGATE_FUNCTION"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8')">
-                            <td>
-                                <span id="arrow-8" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Query Constructs
-                            </td>
-                            <td>Any Value Aggregate Function</td>
-                            <td>
-                                
-                                    SELECT
-        any_value(name) AS any_employee
-    FROM employees
-                                
-                            </td>
-
-                            <td style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-8" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT
-        any_value(name) AS any_employee
-    FROM employees</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">any_value function are not supported yet in YugabyteDB.</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-type="JSONB_SUBSCRIPTING"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9')">
@@ -1439,7 +1438,7 @@ FROM sales.test_json_chk</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="JSONB_SUBSCRIPTING"
+                        data-name="Merge Statement"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10')">
@@ -1448,10 +1447,12 @@ FROM sales.test_json_chk</pre>
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
-                            <td>Jsonb Subscripting</td>
+                            <td>Merge Statement</td>
                             <td>
                                 
-                                    SELECT ($1 :: jsonb)[$2][$3] as b
+                                    MERGE INTO sales.customer_account ca
+USING sales.recent_transactions t      
+ON  ...
                                 
                             </td>
 
@@ -1480,7 +1481,14 @@ FROM sales.test_json_chk</pre>
                                             <td>
                                                 
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT ($1 :: jsonb)[$2][$3] as b</pre>
+                                                    <pre style="white-space: pre-wrap; margin:0;">MERGE INTO sales.customer_account ca
+USING sales.recent_transactions t      
+ON t.customer_id = ca.customer_id
+WHEN MATCHED THEN
+  UPDATE SET balance = balance + transaction_value
+WHEN NOT MATCHED THEN
+  INSERT (customer_id, balance)
+  VALUES (t.customer_id, t.transaction_value)</pre>
                                                 </div>
                                                 
                                             </td>
@@ -1490,7 +1498,7 @@ FROM sales.test_json_chk</pre>
                                             <th>Docs Link</th>
                                             <td>
                                                 
-                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command">Documentation</a>
                                                 
                                             </td>
                                         </tr>
@@ -1498,20 +1506,13 @@ FROM sales.test_json_chk</pre>
                                         <!-- Only show if there is a supported version -->
                                         
                                         
-                                        <tr>
-                                            <th>Supported In (versions)</th>
-                                            <td>
-                                                >=2.25.0.0 (2.25 series)
-                                            </td>
-                                        </tr>
-                                        
 
                                         <tr>
                                             <th>Description</th>
                                             <td>
                                                 
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                    <pre style="white-space: pre-wrap; margin:0;">MERGE statement is not yet supported in YugabyteDB.</pre>
                                                 </div>
                                                 
                                             </td>
@@ -1525,7 +1526,7 @@ FROM sales.test_json_chk</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="JSON_TYPE_PREDICATE"
+                        data-name="Json Type Predicate"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11')">
@@ -1608,7 +1609,7 @@ WHERE array_column IS JSON ARRAY</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="MERGE_STATEMENT"
+                        data-name="CTE with MATERIALIZE clause"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12')">
@@ -1617,95 +1618,7 @@ WHERE array_column IS JSON ARRAY</pre>
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
-                            <td>Merge Statement</td>
-                            <td>
-                                
-                                    MERGE INTO sales.customer_account ca
-USING sales.recent_transactions t      
-ON  ...
-                                
-                            </td>
-
-                            <td style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-12" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">MERGE INTO sales.customer_account ca
-USING sales.recent_transactions t      
-ON t.customer_id = ca.customer_id
-WHEN MATCHED THEN
-  UPDATE SET balance = balance + transaction_value
-WHEN NOT MATCHED THEN
-  INSERT (customer_id, balance)
-  VALUES (t.customer_id, t.transaction_value)</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command">Documentation</a>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">MERGE statement is not yet supported in YugabyteDB.</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-type="CTE_WITH_MATERIALIZED_CLAUSE"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13')">
-                            <td>
-                                <span id="arrow-13" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Query Constructs
-                            </td>
-                            <td>Cte With Materialized Clause</td>
+                            <td>CTE with MATERIALIZE clause</td>
                             <td>
                                 
                                     WITH w AS MATERIALIZED (                                                         ...
@@ -1716,7 +1629,7 @@ WHEN NOT MATCHED THEN
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-13" class="details-row" style="display: none;">
+                        <tr id="details-12" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -1786,266 +1699,12 @@ WHERE w2.key = $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="RANGE_AGGREGATE_FUNCTION"
+                        data-name="Advisory Locks"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
+                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13')">
                             <td>
-                                <span id="arrow-14" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Query Constructs
-                            </td>
-                            <td>Range Aggregate Function</td>
-                            <td>
-                                
-                                    SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM sales.eve ...
-                                
-                            </td>
-
-                            <td style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-14" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM sales.events</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-                                        <tr>
-                                            <th>Supported In (versions)</th>
-                                            <td>
-                                                >=2.25.0.0 (2.25 series)
-                                            </td>
-                                        </tr>
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-type="JSONB_SUBSCRIPTING"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15')">
-                            <td>
-                                <span id="arrow-15" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Query Constructs
-                            </td>
-                            <td>Jsonb Subscripting</td>
-                            <td>
-                                
-                                    SELECT (sales.get_user_info($1))[$2] AS user_info
-                                
-                            </td>
-
-                            <td style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-15" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT (sales.get_user_info($1))[$2] AS user_info</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-                                        <tr>
-                                            <th>Supported In (versions)</th>
-                                            <td>
-                                                >=2.25.0.0 (2.25 series)
-                                            </td>
-                                        </tr>
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-type="LISTEN_NOTIFY"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16')">
-                            <td>
-                                <span id="arrow-16" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                Unsupported Query Constructs
-                            </td>
-                            <td>Listen Notify</td>
-                            <td>
-                                
-                                    LISTEN my_table_changes
-                                
-                            </td>
-
-                            <td style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-16" class="details-row" style="display: none;">
-                            <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        
-
-                                        <!-- Only show if ObjectType is present -->
-                                        
-
-                                        <!-- Only show if ObjectName is present -->
-                                        
-
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">LISTEN my_table_changes</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                
-                                                <!-- display N/A if docs link not present -->
-                                                N/A
-                                                
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        
-                                        
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">LISTEN / NOTIFY is not supported yet in YugabyteDB.</pre>
-                                                </div>
-                                                
-                                            </td>
-                                        </tr>
-
-                                    </tbody>
-                                </table>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_query_constructs"
-                        data-type="ADVISORY_LOCKS"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-17', 'arrow-17')">
-                            <td>
-                                <span id="arrow-17" style="display:inline-block;">&#x25B6;</span>
+                                <span id="arrow-13" style="display:inline-block;">&#x25B6;</span>
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
@@ -2062,7 +1721,7 @@ WHERE met ...
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-17" class="details-row" style="display: none;">
+                        <tr id="details-13" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -2123,16 +1782,96 @@ WHERE metric_value > $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-type="CTE_WITH_MATERIALIZED_CLAUSE"
+                        data-name="Events Listen / Notify"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-18', 'arrow-18')">
+                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
                             <td>
-                                <span id="arrow-18" style="display:inline-block;">&#x25B6;</span>
+                                <span id="arrow-14" style="display:inline-block;">&#x25B6;</span>
                                 &nbsp;&nbsp;
                                 Unsupported Query Constructs
                             </td>
-                            <td>Cte With Materialized Clause</td>
+                            <td>Events Listen / Notify</td>
+                            <td>
+                                
+                                    LISTEN my_table_changes
+                                
+                            </td>
+
+                            <td style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-14" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">LISTEN my_table_changes</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <!-- display N/A if docs link not present -->
+                                                N/A
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">LISTEN / NOTIFY is not supported yet in YugabyteDB.</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="CTE with MATERIALIZE clause"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15')">
+                            <td>
+                                <span id="arrow-15" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Query Constructs
+                            </td>
+                            <td>CTE with MATERIALIZE clause</td>
                             <td>
                                 
                                     WITH w AS NOT MATERIALIZED (                                                     ...
@@ -2143,7 +1882,7 @@ WHERE metric_value > $1</pre>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-18" class="details-row" style="display: none;">
+                        <tr id="details-15" class="details-row" style="display: none;">
                             <td colspan="4">
                                 <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
                                     <colgroup>
@@ -2212,8 +1951,268 @@ WHERE w2.key = $1</pre>
                     </tbody>
                 
                     <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="Range aggregate Functions"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16')">
+                            <td>
+                                <span id="arrow-16" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Query Constructs
+                            </td>
+                            <td>Range aggregate Functions</td>
+                            <td>
+                                
+                                    SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.eve ...
+                                
+                            </td>
+
+                            <td style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-16" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.events</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                >=2.25.0.0 (2.25 series)
+                                            </td>
+                                        </tr>
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="Jsonb Subscripting"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-17', 'arrow-17')">
+                            <td>
+                                <span id="arrow-17" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Query Constructs
+                            </td>
+                            <td>Jsonb Subscripting</td>
+                            <td>
+                                
+                                    SELECT (sales.get_user_info($1))[$2] AS user_info
+                                
+                            </td>
+
+                            <td style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-17" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT (sales.get_user_info($1))[$2] AS user_info</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                >=2.25.0.0 (2.25 series)
+                                            </td>
+                                        </tr>
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_query_constructs"
+                        data-name="Jsonb Subscripting"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-18', 'arrow-18')">
+                            <td>
+                                <span id="arrow-18" style="display:inline-block;">&#x25B6;</span>
+                                &nbsp;&nbsp;
+                                Unsupported Query Constructs
+                            </td>
+                            <td>Jsonb Subscripting</td>
+                            <td>
+                                
+                                    SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj
+                                
+                            </td>
+
+                            <td style="text-align: center;">Level 2</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-18" class="details-row" style="display: none;">
+                            <td colspan="4">
+                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                    <colgroup>
+                                        <col style="width: 25%;">
+                                        <col style="width: 75%;">
+                                    </colgroup>
+                                    <tbody>
+                                        
+
+                                        <!-- Only show if ObjectType is present -->
+                                        
+
+                                        <!-- Only show if ObjectName is present -->
+                                        
+
+                                        <tr>
+                                            <th>SQL Statement</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <tr>
+                                            <th>Docs Link</th>
+                                            <td>
+                                                
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
+                                                
+                                            </td>
+                                        </tr>
+
+                                        <!-- Only show if there is a supported version -->
+                                        
+                                        
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                >=2.25.0.0 (2.25 series)
+                                            </td>
+                                        </tr>
+                                        
+
+                                        <tr>
+                                            <th>Description</th>
+                                            <td>
+                                                
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                </div>
+                                                
+                                            </td>
+                                        </tr>
+
+                                    </tbody>
+                                </table>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-type="datemultirange"
+                        data-name="datemultirange"
                         data-impact="LEVEL_3">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-19', 'arrow-19')">
@@ -2222,7 +2221,7 @@ WHERE w2.key = $1</pre>
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>Datemultirange</td>
+                            <td>datemultirange</td>
                             <td>
                                 
                                     sales.event_analysis_view.all_event_ranges
