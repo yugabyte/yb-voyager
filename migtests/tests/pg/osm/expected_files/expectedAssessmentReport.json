@@ -115,7 +115,7 @@
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "UNSUPPORTED_EXTENSION",
-			"Name": "",
+			"Name": "Unsupported Extension",
 			"Description": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions. ",
 			"Impact": "LEVEL_3",
 			"ObjectType": "EXTENSION",

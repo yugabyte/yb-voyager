@@ -144,7 +144,7 @@
         // Keep track of the current sort direction per field, so we can toggle it
         let sortState = {
             category: 'asc',
-            type: 'asc',
+            name: 'asc',
             impact: 'asc'
         };
         function sortTableBy(field) {
@@ -330,7 +330,7 @@
             <!-- Summary Row Header for the issue -->
             <colgroup>
                 <col style="width: 20%;"> <!-- Category + arrow -->
-                <col style="width: 20%;"> <!-- Type -->  <!-- TODO: replace Type with Name field -->
+                <col style="width: 20%;"> <!-- Issue Name -->
                 <col style="width: 50%;"> <!-- Object/SQL Preview -->
                 <col style="width: 10%;"> <!-- Impact -->
             </colgroup>
@@ -340,8 +340,8 @@
                     <th style="cursor: pointer;" onclick="sortTableBy('category')">
                         Category <span class="sort-indicator">&#8597</span>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTableBy('type')">
-                        Type <span class="sort-indicator">&#8597</span>
+                    <th style="cursor: pointer;" onclick="sortTableBy('name')">
+                        Issue <span class="sort-indicator">&#8597</span>
                     </th>
                     <th>Object/SQL Preview</th>
                     <th style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
@@ -354,7 +354,7 @@
                 {{ range $idx, $issue := .Issues }}
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
-                        data-type="{{ $issue.Type }}"
+                        data-name="{{ $issue.Name }}"
                         data-impact="{{ $issue.Impact }}">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
@@ -363,7 +363,7 @@
                                 &nbsp;&nbsp;
                                 {{ snakeCaseToTitleCase $issue.Category }}
                             </td>
-                            <td>{{ snakeCaseToTitleCase $issue.Type }}</td>
+                            <td>{{ $issue.Name }}</td>
                             <td>
                                 {{ if $issue.ObjectName }}
                                     {{ $issue.ObjectName }}

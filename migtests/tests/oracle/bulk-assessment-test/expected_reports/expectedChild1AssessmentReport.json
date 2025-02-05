@@ -195,7 +195,7 @@
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "COMPOUND_TRIGGER",
-			"Name": "",
+			"Name": "Compound Trigger",
 			"Description": "COMPOUND TRIGGER not supported in YugabyteDB. ",
 			"Impact": "-",
 			"ObjectType": "TRIGGER",
