@@ -60,6 +60,7 @@ func getConn() (*pgx.Conn, error) {
 	return conn, nil
 }
 
+//TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
 func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
 	isFixed, err := issue.IsFixedIn(testYbVersion)
 	testutils.FatalIfError(t, err)
@@ -493,6 +494,7 @@ func testCompressionClauseIssue(t *testing.T) {
 	default:
 		errMsg = `syntax error at or near "COMPRESSION"`
 	}
+	//TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
 
 }

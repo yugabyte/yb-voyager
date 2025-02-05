@@ -632,6 +632,24 @@ func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlSta
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+/*
+Compression clause is the PG14 feature. So it doesn't work on PG11-YB versions
+CREATE TABLE with this COMPRESSION clause works on 2.25 by chance but the actual functionality is not there 
+e.g.
+yugabyte=# CREATE TABLE tbl_comp (id int, val text COMPRESSION pglz);
+CREATE TABLE
+yugabyte=# SELECT relname AS main_table, reltoastrelid,
+       (SELECT relname FROM pg_class WHERE oid = c.reltoastrelid) AS toast_table
+FROM pg_class c
+WHERE relname = 'tbl_comp';
+ main_table | reltoastrelid | toast_table 
+------------+---------------+-------------
+ tbl_comp   |             0 | 
+(1 row)
+
+Refer this issue comments for more details - https://github.com/yugabyte/yugabyte-db/issues/12845#issuecomment-1152261234
+Hence this feature is not completely not supported so not marking it supported in 2.25
+*/
 var compressionClauseForToasting = issue.Issue{
 	Type:        COMPRESSION_CLAUSE_IN_TABLE,
 	Name:        COMPRESSION_CLAUSE_IN_TABLE_NAME,
