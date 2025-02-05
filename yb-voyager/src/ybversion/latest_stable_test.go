@@ -58,7 +58,7 @@ func TestLatestStable(t *testing.T) {
 		releaseName = strings.Trim(releaseName, " ")
 		rVersion, err := NewYBVersion(releaseName)
 		assert.NoErrorf(t, err, "could not create version %q", releaseName)
-		if rVersion.ReleaseType() == STABLE && !rVersion.Equal(V2024_2_1_0) {
+		if rVersion.ReleaseType() == STABLE {
 			assert.True(t, LatestStable.GreaterThanOrEqual(rVersion), "%s is not greater than %s", LatestStable, rVersion)
 		}
 	}

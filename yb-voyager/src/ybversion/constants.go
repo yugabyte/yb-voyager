@@ -65,7 +65,6 @@ func init() {
 	if err != nil {
 		panic("could not create version 2.25.0.0")
 	}
-	// Not updating the latest stable to 2024.2.1 as there is an issue for docker YB and yb_servers where host is not appropriate in yb_servers()'s output.
-	//TODO: once update the latest stable remove the condition to skip 2024.2.1 in TestLatestStable
-	LatestStable = V2024_2_0_0
+
+	LatestStable = V2024_2_1_0
 }
