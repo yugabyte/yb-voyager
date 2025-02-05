@@ -299,10 +299,10 @@ func TestDDLIssues(t *testing.T) {
 			NewSecurityInvokerViewIssue("VIEW", "public.view_explicit_security_invoker", stmt20),
 		},
 		stmt21: []QueryIssue{
-			NewDeterministicOptionCollationIssue("COLLATION", "case_insensitive", stmt21),
+			NewNonDeterministicCollationIssue("COLLATION", "case_insensitive", stmt21),
 		},
 		stmt22: []QueryIssue{
-			NewDeterministicOptionCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
+			NewNonDeterministicCollationIssue("COLLATION", "new_schema.ignore_accents", stmt22),
 		},
 		stmt23: []QueryIssue{
 			NewDeterministicOptionCollationIssue("COLLATION", "upperfirst", stmt23),
@@ -1041,6 +1041,54 @@ REFERENCES schema1.abc (id);
 	}
 }
 
+func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
+	sql1 := `SELECT 5678901234, 0x1527D27F2 as hex;`
+	sql2 := `SELECT 5678901234, 0o52237223762 as octal;`
+	sql3 := `SELECT 5678901234, 0b101010010011111010010011111110010 as binary;`
+	sql4 := `CREATE VIEW zz AS
+    SELECT
+        5678901234 AS DEC,
+        0x1527D27F2 AS hex,
+        0o52237223762 AS oct,
+        0b10101001001111101001001111111`
+	sql5 := `SELECT 5678901234, 0O52237223762 as octal;` // captial "0O" case
+	sqls := map[string]QueryIssue{
+		sql1: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql1),
+		sql2: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql2),
+		sql3: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql3),
+		sql4: NewNonDecimalIntegerLiteralIssue("VIEW", "zz", sql4),
+		sql5: NewNonDecimalIntegerLiteralIssue("DML_QUERY", "", sql5),
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for sql, expectedIssue := range sqls {
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(issues))
+		cmp.Equal(issues[0], expectedIssue)
+	}
+	sqlsWithoutIssues := []string{
+		`SELECT 1234, '0x4D2';`,    //string constant starting with 0x
+		`SELECT $1, $2 as binary;`, // parameterised strings for constant data
+		//DEFAULT and check constraints are not reported because parse tree doesn't the info of non-decimal integer literal usage as it converts it to decimal
+		`CREATE TABLE bitwise_example (
+    id SERIAL PRIMARY KEY,
+    flags INT DEFAULT 0x0F CHECK (flags & 0x01 = 0x01) -- Hexadecimal bitwise check
+);`,
+		`CREATE TABLE bin_default(id int, bin_int int DEFAULT 0b1010010101 CHECK (bin_int<>0b1000010101));`,
+		/*
+		   similarly this insert is also can't be reported as parser changes them to decimal integers while giving parseTree
+		   insert_stmt:{relation:{relname:"non_decimal_table" inh:true relpersistence:"p" location:12} cols:{res_target:{name:"binary_value" ...
+		   select_stmt:{select_stmt:{values_lists:{list:{items:{a_const:{ival:{ival:10} location:81}} items:{a_const:{ival:{ival:10} location:89}} items:{a_const:{ival:{ival:10} location:96}}}}
+		*/
+		`INSERT INTO non_decimal_table (binary_value, octal_value, hex_value)
+    VALUES (0b1010, 0o012, 0xA);`,
+	}
+	for _, sql := range sqlsWithoutIssues {
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(issues))
+	}
+}
 func TestCTEIssues(t *testing.T) {
 	sqls := []string{
 		`WITH w AS (
@@ -1061,21 +1109,21 @@ WHERE w2.key = 123;`,
 )
 INSERT INTO products_log
 SELECT * FROM moved_rows;`,
-`CREATE VIEW view1 AS
+		`CREATE VIEW view1 AS
 WITH data_cte AS NOT MATERIALIZED (
     SELECT 
         generate_series(1, 5) AS id,
         'Name ' || generate_series(1, 5) AS name
 )
 SELECT * FROM data_cte;`,
-`CREATE VIEW view2 AS
+		`CREATE VIEW view2 AS
 WITH data_cte AS MATERIALIZED (
     SELECT 
         generate_series(1, 5) AS id,
         'Name ' || generate_series(1, 5) AS name
 )
 SELECT * FROM data_cte;`,
-`CREATE VIEW view3 AS
+		`CREATE VIEW view3 AS
 WITH data_cte AS (
     SELECT 
         generate_series(1, 5) AS id,
@@ -1149,6 +1197,69 @@ $func$;`,
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
+
+func TestListenNotifyIssues(t *testing.T) {
+	sqls := []string{
+		`LISTEN my_table_changes;`,
+		`NOTIFY my_table_changes, 'Row inserted: id=1, name=Alice';`,
+		`UNLISTEN my_notification;`,
+		`SELECT pg_notify('my_notification', 'Payload from pg_notify');`,
+		`CREATE OR REPLACE FUNCTION notify_on_insert()
+RETURNS TRIGGER AS $$
+BEGIN
+  PERFORM pg_notify('row_inserted', 'New row added with id: ' || NEW.id);
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;`,
+`CREATE OR REPLACE FUNCTION notify_and_insert()
+RETURNS VOID AS $$
+BEGIN
+	LISTEN my_table_changes;
+    INSERT INTO my_table (name) VALUES ('Charlie');
+	NOTIFY my_table_changes, 'New row added with name: Charlie';
+    PERFORM pg_notify('my_table_changes', 'New row added with name: Charlie');
+	UNLISTEN my_table_changes;
+END;
+$$ LANGUAGE plpgsql;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
+		},
+		sqls[1]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[1]),
+		},
+		sqls[2]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[2]),
+		},
+		sqls[3]: []QueryIssue{
+			NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", sqls[3]),
+		},
+		sqls[4]: []QueryIssue{
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_on_insert", "SELECT pg_notify('row_inserted', 'New row added with id: ' || NEW.id);"),
+		},
+		sqls[5]: []QueryIssue{
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "LISTEN my_table_changes;"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "NOTIFY my_table_changes, 'New row added with name: Charlie';"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "SELECT pg_notify('my_table_changes', 'New row added with name: Charlie');"),
+			NewListenNotifyIssue(FUNCTION_OBJECT_TYPE, "notify_and_insert", "UNLISTEN my_table_changes;"),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
