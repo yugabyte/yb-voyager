@@ -19,8 +19,11 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"slices"
 	"testing"
 
+	"github.com/mroth/weightedrand/v2"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -493,43 +496,93 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
 			shardedTask3.TableNameTup,
 		},
 	}
-	tableNameTuples := []sqlname.NameTuple{
-		shardedTask1.TableNameTup,
-		shardedTask2.TableNameTup,
-		shardedTask3.TableNameTup,
-	}
 
 	// 3 tasks, 10 max tasks in progress
 	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// all sharded tables should have equal probability of being picked
-	// table-wise pick counter
 	picker.initializeChooser()
-	pickCounter := map[sqlname.NameTuple]int{}
+	// all sharded tables should have equal probability of being picked
+	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, dummyYb.colocatedTables, dummyYb.shardedTables)
+
+	// now pick one task. After picking that task, the chooser should have updated probabilities
+	task, err := picker.NextTask()
+	assert.NoError(t, err)
+
+	updatedPendingColocatedTables := lo.Filter(dummyYb.colocatedTables, func(t sqlname.NameTuple, _ int) bool {
+		return t != task.TableNameTup
+	})
+	updatedPendingShardedTables := lo.Filter(dummyYb.shardedTables, func(t sqlname.NameTuple, _ int) bool {
+		return t != task.TableNameTup
+	})
+
+	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, updatedPendingColocatedTables, updatedPendingShardedTables)
+
+}
+
+func assertTableChooserPicksShardedAndColocatedAsExpected(t *testing.T, chooser *weightedrand.Chooser[sqlname.NameTuple, int],
+	expectedColocatedTableNames []sqlname.NameTuple, expectedShardedTableNames []sqlname.NameTuple) {
+	tableNameTuples := append(expectedColocatedTableNames, expectedShardedTableNames...)
+	colocatedPickCounter := map[sqlname.NameTuple]int{}
+	shardedPickCounter := map[sqlname.NameTuple]int{}
+
 	for i := 0; i < 100000; i++ {
-		tableName := picker.tableChooser.Pick()
+		tableName := chooser.Pick()
 		assert.Contains(t, tableNameTuples, tableName)
-		pickCounter[tableName]++
+		if slices.Contains(expectedColocatedTableNames, tableName) {
+			colocatedPickCounter[tableName]++
+		} else {
+			shardedPickCounter[tableName]++
+		}
 	}
-	totalTables := len(tableNameTuples)
-	totalTablePicks := len(pickCounter)
-	assert.Equal(t, totalTables, totalTablePicks)
+	fmt.Printf("colocatedPickCounter: %v\n", colocatedPickCounter)
+	fmt.Printf("shardedPickCounter: %v\n", shardedPickCounter)
+	totalColocatedTables := len(expectedColocatedTableNames)
+	totalShardedTables := len(expectedShardedTableNames)
 
-	// each table should have been picked almost equal number of times
-	totalPicks := 0
-	for _, v := range pickCounter {
-		totalPicks += v
+	assert.Equal(t, totalColocatedTables, len(colocatedPickCounter))
+	assert.Equal(t, totalShardedTables, len(shardedPickCounter))
+
+	// assert that all colocated tables have been picked almost equal number of times
+	totalColocatedPicks := 0
+	for _, v := range colocatedPickCounter {
+		totalColocatedPicks += v
 	}
-	expectedCountForEachTable := totalPicks / totalTables
-	for _, v := range pickCounter {
-		diff := math.Abs(float64(v - expectedCountForEachTable))
-		diffPct := float64(diff) / float64(expectedCountForEachTable) * 100
-		// pct difference from expected count should be less than 5%
-		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+	if totalColocatedPicks > 0 {
+		expectedCountForEachColocatedTable := totalColocatedPicks / totalColocatedTables
+		for _, v := range colocatedPickCounter {
+			diff := math.Abs(float64(v - expectedCountForEachColocatedTable))
+			diffPct := float64(diff) / float64(expectedCountForEachColocatedTable) * 100
+			// pct difference from expected count should be less than 5%
+			assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+		}
 	}
 
+	// assert that all sharded tables have been picked almost equal number of times
+	totalShardedPicks := 0
+	for _, v := range shardedPickCounter {
+		totalShardedPicks += v
+	}
+	if totalShardedPicks > 0 {
+		expectedCountForEachShardedTable := totalShardedPicks / totalShardedTables
+		for _, v := range shardedPickCounter {
+			diff := math.Abs(float64(v - expectedCountForEachShardedTable))
+			diffPct := float64(diff) / float64(expectedCountForEachShardedTable) * 100
+			// pct difference from expected count should be less than 5%
+			assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+		}
+	}
+
+	// assert that sum of probability of picking any of the colocated tables should be same as probability of picking any of the sharded tables
+	if totalColocatedPicks > 0 && totalShardedPicks > 0 {
+		for _, v := range shardedPickCounter {
+			diff := math.Abs(float64(v - totalColocatedPicks))
+			diffPct := float64(diff) / float64(totalColocatedPicks) * 100
+			// pct difference from expected count should be less than 5%
+			assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+		}
+	}
 }
 
 func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
@@ -607,11 +660,6 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
 			colocatedTask3.TableNameTup,
 		},
 	}
-	tableNameTuples := []sqlname.NameTuple{
-		colocatedTask1.TableNameTup,
-		colocatedTask2.TableNameTup,
-		colocatedTask3.TableNameTup,
-	}
 
 	// 3 tasks, 10 max tasks in progress
 	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
@@ -620,28 +668,20 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
 
 	// all colocated tables should have equal probability of being picked
 	picker.initializeChooser()
-	pickCounter := map[sqlname.NameTuple]int{}
-	for i := 0; i < 100000; i++ {
-		tableName := picker.tableChooser.Pick()
-		assert.Contains(t, tableNameTuples, tableName)
-		pickCounter[tableName]++
-	}
-	totalTables := len(tableNameTuples)
-	totalTablePicks := len(pickCounter)
-	assert.Equal(t, totalTables, totalTablePicks)
+	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, dummyYb.colocatedTables, dummyYb.shardedTables)
 
-	// each table should have been picked almost equal number of times
-	totalPicks := 0
-	for _, v := range pickCounter {
-		totalPicks += v
-	}
-	expectedCountForEachTable := totalPicks / totalTables
-	for _, v := range pickCounter {
-		diff := math.Abs(float64(v - expectedCountForEachTable))
-		diffPct := float64(diff) / float64(expectedCountForEachTable) * 100
-		// pct difference from expected count should be less than 5%
-		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
-	}
+	// now pick one task. After picking that task, the chooser should have updated probabilities
+	task, err := picker.NextTask()
+	assert.NoError(t, err)
+
+	updatedPendingColocatedTables := lo.Filter(dummyYb.colocatedTables, func(t sqlname.NameTuple, _ int) bool {
+		return t != task.TableNameTup
+	})
+	updatedPendingShardedTables := lo.Filter(dummyYb.shardedTables, func(t sqlname.NameTuple, _ int) bool {
+		return t != task.TableNameTup
+	})
+
+	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, updatedPendingColocatedTables, updatedPendingShardedTables)
 }
 
 func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
@@ -739,7 +779,6 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 			shardedTask2.TableNameTup,
 		},
 	}
-	tableNameTuples := append(dummyYb.colocatedTables, dummyYb.shardedTables...)
 
 	// 5 tasks, 10 max tasks in progress
 	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
@@ -750,61 +789,24 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 	// all sharded tables should have same probability of being picked
 	// sum of probability of picking any of the colocated tables should be same as probability of picking any of the sharded tables
 	picker.initializeChooser()
-	colocatedPickCounter := map[sqlname.NameTuple]int{}
-	shardedPickCounter := map[sqlname.NameTuple]int{}
+	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, dummyYb.colocatedTables, dummyYb.shardedTables)
 
-	for i := 0; i < 100000; i++ {
-		tableName := picker.tableChooser.Pick()
-		assert.Contains(t, tableNameTuples, tableName)
-		tableType, ok := picker.tableTypes.Get(tableName)
-		assert.True(t, ok)
+	updatedPendingColocatedTables := dummyYb.colocatedTables
+	updatedPendingShardedTables := dummyYb.shardedTables
 
-		if tableType == COLOCATED {
-			colocatedPickCounter[tableName]++
-		} else {
-			shardedPickCounter[tableName]++
-		}
-	}
-	fmt.Printf("colocatedPickCounter: %v\n", colocatedPickCounter)
-	fmt.Printf("shardedPickCounter: %v\n", shardedPickCounter)
-	totalColocatedTables := len(dummyYb.colocatedTables)
-	totalShardedTables := len(dummyYb.shardedTables)
+	// now pick tasks one by one. After picking each task, the chooser should have updated probabilities
+	for i := 0; i < 4; i++ {
+		task, err := picker.NextTask()
+		assert.NoError(t, err)
 
-	assert.Equal(t, totalColocatedTables, len(colocatedPickCounter))
-	assert.Equal(t, totalShardedTables, len(shardedPickCounter))
+		updatedPendingColocatedTables = lo.Filter(updatedPendingColocatedTables, func(t sqlname.NameTuple, _ int) bool {
+			return t != task.TableNameTup
+		})
+		updatedPendingShardedTables = lo.Filter(updatedPendingShardedTables, func(t sqlname.NameTuple, _ int) bool {
+			return t != task.TableNameTup
+		})
 
-	// assert that all colocated tables have been picked almost equal number of times
-	totalColocatedPicks := 0
-	for _, v := range colocatedPickCounter {
-		totalColocatedPicks += v
-	}
-	expectedCountForEachColocatedTable := totalColocatedPicks / totalColocatedTables
-	for _, v := range colocatedPickCounter {
-		diff := math.Abs(float64(v - expectedCountForEachColocatedTable))
-		diffPct := float64(diff) / float64(expectedCountForEachColocatedTable) * 100
-		// pct difference from expected count should be less than 5%
-		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
-	}
-
-	// assert that all sharded tables have been picked almost equal number of times
-	totalShardedPicks := 0
-	for _, v := range shardedPickCounter {
-		totalShardedPicks += v
-	}
-	expectedCountForEachShardedTable := totalShardedPicks / totalShardedTables
-	for _, v := range shardedPickCounter {
-		diff := math.Abs(float64(v - expectedCountForEachShardedTable))
-		diffPct := float64(diff) / float64(expectedCountForEachShardedTable) * 100
-		// pct difference from expected count should be less than 5%
-		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
-	}
-
-	// assert that sum of probability of picking any of the colocated tables should be same as probability of picking any of the sharded tables
-	for _, v := range shardedPickCounter {
-		diff := math.Abs(float64(v - totalColocatedPicks))
-		diffPct := float64(diff) / float64(totalColocatedPicks) * 100
-		// pct difference from expected count should be less than 5%
-		assert.Truef(t, diffPct < 5, "diff: %v, diffPct: %v", diff, diffPct)
+		assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, updatedPendingColocatedTables, updatedPendingShardedTables)
 	}
 }
 

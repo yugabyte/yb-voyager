@@ -279,7 +279,9 @@ func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
 		}
 	}
 	colocatedWeight := 1
-	shardedWeight := lo.Ternary(colocatedCount == 0, 1, colocatedCount)
+	// if all sharded tables, then equal weight of 1.
+	// otherwise, weight of a sharded tables = weight of all colocated tables.
+	shardedWeight := lo.Ternary(colocatedCount == 0, 1, colocatedCount*colocatedWeight)
 
 	choices := []weightedrand.Choice[sqlname.NameTuple, int]{}
 	for _, tableName := range tableNames {
