@@ -177,9 +177,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 
 			p.completed = true
-			// TODO: resetting bytes read to 0 is technically not correct if we are adding a header
-			// to each batch file. Currently header bytes are only considered in the first batch.
-			// For the rest of the batches, header bytes are ignored, since we are resetting it to 0.
+
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
