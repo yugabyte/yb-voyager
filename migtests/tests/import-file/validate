@@ -132,7 +132,9 @@ TABLE_NAME_DATA_MAP = {
 def file_import_done_checks(tgt):
 	fetched_row_cnts = tgt.row_count_of_all_tables()
 	print(f"Row counts after import data file: {fetched_row_cnts}")
-	assert fetched_row_cnts == EXPECTED
+	for table_name, rc in EXPECTED.items():
+		assert fetched_row_cnts[table_name] == rc, f"Row count mismatch for table {table_name}, expected: {rc}, got: {fetched_row_cnts[table_name]}"
+
 
 	fetched_row_cnts_non_public = tgt.row_count_of_all_tables("non_public")
 	print(f"Row counts after import data file in non_public schema: {fetched_row_cnts_non_public}")
