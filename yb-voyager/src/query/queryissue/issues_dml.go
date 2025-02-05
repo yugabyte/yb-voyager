@@ -284,7 +284,7 @@ var listenNotifyIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm impact
 	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
-	DocsLink:    "", //TODO:
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 }
 
 func NewListenNotifyIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -312,7 +312,7 @@ var twoPhaseCommitIssue = issue.Issue{
 	Description: "Tow-Phase Commit is not supported yet in YugabyteDB.",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11084",
-	DocsLink:    "", //TODO
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#two-phase-commit",
 }
 
 func NewTwoPhaseCommitIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
