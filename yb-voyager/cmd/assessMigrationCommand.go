@@ -395,7 +395,7 @@ func assessMigration() (err error) {
 
 	err = validateSourceDBIOPSForAssessMigration()
 	if err != nil {
-		return fmt.Errorf("failed to validate source database IOPS: %v", err)
+		return fmt.Errorf("failed to validate source database IOPS: %w", err)
 	}
 
 	err = runAssessment()
@@ -1766,7 +1766,6 @@ func validateSourceDBIOPSForAssessMigration() error {
 	}
 
 	for _, stat := range *tableIndexStats {
-		fmt.Printf("%s\n", stat.ObjectName)
 		totalIOPS += utils.SafeDereferenceInt64(stat.ReadsPerSecond)
 		totalIOPS += utils.SafeDereferenceInt64(stat.WritesPerSecond)
 	}
@@ -1780,6 +1779,6 @@ func validateSourceDBIOPSForAssessMigration() error {
 			return nil
 		}
 	}
-	// fmt.Printf("%d\n", totalIOPS)
+
 	return nil
 }
