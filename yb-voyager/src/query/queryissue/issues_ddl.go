@@ -652,6 +652,7 @@ var databaseOptionsPG15Issue = issue.Issue{
 }
 
 func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatement string, options []string) QueryIssue {
+	sort.Strings(options)
 	issue := databaseOptionsPG15Issue
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
