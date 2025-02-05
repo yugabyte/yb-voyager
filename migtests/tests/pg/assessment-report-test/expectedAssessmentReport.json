@@ -2433,6 +2433,32 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "COMPRESSION_CLAUSE_IN_TABLE",
+			"Name": "COMPRESSION clause in table for TOASTing",
+			"Description": "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant. Remove the clause from the DDL.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.users_unique_nulls_distinct",
+			"SqlStatement": "ALTER TABLE ONLY public.users_unique_nulls_distinct ALTER COLUMN email SET COMPRESSION pglz;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "COMPRESSION_CLAUSE_IN_TABLE",
+			"Name": "COMPRESSION clause in table for TOASTing",
+			"Description": "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant. Remove the clause from the DDL.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "schema2.users_unique_nulls_distinct",
+			"SqlStatement": "ALTER TABLE ONLY schema2.users_unique_nulls_distinct ALTER COLUMN email SET COMPRESSION pglz;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
 			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
