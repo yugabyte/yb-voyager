@@ -257,16 +257,12 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if totalCount != 0 {
 		perc = float64(importedCount) * 100.0 / float64(totalCount)
 	}
-	fileState, err := state.GetFileImportState(dataFile.FilePath, dataFileNt)
-	if err != nil {
-		utils.ErrExit("error getting file import state of %s:%v", dataFile.FilePath, dataFileNt)
-	}
-	switch fileState {
-	case FILE_IMPORT_COMPLETED:
+	switch true {
+	case importedCount == totalCount:
 		status = "DONE"
-	case FILE_IMPORT_NOT_STARTED:
+	case importedCount == 0:
 		status = "NOT STARTED"
-	case FILE_IMPORT_IN_PROGRESS:
+	default:
 		status = "MIGRATING"
 	}
 	row := &tableMigStatusOutputRow{
