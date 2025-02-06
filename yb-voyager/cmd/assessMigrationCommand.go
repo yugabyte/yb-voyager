@@ -1508,7 +1508,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
 					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
 				})
 			}
@@ -1529,7 +1529,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 					Impact:              constants.IMPACT_LEVEL_1,
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
 					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
 				})
 			}

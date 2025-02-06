@@ -874,7 +874,7 @@ normalize_json() {
     local input_file="$1"
     local output_file="$2"
     local temp_file="/tmp/temp_file.json"
-	# local temp_file2="/tmp/temp_file2.json"
+	local temp_file2="/tmp/temp_file2.json"
 
     # Normalize JSON with jq; use --sort-keys to avoid the need to keep the same sequence of keys in expected vs actual json
     jq --sort-keys 'walk(
@@ -909,23 +909,22 @@ normalize_json() {
         end
     )' "$input_file" > "$temp_file"
 
-	# Sample code: how to ignore nested fields with a specific parent in a json
-	# TODO: For fields like SqlStatement or others we can more explicit regarding changing them
-    # jq --sort-keys 'walk(
-    #     if type == "object" and (.UnsupportedFeatures?|type) == "array" then
-	# 		.UnsupportedFeatures |= map(
-	# 			.FeatureName? = "IGNORED"
-	# 		)
-    #     else
-	# 		.
-    #     end
-    # )' "$temp_file" > "$temp_file2"
+	# Second pass: for AssessmentIssue objects, if Category is "migration_caveats" and the Type is one
+    # of the two specified values, then set ObjectName to "IGNORED".
+    jq 'walk(
+        if type == "object" and
+			.Category == "migration_caveats" and
+			(.Type == "UNSUPPORTED_DATATYPE_LIVE_MIGRATION" or .Type == "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB")
+        then .ObjectName = "IGNORED"
+        else .
+        end
+    )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file"
+    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
 
     # Move cleaned file to output
-    mv "$temp_file" "$output_file"
+    mv "$temp_file2" "$output_file"
 }
 
 
