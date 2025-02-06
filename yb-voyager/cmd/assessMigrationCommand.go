@@ -959,7 +959,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
-		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
 
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
@@ -1182,6 +1182,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,
@@ -1271,6 +1272,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,

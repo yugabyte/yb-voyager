@@ -103,7 +103,7 @@
             "ObjectName": "test_1, constraint: (test_1_id_fkey)",
             "Reason": "Foreign key references to partitioned table are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL REFERENCES sales_data(sales_id),\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "Suggestion": "No workaround available.",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -117,7 +117,7 @@
             "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE MATERIALIZED VIEW test AS (\n                            select x , JSON_ARRAYAGG(trunc(b, 2) order by t desc) as agg\n                            FROM test1\n                            where t = '1DAY' group by x\n                            );",
             "Suggestion": "",
-             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
         },
@@ -127,7 +127,7 @@
             "ObjectName": "special1",
             "Reason": "Deterministic option/attribute with collation is not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE COLLATION special1 (provider = icu, locale = 'en@colCaseFirst=upper;colReorder=grek-latn', deterministic = true);",
-            "Suggestion": "This feature is not supported in YugabyteDB yet",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -140,7 +140,7 @@
             "ObjectName": "ignore_accents",
             "Reason": "Non-Deterministic collations are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE COLLATION ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);",
-            "Suggestion": "This feature is not supported in YugabyteDB yet",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
@@ -2041,7 +2041,7 @@
             "ObjectName": "image",
             "Reason": "Large Objects are not yet supported in YugabyteDB. Affected column: raster.",
             "SqlStatement": "CREATE TABLE image (title text, raster lo);",
-            "Suggestion": "Large objects are not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH":         "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	        "DocsLink":   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
             "MinimumVersionsFixedIn": null
@@ -2063,7 +2063,7 @@
             "ObjectName": "bigint_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: value_ranges and type: int8multirange.",
             "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int8multirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2076,7 +2076,7 @@
             "ObjectName": "date_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: project_dates and type: datemultirange.",
             "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer PRIMARY KEY,\n    project_dates datemultirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2089,7 +2089,7 @@
             "ObjectName": "int_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: value_ranges and type: int4multirange.",
             "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int4multirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2102,7 +2102,7 @@
             "ObjectName": "public.asterisks1",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION public.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);",
-            "Suggestion": "No workaround available.",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2115,7 +2115,7 @@
             "ObjectName": "public.asterisks",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;",
-            "Suggestion": "No workaround available.",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2128,7 +2128,7 @@
             "ObjectName": "add",
             "Reason": "SQL Body for sql languages in function statement is not supported in YugabyteDB",
             "SqlStatement": "CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;",
-            "Suggestion": "No workaround available.",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2141,7 +2141,7 @@
             "ObjectName": "numeric_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: price_ranges and type: nummultirange.",
             "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer PRIMARY KEY,\n    price_ranges nummultirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2154,7 +2154,7 @@
             "ObjectName": "timestamp_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: event_times and type: tsmultirange.",
             "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer PRIMARY KEY,\n    event_times tsmultirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
@@ -2178,7 +2178,7 @@
             "ObjectName": "timestamptz_multirange_table",
             "Reason": "Multi-range data type is not yet supported in YugabyteDB. Affected column: global_event_times and type: tstzmultirange.",
             "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer PRIMARY KEY,\n    global_event_times tstzmultirange\n);",
-            "Suggestion": "Multirange data type is not yet supported in YugabyteDB, no workaround available currently",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {

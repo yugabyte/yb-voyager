@@ -145,7 +145,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "ANY_VALUE_AGGREGATE_FUNCTION",
 			"Name": "ANY_VALUE() aggregate Function",
-			"Description": "any_value function are not supported yet in YugabyteDB. ",
+			"Description": "any_value function are not supported yet in YugabyteDB.",
 			"Impact": "LEVEL_2",
 			"ObjectType": "VIEW",
 			"ObjectName": "sales.employ_depart_view",
@@ -158,7 +158,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "RANGE_AGGREGATE_FUNCTION",
 			"Name": "Range aggregate Functions",
-			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB. ",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
 			"Impact": "LEVEL_2",
 			"ObjectType": "VIEW",
 			"ObjectName": "sales.event_analysis_view",
@@ -173,7 +173,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "RANGE_AGGREGATE_FUNCTION",
 			"Name": "Range aggregate Functions",
-			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB. ",
+			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
 			"Impact": "LEVEL_2",
 			"ObjectType": "VIEW",
 			"ObjectName": "sales.event_analysis_view2",
@@ -185,7 +185,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "DATABASE_OPTIONS_PG15",
 			"Name": "Database options",
 			"Description": "Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
@@ -216,7 +216,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "JSON_TYPE_PREDICATE",
 			"Name": "Json Type Predicate",
-			"Description": "IS JSON predicate expressions are not yet supported in YugabyteDB. ",
+			"Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_2",
 			"ObjectType": "TABLE",
 			"ObjectName": "sales.json_data",
@@ -226,7 +226,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
 			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
@@ -241,7 +241,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "JSON_TYPE_PREDICATE",
 			"Name": "Json Type Predicate",
 			"Description": "IS JSON predicate expressions are not yet supported in YugabyteDB.",
@@ -254,7 +254,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
 			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
@@ -269,7 +269,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "RANGE_AGGREGATE_FUNCTION",
 			"Name": "Range aggregate Functions",
 			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
@@ -284,7 +284,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
 			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
@@ -299,7 +299,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "MERGE_STATEMENT",
 			"Name": "Merge Statement",
 			"Description": "MERGE statement is not yet supported in YugabyteDB.",
@@ -312,7 +312,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ANY_VALUE_AGGREGATE_FUNCTION",
 			"Name": "ANY_VALUE() aggregate Function",
 			"Description": "any_value function are not supported yet in YugabyteDB.",
@@ -325,7 +325,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
 			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
@@ -340,7 +340,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "RANGE_AGGREGATE_FUNCTION",
 			"Name": "Range aggregate Functions",
 			"Description": "range_agg, range_intersect_agg function are not supported yet in YugabyteDB.",
@@ -355,7 +355,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -368,7 +368,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "CTE_WITH_MATERIALIZED_CLAUSE",
 			"Name": "CTE with MATERIALIZE clause",
 			"Description": "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
@@ -383,7 +383,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
 			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
@@ -398,7 +398,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "CTE_WITH_MATERIALIZED_CLAUSE",
 			"Name": "CTE with MATERIALIZE clause",
 			"Description": "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
@@ -413,7 +413,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
