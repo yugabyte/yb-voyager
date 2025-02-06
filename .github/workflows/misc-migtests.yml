@@ -109,16 +109,10 @@ jobs:
             echo "Create YugabyteDB user"
             ./migtests/scripts/yugabytedb/create_yb_user
 
-            echo "docker ps"
-            docker ps
-
-            echo "Log yb_servers()"
-            psql "postgresql://yugabyte:@127.0.0.1:5433/yugabyte" -c "SELECT * from yb_servers();"
-
             echo "Enable yb-cluster-test-$version name resolution"
             docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb-$version)
             echo "$docker_ip	yb-cluster-test-$version" | sudo tee -a /etc/hosts
-            psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
+            psql "postgresql://yugabyte@yb-cluster-test-$version:5433/yugabyte" -c "SELECT version();"
 
             echo "Setup the gcp credentials"
             migtests/scripts/gcs/create_gcs_credentials_file
