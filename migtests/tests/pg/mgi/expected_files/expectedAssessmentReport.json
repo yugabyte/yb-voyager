@@ -1315,7 +1315,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1328,7 +1328,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1341,7 +1341,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1354,7 +1354,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1367,7 +1367,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1380,7 +1380,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1393,7 +1393,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1406,7 +1406,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1419,7 +1419,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1432,7 +1432,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1445,7 +1445,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1458,7 +1458,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1471,7 +1471,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1484,7 +1484,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1497,7 +1497,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1510,7 +1510,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1523,7 +1523,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1536,7 +1536,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1549,7 +1549,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1562,7 +1562,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1575,7 +1575,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1588,7 +1588,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1601,7 +1601,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1614,7 +1614,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1627,7 +1627,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1640,7 +1640,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1653,7 +1653,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1666,7 +1666,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1679,7 +1679,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1692,7 +1692,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1705,7 +1705,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1718,7 +1718,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1731,7 +1731,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1744,7 +1744,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1757,7 +1757,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1770,7 +1770,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1783,7 +1783,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1796,7 +1796,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1809,7 +1809,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1822,7 +1822,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1835,7 +1835,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1848,7 +1848,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1861,7 +1861,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1874,7 +1874,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1887,7 +1887,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",

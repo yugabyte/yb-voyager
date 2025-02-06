@@ -1597,7 +1597,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "NON_DECIMAL_INTEGER_LITERAL",
 			"Name": "Non-decimal integer literal",
 			"Description": "Non decimal integer literals are not supported in YugabyteDB",
@@ -1610,7 +1610,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "NON_DECIMAL_INTEGER_LITERAL",
 			"Name": "Non-decimal integer literal",
 			"Description": "Non decimal integer literals are not supported in YugabyteDB",
@@ -1623,7 +1623,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LARGE_OBJECT_FUNCTIONS",
 			"Name": "Large Object Functions",
 			"Description": "Large Objects functions are not supported in YugabyteDB.",
@@ -1636,7 +1636,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1649,7 +1649,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1662,7 +1662,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1675,7 +1675,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1688,7 +1688,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1701,7 +1701,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1714,7 +1714,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1727,7 +1727,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "LISTEN_NOTIFY",
 			"Name": "Events Listen / Notify",
 			"Description": "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
@@ -1740,7 +1740,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1753,7 +1753,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "REFERENCED_TYPE_DECLARATION",
 			"Name": "Referencing type declaration of variables",
 			"Description": "Referencing the type of a column instead of the actual type name is not supported in YugabyteDB.",
@@ -1766,7 +1766,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1779,7 +1779,7 @@
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1792,7 +1792,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1805,7 +1805,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1818,7 +1818,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1831,7 +1831,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1844,7 +1844,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "COPY ... ON_ERROR",
 			"Name": "COPY ... ON_ERROR",
 			"Description": "COPY ... ON_ERROR is not yet supported in YugabyteDB.",
@@ -1857,7 +1857,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1870,7 +1870,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1883,7 +1883,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1896,7 +1896,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "LARGE_OBJECT_FUNCTIONS",
 			"Name": "Large Object Functions",
 			"Description": "Large Objects functions are not supported in YugabyteDB.",
@@ -1909,7 +1909,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1922,7 +1922,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "COPY FROM ... WHERE",
 			"Name": "COPY FROM ... WHERE",
 			"Description": "COPY FROM ... WHERE is not yet supported in YugabyteDB.",
@@ -1937,7 +1937,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1950,7 +1950,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "ADVISORY_LOCKS",
 			"Name": "Advisory Locks",
 			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
@@ -1963,7 +1963,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
@@ -1976,7 +1976,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "SYSTEM_COLUMNS",
 			"Name": "System Columns",
 			"Description": "System columns are not yet supported in YugabyteDB.",
@@ -1989,7 +1989,7 @@
 		},
 		{
 			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "",
+			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
 			"Type": "XML_FUNCTIONS",
 			"Name": "XML Functions",
 			"Description": "XML functions are not yet supported in YugabyteDB.",
