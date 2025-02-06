@@ -714,10 +714,13 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
 		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb)
+		if err != nil {
+			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
+		}
 	} else {
 		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state)
 		if err != nil {
-			return fmt.Errorf("create task picker: %w", err)
+			return fmt.Errorf("create sequential task picker: %w", err)
 		}
 	}
 
