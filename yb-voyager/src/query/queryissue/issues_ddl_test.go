@@ -420,6 +420,7 @@ func testDatabaseOptions(t *testing.T) {
 		switch {
 		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 			assert.NoError(t, err)
+			//Database options works on pg15 but not supported actually and hence not marking this as supported
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)
 		default:
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG15Issue)
@@ -511,7 +512,7 @@ func testCompressionClauseIssue(t *testing.T) {
 	defer conn.Close(context.Background())
 
 	_, err = conn.Exec(ctx, `CREATE TABLE tbl_comp1(id int, v text COMPRESSION pglz);`)
-	//CREATE works on 2.25
+	//CREATE works on 2.25 without errors or warning but not supported actually
 
 	var errMsg string
 	switch {

@@ -308,7 +308,7 @@ func NewNonDecimalIntegerLiteralIssue(objectType string, objectName string, sqlS
 var twoPhaseCommitIssue = issue.Issue{
 	Type:        TWO_PHASE_COMMIT,
 	Name:        "Two-Phase Commit (XA syntax)",
-	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: "Tow-Phase Commit is not supported yet in YugabyteDB.",
 	Suggestion:  "",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11084",
