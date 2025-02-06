@@ -31,6 +31,43 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+func testXMLFunctionIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlFunctionsIssue)
+}
+
+func testAdvisoryLocks(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, "SELECT pg_advisory_unlock_shared(100);")
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "advisory locks are not yet implemented", advisoryLocksIssue)
+}
+
+func testSystemColumns(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE system_col_test(id int, val text);
+	`)
+	assert.NoError(t, err)
+	for _, col := range unsupportedSysCols.ToSlice() {
+		query := fmt.Sprintf("select %s from system_col_test", col)
+		_, err = conn.Exec(ctx, query)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, fmt.Sprintf(`System column "%s" is not supported yet`, col), systemColumnsIssue)
+	}
+}
+
 func testLOFunctionsIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -440,7 +477,17 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	}
 
 	// run tests
-	success := t.Run(fmt.Sprintf("%s-%s", "lo functions", ybVersion), testLOFunctionsIssue)
+
+	success := t.Run(fmt.Sprintf("%s-%s", "xml functions", ybVersion), testXMLFunctionIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "advisory locks", ybVersion), testAdvisoryLocks)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "system columns", ybVersion), 	testSystemColumns)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "lo functions", ybVersion), testLOFunctionsIssue)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "regex functions", ybVersion), testRegexFunctionsIssue)
