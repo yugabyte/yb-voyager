@@ -20,9 +20,12 @@ import (
 	"io"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
+
+const FIRST_BATCH_NUM = 1
 
 type FileBatchProducer struct {
 	task  *ImportFileTask
@@ -34,9 +37,10 @@ type FileBatchProducer struct {
 	fileFullySplit  bool     // if the file is fully split into batches
 	completed       bool     // if all batches have been produced
 
-	dataFile      datafile.DataFile
-	header        string
-	numLinesTaken int64 // number of lines read from the file
+	dataFile        datafile.DataFile
+	header          string
+	headerByteCount int64
+	numLinesTaken   int64 // number of lines read from the file
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
@@ -137,10 +141,13 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if err != nil {
 				return nil, fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 			}
-
+			batchBytesCount := p.dataFile.GetBytesRead() // GetBytesRead - returns the total bytes read until now including the currentBytesRead
+			if p.header != "" {
+				batchBytesCount += p.headerByteCount //include header bytes to batch bytes while checking the RPC size limit
+			}
 			// Check if adding this record exceeds the max batch size
 			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
-				p.dataFile.GetBytesRead() > tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
+				batchBytesCount > tdb.MaxBatchSizeInBytes() {
 
 				// Finalize the current batch without adding the record
 				batch, err := p.finalizeBatch(batchWriter, false, p.numLinesTaken-1, p.dataFile.GetBytesRead()-currentBytesRead)
@@ -170,9 +177,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 
 			p.completed = true
-			// TODO: resetting bytes read to 0 is technically not correct if we are adding a header
-			// to each batch file. Currently header bytes are only considered in the first batch.
-			// For the rest of the batches, header bytes are ignored, since we are resetting it to 0.
+
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
@@ -196,13 +201,17 @@ func (p *FileBatchProducer) openDataFile() error {
 	}
 	p.dataFile = dataFile
 
+	//First read the header and then skip lines, because if we skip lines first then header won't be correct in case of resumption
+	if dataFileDescriptor.HasHeader {
+		p.header = dataFile.GetHeader()
+		p.headerByteCount = dataFile.GetBytesRead()
+		dataFile.ResetBytesRead(0) //reset the bytes read for header
+	}
+
 	log.Infof("Skipping %d lines from %q", p.lastOffset, p.task.FilePath)
 	err = dataFile.SkipLines(p.lastOffset)
 	if err != nil {
 		return fmt.Errorf("skipping line for offset=%d: %v", p.lastOffset, err)
-	}
-	if dataFileDescriptor.HasHeader {
-		p.header = dataFile.GetHeader()
 	}
 	return nil
 }
@@ -226,6 +235,10 @@ func (p *FileBatchProducer) newBatchWriter() (*BatchWriter, error) {
 
 func (p *FileBatchProducer) finalizeBatch(batchWriter *BatchWriter, isLastBatch bool, offsetEnd int64, bytesInBatch int64) (*Batch, error) {
 	batchNum := p.lastBatchNumber + 1
+	if p.header != "" && batchNum == FIRST_BATCH_NUM {
+		//in the import-data-state of the batch include the header bytes only for the first batch so imported Bytes count is same as total bytes count
+		bytesInBatch += p.headerByteCount
+	}
 	batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
 	if err != nil {
 		utils.ErrExit("finalizing batch %d: %s", batchNum, err)

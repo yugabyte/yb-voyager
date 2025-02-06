@@ -93,6 +93,15 @@ main() {
 
 	${SCRIPTS}/resumption.py config.yaml
 
+	step "Run import-data-status"
+	import_data_status
+
+	expected_file="${TEST_DIR}/import_data_status-final-report.json"
+	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
+
+	step "Verify import-data-status report"
+	verify_report ${expected_file} ${actual_file}
+	
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}"
 	if [ -f "${TEST_DIR}/generate_config.py" ]; then
