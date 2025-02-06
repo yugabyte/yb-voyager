@@ -106,8 +106,8 @@ var importDataFileCmd = &cobra.Command{
 
 func storeFileTableMapAndDataDirInMSR() {
 	err := metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
-		msr.FileTableMapping = fileTableMapping
-		msr.DataDir = dataDir
+		msr.ImportDataFileFlagFileTableMapping = fileTableMapping
+		msr.ImportDataFileFlagDataDir = dataDir
 	})
 	if err != nil {
 		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %v", err)

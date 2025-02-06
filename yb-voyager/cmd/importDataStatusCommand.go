@@ -143,8 +143,8 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	if err != nil {
 		return nil, fmt.Errorf("getting migration status record: %v", err)
 	}
-	dataStore = datastore.NewDataStore(msr.DataDir)
-	importFileTasksForFTM := getImportFileTasks(msr.FileTableMapping)
+	dataStore = datastore.NewDataStore(msr.ImportDataFileFlagDataDir)
+	importFileTasksForFTM := getImportFileTasks(msr.ImportDataFileFlagFileTableMapping)
 	for _, task := range importFileTasksForFTM {
 		dataFileDescriptor.DataFileList = append(dataFileDescriptor.DataFileList, &datafile.FileEntry{
 			FilePath:  task.FilePath,
