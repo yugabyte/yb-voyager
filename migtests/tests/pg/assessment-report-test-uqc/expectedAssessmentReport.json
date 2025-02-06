@@ -2,7 +2,7 @@
 	"VoyagerVersion": "IGNORED",
 	"TargetDBVersion": "IGNORED",
 	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 0 Level 1 issue(s), 19 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
+	"MigrationComplexityExplanation": "Found 0 Level 1 issue(s), 20 Level 2 issue(s) and 1 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report_uqc",
@@ -182,6 +182,19 @@
 			"MinimumVersionsFixedIn": {
 				"2.25": "2.25.0.0"
 			}
+		},
+		{
+			"Category": "unsupported_query_constructs",
+			"CategoryDescription": "",
+			"Type": "DATABASE_OPTIONS_PG15",
+			"Name": "Database options",
+			"Description": "Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.",
+			"Impact": "LEVEL_2",
+			"ObjectType": "",
+			"ObjectName": "",
+			"SqlStatement": "CREATE DATABASE strategy_example\n    WITH STRATEGY = 'wal_log'",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"Category": "unsupported_features",
@@ -690,6 +703,12 @@
 			"MinimumVersionsFixedIn": {
 				"2.25": "2.25.0.0"
 			}
+		},
+		{
+			"ConstructTypeName": "Database options",
+			"Query": "CREATE DATABASE strategy_example\n    WITH STRATEGY = 'wal_log'",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"ConstructTypeName": "Jsonb Subscripting",

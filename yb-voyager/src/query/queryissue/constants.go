@@ -107,8 +107,10 @@ const (
 
 	TWO_PHASE_COMMIT = "TWO_PHASE_COMMIT"
 
-	COMPRESSION_CLAUSE_IN_TABLE = "COMPRESSION_CLAUSE_IN_TABLE"
+	COMPRESSION_CLAUSE_IN_TABLE      = "COMPRESSION_CLAUSE_IN_TABLE"
 	COMPRESSION_CLAUSE_IN_TABLE_NAME = "COMPRESSION clause in table for TOASTing"
+	DATABASE_OPTIONS_PG15            = "DATABASE_OPTIONS_PG15"
+	DATABASE_OPTIONS_PG17            = "DATABASE_OPTIONS_PG17"
 )
 
 const (
@@ -181,6 +183,7 @@ const (
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION                    = "Non-Deterministic collations are not yet supported in YugabyteDB."
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION       = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                      = "Unique constraint on columns with NULL values is not yet supported in YugabyteDB."
+	DATABASE_OPTIONS_DESCRIPTION                                     = "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB."
 )
 
 // Object types

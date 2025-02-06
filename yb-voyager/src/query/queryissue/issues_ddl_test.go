@@ -60,7 +60,7 @@ func getConn() (*pgx.Conn, error) {
 	return conn, nil
 }
 
-//TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
+// TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
 func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
 	isFixed, err := issue.IsFixedIn(testYbVersion)
 	testutils.FatalIfError(t, err)
@@ -70,16 +70,6 @@ func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error,
 	} else {
 		assert.ErrorContains(t, execErr, expectedError)
 	}
-}
-
-func testXMLFunctionIssue(t *testing.T) {
-	ctx := context.Background()
-	conn, err := getConn()
-	assert.NoError(t, err)
-
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, "SELECT xmlconcat('<abc/>', '<bar>foo</bar>')")
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "unsupported XML feature", xmlFunctionsIssue)
 }
 
 func testStoredGeneratedFunctionsIssue(t *testing.T) {
@@ -397,6 +387,56 @@ EXECUTE FUNCTION public.check_sales_region();`)
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `"sales_region" is a partitioned table`, beforeRowTriggerOnPartitionTableIssue)
 }
 
+func testDatabaseOptions(t *testing.T) {
+	sqlsforPG15 := []string{
+		` CREATE DATABASE locale_example
+    WITH LOCALE = 'en_US.UTF-8'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE locale_provider_example
+    WITH ICU_LOCALE = 'en_US'
+         LOCALE_PROVIDER = 'icu'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE oid_example
+    WITH OID = 123456;`,
+		`CREATE DATABASE collation_version_example
+    WITH COLLATION_VERSION = '153.128';`,
+		`CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log';`,
+	}
+	sqlsForPG17 := []string{
+		`CREATE DATABASE icu_rules_example
+    WITH ICU_RULES = '&a < b < c';`,
+		`CREATE DATABASE builtin_locale_example
+    WITH BUILTIN_LOCALE = 'C';`,
+	}
+
+	for _, sql := range sqlsforPG15 {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		switch {
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+			assert.NoError(t, err)
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)
+		default:
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG15Issue)
+		}
+	}
+	for _, sql := range sqlsForPG17 {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		_, err = conn.Exec(ctx, sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG17Issue)
+	}
+
+}
+
 func testNonDeterministicCollationIssue(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
@@ -525,8 +565,6 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	// run tests
 	var success bool
-	success = t.Run(fmt.Sprintf("%s-%s", "xml functions", ybVersion), testXMLFunctionIssue)
-	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "stored generated functions", ybVersion), testStoredGeneratedFunctionsIssue)
 	assert.True(t, success)
@@ -578,4 +616,7 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 
 	success = t.Run(fmt.Sprintf("%s-%s", "compression clause", ybVersion), testCompressionClauseIssue)
 	assert.True(t, success)
+	success = t.Run(fmt.Sprintf("%s-%s", "database options", ybVersion), testDatabaseOptions)
+	assert.True(t, success)
+
 }

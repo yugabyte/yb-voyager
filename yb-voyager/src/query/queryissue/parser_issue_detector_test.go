@@ -1209,6 +1209,63 @@ $func$;`,
 	}
 }
 
+func TestDatabaseOptions(t *testing.T) {
+	sqls := []string{
+		` CREATE DATABASE locale_example
+    WITH LOCALE = 'en_US.UTF-8'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE locale_provider_example
+    WITH ICU_LOCALE = 'en_US'
+         LOCALE_PROVIDER = 'icu'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE oid_example
+    WITH OID = 123456;`,
+		`CREATE DATABASE collation_version_example
+    WITH COLLATION_VERSION = '153.128';`,
+		`CREATE DATABASE icu_rules_example
+    WITH ICU_RULES = '&a < b < c';`,
+		`CREATE DATABASE builtin_locale_example
+    WITH BUILTIN_LOCALE = 'C';`,
+		`CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log';`,
+	}
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "locale_example", sqls[0], []string{"locale"}),
+		},
+		sqls[1]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "locale_provider_example", sqls[1], []string{"icu_locale", "locale_provider"}),
+		},
+		sqls[2]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "oid_example", sqls[2], []string{"oid"}),
+		},
+		sqls[3]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "collation_version_example", sqls[3], []string{"collation_version"}),
+		},
+		sqls[4]: []QueryIssue{
+			NewDatabaseOptionsPG17Issue("DATABASE", "icu_rules_example", sqls[4], []string{"icu_rules"}),
+		},
+		sqls[5]: []QueryIssue{
+			NewDatabaseOptionsPG17Issue("DATABASE", "builtin_locale_example", sqls[5], []string{"builtin_locale"}),
+		},
+		sqls[6]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "strategy_example", sqls[6], []string{"strategy"}),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
 func TestListenNotifyIssues(t *testing.T) {
 	sqls := []string{
 		`LISTEN my_table_changes;`,
@@ -1222,7 +1279,7 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;`,
-`CREATE OR REPLACE FUNCTION notify_and_insert()
+		`CREATE OR REPLACE FUNCTION notify_and_insert()
 RETURNS VOID AS $$
 BEGIN
 	LISTEN my_table_changes;
