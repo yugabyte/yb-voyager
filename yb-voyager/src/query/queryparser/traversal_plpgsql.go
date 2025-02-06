@@ -203,6 +203,17 @@ func formatExprQuery(q string) string {
 		q = q[1 : len(q)-1]
 	}
 	q = strings.TrimSpace(q)
+	/*
+		Unescape single quotes in the stmt for the cases like -
+		PLPGSQL line -
+		EXECUTE 'COMMIT TRANSACTION ''txt_db1''';
+
+		json str -
+		"PLpgSQL_expr":{
+		"query":"'COMMIT PREPARED ''txn_db1'''",
+		
+	*/
+	q = strings.ReplaceAll(q, "''", "'")
 	if !strings.HasSuffix(q, ";") { // adding the ; to query in case not added already
 		q += ";"
 	}

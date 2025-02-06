@@ -163,6 +163,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				col.ColumnName,
 			))
 		}
+
+		if col.Compression != "" {
+			issues = append(issues, NewCompressionClauseForToasting(
+				obj.GetObjectType(),
+				obj.GetObjectName(),
+				"",
+			))
+		}
 	}
 
 	if table.IsPartitioned {
@@ -507,6 +515,18 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 			alter.GetObjectName(),
 			"", // query string
 		))
+	case queryparser.SET_COMPRESSION_ALTER_SUB_TYPE:
+		/*
+			ALTER TABLE ONLY public.tbl_comp1 ALTER COLUMN v SET COMPRESSION pglz;
+			stmts:{stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"tbl_comp1" relpersistence:"p" location:19}
+			cmds:{alter_table_cmd:{subtype:AT_SetCompression name:"v" def:{string:{sval:"pglz"}} behavior:DROP_RESTRICT}}
+			objtype:OBJECT_TABLE}} stmt_len:71}
+		*/
+		issues = append(issues, NewCompressionClauseForToasting(
+			obj.GetObjectType(),
+			obj.GetObjectName(),
+			"",
+		))
 	}
 
 	return issues, nil
@@ -641,7 +661,7 @@ func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	}
 	issues := make([]QueryIssue, 0)
 	if val, ok := collation.Options["deterministic"]; ok {
-		//we have two issues for this - one is fixed in 2.25 where deterministic option is recognized and 
+		//we have two issues for this - one is fixed in 2.25 where deterministic option is recognized and
 		//the other one is for non-determinisitic collaiton which is not fixed in 2.25
 		switch val {
 		case "false":

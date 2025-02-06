@@ -284,7 +284,7 @@ var listenNotifyIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm impact
 	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
-	DocsLink:    "", //TODO:
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 }
 
 func NewListenNotifyIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -303,4 +303,18 @@ var nonDecimalIntegerLiteralIssue = issue.Issue{
 
 func NewNonDecimalIntegerLiteralIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(nonDecimalIntegerLiteralIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var twoPhaseCommitIssue = issue.Issue{
+	Type:        TWO_PHASE_COMMIT,
+	Name:        "Two-Phase Commit (XA syntax)",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: "Tow-Phase Commit is not supported yet in YugabyteDB.",
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11084",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#two-phase-commit",
+}
+
+func NewTwoPhaseCommitIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(twoPhaseCommitIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

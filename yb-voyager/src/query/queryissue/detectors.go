@@ -768,3 +768,47 @@ func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
 	}
 	return issues
 }
+
+type TwoPhaseCommitDetector struct {
+	query    string
+	detected bool
+}
+
+func NewTwoPhaseCommitDetector(query string) *TwoPhaseCommitDetector {
+	return &TwoPhaseCommitDetector{
+		query: query,
+	}
+}
+
+func (t *TwoPhaseCommitDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_TRANSACTION_STMT_NODE {
+		return nil
+	}
+	transactionStmtNode, err := queryparser.ProtoAsTransactionStmt(msg)
+	if err != nil {
+		return err
+	}
+	/*
+		PREPARE TRANSACTION 'tx1';
+		stmts:{stmt:{transaction_stmt:{kind:TRANS_STMT_PREPARE  gid:"txn1"  location:22}}  stmt_len:28}
+
+		Caveats:
+			Can't detect them from PGSS as the query is coming like this `PREPARE TRANSACTION $1` and parser is failing to parse it.
+			Only detecting in some PLPGSQL cases.
+	
+	*/
+	switch transactionStmtNode.Kind {
+	case queryparser.PREPARED_TRANSACTION_KIND, queryparser.COMMIT_PREPARED_TRANSACTION_KIND,
+		queryparser.ROLLBACK_PREPARED_TRANSACTION_KIND:
+		t.detected = true
+	}
+	return nil
+}
+
+func (t *TwoPhaseCommitDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if t.detected {
+		issues = append(issues, NewTwoPhaseCommitIssue(DML_QUERY_OBJECT_TYPE, "", t.query))
+	}
+	return issues
+}

@@ -441,7 +441,7 @@ CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-leve
 -- Control case
 CREATE TABLE users_unique_nulls_distinct (
     id INTEGER PRIMARY KEY,
-    email TEXT,
+    email TEXT COMPRESSION pglz,
     UNIQUE (email)
 );
 

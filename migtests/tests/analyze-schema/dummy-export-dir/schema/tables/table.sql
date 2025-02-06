@@ -466,3 +466,7 @@ CREATE TABLE users_unique_nulls_not_distinct_index (
     id INTEGER PRIMARY KEY,
     email TEXT
 );
+
+CREATE TABLE tbl_comp (id int, val text COMPRESSION pglz, val1 text);
+
+ALTER TABLE tbl_comp ALTER COLUMN val1 SET COMPRESSION lz4;

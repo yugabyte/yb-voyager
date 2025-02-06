@@ -157,16 +157,20 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 		return nil, fmt.Errorf("error getting all the queries from query: %w", err)
 	}
 	var issues []QueryIssue
+	errorneousQueriesStr := ""
 	for _, plpgsqlQuery := range plpgsqlQueries {
 		issuesInQuery, err := p.getAllIssues(plpgsqlQuery)
 		if err != nil {
 			//there can be plpgsql expr queries no parseable via parser e.g. "withdrawal > balance"
-			log.Errorf("error getting issues in query-%s: %v", query, err)
+			logErr := strings.TrimPrefix(err.Error(), "error getting plpgsql issues: ") // Remove the context added via getAllIssues function when it failed first as it is unneccesary
+			errorneousQueriesStr += fmt.Sprintf("PL/pgSQL query - %s and error - %s, ", plpgsqlQuery, logErr)
 			continue
 		}
 		issues = append(issues, issuesInQuery...)
 	}
-
+	if errorneousQueriesStr != "" {
+		log.Warnf("Found some errorneous PL/pgSQL queries in stmt [%s]: %s", query, errorneousQueriesStr)
+	}
 	percentTypeSyntaxIssues, err := p.GetPercentTypeSyntaxIssues(query)
 	if err != nil {
 		return nil, fmt.Errorf("error getting reference TYPE syntax issues: %v", err)
@@ -401,6 +405,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewCommonTableExpressionDetector(query),
 		NewDatabaseOptionsDetector(query),
 		NewListenNotifyIssueDetector(query),
+		NewTwoPhaseCommitDetector(query),
 	}
 
 	processor := func(msg protoreflect.Message) error {
