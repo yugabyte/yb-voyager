@@ -393,6 +393,11 @@ func assessMigration() (err error) {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
 	}
 
+	err = validateSourceDBIOPSForAssessMigration()
+	if err != nil {
+		return fmt.Errorf("failed to validate source database IOPS: %w", err)
+	}
+
 	err = runAssessment()
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
@@ -1739,4 +1744,40 @@ func validateAndSetTargetDbVersionFlag() error {
 		utils.ErrExit("Aborting..")
 		return nil
 	}
+}
+
+func validateSourceDBIOPSForAssessMigration() error {
+	var totalIOPS int64
+
+	tableIndexStats, err := assessmentDB.FetchAllStats()
+	if err != nil {
+		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
+	}
+
+	// Checking if source schema has zero objects.
+	if tableIndexStats == nil || len(*tableIndexStats) == 0 {
+		if utils.AskPrompt("No objects found in the specified schema(s). Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	for _, stat := range *tableIndexStats {
+		totalIOPS += utils.SafeDereferenceInt64(stat.ReadsPerSecond)
+		totalIOPS += utils.SafeDereferenceInt64(stat.WritesPerSecond)
+	}
+
+	// Checking if source schema IOPS is not zero.
+	if totalIOPS == 0 {
+		if utils.AskPrompt("Detected 0 read/write IOPS on the tables in specified schema(s). In order to get an accurate assessment, it is recommended that the source database is actively handling its typical workloads. Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	return nil
 }
