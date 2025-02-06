@@ -92,7 +92,8 @@ var importDataFileCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		dataStore = datastore.NewDataStore(dataDir)
-		importFileTasks := prepareImportFileTasks()
+		storeFileTableMapAndDataDirInMSR()
+		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks)
 		packAndSendImportDataFilePayload(COMPLETE, "")
@@ -101,6 +102,16 @@ var importDataFileCmd = &cobra.Command{
 	PostRun: func(cmd *cobra.Command, args []string) {
 		tdb.Finalize()
 	},
+}
+
+func storeFileTableMapAndDataDirInMSR() {
+	err := metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
+		msr.ImportDataFileFlagFileTableMapping = fileTableMapping
+		msr.ImportDataFileFlagDataDir = dataDir
+	})
+	if err != nil {
+		utils.ErrExit("failed updating migration status record for file-table-mapping and data-dir: %v", err)
+	}
 }
 
 func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
@@ -162,12 +173,12 @@ func setImportTableListFlag(importFileTasks []*ImportFileTask) {
 	tconf.TableList = strings.Join(maps.Keys(tableList), ",")
 }
 
-func prepareImportFileTasks() []*ImportFileTask {
+func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
 	result := []*ImportFileTask{}
-	if fileTableMapping == "" {
+	if currFileTableMapping == "" {
 		return result
 	}
-	kvs := strings.Split(fileTableMapping, ",")
+	kvs := strings.Split(currFileTableMapping, ",")
 	for i, kv := range kvs {
 		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 		filePaths, err := dataStore.Glob(globPattern)
