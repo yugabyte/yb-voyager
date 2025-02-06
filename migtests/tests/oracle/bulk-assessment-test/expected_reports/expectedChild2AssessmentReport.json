@@ -104,10 +104,6 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": null,
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"AssessmentIssues": null,
 	"TableIndexStats": [
 		{
@@ -855,8 +851,5 @@
 	],
 	"Notes": [
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
-	],
-	"MigrationCaveats": null,
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }
