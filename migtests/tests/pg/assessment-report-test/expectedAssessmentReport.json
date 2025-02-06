@@ -1660,7 +1660,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "public.notify_and_insert",
 			"SqlStatement": "LISTEN my_table_changes;",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1673,7 +1673,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "public.notify_and_insert",
 			"SqlStatement": "NOTIFY my_table_changes, 'New row added with name: Charlie';",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1686,7 +1686,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "public.notify_and_insert",
 			"SqlStatement": "SELECT pg_notify('my_table_changes', 'New row added with name: Charlie');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1699,7 +1699,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "public.notify_and_insert",
 			"SqlStatement": "UNLISTEN my_table_changes;",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1712,7 +1712,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "schema2.notify_and_insert",
 			"SqlStatement": "LISTEN my_table_changes;",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1725,7 +1725,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "schema2.notify_and_insert",
 			"SqlStatement": "NOTIFY my_table_changes, 'New row added with name: Charlie';",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1738,7 +1738,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "schema2.notify_and_insert",
 			"SqlStatement": "SELECT pg_notify('my_table_changes', 'New row added with name: Charlie');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1751,7 +1751,7 @@
 			"ObjectType": "FUNCTION",
 			"ObjectName": "schema2.notify_and_insert",
 			"SqlStatement": "UNLISTEN my_table_changes;",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -5665,7 +5665,8 @@
 					"SqlStatement": "UNLISTEN my_table_changes;"
 				}
 			],
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify"
 		},
 		{
 			"FeatureName": "Referencing type declaration of variables",
