@@ -6390,7 +6390,9 @@
 			"SizeInBytes": 16384
 		}
 	],
-	"Notes": null,
+	"Notes": [
+		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+	],
 	"MigrationCaveats": [
 		{
 			"FeatureName": "Foreign tables",
