@@ -185,23 +185,27 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	sizingAssessmentReport := callhome.SizingCallhome{
-		NumColocatedTables:              len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables),
-		ColocatedReasoning:              assessmentReport.Sizing.SizingRecommendation.ColocatedReasoning,
-		NumShardedTables:                len(assessmentReport.Sizing.SizingRecommendation.ShardedTables),
-		NumNodes:                        assessmentReport.Sizing.SizingRecommendation.NumNodes,
-		VCPUsPerInstance:                assessmentReport.Sizing.SizingRecommendation.VCPUsPerInstance,
-		MemoryPerInstance:               assessmentReport.Sizing.SizingRecommendation.MemoryPerInstance,
-		OptimalSelectConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalSelectConnectionsPerNode,
-		OptimalInsertConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalInsertConnectionsPerNode,
-		EstimatedTimeInMinForImport:     assessmentReport.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
-		ParallelVoyagerJobs:             assessmentReport.Sizing.SizingRecommendation.ParallelVoyagerJobs,
+	var callhomeSizingAssessment callhome.SizingCallhome
+	if assessmentReport.Sizing != nil {
+		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
+		callhomeSizingAssessment = callhome.SizingCallhome{
+			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
+			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
+			NumShardedTables:                len(sizingRecommedation.ShardedTables),
+			NumNodes:                        sizingRecommedation.NumNodes,
+			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
+			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
+			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
+			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
+			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			ParallelVoyagerJobs:             sizingRecommedation.ParallelVoyagerJobs,
+		}
 	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
-		Sizing:                         &sizingAssessmentReport,
+		Sizing:                         &callhomeSizingAssessment,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
