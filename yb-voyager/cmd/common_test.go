@@ -155,13 +155,13 @@ func TestAssessmentReportStructs(t *testing.T) {
 				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
 				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
 				Notes                          []string                              `json:"Notes"`
-				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
-				UnsupportedDataTypesDesc       string                                `json:"UnsupportedDataTypesDesc"`
-				UnsupportedFeatures            []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-				UnsupportedFeaturesDesc        string                                `json:"UnsupportedFeaturesDesc"`
-				UnsupportedQueryConstructs     []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-				UnsupportedPlPgSqlObjects      []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
-				MigrationCaveats               []UnsupportedFeature                  `json:"MigrationCaveats"`
+				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"-"`
+				UnsupportedDataTypesDesc       string                                `json:"-"`
+				UnsupportedFeatures            []UnsupportedFeature                  `json:"-"`
+				UnsupportedFeaturesDesc        string                                `json:"-"`
+				UnsupportedQueryConstructs     []utils.UnsupportedQueryConstruct     `json:"-"`
+				UnsupportedPlPgSqlObjects      []UnsupportedFeature                  `json:"-"`
+				MigrationCaveats               []UnsupportedFeature                  `json:"-"`
 			}{},
 		},
 	}
@@ -383,77 +383,6 @@ func TestAssessmentReportJson(t *testing.T) {
 	],
 	"Notes": [
 		"Test note"
-	],
-	"UnsupportedDataTypes": [
-		{
-			"SchemaName": "public",
-			"TableName": "test_table",
-			"ColumnName": "test_column",
-			"DataType": "test_type"
-		}
-	],
-	"UnsupportedDataTypesDesc": "Test unsupported data types",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"UnsupportedFeaturesDesc": "Test unsupported features",
-	"UnsupportedQueryConstructs": [
-		{
-			"ConstructTypeName": "test_construct",
-			"Query": "test_query",
-			"DocsLink": "https://test.com",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"UnsupportedPlPgSqlObjects": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"MigrationCaveats": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
 	]
 }`
 

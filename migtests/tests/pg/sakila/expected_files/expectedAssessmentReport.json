@@ -115,53 +115,6 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "GIST indexes",
-			"Objects": [
-				{
-					"ObjectName": "film_fulltext_idx ON public.film",
-					"SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Inherited tables",
-			"Objects": [
-				{
-					"ObjectName": "public.payment_p2007_01",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date \u003e= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_02",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date \u003e= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_03",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date \u003e= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_04",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date \u003e= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_05",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date \u003e= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_06",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date \u003e= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        }
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"AssessmentIssues": [
 		{
 			"Category": "unsupported_features",
@@ -1182,21 +1135,5 @@
 	],
 	"Notes": [
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
-	],
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
-			"Objects": [
-				{
-					"ObjectName": "public.film.fulltext (tsvector)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }

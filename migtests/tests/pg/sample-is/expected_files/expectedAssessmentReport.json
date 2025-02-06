@@ -73,22 +73,6 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "Exclusion constraints",
-			"Objects": [
-				{
-					"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
-					"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        }
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"AssessmentIssues": [
 		{
 			"Category": "unsupported_features",
@@ -344,25 +328,5 @@
 	],
 	"Notes": [
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
-	],
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
-			"Objects": [
-				{
-					"ObjectName": "public.reports.report_tsv (tsvector)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "public.reports.attrs (public.hstore)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }

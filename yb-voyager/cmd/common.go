@@ -1062,13 +1062,13 @@ type AssessmentReport struct {
 	Notes                          []string                              `json:"Notes"`
 
 	// fields going to be deprecated
-	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"UnsupportedDataTypes"`
-	UnsupportedDataTypesDesc   string                            `json:"UnsupportedDataTypesDesc"`
-	UnsupportedFeatures        []UnsupportedFeature              `json:"UnsupportedFeatures"`
-	UnsupportedFeaturesDesc    string                            `json:"UnsupportedFeaturesDesc"`
-	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct `json:"UnsupportedQueryConstructs"`
-	UnsupportedPlPgSqlObjects  []UnsupportedFeature              `json:"UnsupportedPlPgSqlObjects"`
-	MigrationCaveats           []UnsupportedFeature              `json:"MigrationCaveats"`
+	UnsupportedDataTypes       []utils.TableColumnsDataTypes     `json:"-"`
+	UnsupportedDataTypesDesc   string                            `json:"-"`
+	UnsupportedFeatures        []UnsupportedFeature              `json:"-"`
+	UnsupportedFeaturesDesc    string                            `json:"-"`
+	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct `json:"-"`
+	UnsupportedPlPgSqlObjects  []UnsupportedFeature              `json:"-"`
+	MigrationCaveats           []UnsupportedFeature              `json:"-"`
 }
 
 // Fields apart from Category, CategoryDescription, TypeName and Impact will be populated only if/when available

@@ -63,40 +63,6 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": [
-		{
-	       "SchemaName": "public",
-	       "TableName": "osm_changeset",
-	       "ColumnName": "geom",
-	       "DataType": "public.geometry"
-    	}
-	],
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "GIST indexes",
-			"Objects": [
-				{
-					"ObjectName": "changeset_geom_gist ON public.osm_changeset",
-					"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Extensions",
-			"Objects": [
-				{
-					"ObjectName": "postgis",
-					"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-		    "MinimumVersionsFixedIn": null
-        }
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"AssessmentIssues": [
 		{
 			"Category": "unsupported_features",
@@ -309,21 +275,5 @@
 	],
 	"Notes": [
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
-	],
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
-			"Objects": [
-				{
-					"ObjectName": "public.osm_changeset.tags (public.hstore)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }
