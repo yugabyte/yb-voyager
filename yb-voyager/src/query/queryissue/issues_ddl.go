@@ -18,6 +18,7 @@ package queryissue
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -556,7 +557,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0, 
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
 	},
 }
 
@@ -630,4 +631,46 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 
 func NewUniqueNullsNotDistinctIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(uniqueNullsNotDistinctIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+/*
+Database options works on 2.25 but not marking it as supported in 2.25 for now but as per this ticket
+
+	https://github.com/yugabyte/yugabyte-db/issues/25541, DB will be blocking this support so its not supported technically
+*/
+var databaseOptionsPG15Issue = issue.Issue{
+	Type:        DATABASE_OPTIONS_PG15,
+	Name:        "Database options",
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: DATABASE_OPTIONS_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	// MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+	// 	ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	// },// Not marking it as supported for 2.25 as it seems these might be actually not supported at least the locale and collation ones https://github.com/yugabyte/yugabyte-db/issues/25541
+}
+
+func NewDatabaseOptionsPG15Issue(objectType string, objectName string, sqlStatement string, options []string) QueryIssue {
+	sort.Strings(options)
+	issue := databaseOptionsPG15Issue
+	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var databaseOptionsPG17Issue = issue.Issue{
+	Type:        DATABASE_OPTIONS_PG17,
+	Name:        "Database options",
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: DATABASE_OPTIONS_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+}
+
+func NewDatabaseOptionsPG17Issue(objectType string, objectName string, sqlStatement string, options []string) QueryIssue {
+	sort.Strings(options)
+	issue := databaseOptionsPG17Issue
+	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
