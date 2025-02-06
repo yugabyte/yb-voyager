@@ -452,6 +452,26 @@ func testEventsListenNotifyIssue(t *testing.T) {
 	}
 }
 
+func testTwoPhaseCommitIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	sqls := map[string]string{
+		`PREPARE TRANSACTION 'tx1';`: `PREPARE TRANSACTION not supported yet`,
+		`COMMIT PREPARED 'tx1';`:     `COMMIT PREPARED not supported yet`,
+		`ROLLBACK PREPARED 'tx1';`:   `ROLLBACK PREPARED not supported yet`,
+	}
+	for sql, errMsg := range sqls {
+
+		_, err = conn.Exec(ctx, sql)
+
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, twoPhaseCommitIssue)
+	}
+}
+
 func TestDMLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -528,6 +548,9 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "events listen / notify", ybVersion), testEventsListenNotifyIssue)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "two-phase commit", ybVersion), testTwoPhaseCommitIssue)
 	assert.True(t, success)
 
 }

@@ -449,6 +449,16 @@ func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, err
 	return consNode, nil
 }
 
+func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
+	node, ok := msg.Interface().(*pg_query.TransactionStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_TRANSACTION_STMT_NODE)
+	}
+
+	return node, nil
+}
+
+
 /*
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}

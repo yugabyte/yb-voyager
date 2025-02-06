@@ -148,6 +148,28 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TABLE",
+            "ObjectName": "tbl_comp",
+            "Reason": "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
+            "SqlStatement": "CREATE TABLE tbl_comp (id int, val text COMPRESSION pglz, val1 text);",
+            "Suggestion": "Remove the clause from the DDL.",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
+            "ObjectName": "tbl_comp",
+            "Reason": "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
+            "SqlStatement": "ALTER TABLE tbl_comp ALTER COLUMN val1 SET COMPRESSION lz4;",
+            "Suggestion": "Remove the clause from the DDL.",
+            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+            "MinimumVersionsFixedIn": null
+        },
+        {
+            "IssueType": "unsupported_features",
+            "ObjectType": "TABLE",
             "ObjectName": "public.xml_data_example",
             "Reason": "XML functions are not yet supported in YugabyteDB.",
             "SqlStatement": " CREATE TABLE public.xml_data_example (\n    id SERIAL PRIMARY KEY,\n    name VARCHAR(255),\n    description XML DEFAULT xmlparse(document '\u003cproduct\u003e\u003cname\u003eDefault Product\u003c/name\u003e\u003cprice\u003e100.00\u003c/price\u003e\u003ccategory\u003eElectronics\u003c/category\u003e\u003c/product\u003e'),\n    created_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,\n    unique_keys_column TEXT CHECK (unique_keys_column IS JSON WITH UNIQUE KEYS)\n);",
