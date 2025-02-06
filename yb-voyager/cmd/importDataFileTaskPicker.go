@@ -169,7 +169,19 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		case FILE_IMPORT_COMPLETED:
 			doneTasks = append(doneTasks, task)
 		case FILE_IMPORT_IN_PROGRESS:
-			inProgressTasks = append(inProgressTasks, task)
+			if len(inProgressTasks) < maxTasksInProgress {
+				inProgressTasks = append(inProgressTasks, task)
+			} else {
+				// put into the table wise pending tasks.
+				var tablePendingTasks []*ImportFileTask
+				var ok bool
+				tablePendingTasks, ok = tableWisePendingTasks.Get(tableName)
+				if !ok {
+					tablePendingTasks = []*ImportFileTask{}
+				}
+				tablePendingTasks = append(tablePendingTasks, task)
+				tableWisePendingTasks.Put(tableName, tablePendingTasks)
+			}
 		case FILE_IMPORT_NOT_STARTED:
 			// put into the table wise pending tasks.
 			var tablePendingTasks []*ImportFileTask
