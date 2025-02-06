@@ -1748,7 +1748,6 @@ func validateAndSetTargetDbVersionFlag() error {
 
 func validateSourceDBIOPSForAssessMigration() error {
 	var totalIOPS int64
-	totalIOPS = 0
 
 	tableIndexStats, err := assessmentDB.FetchAllStats()
 	if err != nil {
@@ -1756,8 +1755,8 @@ func validateSourceDBIOPSForAssessMigration() error {
 	}
 
 	// Checking if source schema has zero objects.
-	if len(*tableIndexStats) == 0 {
-		if utils.AskPrompt("No objects found in mentioned schemas. Do you want to continue with the assessment:") {
+	if tableIndexStats == nil || len(*tableIndexStats) == 0 {
+		if utils.AskPrompt("No objects found in the specified schema(s). Do you want to continue anyway") {
 			return nil
 		} else {
 			utils.ErrExit("Aborting..")
@@ -1772,7 +1771,7 @@ func validateSourceDBIOPSForAssessMigration() error {
 
 	// Checking if source schema IOPS is not zero.
 	if totalIOPS == 0 {
-		if utils.AskPrompt("Detected mentioned schema IOPS as zero. Do you want to continue the assessment:") {
+		if utils.AskPrompt("Detected 0 read/write IOPS on the tables in specified schema(s). In order to get an accurate assessment, it is recommended that the source database is actively handling its typical workloads. Do you want to continue anyway") {
 			return nil
 		} else {
 			utils.ErrExit("Aborting..")
