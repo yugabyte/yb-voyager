@@ -19,7 +19,7 @@ type OracleContainer struct {
 }
 
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
-	if ora.container != nil {
+	if ora.container != nil && ora.container.IsRunning() {
 		utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
 		return nil
 	}
