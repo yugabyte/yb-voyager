@@ -10,7 +10,7 @@ jobs:
   run-pg-9-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.0.0-b145]
+        version: [2024.2.1.0-b185]
         BETA_FAST_DATA_EXPORT: [0, 1]
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
@@ -82,7 +82,7 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb \
+          docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
             bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
@@ -96,11 +96,11 @@ jobs:
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
 
-      - name: Enable yb-tserver-n1 and yb-master-n1 name resolution
+      - name: Enable yb-cluster-test name resolution
         run: |
-          echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
-          echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
+          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
+          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: pg-case-sensitivity-single-table"
         if: ${{ !cancelled() }}
