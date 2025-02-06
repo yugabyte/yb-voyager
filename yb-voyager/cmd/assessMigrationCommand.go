@@ -1182,6 +1182,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,
@@ -1271,6 +1272,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,
