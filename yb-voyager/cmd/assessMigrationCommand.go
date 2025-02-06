@@ -959,7 +959,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
-		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
 
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,

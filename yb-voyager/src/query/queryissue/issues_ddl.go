@@ -501,7 +501,6 @@ var loDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - lo",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
 }
@@ -517,7 +516,6 @@ var multiRangeDatatypeIssue = issue.Issue{
 	Name:        "Unsupported datatype - Multirange",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
-	Suggestion:  MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -536,7 +534,6 @@ var securityInvokerViewIssue = issue.Issue{
 	Name:        "Security Invoker Views",
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION,
-	Suggestion:  SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -553,7 +550,6 @@ var deterministicOptionCollationIssue = issue.Issue{
 	Name:        DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION,
-	Suggestion:  DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -570,7 +566,6 @@ var nonDeterministicCollationIssue = issue.Issue{
 	Name:        NON_DETERMINISTIC_COLLATION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION,
-	Suggestion:  DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 }
@@ -584,7 +579,6 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION,
-	Suggestion:  FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -604,7 +598,6 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	Name:        SQL_BODY_IN_FUNCTION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: "SQL Body for sql languages in function statement is not supported in YugabyteDB",
-	Suggestion:  SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
