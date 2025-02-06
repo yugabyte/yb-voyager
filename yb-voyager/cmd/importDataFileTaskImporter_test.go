@@ -47,7 +47,7 @@ func TestBasicTaskImport(t *testing.T) {
 	fileContents := `id,val
 1, "hello"
 2, "world"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_basic", 1)
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -88,7 +88,7 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	fileContents := `id,val
 1, "hello"
 2, "world"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_all", 1)
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -139,7 +139,7 @@ func TestTaskImportResumable(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume", 1)
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
@@ -198,7 +198,7 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_resume_no_pk", 1)
 	testutils.FatalIfError(t, err)
 
 	progressReporter := NewImportDataProgressReporter(true)
