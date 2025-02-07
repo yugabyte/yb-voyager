@@ -61,7 +61,16 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 	printContainerLogs(ms.container)
-	return err
+
+	if err != nil {
+		return fmt.Errorf("failed to start mysql container: %w", err)
+	}
+
+	err = pingDatabase("mysql", ms.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping mysql container: %w", err)
+	}
+	return nil
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {

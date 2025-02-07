@@ -61,7 +61,15 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 	printContainerLogs(ora.container)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to start oracle container: %w", err)
+	}
+
+	err = pingDatabase("godror", ora.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping oracle container: %w", err)
+	}
+	return nil
 }
 
 func (ora *OracleContainer) Terminate(ctx context.Context) {

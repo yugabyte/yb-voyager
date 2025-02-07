@@ -64,7 +64,15 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	})
 
 	printContainerLogs(pg.container)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to start postgres container: %w", err)
+	}
+
+	err = pingDatabase("pgx", pg.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping postgres container: %w", err)
+	}
+	return nil
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {

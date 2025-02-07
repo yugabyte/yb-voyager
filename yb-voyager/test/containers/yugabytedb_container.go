@@ -68,7 +68,15 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 	printContainerLogs(yb.container)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to start yugabytedb container: %w", err)
+	}
+
+	err = pingDatabase("pgx", yb.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping yugabytedb container: %w", err)
+	}
+	return nil
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
