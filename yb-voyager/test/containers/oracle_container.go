@@ -107,7 +107,15 @@ func (ora *OracleContainer) GetConfig() ContainerConfig {
 }
 
 func (ora *OracleContainer) GetConnectionString() string {
-	panic("GetConnectionString() not implemented yet for oracle")
+	config := ora.GetConfig()
+	host, port, err := ora.GetHostPort()
+	if err != nil {
+		utils.ErrExit("failed to get host port for oracle connection string: %v", err)
+	}
+
+	connectString := fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,
+		host, port, config.DBName)
+	return fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, config.User, config.Password, connectString)
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
