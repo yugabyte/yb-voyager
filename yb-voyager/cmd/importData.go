@@ -548,8 +548,8 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
 	}
-	log.Debugf("pending tasks: %v", pendingTasks)
-	log.Debugf("completed tasks: %v", completedTasks)
+	log.Infof("pending tasks: %v", pendingTasks)
+	log.Infof("completed tasks: %v", completedTasks)
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
