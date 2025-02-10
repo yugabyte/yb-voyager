@@ -742,8 +742,14 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				continue
+			} else {
+				// some batches are still in progress, wait for them to complete as decided by the picker.
+				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
+				taskPicker.WaitForTasksBatchesTobeImported()
+				continue
 			}
-			continue
+
 		}
 		err = taskImporter.SubmitNextBatch()
 		if err != nil {

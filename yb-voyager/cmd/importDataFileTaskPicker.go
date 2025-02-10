@@ -17,12 +17,14 @@ package cmd
 
 import (
 	"fmt"
+	"time"
 )
 
 type FileTaskPicker interface {
 	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
+	WaitForTasksBatchesTobeImported()
 }
 
 /*
@@ -96,4 +98,8 @@ func (s *SequentialTaskPicker) HasMoreTasks() bool {
 		return true
 	}
 	return len(s.pendingTasks) > 0
+}
+
+func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
+	time.Sleep(time.Second * 1)
 }
