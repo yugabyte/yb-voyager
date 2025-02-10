@@ -20,7 +20,7 @@ import (
 )
 
 type FileTaskPicker interface {
-	NextTask() (*ImportFileTask, error)
+	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
 }
@@ -65,7 +65,7 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*
 	}, nil
 }
 
-func (s *SequentialTaskPicker) NextTask() (*ImportFileTask, error) {
+func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 	if !s.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
 	}

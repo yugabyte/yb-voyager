@@ -712,7 +712,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
-		task, err := taskPicker.NextTask()
+		task, err := taskPicker.Pick()
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}

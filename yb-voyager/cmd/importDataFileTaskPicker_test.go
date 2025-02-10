@@ -53,7 +53,7 @@ func TestSequentialTaskPickerBasic(t *testing.T) {
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task1, task)
 	}
@@ -87,7 +87,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task1, task)
 	}
@@ -101,7 +101,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 	assert.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task2, task)
 	}
@@ -144,7 +144,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task1, task)
 	}
@@ -166,7 +166,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task1, task)
 	}
@@ -176,7 +176,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 	assert.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Equal(t, task2, task)
 	}
