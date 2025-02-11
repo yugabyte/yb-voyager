@@ -99,7 +99,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	return ldataDir, lexportDir, state, nil
 }
 
-func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string) (string, *ImportFileTask, error) {
+func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string, id int) (string, *ImportFileTask, error) {
 	dataFileDescriptor = &datafile.Descriptor{
 		FileFormat: "csv",
 		Delimiter:  ",",
@@ -117,7 +117,7 @@ func createFileAndTask(lexportDir string, fileContents string, ldataDir string, 
 	sourceName := sqlname.NewObjectName(constants.POSTGRESQL, "public", "public", tableName)
 	tableNameTup := sqlname.NameTuple{SourceName: sourceName, CurrentName: sourceName}
 	task := &ImportFileTask{
-		ID:           1,
+		ID:           id,
 		FilePath:     tempFile,
 		TableNameTup: tableNameTup,
 		RowCount:     1,

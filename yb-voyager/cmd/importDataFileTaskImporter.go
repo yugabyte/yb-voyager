@@ -30,6 +30,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+/*
+FileTaskImporter is responsible for importing an ImportFileTask.
+It uses a FileBatchProducer to produce batches. It submits each batch to a provided
+worker pool for processing. It also maintains and updates the progress of the task.
+*/
 type FileTaskImporter struct {
 	task                 *ImportFileTask
 	state                *ImportDataState
@@ -75,12 +80,15 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
 }
 
-func (fti *FileTaskImporter) AllBatchesImported() error {
-	// TODO: check importDataState for status.
-	panic("not implemented")
+func (fti *FileTaskImporter) AllBatchesImported() (bool, error) {
+	taskStatus, err := fti.state.GetFileImportState(fti.task.FilePath, fti.task.TableNameTup)
+	if err != nil {
+		return false, fmt.Errorf("getting file import state: %s", err)
+	}
+	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
-func (fti *FileTaskImporter) SubmitNextBatch() error {
+func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
 	}
@@ -234,6 +242,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	}
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
+
 	// from export data with ora2pg, it comes as an SQL file, with COPY command having data.
 	// Import-data also reads it appropriately with the help of sqlDataFile.
 	// But while running COPY for a batch, we need to set the format as TEXT (SQL does not make sense)
