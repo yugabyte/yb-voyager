@@ -101,5 +101,8 @@ func (s *SequentialTaskPicker) HasMoreTasks() bool {
 }
 
 func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
+	// Consider the scenario where we have a single task in progress and all batches are submitted, but not yet ingested.
+	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
+	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
 	time.Sleep(time.Second * 1)
 }

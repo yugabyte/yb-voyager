@@ -610,7 +610,7 @@ func importData(importFileTasks []*ImportFileTask) {
 					}
 
 					for !taskImporter.AllBatchesSubmitted() {
-						err := taskImporter.SubmitNextBatch()
+						err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 						if err != nil {
 							utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
 						}
@@ -699,6 +699,15 @@ func importData(importFileTasks []*ImportFileTask) {
 
 }
 
+/*
+1. Initialize a worker pool
+2. Create a task picker which helps the importer choose which task to process in each iteration.
+3. Loop until all tasks are done:
+  - Pick a task from the task picker.
+  - If the task is not already being processed, create a new FileTaskImporter for the task.
+  - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
+  - If task is done, mark it as done in the task picker.
+*/
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int) error {
 	// The code can produce `poolSize` number of batches at a time. But, it can consume only
 	// `parallelism` number of batches at a time.
@@ -751,7 +760,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			}
 
 		}
-		err = taskImporter.SubmitNextBatch()
+		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
 		}
