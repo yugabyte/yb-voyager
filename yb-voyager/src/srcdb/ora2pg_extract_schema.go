@@ -90,22 +90,22 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			}
 		}
 		if err := processImportDirectives(utils.GetObjectFilePath(schemaDir, exportObject)); err != nil {
-			utils.ErrExit(err.Error())
+			utils.ErrExit("failed to process import directives during export schema: %v", err.Error())
 		}
 		if exportObject == "SYNONYM" {
 			if err := stripSourceSchemaNames(utils.GetObjectFilePath(schemaDir, exportObject), source.Schema); err != nil {
-				utils.ErrExit(err.Error())
+				utils.ErrExit("failed to strip schema names for SYNONYM object during export schema: %v", err.Error())
 			}
 		}
 		if exportObject == "TABLE" {
 			if err := removeReduntantAlterTable(utils.GetObjectFilePath(schemaDir, exportObject)); err != nil {
-				utils.ErrExit(err.Error())
+				utils.ErrExit("failed to remove redundant alter table during export schema: %v", err.Error())
 			}
 		}
 	}
 	if source.DBType == "oracle" {
 		if err := ora2pgAssessmentReport(source, configFilePath, schemaDir); err != nil {
-			utils.ErrExit(err.Error())
+			utils.ErrExit("failed to save ora2pg oracle assessment report during export schema: %v", err.Error())
 		}
 	}
 }
