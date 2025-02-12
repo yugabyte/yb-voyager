@@ -244,8 +244,8 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
-	step "Re-Enable Triggers and Fkeys"
-	reenable_triggers_fkeys
+	# step "Re-Enable Triggers and Fkeys"
+	# reenable_triggers_fkeys
 	
 	step "Run final validations."
 	if [ -x "${TEST_DIR}/validateAfterChanges" ]

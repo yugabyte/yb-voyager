@@ -679,50 +679,52 @@ setup_fallback_environment() {
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
 		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
-		disable_triggers_sql=$(mktemp)
-        drop_constraints_sql=$(mktemp)
-		formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
+		echo "grant super user"
+
+		# disable_triggers_sql=$(mktemp)
+        # drop_constraints_sql=$(mktemp)
+		# formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
 
 		# Disabling Triggers
-		cat <<EOF > "${disable_triggers_sql}"
-DO \$\$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT table_schema, '"' || table_name || '"' AS t_name
-        FROM information_schema.tables
-        WHERE table_type = 'BASE TABLE'
-        AND table_schema IN ('${formatted_schema_list}')
-    LOOP
-        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' DISABLE TRIGGER ALL';
-    END LOOP;
-END \$\$;
-EOF
+# 		cat <<EOF > "${disable_triggers_sql}"
+# DO \$\$
+# DECLARE
+#     r RECORD;
+# BEGIN
+#     FOR r IN
+#         SELECT table_schema, '"' || table_name || '"' AS t_name
+#         FROM information_schema.tables
+#         WHERE table_type = 'BASE TABLE'
+#         AND table_schema IN ('${formatted_schema_list}')
+#     LOOP
+#         EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' DISABLE TRIGGER ALL';
+#     END LOOP;
+# END \$\$;
+# EOF
 
-        # Dropping Fkeys
-        cat <<EOF > "${drop_constraints_sql}"
-DO \$\$
-DECLARE
-    fk RECORD;
-BEGIN
-    FOR fk IN
-        SELECT conname, conrelid::regclass AS table_name
-        FROM pg_constraint
-        JOIN pg_class ON conrelid = pg_class.oid
-        JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
-        WHERE contype = 'f'
-        AND pg_namespace.nspname IN ('${formatted_schema_list}')
-    LOOP
-        EXECUTE 'ALTER TABLE ' || fk.table_name || ' DROP CONSTRAINT ' || fk.conname;
-    END LOOP;
-END \$\$;
-EOF
+#         # Dropping Fkeys
+#         cat <<EOF > "${drop_constraints_sql}"
+# DO \$\$
+# DECLARE
+#     fk RECORD;
+# BEGIN
+#     FOR fk IN
+#         SELECT conname, conrelid::regclass AS table_name
+#         FROM pg_constraint
+#         JOIN pg_class ON conrelid = pg_class.oid
+#         JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+#         WHERE contype = 'f'
+#         AND pg_namespace.nspname IN ('${formatted_schema_list}')
+#     LOOP
+#         EXECUTE 'ALTER TABLE ' || fk.table_name || ' DROP CONSTRAINT ' || fk.conname;
+#     END LOOP;
+# END \$\$;
+# EOF
 
-        psql_import_file "${SOURCE_DB_NAME}" "${disable_triggers_sql}"
-        psql_import_file "${SOURCE_DB_NAME}" "${drop_constraints_sql}"
+#         psql_import_file "${SOURCE_DB_NAME}" "${disable_triggers_sql}"
+#         psql_import_file "${SOURCE_DB_NAME}" "${drop_constraints_sql}"
 
-        rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
+#         rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
 	fi
 }
 

@@ -228,5 +228,9 @@ GRANT pg_read_all_stats to :voyager_user;
         WHERE 
             schema_name = ANY(string_to_array(:'schema_list', ','))
         \gexec
+
+        \echo ''
+        \echo '--- GRANT SET ON SESSION_REPLICATION_ROLE to the user'
+        GRANT SET ON PARAMETER session_replication_role to :voyager_user;
     \endif
 \endif
