@@ -1139,7 +1139,7 @@ func startFallBackSetupIfRequired() {
 		cmd = append(cmd, "--disable-pb=true")
 	}
 	if !source.RunGuardrailsChecks {
-		cmd = append(cmd, "--run-guardrails-checks false")
+		cmd = append(cmd, "--run-guardrails-checks=false")
 	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
