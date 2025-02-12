@@ -33,7 +33,7 @@ const (
 )
 
 type FileTaskPicker interface {
-	NextTask() (*ImportFileTask, error)
+	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
 	WaitForTasksBatchesTobeImported()
@@ -232,7 +232,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 	}, nil
 }
 
-func (c *ColocatedAwareRandomTaskPicker) NextTask() (*ImportFileTask, error) {
+func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
 	}
@@ -368,4 +368,9 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 	})
 
 	return pendingTasks
+}
+
+func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
+	// no wait
+	return
 }
