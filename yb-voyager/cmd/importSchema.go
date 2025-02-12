@@ -198,7 +198,7 @@ func importSchema() error {
 		skipFn := isSkipStatement
 		err = importSchemaInternal(exportDir, objectList, skipFn)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for objects [%s]: %s", objectList, err) // object list is the static list of object types
+			return fmt.Errorf("failed to import schema for objects %s: %s", objectList, err) // object list is the static list of object types
 		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
