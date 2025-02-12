@@ -39,7 +39,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 
 	fileContents := `id,val
 1, "hello"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -71,7 +71,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -122,7 +122,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 2, "ghijk"
 3, "mnopq"
 4, "stuvw"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -138,9 +138,9 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 		batches = append(batches, batch)
 	}
 
-	// 3 batches should be produced
-	// while calculating for the first batch, the header is also considered
-	assert.Equal(t, 3, len(batches))
+	// 4 batches should be produced
+	// while calculating for the batches, the header is also considered
+	assert.Equal(t, 4, len(batches))
 
 	batch1ExpectedContents := "id,val\n1, \"abcde\""
 	assert.Equal(t, int64(1), batches[0].RecordCount)
@@ -149,19 +149,27 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, batch1ExpectedContents, string(batchContents))
 
-	batch2ExpectedContents := "id,val\n2, \"ghijk\"\n3, \"mnopq\""
-	assert.Equal(t, int64(2), batches[1].RecordCount)
+	batch2ExpectedContents := "id,val\n2, \"ghijk\""
+	assert.Equal(t, int64(1), batches[1].RecordCount)
 	assert.LessOrEqual(t, batches[1].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[1].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, batch2ExpectedContents, string(batchContents))
 
-	batch3ExpectedContents := "id,val\n4, \"stuvw\""
+
+	batch3ExpectedContents := "id,val\n3, \"mnopq\""
 	assert.Equal(t, int64(1), batches[2].RecordCount)
 	assert.LessOrEqual(t, batches[2].ByteCount, maxBatchSizeBytes)
 	batchContents, err = os.ReadFile(batches[2].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, batch3ExpectedContents, string(batchContents))
+
+	batch4ExpectedContents := "id,val\n4, \"stuvw\""
+	assert.Equal(t, int64(1), batches[3].RecordCount)
+	assert.LessOrEqual(t, batches[3].ByteCount, maxBatchSizeBytes)
+	batchContents, err = os.ReadFile(batches[3].GetFilePath())
+	assert.NoError(t, err)
+	assert.Equal(t, batch4ExpectedContents, string(batchContents))
 }
 
 func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *testing.T) {
@@ -182,7 +190,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 2, "ghijk"
 3, "mnopq1234567899876543"
 4, "stuvw"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -218,7 +226,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)
@@ -274,7 +282,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 2, "world"
 3, "foo"
 4, "bar"`
-	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table")
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
 	batchproducer, err := NewFileBatchProducer(task, state)

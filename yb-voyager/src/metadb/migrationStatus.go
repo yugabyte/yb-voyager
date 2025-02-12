@@ -53,6 +53,9 @@ type MigrationStatusRecord struct {
 	IsExportTableListSet             bool              `json:"IsExportTableListSet"`
 	MigrationAssessmentDone          bool              `json:"MigrationAssessmentDone"`
 	AssessmentRecommendationsApplied bool              `json:"AssessmentRecommendationsApplied"`
+
+	ImportDataFileFlagFileTableMapping string `json:"ImportDataFileFlagFileTableMapping"` // Import data file command's file_table_mapping flag
+	ImportDataFileFlagDataDir          string `json:"ImportDataFileFlagDataDir"`          // Import data file command's data-dir flag
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

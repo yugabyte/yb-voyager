@@ -60,6 +60,7 @@ func getConn() (*pgx.Conn, error) {
 	return conn, nil
 }
 
+// TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
 func assertErrorCorrectlyThrownForIssueForYBVersion(t *testing.T, execErr error, expectedError string, issue issue.Issue) {
 	isFixed, err := issue.IsFixedIn(testYbVersion)
 	testutils.FatalIfError(t, err)
@@ -419,6 +420,7 @@ func testDatabaseOptions(t *testing.T) {
 		switch {
 		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
 			assert.NoError(t, err)
+			//Database options works on pg15 but not supported actually and hence not marking this as supported
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)
 		default:
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `not recognized`, databaseOptionsPG15Issue)
@@ -502,6 +504,42 @@ ORDER BY name;`)
 
 }
 
+func testCompressionClauseIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	defer conn.Close(context.Background())
+
+	_, err = conn.Exec(ctx, `CREATE TABLE tbl_comp1(id int, v text COMPRESSION pglz);`)
+	//CREATE works on 2.25 without errors or warning but not supported actually
+
+	var errMsg string
+	switch {
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		assert.NoError(t, err)
+		err = fmt.Errorf("")
+		errMsg = ""
+	default:
+		errMsg = `syntax error at or near "COMPRESSION"`
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
+
+	_, err = conn.Exec(ctx, `
+	CREATE TABLE tbl_comp(id int, v text);
+	ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
+	//ALTER not supported in 2.25
+	switch {
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		errMsg = "This ALTER TABLE command is not yet supported."
+	default:
+		errMsg = `syntax error at or near "COMPRESSION"`
+	}
+	//TODO maybe we don't need the version check for different error msgs, just check if any of the error msgs is found in the error
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, compressionClauseForToasting)
+
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -577,6 +615,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "before row triggers on partitioned table", ybVersion), testBeforeRowTriggerOnPartitionedTable)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "compression clause", ybVersion), testCompressionClauseIssue)
+	assert.True(t, success)
 	success = t.Run(fmt.Sprintf("%s-%s", "database options", ybVersion), testDatabaseOptions)
 	assert.True(t, success)
 

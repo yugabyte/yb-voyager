@@ -92,17 +92,23 @@ const (
 	PG_QUERY_LISTEN_STMT_NODE                = "pg_query.ListenStmt"
 	PG_QUERY_NOTIFY_STMT_NODE                = "pg_query.NotifyStmt"
 	PG_QUERY_UNLISTEN_STMT_NODE              = "pg_query.UnlistenStmt"
+	PG_QUERY_TRANSACTION_STMT_NODE           = "pg_query.TransactionStmt"
 
-	LIMIT_OPTION_WITH_TIES   = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
-	CTE_MATERIALIZED_DEFAULT = pg_query.CTEMaterialize_CTEMaterializeDefault
-	ADD_CONSTRAINT           = pg_query.AlterTableType_AT_AddConstraint
-	SET_OPTIONS              = pg_query.AlterTableType_AT_SetOptions
-	DISABLE_RULE             = pg_query.AlterTableType_AT_DisableRule
-	CLUSTER_ON               = pg_query.AlterTableType_AT_ClusterOn
-	EXCLUSION_CONSTR_TYPE    = pg_query.ConstrType_CONSTR_EXCLUSION
-	FOREIGN_CONSTR_TYPE      = pg_query.ConstrType_CONSTR_FOREIGN
-	DEFAULT_SORTING_ORDER    = pg_query.SortByDir_SORTBY_DEFAULT
-	PRIMARY_CONSTR_TYPE      = pg_query.ConstrType_CONSTR_PRIMARY
-	UNIQUE_CONSTR_TYPE       = pg_query.ConstrType_CONSTR_UNIQUE
-	LIST_PARTITION           = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
+	LIMIT_OPTION_WITH_TIES         = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
+	CTE_MATERIALIZED_DEFAULT       = pg_query.CTEMaterialize_CTEMaterializeDefault
+	ADD_CONSTRAINT                 = pg_query.AlterTableType_AT_AddConstraint
+	SET_OPTIONS                    = pg_query.AlterTableType_AT_SetOptions
+	DISABLE_RULE                   = pg_query.AlterTableType_AT_DisableRule
+	CLUSTER_ON                     = pg_query.AlterTableType_AT_ClusterOn
+	SET_COMPRESSION_ALTER_SUB_TYPE = pg_query.AlterTableType_AT_SetCompression
+	EXCLUSION_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_EXCLUSION
+	FOREIGN_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_FOREIGN
+	DEFAULT_SORTING_ORDER          = pg_query.SortByDir_SORTBY_DEFAULT
+	PRIMARY_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_PRIMARY
+	UNIQUE_CONSTR_TYPE             = pg_query.ConstrType_CONSTR_UNIQUE
+	LIST_PARTITION                 = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
+
+	PREPARED_TRANSACTION_KIND          = pg_query.TransactionStmtKind_TRANS_STMT_PREPARE
+	COMMIT_PREPARED_TRANSACTION_KIND   = pg_query.TransactionStmtKind_TRANS_STMT_COMMIT_PREPARED
+	ROLLBACK_PREPARED_TRANSACTION_KIND = pg_query.TransactionStmtKind_TRANS_STMT_ROLLBACK_PREPARED
 )
