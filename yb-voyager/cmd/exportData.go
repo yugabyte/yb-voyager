@@ -1138,6 +1138,9 @@ func startFallBackSetupIfRequired() {
 	if disablePb {
 		cmd = append(cmd, "--disable-pb=true")
 	}
+	if !source.RunGuardrailsChecks {
+		cmd = append(cmd, "--run-guardrails-checks false")
+	}
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))

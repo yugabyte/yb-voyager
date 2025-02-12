@@ -279,6 +279,7 @@ export_data() {
 		--source-db-name ${SOURCE_DB_NAME}
 		--disable-pb=true
 		--send-diagnostics=false
+		--run-guardrails-checks false
 		--yes
 	"
 	if [ "${TABLE_LIST}" != "" ]
