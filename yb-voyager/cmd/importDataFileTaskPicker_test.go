@@ -73,7 +73,7 @@ func TestSequentialTaskPickerBasic(t *testing.T) {
 
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask, it should return the same task (first task)
+	// no matter how many times we call Pick, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
 		task, err := picker.Pick()
 		assert.NoError(t, err)
@@ -107,7 +107,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask, it should return the same task (first task)
+	// no matter how many times we call Pick, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
 		task, err := picker.Pick()
 		assert.NoError(t, err)
@@ -176,16 +176,16 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 	assert.True(t, picker.HasMoreTasks())
 
 	// initially because maxInprogressTasks is 2, we will get 2 different tasks
-	pickedTask1, err := picker.NextTask()
+	pickedTask1, err := picker.Pick()
 	assert.NoError(t, err)
-	pickedTask2, err := picker.NextTask()
+	pickedTask2, err := picker.Pick()
 	assert.NoError(t, err)
 	assert.NotEqual(t, pickedTask1, pickedTask2)
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return either pickedTask1 or pickedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask1 || task == pickedTask2, "task: %v, pickedTask1: %v, pickedTask2: %v", task, pickedTask1, pickedTask2)
 	}
@@ -197,7 +197,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 	// keep picking tasks until we get a task that is not pickedTask2
 	var pickedTask3 *ImportFileTask
 	for {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		if err != nil {
 			break
 		}
@@ -209,7 +209,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 
 	// now, next task should be either pickedTask2 or pickedTask3
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
 	}
@@ -220,7 +220,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 
 	// now, next task should be pickedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask2, "task: %v, pickedTask2: %v", task, pickedTask2)
 	}
@@ -231,7 +231,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -278,16 +278,16 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 	assert.True(t, picker.HasMoreTasks())
 
 	// initially because maxInprogressTasks is 2, we will get 2 different tasks
-	pickedTask1, err := picker.NextTask()
+	pickedTask1, err := picker.Pick()
 	assert.NoError(t, err)
-	pickedTask2, err := picker.NextTask()
+	pickedTask2, err := picker.Pick()
 	assert.NoError(t, err)
 	assert.NotEqual(t, pickedTask1, pickedTask2)
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return either pickedTask1 or pickedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask1 || task == pickedTask2, "task: %v, pickedTask1: %v, pickedTask2: %v", task, pickedTask1, pickedTask2)
 	}
@@ -299,7 +299,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 	// keep picking tasks until we get a task that is not pickedTask2
 	var pickedTask3 *ImportFileTask
 	for {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		if err != nil {
 			break
 		}
@@ -311,7 +311,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 
 	// now, next task should be either pickedTask2 or pickedTask3
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
 	}
@@ -323,11 +323,11 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 	assert.NoError(t, err)
 
 	// now, next task should be pickedTask4, which is not one of the previous tasks
-	pickedTask4, err := picker.NextTask()
+	pickedTask4, err := picker.Pick()
 	assert.NoError(t, err)
 	assert.NotContains(t, []*ImportFileTask{pickedTask1, pickedTask2, pickedTask3}, pickedTask4)
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask4, "task: %v, pickedTask4: %v", task, pickedTask2)
 	}
@@ -338,7 +338,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -369,13 +369,13 @@ func TestColocatedAwareRandomTaskPickerSingleTask(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	pickedTask1, err := picker.NextTask()
+	pickedTask1, err := picker.Pick()
 	assert.NoError(t, err)
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return either pickedTask1
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == pickedTask1, "task: %v, pickedTask1: %v", task, pickedTask1)
 	}
@@ -386,7 +386,7 @@ func TestColocatedAwareRandomTaskPickerSingleTask(t *testing.T) {
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -428,10 +428,10 @@ func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == colocatedTask1 || task == colocatedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -442,7 +442,7 @@ func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing
 
 	// now, next task should be either colocatedTask1 or colocatedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2, "task: %v, colocatedTask1: %v, colocatedTask2: %v", task, colocatedTask1, colocatedTask2)
 	}
@@ -455,7 +455,7 @@ func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -497,10 +497,10 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasks
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == colocatedTask1 || task == colocatedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -511,7 +511,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasks
 
 	// now, next task should be either colocatedTask1 or colocatedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2, "task: %v, colocatedTask1: %v, colocatedTask2: %v", task, colocatedTask1, colocatedTask2)
 	}
@@ -524,7 +524,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasks
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -566,10 +566,10 @@ func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testin
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == colocatedTask1 || task == colocatedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -580,7 +580,7 @@ func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testin
 
 	// now, next task should be either colocatedTask1 or colocatedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2, "task: %v, colocatedTask1: %v, colocatedTask2: %v", task, colocatedTask1, colocatedTask2)
 	}
@@ -593,7 +593,7 @@ func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testin
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -635,10 +635,10 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTask
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == colocatedTask1 || task == colocatedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -649,7 +649,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTask
 
 	// now, next task should be either colocatedTask1 or colocatedTask2
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2, "task: %v, colocatedTask1: %v, colocatedTask2: %v", task, colocatedTask1, colocatedTask2)
 	}
@@ -662,7 +662,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTask
 
 	// now, there should be no more tasks
 	assert.False(t, picker.HasMoreTasks())
-	_, err = picker.NextTask()
+	_, err = picker.Pick()
 	assert.Error(t, err)
 }
 
@@ -702,10 +702,10 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -752,7 +752,7 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
 	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, dummyYb.colocatedTables, dummyYb.shardedTables)
 
 	// now pick one task. After picking that task, the chooser should have updated probabilities
-	task, err := picker.NextTask()
+	task, err := picker.Pick()
 	assert.NoError(t, err)
 
 	updatedPendingColocatedTables := lo.Filter(dummyYb.colocatedTables, func(t sqlname.NameTuple, _ int) bool {
@@ -866,10 +866,10 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -916,7 +916,7 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
 	assertTableChooserPicksShardedAndColocatedAsExpected(t, picker.tableChooser, dummyYb.colocatedTables, dummyYb.shardedTables)
 
 	// now pick one task. After picking that task, the chooser should have updated probabilities
-	task, err := picker.NextTask()
+	task, err := picker.Pick()
 	assert.NoError(t, err)
 
 	updatedPendingColocatedTables := lo.Filter(dummyYb.colocatedTables, func(t sqlname.NameTuple, _ int) bool {
@@ -975,10 +975,10 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call NextTask therefater,
+	// no matter how many times we call Pick therefater,
 	// it should return one of the tasks
 	for i := 0; i < 100; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
 	}
@@ -1041,7 +1041,7 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 
 	// now pick tasks one by one. After picking each task, the chooser should have updated probabilities
 	for i := 0; i < 4; i++ {
-		task, err := picker.NextTask()
+		task, err := picker.Pick()
 		assert.NoError(t, err)
 
 		updatedPendingColocatedTables = lo.Filter(updatedPendingColocatedTables, func(t sqlname.NameTuple, _ int) bool {
