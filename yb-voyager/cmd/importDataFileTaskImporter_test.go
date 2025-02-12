@@ -56,7 +56,7 @@ func TestBasicTaskImport(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	for !taskImporter.AllBatchesSubmitted() {
-		err := taskImporter.SubmitNextBatch()
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		assert.NoError(t, err)
 	}
 
@@ -96,7 +96,7 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter)
 
 	for !taskImporter.AllBatchesSubmitted() {
-		err := taskImporter.SubmitNextBatch()
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		assert.NoError(t, err)
 	}
 
@@ -148,7 +148,7 @@ func TestTaskImportResumable(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
-	err = taskImporter.SubmitNextBatch()
+	err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 	assert.NoError(t, err)
 
 	// check that the first batch was imported
@@ -165,7 +165,7 @@ func TestTaskImportResumable(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
-	err = taskImporter.SubmitNextBatch()
+	err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 	assert.NoError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
@@ -207,7 +207,7 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	// submit 1 batch
-	err = taskImporter.SubmitNextBatch()
+	err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 	assert.NoError(t, err)
 
 	// check that the first batch was imported
@@ -224,7 +224,7 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	// submit second batch, not first batch again as it was already imported
-	err = taskImporter.SubmitNextBatch()
+	err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 	assert.NoError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())

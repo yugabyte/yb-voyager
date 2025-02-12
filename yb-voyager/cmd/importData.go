@@ -548,8 +548,8 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
 	}
-	log.Debugf("pending tasks: %v", pendingTasks)
-	log.Debugf("completed tasks: %v", completedTasks)
+	log.Infof("pending tasks: %v", pendingTasks)
+	log.Infof("completed tasks: %v", completedTasks)
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
@@ -611,7 +611,7 @@ func importData(importFileTasks []*ImportFileTask) {
 					}
 
 					for !taskImporter.AllBatchesSubmitted() {
-						err := taskImporter.SubmitNextBatch()
+						err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 						if err != nil {
 							utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
 						}
@@ -700,6 +700,15 @@ func importData(importFileTasks []*ImportFileTask) {
 
 }
 
+/*
+1. Initialize a worker pool
+2. Create a task picker which helps the importer choose which task to process in each iteration.
+3. Loop until all tasks are done:
+  - Pick a task from the task picker.
+  - If the task is not already being processed, create a new FileTaskImporter for the task.
+  - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
+  - If task is done, mark it as done in the task picker.
+*/
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int, maxTasksInProgress int) error {
 	// The code can produce `poolSize` number of batches at a time. But, it can consume only
 	// `parallelism` number of batches at a time.
@@ -727,7 +736,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
-		task, err := taskPicker.NextTask()
+		task, err := taskPicker.Pick()
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
@@ -757,10 +766,16 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				continue
+			} else {
+				// some batches are still in progress, wait for them to complete as decided by the picker.
+				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
+				taskPicker.WaitForTasksBatchesTobeImported()
+				continue
 			}
-			continue
+
 		}
-		err = taskImporter.SubmitNextBatch()
+		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
 		}

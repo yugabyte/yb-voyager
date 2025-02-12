@@ -104,6 +104,13 @@ const (
 	LISTEN_NOTIFY_NAME               = "Events Listen / Notify"
 	NON_DECIMAL_INTEGER_LITERAL      = "NON_DECIMAL_INTEGER_LITERAL"
 	NON_DECIMAL_INTEGER_LITERAL_NAME = "Non-decimal integer literal"
+
+	TWO_PHASE_COMMIT = "TWO_PHASE_COMMIT"
+
+	COMPRESSION_CLAUSE_IN_TABLE      = "COMPRESSION_CLAUSE_IN_TABLE"
+	COMPRESSION_CLAUSE_IN_TABLE_NAME = "COMPRESSION clause in table for TOASTing"
+	DATABASE_OPTIONS_PG15            = "DATABASE_OPTIONS_PG15"
+	DATABASE_OPTIONS_PG17            = "DATABASE_OPTIONS_PG17"
 )
 
 const (
@@ -176,6 +183,7 @@ const (
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION                    = "Non-Deterministic collations are not yet supported in YugabyteDB."
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION       = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                      = "Unique constraint on columns with NULL values is not yet supported in YugabyteDB."
+	DATABASE_OPTIONS_DESCRIPTION                                     = "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB."
 )
 
 // Object types
@@ -214,10 +222,4 @@ const (
 	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
 	FOREIGN_TABLE_ISSUE_SUGGESTION                            = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION              = "Fix the syntax to include the actual type name instead of referencing the type of a column"
-	LARGE_OBJECT_DATATYPE_ISSUE_SUGGESTION                    = "Large objects are not yet supported in YugabyteDB, no workaround available currently"
-	MULTI_RANGE_DATATYPE_ISSUE_SUGGESTION                     = "Multirange data type is not yet supported in YugabyteDB, no workaround available currently"
-	SECURITY_INVOKER_VIEWS_ISSUE_SUGGESTION                   = "Security Invoker Views are not yet supported in YugabyteDB, no workaround available currently"
-	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_SUGGESTION      = "This feature is not supported in YugabyteDB yet"
-	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_SUGGESTION = "No workaround available."
-	SQL_BODY_IN_FUNCTION_ISSUE_SUGGESTION                     = "No workaround available."
 )

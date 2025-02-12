@@ -18,6 +18,8 @@ package cmd
 import (
 	"fmt"
 
+	"time"
+
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -34,6 +36,7 @@ type FileTaskPicker interface {
 	NextTask() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
+	WaitForTasksBatchesTobeImported()
 }
 
 /*
@@ -41,13 +44,15 @@ A sequential task picker ensures that mulitple tasks are not being processed at 
 It will always pick the same task (first task in the pending list) until it is marked as done.
 */
 type SequentialTaskPicker struct {
-	pendingTasks []*ImportFileTask
-	doneTasks    []*ImportFileTask
+	inProgressTask *ImportFileTask
+	pendingTasks   []*ImportFileTask
+	doneTasks      []*ImportFileTask
 }
 
 func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*SequentialTaskPicker, error) {
 	var pendingTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
+	var inProgressTask *ImportFileTask
 	for _, task := range tasks {
 		taskStatus, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
 		if err != nil {
@@ -56,41 +61,62 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*
 		switch taskStatus {
 		case FILE_IMPORT_COMPLETED:
 			doneTasks = append(doneTasks, task)
-		case FILE_IMPORT_NOT_STARTED, FILE_IMPORT_IN_PROGRESS:
+		case FILE_IMPORT_NOT_STARTED:
 			pendingTasks = append(pendingTasks, task)
+		case FILE_IMPORT_IN_PROGRESS:
+			if inProgressTask != nil {
+				return nil, fmt.Errorf("multiple tasks are in progress. task1: %v, task2: %v", inProgressTask, task)
+			}
+			inProgressTask = task
 		default:
 			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
 	return &SequentialTaskPicker{
-		pendingTasks: pendingTasks,
-		doneTasks:    doneTasks,
+		pendingTasks:   pendingTasks,
+		doneTasks:      doneTasks,
+		inProgressTask: inProgressTask,
 	}, nil
 }
 
-func (s *SequentialTaskPicker) NextTask() (*ImportFileTask, error) {
+func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 	if !s.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
 	}
-	return s.pendingTasks[0], nil
+
+	if s.inProgressTask == nil {
+		s.inProgressTask = s.pendingTasks[0]
+		s.pendingTasks = s.pendingTasks[1:]
+	}
+	return s.inProgressTask, nil
 }
 
 func (s *SequentialTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
-	// it is assumed that the task is in pendingTasks and the first task in the list.
-	// because SequentialTaskPicker will always pick the first task from the list.
-	if !s.HasMoreTasks() {
-		return fmt.Errorf("no more pending tasks to mark as done")
+
+	if s.inProgressTask == nil {
+		return fmt.Errorf("no task in progress to mark as done")
 	}
-	if s.pendingTasks[0].ID != task.ID {
-		return fmt.Errorf("Task provided is not the first pending task. task's id = %d, first pending task's id = %d. ", task.ID, s.pendingTasks[0].ID)
+	if s.inProgressTask.ID != task.ID {
+		return fmt.Errorf("Task provided is not the task in progress. task's id = %d, task in progress's id = %d. ", task.ID, s.inProgressTask.ID)
 	}
-	s.pendingTasks = s.pendingTasks[1:]
+	s.inProgressTask = nil
 	s.doneTasks = append(s.doneTasks, task)
+
 	return nil
 }
 
 func (s *SequentialTaskPicker) HasMoreTasks() bool {
+	if s.inProgressTask != nil {
+		return true
+	}
 	return len(s.pendingTasks) > 0
+}
+
+func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
+	// Consider the scenario where we have a single task in progress and all batches are submitted, but not yet ingested.
+	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
+	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
+	time.Sleep(time.Second * 1)
 }
 
 /*

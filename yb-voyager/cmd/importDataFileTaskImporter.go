@@ -30,6 +30,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+/*
+FileTaskImporter is responsible for importing an ImportFileTask.
+It uses a FileBatchProducer to produce batches. It submits each batch to a provided
+worker pool for processing. It also maintains and updates the progress of the task.
+*/
 type FileTaskImporter struct {
 	task                 *ImportFileTask
 	state                *ImportDataState
@@ -83,7 +88,7 @@ func (fti *FileTaskImporter) AllBatchesImported() (bool, error) {
 	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
-func (fti *FileTaskImporter) SubmitNextBatch() error {
+func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
 	}

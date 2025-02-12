@@ -1209,6 +1209,63 @@ $func$;`,
 	}
 }
 
+func TestDatabaseOptions(t *testing.T) {
+	sqls := []string{
+		` CREATE DATABASE locale_example
+    WITH LOCALE = 'en_US.UTF-8'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE locale_provider_example
+    WITH ICU_LOCALE = 'en_US'
+         LOCALE_PROVIDER = 'icu'
+         TEMPLATE = template0;`,
+		`CREATE DATABASE oid_example
+    WITH OID = 123456;`,
+		`CREATE DATABASE collation_version_example
+    WITH COLLATION_VERSION = '153.128';`,
+		`CREATE DATABASE icu_rules_example
+    WITH ICU_RULES = '&a < b < c';`,
+		`CREATE DATABASE builtin_locale_example
+    WITH BUILTIN_LOCALE = 'C';`,
+		`CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log';`,
+	}
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "locale_example", sqls[0], []string{"locale"}),
+		},
+		sqls[1]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "locale_provider_example", sqls[1], []string{"icu_locale", "locale_provider"}),
+		},
+		sqls[2]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "oid_example", sqls[2], []string{"oid"}),
+		},
+		sqls[3]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "collation_version_example", sqls[3], []string{"collation_version"}),
+		},
+		sqls[4]: []QueryIssue{
+			NewDatabaseOptionsPG17Issue("DATABASE", "icu_rules_example", sqls[4], []string{"icu_rules"}),
+		},
+		sqls[5]: []QueryIssue{
+			NewDatabaseOptionsPG17Issue("DATABASE", "builtin_locale_example", sqls[5], []string{"builtin_locale"}),
+		},
+		sqls[6]: []QueryIssue{
+			NewDatabaseOptionsPG15Issue("DATABASE", "strategy_example", sqls[6], []string{"strategy"}),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}
 func TestListenNotifyIssues(t *testing.T) {
 	sqls := []string{
 		`LISTEN my_table_changes;`,
@@ -1222,7 +1279,7 @@ BEGIN
   RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;`,
-`CREATE OR REPLACE FUNCTION notify_and_insert()
+		`CREATE OR REPLACE FUNCTION notify_and_insert()
 RETURNS VOID AS $$
 BEGIN
 	LISTEN my_table_changes;
@@ -1270,4 +1327,99 @@ $$ LANGUAGE plpgsql;`,
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
+}
+
+func TestTwoPhaseCommit(t *testing.T) {
+	sqls := []string{
+		`PREPARE TRANSACTION 'tx1';`,
+		`CREATE OR REPLACE PROCEDURE transfer_money(sender_id INT, receiver_id INT, amount NUMERIC)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- Deduct amount from sender in db1
+    UPDATE accounts SET balance = balance - amount WHERE id = sender_id;
+    PREPARE TRANSACTION 'txn_db1';
+
+    -- Insert transaction record in db2
+    PERFORM dblink_exec('dbname=db2 user=postgres password=your_password',
+        'INSERT INTO transactions (sender_id, receiver_id, amount) 
+         VALUES (' || sender_id || ', ' || receiver_id || ', ' || amount || ');
+         PREPARE TRANSACTION ''txn_db2'';');
+
+    -- Commit both transactions
+    EXECUTE 'COMMIT PREPARED ''txn_db1''';
+
+    PERFORM dblink_exec('dbname=db2 user=postgres password=your_password', 
+        'COMMIT PREPARED ''txn_db2'';');
+
+    RAISE NOTICE 'Transaction committed successfully';
+
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Rollback in case of failure
+        EXECUTE 'ROLLBACK PREPARED ''txn_db1''';
+        PERFORM dblink_exec('dbname=db2 user=postgres password=your_password', 
+            'ROLLBACK PREPARED ''txn_db2'';');
+        RAISE EXCEPTION 'Transaction failed: %', SQLERRM;
+END;
+$$;`,
+	}
+
+	stmtsWithExpectedIssues := map[string][]QueryIssue{
+		sqls[0]: []QueryIssue{
+			NewTwoPhaseCommitIssue(DML_QUERY_OBJECT_TYPE, "", sqls[0]),
+		},
+		sqls[1]: []QueryIssue{
+			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "PREPARE TRANSACTION 'txn_db1';"),
+			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "COMMIT PREPARED 'txn_db1';"),
+			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "ROLLBACK PREPARED 'txn_db1';"),
+		},
+		
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range stmtsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+	
+	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.LatestStable)
+	assert.Error(t, err, `syntax error at or near "$1"`)
+
+	
+}
+
+func TestCompressionClause(t *testing.T) {
+	stmts := []string{
+		`CREATE TABLE tbl_comp1(id int, v text COMPRESSION pglz);`,
+		`ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`,
+	}
+	sqlsWithExpectedIssues := map[string][]QueryIssue{
+		stmts[0]: []QueryIssue{
+			NewCompressionClauseForToasting("TABLE", "tbl_comp1", stmts[0]),
+		},
+		stmts[1]: []QueryIssue{
+			NewCompressionClauseForToasting("TABLE", "public.tbl_comp", stmts[1]),
+		},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+	
 }

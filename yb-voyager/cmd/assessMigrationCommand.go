@@ -158,6 +158,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		Notes: assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		}),
 	}
@@ -184,27 +185,31 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	sizingAssessmentReport := callhome.SizingCallhome{
-		NumColocatedTables:              len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables),
-		ColocatedReasoning:              assessmentReport.Sizing.SizingRecommendation.ColocatedReasoning,
-		NumShardedTables:                len(assessmentReport.Sizing.SizingRecommendation.ShardedTables),
-		NumNodes:                        assessmentReport.Sizing.SizingRecommendation.NumNodes,
-		VCPUsPerInstance:                assessmentReport.Sizing.SizingRecommendation.VCPUsPerInstance,
-		MemoryPerInstance:               assessmentReport.Sizing.SizingRecommendation.MemoryPerInstance,
-		OptimalSelectConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalSelectConnectionsPerNode,
-		OptimalInsertConnectionsPerNode: assessmentReport.Sizing.SizingRecommendation.OptimalInsertConnectionsPerNode,
-		EstimatedTimeInMinForImport:     assessmentReport.Sizing.SizingRecommendation.EstimatedTimeInMinForImport,
-		ParallelVoyagerJobs:             assessmentReport.Sizing.SizingRecommendation.ParallelVoyagerJobs,
+	var callhomeSizingAssessment callhome.SizingCallhome
+	if assessmentReport.Sizing != nil {
+		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
+		callhomeSizingAssessment = callhome.SizingCallhome{
+			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
+			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
+			NumShardedTables:                len(sizingRecommedation.ShardedTables),
+			NumNodes:                        sizingRecommedation.NumNodes,
+			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
+			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
+			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
+			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
+			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			ParallelVoyagerJobs:             sizingRecommedation.ParallelVoyagerJobs,
+		}
 	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
 		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
 		TargetDBVersion:                assessmentReport.TargetDBVersion,
-		Sizing:                         &sizingAssessmentReport,
+		Sizing:                         &callhomeSizingAssessment,
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         callhome.MarshalledJsonString(obfuscatedIssues),
+		Issues:                         obfuscatedIssues,
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
@@ -386,6 +391,11 @@ func assessMigration() (err error) {
 	err = populateMetadataCSVIntoAssessmentDB()
 	if err != nil {
 		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
+	}
+
+	err = validateSourceDBIOPSForAssessMigration()
+	if err != nil {
+		return fmt.Errorf("failed to validate source database IOPS: %w", err)
 	}
 
 	err = runAssessment()
@@ -958,7 +968,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
-		Description: analyzeSchemaIssue.Reason + " " + analyzeSchemaIssue.Suggestion,
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
 
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
@@ -1017,6 +1027,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.CTE_WITH_MATERIALIZED_CLAUSE_NAME, "", queryissue.CTE_WITH_MATERIALIZED_CLAUSE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DECIMAL_INTEGER_LITERAL_NAME, "", queryissue.NON_DECIMAL_INTEGER_LITERAL, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
+
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
 	}), nil
@@ -1181,6 +1193,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,
@@ -1270,6 +1283,7 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 
 			assessmentReport.AppendIssues(AssessmentIssue{
 				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
 				Type:                   issue.Type,
 				Name:                   issue.Name,
 				Impact:                 issue.Impact,
@@ -1439,12 +1453,14 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-	GIN_INDEXES         = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
-	UNLOGGED_TABLE_NOTE = `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`
+	GIN_INDEXES                = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	UNLOGGED_TABLE_NOTE        = `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`
+	REPORTING_LIMITATIONS_NOTE = `<a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a>`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
 
+// TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -1471,6 +1487,7 @@ func addNotesToAssessmentReport() {
 		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
+		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
 	}
 
 }
@@ -1500,7 +1517,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
 					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
 				})
 			}
@@ -1521,7 +1538,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 					Impact:              constants.IMPACT_LEVEL_1,
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
 					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName),
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
 					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
 				})
 			}
@@ -1727,4 +1744,40 @@ func validateAndSetTargetDbVersionFlag() error {
 		utils.ErrExit("Aborting..")
 		return nil
 	}
+}
+
+func validateSourceDBIOPSForAssessMigration() error {
+	var totalIOPS int64
+
+	tableIndexStats, err := assessmentDB.FetchAllStats()
+	if err != nil {
+		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
+	}
+
+	// Checking if source schema has zero objects.
+	if tableIndexStats == nil || len(*tableIndexStats) == 0 {
+		if utils.AskPrompt("No objects found in the specified schema(s). Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	for _, stat := range *tableIndexStats {
+		totalIOPS += utils.SafeDereferenceInt64(stat.ReadsPerSecond)
+		totalIOPS += utils.SafeDereferenceInt64(stat.WritesPerSecond)
+	}
+
+	// Checking if source schema IOPS is not zero.
+	if totalIOPS == 0 {
+		if utils.AskPrompt("Detected 0 read/write IOPS on the tables in specified schema(s). In order to get an accurate assessment, it is recommended that the source database is actively handling its typical workloads. Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	return nil
 }
