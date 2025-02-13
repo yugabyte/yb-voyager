@@ -37,6 +37,7 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/hashicorp/go-version"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/go-ps"
 	"github.com/samber/lo"
@@ -45,7 +46,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
-	"github.com/hashicorp/go-version"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -141,7 +141,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	log.Infof("cmd: %s", pgRestoreCmd.String())
 	log.Infof("output: %s", string(stdOut))
 	if err != nil {
-		utils.ErrExit("ERROR: couldn't parse the TOC file to collect the tablenames for data files: %v", err)
+		utils.ErrExit("couldn't parse the TOC file to collect the tablenames for data files: %v", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -755,7 +755,7 @@ func GetSourceDBTypeFromMSR() string {
 
 func validateMetaDBCreated() {
 	if !metaDBIsCreated(exportDir) {
-		utils.ErrExit("ERROR: no metadb found in export-dir")
+		utils.ErrExit("ERROR no metadb found in export-dir")
 	}
 }
 

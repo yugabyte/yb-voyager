@@ -86,7 +86,7 @@ var importDataCmd = &cobra.Command{
 		sourceDBType = GetSourceDBTypeFromMSR()
 		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
+			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 	},
 	Run: importDataCommandFn,
@@ -298,7 +298,7 @@ func startExportDataFromTargetIfRequired() {
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", lookErr)
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
@@ -396,7 +396,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result := lo.Filter(allTables, func(tableNameTup sqlname.NameTuple, _ int) bool {
 			matched, err := tableNameTup.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+				utils.ErrExit("Invalid table name pattern: %q: %s", pattern, err)
 			}
 			return matched
 		})

@@ -93,7 +93,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateOracleParams()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("%v", err)
+			utils.ErrExit("failed to validate target db version: %v", err)
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
@@ -113,8 +113,7 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			packAndSendAssessMigrationPayload(ERROR, err.Error())
-			utils.ErrExit("failed to assess migration: %s", err)
+			utils.ErrExit("%s", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
@@ -314,14 +313,14 @@ func assessMigration() (err error) {
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
+			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 		}
 	}
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
-			utils.ErrExit("error connecting source db: %v", err)
+			return fmt.Errorf("failed to connect source db for assessing migration: %v", err)
 		}
 
 		// We will require source db connection for the below checks
@@ -331,7 +330,7 @@ func assessMigration() (err error) {
 			log.Info("checking source DB version")
 			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
-				return fmt.Errorf("source DB version check failed: %w", err)
+				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 			}
 
 			// Check if required binaries are installed.
@@ -345,7 +344,7 @@ func assessMigration() (err error) {
 
 		res := source.DB().CheckSchemaExists()
 		if !res {
-			return fmt.Errorf("schema %q does not exist", source.Schema)
+			return fmt.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
 		// Check if source db has permissions to assess migration
@@ -588,7 +587,7 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 			err := ClearMigrationAssessmentDone()
 			if err != nil {
-				utils.ErrExit("failed to start clean: %v", err)
+				utils.ErrExit("failed to clear migration assessment completed flag in msr during start clean: %v", err)
 			}
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
@@ -942,7 +941,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", featureName, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", analyzeIssue.Name, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
 			}
 
 			objectInfo := ObjectInfo{
@@ -1697,12 +1696,12 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 
 func validateSourceDBTypeForAssessMigration() {
 	if source.DBType == "" {
-		utils.ErrExit("Error: required flag \"source-db-type\" not set")
+		utils.ErrExit("Error required flag \"source-db-type\" not set")
 	}
 
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
+		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
 			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
 	}
 }
@@ -1710,7 +1709,7 @@ func validateSourceDBTypeForAssessMigration() {
 func validateAssessmentMetadataDirFlag() {
 	if assessmentMetadataDirFlag != "" {
 		if !utils.FileOrFolderExists(assessmentMetadataDirFlag) {
-			utils.ErrExit("assessment metadata directory: %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
+			utils.ErrExit("provided with `--assessment-metadata-dir` flag does not exist: %q ", assessmentMetadataDirFlag)
 		} else {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}
