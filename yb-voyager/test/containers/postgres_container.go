@@ -2,12 +2,12 @@ package testcontainers
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"time"
 
 	"github.com/docker/go-connections/nat"
+	"github.com/jackc/pgx/v5"
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
@@ -17,11 +17,10 @@ import (
 type PostgresContainer struct {
 	ContainerConfig
 	container testcontainers.Container
-	db        *sql.DB
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
-	if pg.container != nil {
+	if pg.container != nil && pg.container.IsRunning() {
 		utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
 		return nil
 	}
@@ -66,36 +65,19 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 
 	printContainerLogs(pg.container)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start postgres container: %w", err)
 	}
 
-	dsn := pg.GetConnectionString()
-	db, err := sql.Open("pgx", dsn)
+	err = pingDatabase("pgx", pg.GetConnectionString())
 	if err != nil {
-		return fmt.Errorf("failed to open postgres connection: %w", err)
+		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
-
-	if err := db.Ping(); err != nil {
-		db.Close()
-		pg.container.Terminate(ctx)
-		return fmt.Errorf("failed to ping postgres after connection: %w", err)
-	}
-
-	// Store the DB connection for reuse
-	pg.db = db
 	return nil
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
 	if pg == nil {
 		return
-	}
-
-	// Close the DB connection if it exists
-	if pg.db != nil {
-		if err := pg.db.Close(); err != nil {
-			log.Errorf("failed to close postgres db connection: %v", err)
-		}
 	}
 
 	err := pg.container.Terminate(ctx)
@@ -134,16 +116,23 @@ func (pg *PostgresContainer) GetConnectionString() string {
 		utils.ErrExit("failed to get host port for postgres connection string: %v", err)
 	}
 
-	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
+	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, config.DBName)
 }
 
 func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
-	if pg.db == nil {
-		utils.ErrExit("db connection not initialized for postgres container")
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
 	}
 
+	connStr := pg.GetConnectionString()
+	conn, err := pgx.Connect(context.Background(), connStr)
+	if err != nil {
+		utils.ErrExit("failed to connect to postgres for executing sqls: %w", err)
+	}
+	defer conn.Close(context.Background())
+
 	for _, sqlStmt := range sqls {
-		_, err := pg.db.Exec(sqlStmt)
+		_, err := conn.Exec(context.Background(), sqlStmt)
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}

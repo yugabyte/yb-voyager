@@ -17,11 +17,10 @@ import (
 type MysqlContainer struct {
 	ContainerConfig
 	container testcontainers.Container
-	db        *sql.DB
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
-	if ms.container != nil {
+	if ms.container != nil && ms.container.IsRunning() {
 		utils.PrintAndLog("Mysql-%s container already running", ms.DBVersion)
 		return nil
 	}
@@ -62,37 +61,21 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 	printContainerLogs(ms.container)
+
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to start mysql container: %w", err)
 	}
 
-	dsn := ms.GetConnectionString()
-	db, err := sql.Open("mysql", dsn)
+	err = pingDatabase("mysql", ms.GetConnectionString())
 	if err != nil {
-		return fmt.Errorf("failed to open mysql connection: %w", err)
+		return fmt.Errorf("failed to ping mysql container: %w", err)
 	}
-
-	if err = db.Ping(); err != nil {
-		db.Close()
-		return fmt.Errorf("failed to ping mysql after connection: %w", err)
-	}
-
-	// Store the DB connection for reuse
-	ms.db = db
-
 	return nil
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
 	if ms == nil {
 		return
-	}
-
-	// Close the DB connection if it exists
-	if ms.db != nil {
-		if err := ms.db.Close(); err != nil {
-			log.Errorf("failed to close mysql db connection: %v", err)
-		}
 	}
 
 	err := ms.container.Terminate(ctx)
@@ -136,12 +119,17 @@ func (ms *MysqlContainer) GetConnectionString() string {
 }
 
 func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
-	if ms.db == nil {
-		utils.ErrExit("db connection not initialized for mysql container")
+	if ms == nil {
+		utils.ErrExit("mysql container is not started: nil")
+	}
+
+	db, err := sql.Open("mysql", ms.GetConnectionString())
+	if err != nil {
+		utils.ErrExit("failed to connect to mysql for executing sqls: %w", err)
 	}
 
 	for _, sqlStmt := range sqls {
-		_, err := ms.db.Exec(sqlStmt)
+		_, err := db.Exec(sqlStmt)
 		if err != nil {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}

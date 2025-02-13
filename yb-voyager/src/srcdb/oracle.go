@@ -46,6 +46,18 @@ func newOracle(s *Source) *Oracle {
 }
 
 func (ora *Oracle) Connect() error {
+	if ora.db != nil {
+		err := ora.db.Ping()
+		if err == nil {
+			log.Infof("Already connected to the source database")
+			return nil
+		} else {
+			log.Infof("Failed to ping the source database: %s", err)
+			ora.Disconnect()
+		}
+		log.Info("Reconnecting to the source database")
+	}
+
 	db, err := sql.Open("godror", ora.getConnectionUri())
 	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
