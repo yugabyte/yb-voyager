@@ -111,8 +111,8 @@ func TestCallhomeStructs(t *testing.T) {
 				NumNodes                        float64 `json:"num_nodes"`
 				VCPUsPerInstance                int     `json:"vcpus_per_instance"`
 				MemoryPerInstance               int     `json:"memory_per_instance"`
-				OptimalSelectConnectionsPerNode int64   `json:"optimial_select_connections_per_node"`
-				OptimalInsertConnectionsPerNode int64   `json:"optimial_insert_connections_per_node"`
+				OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
+				OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
 				EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
 				ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 			}{},
