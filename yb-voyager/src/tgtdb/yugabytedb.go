@@ -118,7 +118,10 @@ func (yb *TargetYugabyteDB) Init() error {
 	if err != nil {
 		return err
 	}
-	yb.tconf.SessionVars = getYBSessionInitScript(yb.tconf)
+
+	if len(yb.tconf.SessionVars) == 0 {
+		yb.tconf.SessionVars = getYBSessionInitScript(yb.tconf)
+	}
 
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",

@@ -116,7 +116,9 @@ func (pg *TargetPostgreSQL) Init() error {
 	if err != nil {
 		return err
 	}
-	pg.tconf.SessionVars = getYBSessionInitScript(pg.tconf)
+	if len(pg.tconf.SessionVars) == 0 {
+		pg.tconf.SessionVars = getYBSessionInitScript(pg.tconf)
+	}
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	schemaList := strings.Join(schemas, "','") // a','b','c
 	checkSchemaExistsQuery := fmt.Sprintf(
@@ -1056,7 +1058,7 @@ func (pg *TargetPostgreSQL) getSchemaList() []string {
 
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	if slices.Contains(pg.tconf.SessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
-		//Not check for any triggers / FKs in case this session parameter is used 
+		//Not check for any triggers / FKs in case this session parameter is used
 		return nil, nil, nil
 	}
 	querySchemaArray := pg.getSchemaList()
