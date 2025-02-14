@@ -953,7 +953,7 @@ ubuntu_install_postgres() {
 	sudo apt install -y postgresql-common 1>&2
     echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
 	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-17  1>&2
+	sudo apt-get -y install postgresql-client-17 1>&2
 	output "Postgres Installed."
 }
 
