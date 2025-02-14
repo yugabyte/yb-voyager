@@ -228,5 +228,14 @@ GRANT pg_read_all_stats to :voyager_user;
         WHERE 
             schema_name = ANY(string_to_array(:'schema_list', ','))
         \gexec
+
+        DO $$ 
+        BEGIN 
+        IF (substring((SELECT setting FROM pg_catalog.pg_settings WHERE name = 'server_version'), '^[0-9]+')::int >= 15) THEN
+            RAISE NOTICE 'Granting set on PARAMETER session_replication_role TO %;', current_setting('myvars.voyager_user');
+            EXECUTE format('GRANT SET ON PARAMETER session_replication_role TO %I;', current_setting('myvars.voyager_user'));
+        END IF;
+        END $$;
+
     \endif
 \endif
