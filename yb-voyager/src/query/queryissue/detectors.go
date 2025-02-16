@@ -671,6 +671,56 @@ func (c *CommonTableExpressionDetector) GetIssues() []QueryIssue {
 	return issues
 }
 
+type DatabaseOptionsDetector struct {
+	query               string
+	dbName              string
+	pg15OptionsDetected mapset.Set[string]
+	pg17OptionsDetected mapset.Set[string]
+}
+
+func NewDatabaseOptionsDetector(query string) *DatabaseOptionsDetector {
+	return &DatabaseOptionsDetector{
+		query:               query,
+		pg15OptionsDetected: mapset.NewThreadUnsafeSet[string](),
+		pg17OptionsDetected: mapset.NewThreadUnsafeSet[string](),
+	}
+}
+
+func (d *DatabaseOptionsDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CREATEDB_STMT_NODE {
+		return nil
+	}
+	/*
+		stmts:{stmt:{createdb_stmt:{dbname:"test" options:{def_elem:{defname:"oid" arg:{integer:{ival:121231}} defaction:DEFELEM_UNSPEC
+		location:22}}}} stmt_len:32} stmts:{stmt:{listen_stmt:{conditionname:"my_table_changes"}} stmt_location:33 stmt_len:25}
+	*/
+	d.dbName = queryparser.GetStringField(msg, "dbname")
+	defNames, err := queryparser.TraverseAndExtractDefNamesFromDefElem(msg)
+	if err != nil {
+		return err
+	}
+	for defName, _ := range defNames {
+		if unsupportedDatabaseOptionsFromPG15.ContainsOne(defName) {
+			d.pg15OptionsDetected.Add(defName)
+		}
+		if unsupportedDatabaseOptionsFromPG17.ContainsOne(defName) {
+			d.pg17OptionsDetected.Add(defName)
+		}
+	}
+	return nil
+}
+
+func (d *DatabaseOptionsDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if d.pg15OptionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewDatabaseOptionsPG15Issue("DATABASE", d.dbName, d.query, d.pg15OptionsDetected.ToSlice()))
+	}
+	if d.pg17OptionsDetected.Cardinality() > 0 {
+		issues = append(issues, NewDatabaseOptionsPG17Issue("DATABASE", d.dbName, d.query, d.pg17OptionsDetected.ToSlice()))
+	}
+	return issues
+}
+
 type ListenNotifyIssueDetector struct {
 	query    string
 	detected bool
@@ -715,6 +765,50 @@ func (ln *ListenNotifyIssueDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
 	if ln.detected {
 		issues = append(issues, NewListenNotifyIssue(DML_QUERY_OBJECT_TYPE, "", ln.query))
+	}
+	return issues
+}
+
+type TwoPhaseCommitDetector struct {
+	query    string
+	detected bool
+}
+
+func NewTwoPhaseCommitDetector(query string) *TwoPhaseCommitDetector {
+	return &TwoPhaseCommitDetector{
+		query: query,
+	}
+}
+
+func (t *TwoPhaseCommitDetector) Detect(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_TRANSACTION_STMT_NODE {
+		return nil
+	}
+	transactionStmtNode, err := queryparser.ProtoAsTransactionStmt(msg)
+	if err != nil {
+		return err
+	}
+	/*
+		PREPARE TRANSACTION 'tx1';
+		stmts:{stmt:{transaction_stmt:{kind:TRANS_STMT_PREPARE  gid:"txn1"  location:22}}  stmt_len:28}
+
+		Caveats:
+			Can't detect them from PGSS as the query is coming like this `PREPARE TRANSACTION $1` and parser is failing to parse it.
+			Only detecting in some PLPGSQL cases.
+	
+	*/
+	switch transactionStmtNode.Kind {
+	case queryparser.PREPARED_TRANSACTION_KIND, queryparser.COMMIT_PREPARED_TRANSACTION_KIND,
+		queryparser.ROLLBACK_PREPARED_TRANSACTION_KIND:
+		t.detected = true
+	}
+	return nil
+}
+
+func (t *TwoPhaseCommitDetector) GetIssues() []QueryIssue {
+	var issues []QueryIssue
+	if t.detected {
+		issues = append(issues, NewTwoPhaseCommitIssue(DML_QUERY_OBJECT_TYPE, "", t.query))
 	}
 	return issues
 }

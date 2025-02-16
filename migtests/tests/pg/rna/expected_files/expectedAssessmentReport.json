@@ -375,465 +375,13 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "Inherited tables",
-			"Objects": [
-				{
-					"ObjectName": "rnacen.xref_p10_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p10_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p10_deleted_check CHECK (((dbid = 10) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p10_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p10_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p10_not_deleted_check CHECK (((dbid = 10) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p11_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p11_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p11_deleted_check CHECK (((dbid = 11) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p11_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p11_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p11_not_deleted_check CHECK (((dbid = 11) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p12_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p12_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p12_deleted_check CHECK (((dbid = 12) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p12_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p12_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p12_not_deleted_check CHECK (((dbid = 12) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p13_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p13_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p13_deleted_check CHECK (((dbid = 13) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p13_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p13_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p13_not_deleted_check CHECK (((dbid = 13) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p14_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p14_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p14_deleted_check CHECK (((dbid = 14) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p14_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p14_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p14_not_deleted_check CHECK (((dbid = 14) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p15_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p15_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p15_deleted_check CHECK (((dbid = 15) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p15_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p15_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p15_not_deleted_check CHECK (((dbid = 15) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p16_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p16_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p16_deleted_check CHECK (((dbid = 16) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p16_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p16_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p16_not_deleted_check CHECK (((dbid = 16) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p17_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p17_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p17_deleted_check CHECK (((dbid = 17) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p17_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p17_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p17_not_deleted_check CHECK (((dbid = 17) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p18_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p18_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p18_deleted_check CHECK (((dbid = 18) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p18_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p18_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p18_not_deleted_check CHECK (((dbid = 18) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p19_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p19_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p19_deleted_check CHECK (((dbid = 19) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p19_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p19_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p19_not_deleted_check CHECK (((dbid = 19) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p1_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p1_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p1_deleted_check CHECK (((dbid = 1) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p1_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p1_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p1_not_deleted_check CHECK (((dbid = 1) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p20_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p20_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p20_deleted_check CHECK (((dbid = 20) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p20_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p20_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p20_not_deleted_check CHECK (((dbid = 20) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p21_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p21_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p21_deleted_check CHECK (((dbid = 21) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p21_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p21_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p21_not_deleted_check CHECK (((dbid = 21) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p22_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p22_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p22_deleted_check CHECK (((dbid = 22) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p22_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p22_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p22_not_deleted_check CHECK (((dbid = 22) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p23_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p23_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p23_deleted_check CHECK (((dbid = 23) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p23_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p23_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p23_not_deleted_check CHECK (((dbid = 23) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p24_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p24_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p24_deleted_check CHECK (((dbid = 24) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p24_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p24_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p24_not_deleted_check CHECK (((dbid = 24) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p25_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p25_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p25_deleted_check CHECK (((dbid = 25) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p25_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p25_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p25_not_deleted_check CHECK (((dbid = 25) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p26_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p26_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p26_deleted_check CHECK (((dbid = 26) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p26_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p26_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p26_not_deleted_check CHECK (((dbid = 26) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p27_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p27_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p27_deleted_check CHECK (((dbid = 27) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p27_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p27_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p27_not_deleted_check CHECK (((dbid = 27) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p28_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p28_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p28_deleted_check CHECK (((dbid = 28) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p28_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p28_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p28_not_deleted_check CHECK (((dbid = 28) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p29_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p29_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p29_deleted_check CHECK (((dbid = 29) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p29_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p29_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p29_not_deleted_check CHECK (((dbid = 29) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p2_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p2_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p2_deleted_check CHECK (((dbid = 2) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p2_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p2_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p2_not_deleted_check CHECK (((dbid = 2) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p30_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p30_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p30_deleted_check CHECK (((dbid = 30) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p30_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p30_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p30_not_deleted_check CHECK (((dbid = 30) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p31_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p31_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p31_deleted_check CHECK (((dbid = 31) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p31_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p31_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p31_not_deleted_check CHECK (((dbid = 31) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p32_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p32_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p32_deleted_check CHECK (((dbid = 32) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p32_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p32_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p32_not_deleted_check CHECK (((dbid = 32) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p33_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p33_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p33_deleted_check CHECK (((dbid = 33) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p33_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p33_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p33_not_deleted_check CHECK (((dbid = 33) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p34_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p34_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p34_deleted_check CHECK (((dbid = 34) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p34_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p34_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p34_not_deleted_check CHECK (((dbid = 34) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p35_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p35_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p35_deleted_check CHECK (((dbid = 35) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p35_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p35_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p35_not_deleted_check CHECK (((dbid = 35) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p36_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p36_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p36_deleted_check CHECK (((dbid = 36) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p36_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p36_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p36_not_deleted_check CHECK (((dbid = 36) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p37_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p37_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p37_deleted_check CHECK (((dbid = 37) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p37_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p37_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p37_not_deleted_check CHECK (((dbid = 37) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p38_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p38_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p38_deleted_check CHECK (((dbid = 38) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p38_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p38_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p38_not_deleted_check CHECK (((dbid = 38) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p39_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p39_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p39_deleted_check CHECK (((dbid = 39) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p39_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p39_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p39_not_deleted_check CHECK (((dbid = 39) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p3_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p3_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p3_deleted_check CHECK (((dbid = 3) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p3_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p3_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p3_not_deleted_check CHECK (((dbid = 3) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p40_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p40_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p40_deleted_check CHECK (((dbid = 40) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p40_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p40_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p40_not_deleted_check CHECK (((dbid = 40) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p41_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p41_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p41_deleted_check CHECK (((dbid = 41) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p41_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p41_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p41_not_deleted_check CHECK (((dbid = 41) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p42_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p42_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p42_deleted_check CHECK (((dbid = 42) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p42_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p42_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p42_not_deleted_check CHECK (((dbid = 42) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p43_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p43_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p43_deleted_check CHECK (((dbid = 43) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p43_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p43_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p43_not_deleted_check CHECK (((dbid = 43) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p44_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p44_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p44_deleted_check CHECK (((dbid = 44) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p44_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p44_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p44_not_deleted_check CHECK (((dbid = 44) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p45_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p45_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p45_deleted_check CHECK (((dbid = 45) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p45_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p45_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p45_not_deleted_check CHECK (((dbid = 45) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p46_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p46_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p46_deleted_check CHECK (((dbid = 46) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p46_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p46_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p46_not_deleted_check CHECK (((dbid = 46) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p47_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p47_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p47_deleted_check CHECK (((dbid = 47) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p47_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p47_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p47_not_deleted_check CHECK (((dbid = 47) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p48_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p48_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p48_deleted_check CHECK (((dbid = 48) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p48_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p48_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p48_not_deleted_check CHECK (((dbid = 48) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p49_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p49_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p49_deleted_check CHECK (((dbid = 49) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p49_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p49_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p49_not_deleted_check CHECK (((dbid = 49) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p4_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p4_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p4_deleted_check CHECK (((dbid = 4) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p4_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p4_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p4_not_deleted_check CHECK (((dbid = 4) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p50_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p50_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p50_deleted_check CHECK (((dbid = 50) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p50_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p50_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p50_not_deleted_check CHECK (((dbid = 50) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p51_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p51_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p51_deleted_check CHECK (((dbid = 51) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p51_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p51_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p51_not_deleted_check CHECK (((dbid = 51) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p52_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p52_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p52_deleted_check CHECK (((dbid = 52) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p52_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p52_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p52_not_deleted_check CHECK (((dbid = 52) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p53_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p53_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p53_deleted_check CHECK (((dbid = 53) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p53_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p53_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p53_not_deleted_check CHECK (((dbid = 53) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p54_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p54_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint NOT NULL,\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p54_deleted_check CHECK (((dbid = 54) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p54_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p54_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint NOT NULL,\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p54_not_deleted_check CHECK (((dbid = 54) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p55_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p55_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p55_deleted_check CHECK (((dbid = 55) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p55_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p55_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p55_not_deleted_check CHECK (((dbid = 55) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p5_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p5_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p5_deleted_check CHECK (((dbid = 5) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p5_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p5_not_deleted (\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p5_not_deleted_check CHECK (((dbid = 5) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p6_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p6_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p6_deleted_check CHECK (((dbid = 6) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p6_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p6_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p6_not_deleted_check CHECK (((dbid = 6) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p7_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p7_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p7_deleted_check CHECK (((dbid = 7) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p7_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p7_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p7_not_deleted_check CHECK (((dbid = 7) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p8_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p8_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p8_deleted_check CHECK (((dbid = 8) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p8_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p8_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p8_not_deleted_check CHECK (((dbid = 8) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p9_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p9_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p9_deleted_check CHECK (((dbid = 9) AND (deleted = 'Y'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				},
-				{
-					"ObjectName": "rnacen.xref_p9_not_deleted",
-					"SqlStatement": "CREATE TABLE rnacen.xref_p9_not_deleted (\n    dbid smallint,\n    created integer,\n    last integer,\n    upi character varying(26),\n    version_i integer,\n    deleted character(1),\n    \"timestamp\" timestamp without time zone DEFAULT ('now'::text)::timestamp without time zone,\n    userstamp character varying(20) DEFAULT 'USER'::character varying,\n    ac character varying(300),\n    version integer,\n    taxid bigint,\n    id bigint DEFAULT nextval('rnacen.xref_pk_seq'::regclass),\n    CONSTRAINT \"ck_xref$deleted\" CHECK ((deleted = ANY (ARRAY['Y'::bpchar, 'N'::bpchar]))),\n    CONSTRAINT xref_p9_not_deleted_check CHECK (((dbid = 9) AND (deleted = 'N'::bpchar)))\n)\nINHERITS (rnacen.xref);"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        }
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"AssessmentIssues": [
 		{
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p10_deleted",
@@ -846,7 +394,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p10_not_deleted",
@@ -859,7 +407,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p11_deleted",
@@ -872,7 +420,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p11_not_deleted",
@@ -885,7 +433,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p12_deleted",
@@ -898,7 +446,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p12_not_deleted",
@@ -911,7 +459,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p13_deleted",
@@ -924,7 +472,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p13_not_deleted",
@@ -937,7 +485,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p14_deleted",
@@ -950,7 +498,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p14_not_deleted",
@@ -963,7 +511,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p15_deleted",
@@ -976,7 +524,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p15_not_deleted",
@@ -989,7 +537,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p16_deleted",
@@ -1002,7 +550,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p16_not_deleted",
@@ -1015,7 +563,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p17_deleted",
@@ -1028,7 +576,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p17_not_deleted",
@@ -1041,7 +589,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p18_deleted",
@@ -1054,7 +602,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p18_not_deleted",
@@ -1067,7 +615,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p19_deleted",
@@ -1080,7 +628,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p19_not_deleted",
@@ -1093,7 +641,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p1_deleted",
@@ -1106,7 +654,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p1_not_deleted",
@@ -1119,7 +667,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p20_deleted",
@@ -1132,7 +680,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p20_not_deleted",
@@ -1145,7 +693,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p21_deleted",
@@ -1158,7 +706,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p21_not_deleted",
@@ -1171,7 +719,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p22_deleted",
@@ -1184,7 +732,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p22_not_deleted",
@@ -1197,7 +745,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p23_deleted",
@@ -1210,7 +758,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p23_not_deleted",
@@ -1223,7 +771,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p24_deleted",
@@ -1236,7 +784,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p24_not_deleted",
@@ -1249,7 +797,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p25_deleted",
@@ -1262,7 +810,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p25_not_deleted",
@@ -1275,7 +823,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p26_deleted",
@@ -1288,7 +836,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p26_not_deleted",
@@ -1301,7 +849,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p27_deleted",
@@ -1314,7 +862,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p27_not_deleted",
@@ -1327,7 +875,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p28_deleted",
@@ -1340,7 +888,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p28_not_deleted",
@@ -1353,7 +901,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p29_deleted",
@@ -1366,7 +914,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p29_not_deleted",
@@ -1379,7 +927,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p2_deleted",
@@ -1392,7 +940,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p2_not_deleted",
@@ -1405,7 +953,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p30_deleted",
@@ -1418,7 +966,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p30_not_deleted",
@@ -1431,7 +979,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p31_deleted",
@@ -1444,7 +992,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p31_not_deleted",
@@ -1457,7 +1005,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p32_deleted",
@@ -1470,7 +1018,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p32_not_deleted",
@@ -1483,7 +1031,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p33_deleted",
@@ -1496,7 +1044,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p33_not_deleted",
@@ -1509,7 +1057,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p34_deleted",
@@ -1522,7 +1070,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p34_not_deleted",
@@ -1535,7 +1083,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p35_deleted",
@@ -1548,7 +1096,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p35_not_deleted",
@@ -1561,7 +1109,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p36_deleted",
@@ -1574,7 +1122,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p36_not_deleted",
@@ -1587,7 +1135,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p37_deleted",
@@ -1600,7 +1148,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p37_not_deleted",
@@ -1613,7 +1161,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p38_deleted",
@@ -1626,7 +1174,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p38_not_deleted",
@@ -1639,7 +1187,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p39_deleted",
@@ -1652,7 +1200,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p39_not_deleted",
@@ -1665,7 +1213,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p3_deleted",
@@ -1678,7 +1226,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p3_not_deleted",
@@ -1691,7 +1239,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p40_deleted",
@@ -1704,7 +1252,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p40_not_deleted",
@@ -1717,7 +1265,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p41_deleted",
@@ -1730,7 +1278,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p41_not_deleted",
@@ -1743,7 +1291,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p42_deleted",
@@ -1756,7 +1304,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p42_not_deleted",
@@ -1769,7 +1317,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p43_deleted",
@@ -1782,7 +1330,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p43_not_deleted",
@@ -1795,7 +1343,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p44_deleted",
@@ -1808,7 +1356,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p44_not_deleted",
@@ -1821,7 +1369,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p45_deleted",
@@ -1834,7 +1382,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p45_not_deleted",
@@ -1847,7 +1395,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p46_deleted",
@@ -1860,7 +1408,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p46_not_deleted",
@@ -1873,7 +1421,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p47_deleted",
@@ -1886,7 +1434,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p47_not_deleted",
@@ -1899,7 +1447,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p48_deleted",
@@ -1912,7 +1460,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p48_not_deleted",
@@ -1925,7 +1473,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p49_deleted",
@@ -1938,7 +1486,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p49_not_deleted",
@@ -1951,7 +1499,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p4_deleted",
@@ -1964,7 +1512,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p4_not_deleted",
@@ -1977,7 +1525,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p50_deleted",
@@ -1990,7 +1538,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p50_not_deleted",
@@ -2003,7 +1551,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p51_deleted",
@@ -2016,7 +1564,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p51_not_deleted",
@@ -2029,7 +1577,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p52_deleted",
@@ -2042,7 +1590,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p52_not_deleted",
@@ -2055,7 +1603,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p53_deleted",
@@ -2068,7 +1616,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p53_not_deleted",
@@ -2081,7 +1629,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p54_deleted",
@@ -2094,7 +1642,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p54_not_deleted",
@@ -2107,7 +1655,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p55_deleted",
@@ -2120,7 +1668,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p55_not_deleted",
@@ -2133,7 +1681,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p5_deleted",
@@ -2146,7 +1694,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p5_not_deleted",
@@ -2159,7 +1707,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p6_deleted",
@@ -2172,7 +1720,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p6_not_deleted",
@@ -2185,7 +1733,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p7_deleted",
@@ -2198,7 +1746,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p7_not_deleted",
@@ -2211,7 +1759,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p8_deleted",
@@ -2224,7 +1772,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p8_not_deleted",
@@ -2237,7 +1785,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p9_deleted",
@@ -2250,7 +1798,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INHERITANCE",
 			"Name": "Table Inheritance",
-			"Description": "Table inheritance is not yet supported in YugabyteDB. ",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "TABLE",
 			"ObjectName": "rnacen.xref_p9_not_deleted",
@@ -28889,8 +28437,7 @@
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
-	"MigrationCaveats": null,
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	"Notes": [
+		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+	]
 }
