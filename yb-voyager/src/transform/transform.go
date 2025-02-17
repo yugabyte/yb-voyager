@@ -106,7 +106,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				continue
 			} else if len(alterTableNode.Cmds) > 1 {
 				// Need special handling since there can be some/all cmds as ADD CONSTRAINT (TODO)
-				// for now skipping any merge for this case
+				// for now skipping any merge for this case (unlikely case from pg_dump/ora2pg)
 				result = append(result, stmt)
 			} else {
 				alterTableCmd := alterTableNode.Cmds[0].GetAlterTableCmd()
