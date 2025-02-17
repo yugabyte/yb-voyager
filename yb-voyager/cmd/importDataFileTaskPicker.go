@@ -20,8 +20,10 @@ import (
 
 	"time"
 
+	"github.com/davecgh/go-spew/spew"
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"golang.org/x/exp/rand"
@@ -157,7 +159,6 @@ type YbTargetDBColocatedChecker interface {
 }
 
 func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
-	// var pendingTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 	var inProgressTasks []*ImportFileTask
 	tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
@@ -223,13 +224,16 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		}
 	}
 
-	return &ColocatedAwareRandomTaskPicker{
+	picker := &ColocatedAwareRandomTaskPicker{
 		doneTasks:             doneTasks,
 		inProgressTasks:       inProgressTasks,
 		maxTasksInProgress:    maxTasksInProgress,
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
-	}, nil
+	}
+
+	log.Infof("ColocatedAwareRandomTaskPicker initialized with params:%v", spew.Sdump(picker))
+	return picker, nil
 }
 
 func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
@@ -292,6 +296,7 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		c.tableWisePendingTasks.Put(tablePick, tablePendingTasks)
 	}
 	c.inProgressTasks = append(c.inProgressTasks, pickedTask)
+	log.Infof("Picked task: %v. In-Progress tasks:%v", pickedTask, c.inProgressTasks)
 	return pickedTask, nil
 }
 
@@ -347,6 +352,7 @@ func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) er
 		if t.ID == task.ID {
 			c.inProgressTasks = append(c.inProgressTasks[:i], c.inProgressTasks[i+1:]...)
 			c.doneTasks = append(c.doneTasks, task)
+			log.Infof("Marked task as done: %v. In-Progress tasks:%v", t, c.inProgressTasks)
 			return nil
 		}
 	}

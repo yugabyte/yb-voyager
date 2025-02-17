@@ -740,6 +740,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
+		log.Infof("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -756,6 +757,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// All batches for this task have been submitted.
 			// task could have been completed (all batches imported) OR still in progress
 			// in case task is done, we should inform task picker so that we stop picking that task.
+			log.Infof("All batches submitted for task: %s", task)
 			taskDone, err := taskImporter.AllBatchesImported()
 			if err != nil {
 				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
@@ -766,6 +768,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
 				// some batches are still in progress, wait for them to complete as decided by the picker.
