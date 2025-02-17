@@ -1055,17 +1055,86 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 	}
 }
 
-/*
-singleTask
-maxTasksInProgressEqualToTotalTasks
-maxTasksInProgressGreaterThanTotalTasks
-MixOfColocatedAndShardedTables - ensure all are getting picked with proper weights
-	test that weights change when tasks are marked as done
-AllColocatedTables - ensure all are getting picked with proper weights
-	test that weights change when tasks are marked as done
-AllShardedTables - ensure all are getting picked with proper weights
-	test that weights change when tasks are marked as done
+func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
 
-all of the above cases for
-multipleTasksPerTable (importDataFileCase)
-*/
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+		},
+	}
+
+	// 5 tasks, 10 max tasks in progress
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
+	}
+	assert.Equal(t, 5, len(picker.inProgressTasks))
+
+	// simulate restart with a smaller no. of max tasks in progress
+	picker, err = NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// only two shoudl be inprogress even though previously 5 were in progress.
+	assert.Equal(t, 2, len(picker.inProgressTasks))
+
+	// simulate restart with a larger no. of max tasks in progress
+	picker, err = NewColocatedAwareRandomTaskPicker(20, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// all 5 should be inprogress
+	assert.Equal(t, 5, len(picker.inProgressTasks))
+}
