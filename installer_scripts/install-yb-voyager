@@ -142,6 +142,8 @@ centos_main() {
 	output "Installing RPM dependencies."
 	$YUM_INSTALL which wget git gcc make 1>&2
 	$YUM_INSTALL https://download.postgresql.org/pub/repos/yum/reporpms/EL-${majorVersion}-x86_64/pgdg-redhat-repo-latest.noarch.rpm 1>&2 || true
+	# The postgresql17 package installs the client package and the postgresql17-server installs the server package.
+	# We require the client package to be installed for pg_dump and pg_restore.
 	$YUM_INSTALL postgresql17 1>&2
 	$YUM_INSTALL sqlite 1>&2
 	create_guardrail_scripts_dir
@@ -953,7 +955,9 @@ ubuntu_install_postgres() {
 	sudo apt install -y postgresql-common 1>&2
     echo | sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh 1>&2
 	sudo apt-get update 1>&2
-	sudo apt-get -y install postgresql-17  1>&2
+	# postgresql-client-17 package installs the cleint package and postgresql-17 installs the server package.
+	# We require the client package to install pg_dump and pg_restore
+	sudo apt-get -y install postgresql-client-17 1>&2
 	output "Postgres Installed."
 }
 
