@@ -246,22 +246,20 @@ func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
 	}
-	var task *ImportFileTask
-	var err error
+	c.reportStateOfInProgressTasks()
+
 	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
 	if len(c.inProgressTasks) == c.maxTasksInProgress {
-		task, err = c.PickTaskFromInProgressTasks()
+		return c.PickTaskFromInProgressTasks()
 	}
 
 	// if we have less than maxTasksInProgress tasks in progress, but no pending tasks, pick a task from inProgressTasks
 	if len(c.inProgressTasks) < c.maxTasksInProgress && len(c.tableWisePendingTasks.Keys()) == 0 {
-		task, err = c.PickTaskFromInProgressTasks()
+		return c.PickTaskFromInProgressTasks()
 	}
 
 	// pick a new task from pending tasks
-	task, err = c.PickTaskFromPendingTasks()
-	c.reportStateOfInProgressTasks()
-	return task, err
+	return c.PickTaskFromPendingTasks()
 }
 
 func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
