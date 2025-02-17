@@ -173,6 +173,18 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		return nil, fmt.Errorf("checking if db is colocated: %w", err)
 	}
 
+	addToPendingTasks := func(t *ImportFileTask) {
+		// put into the table wise pending tasks.
+		var tablePendingTasks []*ImportFileTask
+		var ok bool
+		tablePendingTasks, ok = tableWisePendingTasks.Get(t.TableNameTup)
+		if !ok {
+			tablePendingTasks = []*ImportFileTask{}
+		}
+		tablePendingTasks = append(tablePendingTasks, t)
+		tableWisePendingTasks.Put(t.TableNameTup, tablePendingTasks)
+	}
+
 	for _, task := range tasks {
 		tableName := task.TableNameTup
 
@@ -203,26 +215,10 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 			if len(inProgressTasks) < maxTasksInProgress {
 				inProgressTasks = append(inProgressTasks, task)
 			} else {
-				// put into the table wise pending tasks.
-				var tablePendingTasks []*ImportFileTask
-				var ok bool
-				tablePendingTasks, ok = tableWisePendingTasks.Get(tableName)
-				if !ok {
-					tablePendingTasks = []*ImportFileTask{}
-				}
-				tablePendingTasks = append(tablePendingTasks, task)
-				tableWisePendingTasks.Put(tableName, tablePendingTasks)
+				addToPendingTasks(task)
 			}
 		case FILE_IMPORT_NOT_STARTED:
-			// put into the table wise pending tasks.
-			var tablePendingTasks []*ImportFileTask
-			var ok bool
-			tablePendingTasks, ok = tableWisePendingTasks.Get(tableName)
-			if !ok {
-				tablePendingTasks = []*ImportFileTask{}
-			}
-			tablePendingTasks = append(tablePendingTasks, task)
-			tableWisePendingTasks.Put(tableName, tablePendingTasks)
+			addToPendingTasks(task)
 		default:
 			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
