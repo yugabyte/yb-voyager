@@ -176,14 +176,14 @@ func exportSchema() error {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
 
+	applyMergeConstraintsTransformations()
+
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
 	packAndSendExportSchemaPayload(COMPLETE, "")
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
-
-	applyMergeConstraintsTransformations()
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
@@ -369,7 +369,8 @@ func applyMergeConstraintsTransformations() {
 		return stmtType == queryparser.PG_QUERY_VARIABLE_SET_STMT_NODE || stmtType == queryparser.PG_QUERY_SELECTSTMT_NODE
 	})
 
-	// Note: In case of any error during merge constraints or deparsing, log the error and stick to the original table.sql file
+	// NOTE: In case of any error during merge constraints or deparsing, log the error and stick to the original table.sql file
+
 	transformedRawStmts, err := transformer.MergeConstraints(tableStmts)
 	if err != nil {
 		log.Errorf("failed to merge constraints: %v", err)
@@ -389,8 +390,12 @@ func applyMergeConstraintsTransformations() {
 	}
 
 	var sqlFileContent bytes.Buffer
-	sqlFileContent.WriteString(strings.Join(sessionVarsSqls, "\n"))
-	sqlFileContent.WriteString("\n\n")
+
+	if len(sessionVarsSqls) > 0 { // mostly for PG case
+		sqlFileContent.WriteString("-- setting variables for current session\n")
+		sqlFileContent.WriteString(strings.Join(sessionVarsSqls, "\n"))
+		sqlFileContent.WriteString("\n\n")
+	}
 	sqlFileContent.WriteString(strings.Join(tableSqls, "\n\n"))
 
 	// rename the old file to table_before_merge_constraints.sql

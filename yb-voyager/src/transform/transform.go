@@ -17,6 +17,7 @@ package transform
 
 import (
 	"fmt"
+	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
@@ -45,6 +46,12 @@ func NewTransformer() *Transformer {
 	return &Transformer{}
 }
 
+var constraintTypesToMerge = []pg_query.ConstrType{
+	pg_query.ConstrType_CONSTR_PRIMARY, // PRIMARY KEY
+	pg_query.ConstrType_CONSTR_UNIQUE,  // UNIQUE
+	pg_query.ConstrType_CONSTR_CHECK,   // CHECK
+}
+
 /*
 MergeConstraints scans through `stmts` and attempts to merge any
 "ALTER TABLE ... ADD CONSTRAINT" into the corresponding "CREATE TABLE" node.
@@ -56,64 +63,90 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	var result []*pg_query.RawStmt
 	// TODO: Ensure removing all the ALTER stmts which are merged into CREATE. No duplicates.
 
 	createStmtMap := make(map[string]*pg_query.RawStmt)
-	alterStmtsMap := make(map[string][]*pg_query.RawStmt)
-	var leftOverStmts []*pg_query.RawStmt
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
-		fmt.Printf("stmtType: %v\n", stmtType)
-		switch stmtType {
-		case queryparser.PG_QUERY_CREATE_STMT:
+		if stmtType == queryparser.PG_QUERY_CREATE_STMT {
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateStmt().Relation)
 			createStmtMap[objectName] = stmt
-		case queryparser.PG_QUERY_ALTER_TABLE_STMT:
-			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetAlterTableStmt().Relation)
-			alterStmtsMap[objectName] = append(alterStmtsMap[objectName], stmt)
-		default:
-			leftOverStmts = append(leftOverStmts, stmt)
-		}
-	}
-
-	// check for case: there is a ALTER TABLE stmt without a corresponding CREATE TABLE stmt - this should not happen
-	for tableName := range alterStmtsMap {
-		if _, ok := createStmtMap[tableName]; !ok {
-			return nil, fmt.Errorf("ALTER TABLE stmt found for table %v without a corresponding CREATE TABLE stmt", tableName)
 		}
 	}
 
 	/*
 		Logic to merge constraints into CREATE TABLE
-		For each table, take the CREATE TABLE stmt and merge all the ALTER TABLE ADD CONSTRAINT stmts into it
-		(constraint should be one of the expected types: PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK, DEFAULT) (Q: what else constraint type can be there?)
+		For each table, take CREATE TABLE stmt and merge its ALTER TABLE ADD CONSTRAINT stmts
+		(constraint expected: PRIMARY KEY, UNIQUE, FOREIGN KEY, CHECK, DEFAULT)  (Q: what else constraint type can be there?)
+
+		Assumptions
+		1. There is CREATE TABLE stmt for each ALTER TABLE stmt
+		2. There will be only one ALTER TABLE cmd per ALTER TABLE stmt
+
+		Note: Iterating over the original array in such a way that we can keep the relative ordering of statements intact.
 	*/
-	// Assuming there is no case where there is a ALTER TABLE ADD CONSTRAINT stmt without a corresponding CREATE TABLE stmt
-	for tableName, createStmt := range createStmtMap {
-		alterStmts := alterStmtsMap[tableName]
-		for _, alterStmt := range alterStmts {
-			alterTableCmd := alterStmt.Stmt.GetAlterTableStmt().Cmds[0].GetAlterTableCmd()
-			fmt.Printf("Subtype of alter for table %v: %v\n\n", tableName, alterTableCmd.GetSubtype())
-			alterTableCmdType := alterTableCmd.GetSubtype()
-			// Only merge Primary Key and Unique constraints into CREATE TABLE
-			if *alterTableCmdType.Enum() == pg_query.AlterTableType_AT_AddConstraint {
-				// Merge the constraint into the CREATE TABLE stmt
-				fmt.Println("Merging constraint into CREATE TABLE stmt")
-				createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
+	var result []*pg_query.RawStmt
+	for _, stmt := range stmts {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		switch stmtType {
+		case queryparser.PG_QUERY_CREATE_STMT:
+			result = append(result, stmt)
+		case queryparser.PG_QUERY_ALTER_TABLE_STMT:
+			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetAlterTableStmt().Relation)
+			alterTableNode := stmt.Stmt.GetAlterTableStmt()
+
+			/*
+				There can be multiple sub commands in an ALTER TABLE stmt
+				Example: ALTER TABLE my_table
+							ADD COLUMN new_col INTEGER,
+							ADD CONSTRAINT my_pkey PRIMARY KEY (id);
+			*/
+			if len(alterTableNode.Cmds) == 0 {
+				result = append(result, stmt)
+				continue
+			} else if len(alterTableNode.Cmds) > 1 {
+				// Need special handling since there can be some/all cmds as ADD CONSTRAINT (TODO)
+				// for now skipping any merge for this case
+				result = append(result, stmt)
 			} else {
-				// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to add it to the result slice
-				fmt.Println("Adding ALTER TABLE stmt to leftover slice")
-				leftOverStmts = append(leftOverStmts, alterStmt)
+				alterTableCmd := alterTableNode.Cmds[0].GetAlterTableCmd()
+				if alterTableCmd == nil {
+					continue
+				}
+
+				/*
+					Merge constraint if - PRIMARY KEY, UNIQUE constraint or CHECK constraint
+					Otherwise, add it to the result slice
+				*/
+				alterTableCmdType := alterTableCmd.GetSubtype()
+				if *alterTableCmdType.Enum() != pg_query.AlterTableType_AT_AddConstraint {
+					// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to add it to the result slice
+					result = append(result, stmt)
+				} else {
+					constrNode := alterTableCmd.GetDef().GetConstraint()
+					if constrNode == nil {
+						continue
+					}
+
+					constrType := constrNode.GetContype()
+					if !slices.Contains(constraintTypesToMerge, constrType) {
+						// For other constraints, add to result slice
+						result = append(result, stmt)
+					} else {
+						// Merge these constraints into the CREATE TABLE stmt
+						createStmt, ok := createStmtMap[objectName]
+						if !ok {
+							return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
+						}
+						createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
+					}
+				}
 			}
+
+		default:
+			result = append(result, stmt)
 		}
-
-		// Add the merged CREATE TABLE stmt to the result slice
-		result = append(result, createStmt)
 	}
-
-	// Make sure if there were any leftover or extras in the passed stmts slice, if yes, then add those to the result slice
-	result = append(result, leftOverStmts...)
 
 	return result, nil
 }
