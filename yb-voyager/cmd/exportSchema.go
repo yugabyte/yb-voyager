@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,6 +32,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/transform"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -179,6 +182,8 @@ func exportSchema() error {
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
+
+	applyMergeConstraintsTransformations()
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
@@ -329,6 +334,77 @@ func applyMigrationAssessmentRecommendations() error {
 
 	utils.PrintAndLog("Applied assessment recommendations.")
 	return nil
+}
+
+// TODO: merge this function with applying sharded/colocated recommendation
+func applyMergeConstraintsTransformations() {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
+		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
+		return
+	}
+
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
+	transformer := transform.NewTransformer()
+
+	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(fileName) {
+		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
+		return
+	}
+
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
+	if err != nil {
+		utils.ErrExit("failed to parse table.sql file: %v", err)
+	}
+
+	// filter SET statements(PostgreSQL) from rawStmts
+	tableStmts := lo.Filter(rawStmts.Stmts, func(stmt *pg_query.RawStmt, _ int) bool {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		return stmtType != queryparser.PG_QUERY_VARIABLE_SET_STMT_NODE && stmtType != queryparser.PG_QUERY_SELECTSTMT_NODE
+	})
+
+	// TODO: separate handling for Oracle and MySQL ??
+	sessionVarStmts := lo.Filter(rawStmts.Stmts, func(stmt *pg_query.RawStmt, _ int) bool {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		return stmtType == queryparser.PG_QUERY_VARIABLE_SET_STMT_NODE || stmtType == queryparser.PG_QUERY_SELECTSTMT_NODE
+	})
+
+	// Note: In case of any error during merge constraints or deparsing, log the error and stick to the original table.sql file
+	transformedRawStmts, err := transformer.MergeConstraints(tableStmts)
+	if err != nil {
+		log.Errorf("failed to merge constraints: %v", err)
+		return
+	}
+
+	sessionVarsSqls, err := queryparser.DeparseRawStmts(sessionVarStmts)
+	if err != nil {
+		log.Errorf("failed to deparse session var stmts: %v", err)
+		return
+	}
+
+	tableSqls, err := queryparser.DeparseRawStmts(transformedRawStmts)
+	if err != nil {
+		log.Errorf("failed to deparse transformed create stmts: %v", err)
+		return
+	}
+
+	var sqlFileContent bytes.Buffer
+	sqlFileContent.WriteString(strings.Join(sessionVarsSqls, "\n"))
+	sqlFileContent.WriteString("\n\n")
+	sqlFileContent.WriteString(strings.Join(tableSqls, "\n\n"))
+
+	// rename the old file to table_before_merge_constraints.sql
+	// replace filepath base with new name
+	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
+	err = os.Rename(fileName, renamedFileName)
+	if err != nil {
+		utils.ErrExit("failed to rename table.sql file to table_before_merge_constraints.sql: %v", err)
+	}
+
+	err = os.WriteFile(fileName, sqlFileContent.Bytes(), 0644)
+	if err != nil {
+		utils.ErrExit("failed to write transformed sql statements to table.sql file: %v", err)
+	}
 }
 
 func applyShardedTablesRecommendation(shardedTables []string, objType string) error {
