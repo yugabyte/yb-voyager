@@ -142,15 +142,19 @@ At any given time, only X  distinct tables can be IN-PROGRESS. If X=4, after pic
 	During this time, each of the in-progress tables will be picked with equal probability.
 */
 type ColocatedAwareRandomTaskPicker struct {
-	// pendingTasks    []*ImportFileTask
-	doneTasks             []*ImportFileTask
-	inProgressTasks       []*ImportFileTask
+	doneTasks []*ImportFileTask
+	// tasks which the picker has picked at least once, and are essentially in progress.
+	// the length of this list will be <= maxTasksInProgress
+	inProgressTasks    []*ImportFileTask
+	maxTasksInProgress int
+
+	// tasks which have not yet been picked even once.
+	// the tableChooser will be employed to pick a table from this list.
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
-	maxTasksInProgress    int
+	tableChooser          *weightedrand.Chooser[sqlname.NameTuple, int]
 
 	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
 
-	tableChooser *weightedrand.Chooser[sqlname.NameTuple, int]
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -231,6 +235,10 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
 	}
+	err = picker.initializeChooser()
+	if err != nil {
+		return nil, fmt.Errorf("initializing chooser: %w", err)
+	}
 
 	log.Infof("ColocatedAwareRandomTaskPicker initialized with params:%v", spew.Sdump(picker))
 	return picker, nil
@@ -239,10 +247,6 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
-	}
-
-	if c.tableChooser == nil {
-		c.initializeChooser()
 	}
 
 	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
@@ -273,6 +277,10 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 	if len(c.tableWisePendingTasks.Keys()) == 0 {
 		return nil, fmt.Errorf("no pending tasks to pick from")
 	}
+	if c.tableChooser == nil {
+		return nil, fmt.Errorf("chooser not initialized")
+	}
+
 	tablePick := c.tableChooser.Pick()
 	tablePendingTasks, ok := c.tableWisePendingTasks.Get(tablePick)
 	if !ok {
