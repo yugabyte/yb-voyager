@@ -119,27 +119,28 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 					Otherwise, add it to the result slice
 				*/
 				alterTableCmdType := alterTableCmd.GetSubtype()
-				if *alterTableCmdType.Enum() != pg_query.AlterTableType_AT_AddConstraint {
-					// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to add it to the result slice
-					result = append(result, stmt)
-				} else {
+				if *alterTableCmdType.Enum() == pg_query.AlterTableType_AT_AddConstraint {
 					constrNode := alterTableCmd.GetDef().GetConstraint()
 					if constrNode == nil {
 						continue
 					}
 
 					constrType := constrNode.GetContype()
-					if !slices.Contains(constraintTypesToMerge, constrType) {
-						// For other constraints, add to result slice
-						result = append(result, stmt)
-					} else {
+					// extra check whether Constraint VALID or NOT: if NOT, then we import it post snapshot
+					if slices.Contains(constraintTypesToMerge, constrType) && !constrNode.SkipValidation {
 						// Merge these constraints into the CREATE TABLE stmt
 						createStmt, ok := createStmtMap[objectName]
 						if !ok {
 							return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
 						}
 						createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
+					} else {
+						// For other case of ADD Constraints, append to result slice
+						result = append(result, stmt)
 					}
+				} else {
+					// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to append it to the result slice
+					result = append(result, stmt)
 				}
 			}
 
