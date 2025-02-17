@@ -25,11 +25,13 @@ import (
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 type dummyYb struct {
+	tgtdb.TargetYugabyteDB
 	colocatedTables []sqlname.NameTuple
 	shardedTables   []sqlname.NameTuple
 }
@@ -45,6 +47,10 @@ func (d *dummyYb) IsTableColocated(tableName sqlname.NameTuple) (bool, error) {
 
 func (d *dummyYb) IsDBColocated() (bool, error) {
 	return len(d.colocatedTables) > 0, nil
+}
+
+func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+	return 1, nil
 }
 
 func TestSequentialTaskPickerBasic(t *testing.T) {
@@ -1101,40 +1107,44 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
-	// no matter how many times we call Pick therefater,
-	// it should return one of the tasks
-	for i := 0; i < 100; i++ {
-		task, err := picker.Pick()
-		assert.NoError(t, err)
-		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
-	}
-	assert.Equal(t, 5, len(picker.inProgressTasks))
+	// pick 3 tasks and start the process.
+	task1, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp1, err := NewFileBatchProducer(task1, state)
+	batch1, err := fbp1.NextBatch()
+	assert.NoError(t, err)
+	batch1.MarkInProgress()
+
+	task2, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp2, err := NewFileBatchProducer(task2, state)
+	batch2, err := fbp2.NextBatch()
+	assert.NoError(t, err)
+	batch2.MarkInProgress()
+
+	task3, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp3, err := NewFileBatchProducer(task3, state)
+	batch3, err := fbp3.NextBatch()
+	assert.NoError(t, err)
+	batch3.MarkInProgress()
+
+	// simulate restart. now, those 3 tasks should be in progress
+	picker, err = NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	assert.Equal(t, 3, len(picker.inProgressTasks))
+
+	// simulate restart with  a larger no. of max tasks in progress
+	picker, err = NewColocatedAwareRandomTaskPicker(20, tasks, state, dummyYb)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	assert.Equal(t, 3, len(picker.inProgressTasks))
 
 	// simulate restart with a smaller no. of max tasks in progress
 	picker, err = NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
-	// it should return one of the tasks
-	for i := 0; i < 100; i++ {
-		task, err := picker.Pick()
-		assert.NoError(t, err)
-		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
-	}
-
-	// only two shoudl be inprogress even though previously 5 were in progress.
+	// only two shoudl be inprogress even though previously 3 were in progress.
 	assert.Equal(t, 2, len(picker.inProgressTasks))
-
-	// simulate restart with a larger no. of max tasks in progress
-	picker, err = NewColocatedAwareRandomTaskPicker(20, tasks, state, dummyYb)
-	testutils.FatalIfError(t, err)
-	assert.True(t, picker.HasMoreTasks())
-	// it should return one of the tasks
-	for i := 0; i < 100; i++ {
-		task, err := picker.Pick()
-		assert.NoError(t, err)
-		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 || task == shardedTask1 || task == shardedTask2, "task: %v, expected tasks = %v", task, tasks)
-	}
-
-	// all 5 should be inprogress
-	assert.Equal(t, 5, len(picker.inProgressTasks))
 }
