@@ -155,6 +155,7 @@ type ColocatedAwareRandomTaskPicker struct {
 
 	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
 
+	state *ImportDataState
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -230,6 +231,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		maxTasksInProgress:    maxTasksInProgress,
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
+		state:                 state,
 	}
 	err = picker.initializeChooser()
 	if err != nil {
@@ -244,19 +246,50 @@ func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")
 	}
-
+	var task *ImportFileTask
+	var err error
 	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
 	if len(c.inProgressTasks) == c.maxTasksInProgress {
-		return c.PickTaskFromInProgressTasks()
+		task, err = c.PickTaskFromInProgressTasks()
 	}
 
 	// if we have less than maxTasksInProgress tasks in progress, but no pending tasks, pick a task from inProgressTasks
 	if len(c.inProgressTasks) < c.maxTasksInProgress && len(c.tableWisePendingTasks.Keys()) == 0 {
-		return c.PickTaskFromInProgressTasks()
+		task, err = c.PickTaskFromInProgressTasks()
 	}
 
 	// pick a new task from pending tasks
-	return c.PickTaskFromPendingTasks()
+	task, err = c.PickTaskFromPendingTasks()
+	c.reportStateOfInProgressTasks()
+	return task, err
+}
+
+func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
+	var inProgressColocatedCount int
+	var inProgressShardedCount int
+	var workerPoolColocatedBatchesCount int
+	var workerPoolShardedBatchesCount int
+
+	for _, task := range c.inProgressTasks {
+		tableType, ok := c.tableTypes.Get(task.TableNameTup)
+		if !ok {
+			panic(fmt.Sprintf("table type not found for task: %v", task))
+		}
+		pendingBatches, err := c.state.GetPendingBatches(task.FilePath, task.TableNameTup)
+		if err != nil {
+			panic(fmt.Sprintf("getting pending batches for task: %v: %v", task, err))
+		}
+		if tableType == COLOCATED {
+			inProgressColocatedCount++
+			workerPoolColocatedBatchesCount += len(pendingBatches)
+		} else {
+			inProgressShardedCount++
+			workerPoolShardedBatchesCount += len(pendingBatches)
+		}
+	}
+	log.Infof("picker-pool state: In-Progress tasks: Colocated: %d, Sharded: %d. WorkerPool in-progress Batches: Colocated: %d, Sharded: %d",
+		inProgressColocatedCount, inProgressShardedCount, workerPoolColocatedBatchesCount, workerPoolShardedBatchesCount)
+
 }
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportFileTask, error) {
