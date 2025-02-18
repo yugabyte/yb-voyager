@@ -911,8 +911,8 @@ create_guardrail_scripts_dir() {
 
 centos_install_mysql_client() {
 	version=$1
-	# If version is greater than or equal to 8 then dont install from community repo
-	if [ "$version" -ge 8 ]; then
+	# If version is equal to 8 then dont install from community repo
+	if [ "$version" -eq 8 ]; then
 		$YUM_INSTALL mysql-devel 1>&2
 		return
 	fi
@@ -921,6 +921,7 @@ centos_install_mysql_client() {
 	sudo yum remove -y mysql84-community-release-el${version}-1 1>&2 
 	sudo yum install -y mysql84-community-release-el${version}-1.noarch.rpm 1>&2
 	sudo yum install -y mysql-community-devel 1>&2
+	rm -f mysql84-community-release-el${version}-1.noarch.rpm
 }
 
 centos_check_base_repo_enabled() {
