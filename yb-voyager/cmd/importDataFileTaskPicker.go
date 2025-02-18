@@ -343,6 +343,7 @@ func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) f
 			}
 			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
 		}
+		log.Infof("colocated totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
 		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
 	case SHARDED:
 		shardedTasks := append(c.inProgressShardedTasks, c.pendingShardedTasks...)
@@ -357,6 +358,7 @@ func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) f
 			}
 			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
 		}
+		log.Infof("sharded totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
 		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
 	default:
 		panic(fmt.Sprintf("unexpected table type: %s", tableType))
