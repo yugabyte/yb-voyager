@@ -42,9 +42,11 @@ type FileTaskImporter struct {
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool
 
-	totalProgressAmount   int64
-	currentProgressAmount int64
-	progressReporter      *ImportDataProgressReporter
+	totalProgressAmount          int64
+	currentProgressAmount        int64
+	currentPendingProgressAmount int64
+
+	progressReporter *ImportDataProgressReporter
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
@@ -142,6 +144,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
+
 		fti.importBatch(batch)
 		if reportProgressInBytes {
 			fti.updateProgress(batch.ByteCount)
@@ -155,12 +158,18 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
 	fti.currentProgressAmount += progressAmount
+	fti.currentPendingProgressAmount -= progressAmount
+
 	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
 		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
 	}
+}
+
+func (fti *FileTaskImporter) updatePendingProgress(progressAmount int64) {
+	fti.currentPendingProgressAmount += progressAmount
 }
 
 func (fti *FileTaskImporter) PostProcess() {

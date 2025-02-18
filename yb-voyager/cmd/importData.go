@@ -54,6 +54,7 @@ var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
 var importPhase string
+var taskImporters map[int]*FileTaskImporter
 
 // stores the data files description in a struct
 var dataFileDescriptor *datafile.Descriptor
@@ -733,7 +734,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		}
 	}
 
-	taskImporters := map[int]*FileTaskImporter{}
+	taskImporters = map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
 		task, err := taskPicker.Pick()

@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -145,13 +144,17 @@ type ColocatedAwareRandomTaskPicker struct {
 	doneTasks []*ImportFileTask
 	// tasks which the picker has picked at least once, and are essentially in progress.
 	// the length of this list will be <= maxTasksInProgress
-	inProgressTasks    []*ImportFileTask
-	maxTasksInProgress int
+	// inProgressTasks    []*ImportFileTask
+	maxTasksInProgress       int
+	inProgressColocatedTasks []*ImportFileTask
+	inProgressShardedTasks   []*ImportFileTask
 
 	// tasks which have not yet been picked even once.
 	// the tableChooser will be employed to pick a table from this list.
-	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
-	tableChooser          *weightedrand.Chooser[sqlname.NameTuple, int]
+	// tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
+	// tableChooser          *weightedrand.Chooser[sqlname.NameTuple, int]
+	pendingColcatedTasks []*ImportFileTask
+	pendingShardedTasks  []*ImportFileTask
 
 	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
 
@@ -166,7 +169,12 @@ type YbTargetDBColocatedChecker interface {
 func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
 	var doneTasks []*ImportFileTask
 	var inProgressTasks []*ImportFileTask
-	tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
+	var inProgressColocatedTasks []*ImportFileTask
+	var inProgressShardedTasks []*ImportFileTask
+	var pendingColcatedTasks []*ImportFileTask
+	var pendingShardedTasks []*ImportFileTask
+
+	// tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
 	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
 
 	isDBColocated, err := yb.IsDBColocated()
@@ -174,28 +182,34 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		return nil, fmt.Errorf("checking if db is colocated: %w", err)
 	}
 
-	addToPendingTasks := func(t *ImportFileTask) {
-		// put into the table wise pending tasks.
-		var tablePendingTasks []*ImportFileTask
-		var ok bool
-		tablePendingTasks, ok = tableWisePendingTasks.Get(t.TableNameTup)
-		if !ok {
-			tablePendingTasks = []*ImportFileTask{}
+	addToPendingTasks := func(t *ImportFileTask, tableType string) {
+		if tableType == COLOCATED {
+			pendingColcatedTasks = append(pendingColcatedTasks, t)
+		} else {
+			pendingShardedTasks = append(pendingShardedTasks, t)
 		}
-		tablePendingTasks = append(tablePendingTasks, t)
-		tableWisePendingTasks.Put(t.TableNameTup, tablePendingTasks)
+		// put into the table wise pending tasks.
+		// var tablePendingTasks []*ImportFileTask
+		// var ok bool
+		// tablePendingTasks, ok = tableWisePendingTasks.Get(t.TableNameTup)
+		// if !ok {
+		// 	tablePendingTasks = []*ImportFileTask{}
+		// }
+		// tablePendingTasks = append(tablePendingTasks, t)
+		// tableWisePendingTasks.Put(t.TableNameTup, tablePendingTasks)
 	}
 
 	for _, task := range tasks {
 		tableName := task.TableNameTup
-
+		var isColocated bool
+		var tableType string
 		// set tableType if not already set
 		if _, ok := tableTypes.Get(tableName); !ok {
-			var tableType string
+
 			if !isDBColocated {
 				tableType = SHARDED
 			} else {
-				isColocated, err := yb.IsTableColocated(tableName)
+				isColocated, err = yb.IsTableColocated(tableName)
 				if err != nil {
 					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", tableName, err)
 				}
@@ -215,28 +229,37 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		case FILE_IMPORT_IN_PROGRESS:
 			if len(inProgressTasks) < maxTasksInProgress {
 				inProgressTasks = append(inProgressTasks, task)
+				if isColocated {
+					inProgressColocatedTasks = append(inProgressColocatedTasks, task)
+				} else {
+					inProgressShardedTasks = append(inProgressShardedTasks, task)
+				}
 			} else {
-				addToPendingTasks(task)
+				addToPendingTasks(task, tableType)
 			}
 		case FILE_IMPORT_NOT_STARTED:
-			addToPendingTasks(task)
+			addToPendingTasks(task, tableType)
 		default:
 			return nil, fmt.Errorf("unexpected  status for task: %v: %v", task, taskStatus)
 		}
 	}
 
 	picker := &ColocatedAwareRandomTaskPicker{
-		doneTasks:             doneTasks,
-		inProgressTasks:       inProgressTasks,
-		maxTasksInProgress:    maxTasksInProgress,
-		tableWisePendingTasks: tableWisePendingTasks,
-		tableTypes:            tableTypes,
-		state:                 state,
+		doneTasks:                doneTasks,
+		inProgressColocatedTasks: inProgressColocatedTasks,
+		inProgressShardedTasks:   inProgressShardedTasks,
+		pendingColcatedTasks:     pendingColcatedTasks,
+		pendingShardedTasks:      pendingShardedTasks,
+		// inProgressTasks:       inProgressTasks,
+		maxTasksInProgress: maxTasksInProgress,
+		// tableWisePendingTasks: tableWisePendingTasks,
+		tableTypes: tableTypes,
+		state:      state,
 	}
-	err = picker.initializeChooser()
-	if err != nil {
-		return nil, fmt.Errorf("initializing chooser: %w", err)
-	}
+	// err = picker.initializeChooser()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("initializing chooser: %w", err)
+	// }
 
 	log.Infof("ColocatedAwareRandomTaskPicker initialized with params:%v", spew.Sdump(picker))
 	return picker, nil
@@ -247,14 +270,16 @@ func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 		return nil, fmt.Errorf("no more tasks")
 	}
 	c.reportStateOfInProgressTasks()
+	numInProgressTasks := len(c.inProgressColocatedTasks) + len(c.inProgressShardedTasks)
+	numPendingTasks := len(c.pendingColcatedTasks) + len(c.pendingShardedTasks)
 
 	// if we have already picked maxTasksInProgress tasks, pick a task from inProgressTasks
-	if len(c.inProgressTasks) == c.maxTasksInProgress {
+	if numInProgressTasks == c.maxTasksInProgress {
 		return c.PickTaskFromInProgressTasks()
 	}
 
 	// if we have less than maxTasksInProgress tasks in progress, but no pending tasks, pick a task from inProgressTasks
-	if len(c.inProgressTasks) < c.maxTasksInProgress && len(c.tableWisePendingTasks.Keys()) == 0 {
+	if numInProgressTasks < c.maxTasksInProgress && numPendingTasks == 0 {
 		return c.PickTaskFromInProgressTasks()
 	}
 
@@ -268,7 +293,9 @@ func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
 	var workerPoolColocatedBatchesCount int
 	var workerPoolShardedBatchesCount int
 
-	for _, task := range c.inProgressTasks {
+	inProgressTasks := append(c.inProgressColocatedTasks, c.inProgressShardedTasks...)
+
+	for _, task := range inProgressTasks {
 		tableType, ok := c.tableTypes.Get(task.TableNameTup)
 		if !ok {
 			panic(fmt.Sprintf("table type not found for task: %v", task))
@@ -290,125 +317,251 @@ func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
 
 }
 
+func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) float64 {
+	switch tableType {
+	case COLOCATED:
+		colocatedTasks := append(c.inProgressColocatedTasks, c.pendingColcatedTasks...)
+		totalRowCount := int64(0)
+		totalPendingOrInProgressRowCount := int64(0)
+		for _, task := range colocatedTasks {
+			totalRowCount += task.RowCount
+			taskImporter, ok := taskImporters[task.ID]
+			if !ok {
+				continue
+			}
+			totalPendingOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+		}
+		return float64(totalRowCount-totalPendingOrInProgressRowCount) / float64(totalRowCount)
+	case SHARDED:
+		shardedTasks := append(c.inProgressShardedTasks, c.pendingShardedTasks...)
+		totalRowCount := int64(0)
+		totalPendingOrInProgressRowCount := int64(0)
+		for _, task := range shardedTasks {
+			totalRowCount += task.RowCount
+			taskImporter, ok := taskImporters[task.ID]
+			if !ok {
+				continue
+			}
+			totalPendingOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+		}
+		return float64(totalRowCount-totalPendingOrInProgressRowCount) / float64(totalRowCount)
+	default:
+		panic(fmt.Sprintf("unexpected table type: %s", tableType))
+	}
+}
+
+func (c *ColocatedAwareRandomTaskPicker) pickRandomFromListOfTasks(tasks []*ImportFileTask) (int, *ImportFileTask) {
+	if len(tasks) == 0 {
+		panic("no tasks to pick from")
+	}
+	// pick a random task from inProgressTasks
+	taskIndex := rand.Intn(len(tasks))
+	return taskIndex, tasks[taskIndex]
+}
+
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportFileTask, error) {
-	if len(c.inProgressTasks) == 0 {
+
+	inProgressTasks := append(c.inProgressColocatedTasks, c.inProgressShardedTasks...)
+	if len(inProgressTasks) == 0 {
 		return nil, fmt.Errorf("no tasks in progress")
 	}
 
+	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
+	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
+
+	if pctLeftSharded < pctLeftColocated {
+		// prefer sharded
+		if len(c.inProgressShardedTasks) > 0 {
+			_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
+		} else {
+			_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
+		}
+	} else {
+		// prefer colocated
+		if len(c.inProgressColocatedTasks) > 0 {
+			_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
+		} else {
+			_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
+		}
+	}
+
 	// pick a random task from inProgressTasks
-	taskIndex := rand.Intn(len(c.inProgressTasks))
-	return c.inProgressTasks[taskIndex], nil
+	// taskIndex := rand.Intn(len(c.inProgressTasks))
+	// return c.inProgressTasks[taskIndex], nil
 }
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFileTask, error) {
-	if len(c.tableWisePendingTasks.Keys()) == 0 {
-		return nil, fmt.Errorf("no pending tasks to pick from")
-	}
-	if c.tableChooser == nil {
-		return nil, fmt.Errorf("chooser not initialized")
+	pendingTasks := append(c.pendingColcatedTasks, c.pendingShardedTasks...)
+	if len(pendingTasks) == 0 {
+		return nil, fmt.Errorf("no pending tasks")
 	}
 
-	tablePick := c.tableChooser.Pick()
-	tablePendingTasks, ok := c.tableWisePendingTasks.Get(tablePick)
-	if !ok {
-		return nil, fmt.Errorf("no pending tasks for table picked: %s: %v", tablePick, c.tableWisePendingTasks)
-	}
+	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
+	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
 
-	pickedTask := tablePendingTasks[0]
-	tablePendingTasks = tablePendingTasks[1:]
-
-	if len(tablePendingTasks) == 0 {
-		c.tableWisePendingTasks.Delete(tablePick)
-
-		// reinitialize chooser because we have removed a table from the pending list, so weights will change.
-		if len(c.tableWisePendingTasks.Keys()) > 0 {
-			err := c.initializeChooser()
-			if err != nil {
-				return nil, fmt.Errorf("re-initializing chooser after picking task: %v: %w", pickedTask, err)
-			}
+	if pctLeftSharded < pctLeftColocated {
+		// prefer sharded
+		if len(c.inProgressShardedTasks) > 0 {
+			i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+			c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+			c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
+		} else {
+			i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
+			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
+			c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
 		}
 	} else {
-		c.tableWisePendingTasks.Put(tablePick, tablePendingTasks)
-	}
-	c.inProgressTasks = append(c.inProgressTasks, pickedTask)
-	log.Infof("Picked task: %v. In-Progress tasks:%v", pickedTask, c.inProgressTasks)
-	return pickedTask, nil
-}
-
-func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
-	if len(c.tableWisePendingTasks.Keys()) == 0 {
-		return fmt.Errorf("no pending tasks to initialize chooser")
-	}
-	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
-	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
-		tableNames = append(tableNames, k)
-		return true, nil
-	})
-
-	colocatedCount := 0
-	for _, tableName := range tableNames {
-		tableType, ok := c.tableTypes.Get(tableName)
-		if !ok {
-			return fmt.Errorf("table type not found for table: %v", tableName)
-		}
-
-		if tableType == COLOCATED {
-			colocatedCount++
-		}
-	}
-	colocatedWeight := 1
-	// if all sharded tables, then equal weight of 1.
-	// otherwise, weight of a sharded tables = weight of all colocated tables.
-	shardedWeight := lo.Ternary(colocatedCount == 0, 1, colocatedCount*colocatedWeight)
-
-	choices := []weightedrand.Choice[sqlname.NameTuple, int]{}
-	for _, tableName := range tableNames {
-		tableType, ok := c.tableTypes.Get(tableName)
-		if !ok {
-			return fmt.Errorf("table type not found for table: %v", tableName)
-		}
-		if tableType == COLOCATED {
-			choices = append(choices, weightedrand.NewChoice(tableName, colocatedWeight))
+		// prefer colocated
+		if len(c.inProgressColocatedTasks) > 0 {
+			i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
+			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
+			c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
 		} else {
-			choices = append(choices, weightedrand.NewChoice(tableName, shardedWeight))
+			i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+			c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+			c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+			log.Infof("pctLeftSharded: %s, pctLeftColocated:%s. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+			return task, nil
 		}
+	}
 
-	}
-	var err error
-	c.tableChooser, err = weightedrand.NewChooser(choices...)
-	if err != nil {
-		return fmt.Errorf("creating chooser: %w", err)
-	}
-	return nil
+	// if len(c.tableWisePendingTasks.Keys()) == 0 {
+	// 	return nil, fmt.Errorf("no pending tasks to pick from")
+	// }
+	// if c.tableChooser == nil {
+	// 	return nil, fmt.Errorf("chooser not initialized")
+	// }
+
+	// tablePick := c.tableChooser.Pick()
+	// tablePendingTasks, ok := c.tableWisePendingTasks.Get(tablePick)
+	// if !ok {
+	// 	return nil, fmt.Errorf("no pending tasks for table picked: %s: %v", tablePick, c.tableWisePendingTasks)
+	// }
+
+	// pickedTask := tablePendingTasks[0]
+	// tablePendingTasks = tablePendingTasks[1:]
+
+	// if len(tablePendingTasks) == 0 {
+	// 	c.tableWisePendingTasks.Delete(tablePick)
+
+	// 	// reinitialize chooser because we have removed a table from the pending list, so weights will change.
+	// 	if len(c.tableWisePendingTasks.Keys()) > 0 {
+	// 		err := c.initializeChooser()
+	// 		if err != nil {
+	// 			return nil, fmt.Errorf("re-initializing chooser after picking task: %v: %w", pickedTask, err)
+	// 		}
+	// 	}
+	// } else {
+	// 	c.tableWisePendingTasks.Put(tablePick, tablePendingTasks)
+	// }
+	// c.inProgressTasks = append(c.inProgressTasks, pickedTask)
+	// log.Infof("Picked task: %v. In-Progress tasks:%v", pickedTask, c.inProgressTasks)
+	// return pickedTask, nil
 }
+
+// func (c *ColocatedAwareRandomTaskPicker) initializeChooser() error {
+// 	if len(c.tableWisePendingTasks.Keys()) == 0 {
+// 		return fmt.Errorf("no pending tasks to initialize chooser")
+// 	}
+// 	tableNames := make([]sqlname.NameTuple, 0, len(c.tableWisePendingTasks.Keys()))
+// 	c.tableWisePendingTasks.IterKV(func(k sqlname.NameTuple, v []*ImportFileTask) (bool, error) {
+// 		tableNames = append(tableNames, k)
+// 		return true, nil
+// 	})
+
+// 	colocatedCount := 0
+// 	for _, tableName := range tableNames {
+// 		tableType, ok := c.tableTypes.Get(tableName)
+// 		if !ok {
+// 			return fmt.Errorf("table type not found for table: %v", tableName)
+// 		}
+
+// 		if tableType == COLOCATED {
+// 			colocatedCount++
+// 		}
+// 	}
+// 	colocatedWeight := 1
+// 	// if all sharded tables, then equal weight of 1.
+// 	// otherwise, weight of a sharded tables = weight of all colocated tables.
+// 	shardedWeight := lo.Ternary(colocatedCount == 0, 1, colocatedCount*colocatedWeight)
+
+// 	choices := []weightedrand.Choice[sqlname.NameTuple, int]{}
+// 	for _, tableName := range tableNames {
+// 		tableType, ok := c.tableTypes.Get(tableName)
+// 		if !ok {
+// 			return fmt.Errorf("table type not found for table: %v", tableName)
+// 		}
+// 		if tableType == COLOCATED {
+// 			choices = append(choices, weightedrand.NewChoice(tableName, colocatedWeight))
+// 		} else {
+// 			choices = append(choices, weightedrand.NewChoice(tableName, shardedWeight))
+// 		}
+
+// 	}
+// 	var err error
+// 	c.tableChooser, err = weightedrand.NewChooser(choices...)
+// 	if err != nil {
+// 		return fmt.Errorf("creating chooser: %w", err)
+// 	}
+// 	return nil
+// }
 
 func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
-	for i, t := range c.inProgressTasks {
+
+	for i, t := range c.inProgressColocatedTasks {
 		if t.ID == task.ID {
-			c.inProgressTasks = append(c.inProgressTasks[:i], c.inProgressTasks[i+1:]...)
+			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks[:i], c.inProgressColocatedTasks[i+1:]...)
 			c.doneTasks = append(c.doneTasks, task)
-			log.Infof("Marked task as done: %v. In-Progress tasks:%v", t, c.inProgressTasks)
+			log.Infof("Marked task as done: %v. In-Progress colocated tasks:%v", t, c.inProgressColocatedTasks)
 			return nil
 		}
 	}
-	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks)
+
+	for i, t := range c.inProgressShardedTasks {
+		if t.ID == task.ID {
+			c.inProgressShardedTasks = append(c.inProgressShardedTasks[:i], c.inProgressShardedTasks[i+1:]...)
+			c.doneTasks = append(c.doneTasks, task)
+			log.Infof("Marked task as done: %v. In-Progress sharded tasks:%v", t, c.inProgressShardedTasks)
+			return nil
+		}
+	}
+	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, append(c.inProgressColocatedTasks, c.inProgressShardedTasks...))
 }
 
 func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
-	if len(c.inProgressTasks) > 0 {
-		return true
-	}
+	numInProgressTasks := len(c.inProgressColocatedTasks) + len(c.inProgressShardedTasks)
+	numPendingTasks := len(c.pendingColcatedTasks) + len(c.pendingShardedTasks)
 
-	pendingTasks := false
-	c.tableWisePendingTasks.IterKV(func(tableName sqlname.NameTuple, tasks []*ImportFileTask) (bool, error) {
-		if len(tasks) > 0 {
-			pendingTasks = true
-			return false, nil
-		}
-		return true, nil
-	})
+	return numInProgressTasks > 0 || numPendingTasks > 0
 
-	return pendingTasks
+	// if len(c.inProgressTasks) > 0 {
+	// 	return true
+	// }
+
+	// pendingTasks := false
+	// c.tableWisePendingTasks.IterKV(func(tableName sqlname.NameTuple, tasks []*ImportFileTask) (bool, error) {
+	// 	if len(tasks) > 0 {
+	// 		pendingTasks = true
+	// 		return false, nil
+	// 	}
+	// 	return true, nil
+	// })
+
+	// return pendingTasks
 }
 
 func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
