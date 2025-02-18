@@ -141,7 +141,9 @@ At any given time, only X  distinct tables can be IN-PROGRESS. If X=4, after pic
 	During this time, each of the in-progress tables will be picked with equal probability.
 */
 type ColocatedAwareRandomTaskPicker struct {
-	doneTasks []*ImportFileTask
+	// doneTasks []*ImportFileTask
+	doneColocatedTasks []*ImportFileTask
+	doneShardedTasks   []*ImportFileTask
 	// tasks which the picker has picked at least once, and are essentially in progress.
 	// the length of this list will be <= maxTasksInProgress
 	// inProgressTasks    []*ImportFileTask
@@ -167,7 +169,10 @@ type YbTargetDBColocatedChecker interface {
 }
 
 func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
-	var doneTasks []*ImportFileTask
+	// var doneTasks []*ImportFileTask
+	var doneColocatedTasks []*ImportFileTask
+	var doneShardedTasks []*ImportFileTask
+
 	var inProgressTasks []*ImportFileTask
 	var inProgressColocatedTasks []*ImportFileTask
 	var inProgressShardedTasks []*ImportFileTask
@@ -225,7 +230,11 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		}
 		switch taskStatus {
 		case FILE_IMPORT_COMPLETED:
-			doneTasks = append(doneTasks, task)
+			if tableType == COLOCATED {
+				doneColocatedTasks = append(doneColocatedTasks, task)
+			} else {
+				doneShardedTasks = append(doneShardedTasks, task)
+			}
 		case FILE_IMPORT_IN_PROGRESS:
 			if len(inProgressTasks) < maxTasksInProgress {
 				inProgressTasks = append(inProgressTasks, task)
@@ -245,7 +254,9 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 	}
 
 	picker := &ColocatedAwareRandomTaskPicker{
-		doneTasks:                doneTasks,
+		// doneTasks:                doneTasks,
+		doneColocatedTasks:       doneColocatedTasks,
+		doneShardedTasks:         doneShardedTasks,
 		inProgressColocatedTasks: inProgressColocatedTasks,
 		inProgressShardedTasks:   inProgressShardedTasks,
 		pendingColcatedTasks:     pendingColcatedTasks,
@@ -321,30 +332,32 @@ func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) f
 	switch tableType {
 	case COLOCATED:
 		colocatedTasks := append(c.inProgressColocatedTasks, c.pendingColcatedTasks...)
+		colocatedTasks = append(colocatedTasks, c.doneColocatedTasks...)
 		totalRowCount := int64(0)
-		totalPendingOrInProgressRowCount := int64(0)
+		totalDoneOrInProgressRowCount := int64(0)
 		for _, task := range colocatedTasks {
 			totalRowCount += task.RowCount
 			taskImporter, ok := taskImporters[task.ID]
 			if !ok {
 				continue
 			}
-			totalPendingOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
 		}
-		return float64(totalRowCount-totalPendingOrInProgressRowCount) / float64(totalRowCount)
+		return float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)
 	case SHARDED:
 		shardedTasks := append(c.inProgressShardedTasks, c.pendingShardedTasks...)
+		shardedTasks = append(shardedTasks, c.doneShardedTasks...)
 		totalRowCount := int64(0)
-		totalPendingOrInProgressRowCount := int64(0)
+		totalDoneOrInProgressRowCount := int64(0)
 		for _, task := range shardedTasks {
 			totalRowCount += task.RowCount
 			taskImporter, ok := taskImporters[task.ID]
 			if !ok {
 				continue
 			}
-			totalPendingOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
 		}
-		return float64(totalRowCount-totalPendingOrInProgressRowCount) / float64(totalRowCount)
+		return float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)
 	default:
 		panic(fmt.Sprintf("unexpected table type: %s", tableType))
 	}
@@ -525,7 +538,7 @@ func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) er
 	for i, t := range c.inProgressColocatedTasks {
 		if t.ID == task.ID {
 			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks[:i], c.inProgressColocatedTasks[i+1:]...)
-			c.doneTasks = append(c.doneTasks, task)
+			c.doneColocatedTasks = append(c.doneColocatedTasks, task)
 			log.Infof("Marked task as done: %v. In-Progress colocated tasks:%v", t, c.inProgressColocatedTasks)
 			return nil
 		}
@@ -534,7 +547,7 @@ func (c *ColocatedAwareRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) er
 	for i, t := range c.inProgressShardedTasks {
 		if t.ID == task.ID {
 			c.inProgressShardedTasks = append(c.inProgressShardedTasks[:i], c.inProgressShardedTasks[i+1:]...)
-			c.doneTasks = append(c.doneTasks, task)
+			c.doneShardedTasks = append(c.doneShardedTasks, task)
 			log.Infof("Marked task as done: %v. In-Progress sharded tasks:%v", t, c.inProgressShardedTasks)
 			return nil
 		}
