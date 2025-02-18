@@ -290,6 +290,8 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		c.tableWisePendingTasks.Delete(tablePick)
 
 		// reinitialize chooser because we have removed a table from the pending list, so weights will change.
+		// we need to update the weights every time the list of pending tasks change.
+		// We can't simply remove a choice, because the weights need to be rebalanced based on what is pending.
 		if len(c.tableWisePendingTasks.Keys()) > 0 {
 			err := c.initializeChooser()
 			if err != nil {
