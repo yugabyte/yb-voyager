@@ -231,6 +231,7 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION            = "Datatype not yet supported by voyager in live migration. Affected column: %s and type: %v. These columns will be excluded when exporting and importing data in live migration workflows."
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION = "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: %s and type: %v. These columns will be excluded when exporting and importing data in live migration workflows."
 	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION                      = "Primary key and Unique constraints on columns with complex data types like '%v' are not yet supported in YugabyteDB."
+	DATABASE_OPTIONS_DESCRIPTION                                     = "Database options (%s) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB."
 
 	INDEX_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION        = "Indexes on columns with citext data type are not yet supported in YugabyteDB."
 	INDEX_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION      = "Indexes on columns with tsvector data type are not yet supported in YugabyteDB."
