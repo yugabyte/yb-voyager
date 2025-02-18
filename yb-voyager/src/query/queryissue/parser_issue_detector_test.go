@@ -1280,7 +1280,6 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;`,
 		`CREATE OR REPLACE FUNCTION notify_and_insert()
-		`CREATE OR REPLACE FUNCTION notify_and_insert()
 RETURNS VOID AS $$
 BEGIN
 	LISTEN my_table_changes;
@@ -1330,7 +1329,6 @@ $$ LANGUAGE plpgsql;`,
 	}
 }
 
-
 func TestTwoPhaseCommit(t *testing.T) {
 	sqls := []string{
 		`PREPARE TRANSACTION 'tx1';`,
@@ -1376,7 +1374,6 @@ $$;`,
 			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "COMMIT PREPARED 'txn_db1';"),
 			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "ROLLBACK PREPARED 'txn_db1';"),
 		},
-		
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -1391,11 +1388,10 @@ $$;`,
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
-	
+
 	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.LatestStable)
 	assert.Error(t, err, `syntax error at or near "$1"`)
 
-	
 }
 
 func TestCompressionClause(t *testing.T) {
@@ -1423,5 +1419,5 @@ func TestCompressionClause(t *testing.T) {
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
-	
+
 }
