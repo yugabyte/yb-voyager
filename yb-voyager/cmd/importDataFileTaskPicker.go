@@ -384,7 +384,7 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
 	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
 
-	if pctLeftSharded > pctLeftSharded {
+	if pctLeftSharded > pctLeftColocated {
 		// prefer sharded
 		if len(c.inProgressShardedTasks) > 0 {
 			_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
@@ -422,9 +422,9 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
 	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
 
-	if pctLeftSharded > pctLeftSharded {
+	if pctLeftSharded > pctLeftColocated {
 		// prefer sharded
-		if len(c.inProgressShardedTasks) > 0 {
+		if len(c.pendingShardedTasks) > 0 {
 			i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
 			c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
 			c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
@@ -439,7 +439,7 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		}
 	} else {
 		// prefer colocated
-		if len(c.inProgressColocatedTasks) > 0 {
+		if len(c.pendingColcatedTasks) > 0 {
 			i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
 			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
 			c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
