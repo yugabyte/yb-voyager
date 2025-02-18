@@ -1236,6 +1236,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
+// analyze issue types to send the object names for to callhome
 var includeObjectNameInCallhomePayloadForIssueTypes = []string{
 	UNSUPPORTED_EXTENSION_ISSUE_TYPE,
 }
