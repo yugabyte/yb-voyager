@@ -48,6 +48,7 @@ func TestYugabyteGetAllTableNames(t *testing.T) {
 	testYugabyteDBSource.Source.Schema = "test_schema"
 
 	// Test GetAllTableNames
+	_ = testYugabyteDBSource.DB().Connect()
 	actualTables := testYugabyteDBSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("test_schema", "foo"),
@@ -86,6 +87,8 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
 	}
 
+	// Test GetTableToUniqueKeyColumnsMap
+	_ = testYugabyteDBSource.DB().Connect()
 	actualUniqKeys, err := testYugabyteDBSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
@@ -128,6 +131,8 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 	);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
+	// Test GetNonPKTables
+	_ = testYugabyteDBSource.DB().Connect()
 	actualTables, err := testYugabyteDBSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
