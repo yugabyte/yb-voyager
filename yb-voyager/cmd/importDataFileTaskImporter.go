@@ -144,7 +144,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-
+		fti.updatePendingProgress(batch.RecordCount)
 		fti.importBatch(batch)
 		if reportProgressInBytes {
 			fti.updateProgress(batch.ByteCount)
