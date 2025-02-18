@@ -614,6 +614,16 @@ check_yum_package_version() {
 check_yum_dependencies() {
     for requirement in "${centos_yum_package_requirements[@]}"; do
         IFS='|' read -r package version_type required_version <<< "$requirement"
+       
+        # In case of rhel9 the mysql-devel package is not available. However, mysql-community-devel is available. So check for that instead.
+        # Check if OS is rhel9
+        version=$(source /etc/os-release; echo "$VERSION_ID")
+	    # Extract only the major version
+	    majorVersion=$(echo $version | cut -d '.' -f 1)
+        if [[ "$majorVersion" -eq 9 && "$package" == "mysql-devel" ]]; then
+            package="mysql-community-devel"
+        fi
+
         check_yum_package_version "$package" "$version_type" "$required_version"
     done
 
