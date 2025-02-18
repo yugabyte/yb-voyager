@@ -620,10 +620,8 @@ check_yum_dependencies() {
         version=$(source /etc/os-release; echo "$VERSION_ID")
 	    # Extract only the major version
 	    majorVersion=$(echo $version | cut -d '.' -f 1)
-        if [ "$majorVersion" -eq 9 ]; then
-            if [[ "$package" == "mysql-devel" ]]; then
-                package="mysql-community-devel"
-            fi
+        if [[ "$majorVersion" -eq 9 && "$package" == "mysql-devel" ]]; then
+            package="mysql-community-devel"
         fi
 
         check_yum_package_version "$package" "$version_type" "$required_version"
