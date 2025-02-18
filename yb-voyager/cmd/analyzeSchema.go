@@ -1236,6 +1236,10 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	return nil
 }
 
+var includeObjectNameInCallhomePayloadForIssueTypes = []string{
+	UNSUPPORTED_EXTENSION_ISSUE_TYPE,
+}
+
 // analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
 var reasonsIncludingSensitiveInformationToCallhome = []string{
 	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON,
