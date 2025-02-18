@@ -51,6 +51,7 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 	tableList := []sqlname.NameTuple{
 		{CurrentName: objectName},
 	}
+	_ = testOracleSource.DB().Connect()
 	uniqueKeys, err := testOracleSource.DB().GetTableToUniqueKeyColumnsMap(tableList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
@@ -72,6 +73,7 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 }
 
 func TestOracleGetNonPKTables(t *testing.T) {
+	_ = testOracleSource.DB().Connect()
 	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 

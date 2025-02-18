@@ -2,9 +2,11 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	_ "embed"
 	"fmt"
 	"io"
+	"time"
 
 	log "github.com/sirupsen/logrus"
 
@@ -57,4 +59,33 @@ func printContainerLogs(container testcontainers.Container) {
 	}
 
 	fmt.Printf("=== Logs for container %s ===\n%s\n=== End of Logs for container %s ===\n", containerID, string(logData), containerID)
+}
+
+// pingDatabase tries to connect to the database using the driver and connection string.
+// It retries for a few times with a delay before giving up.
+func pingDatabase(driver string, connStr string) error {
+	var err error
+	maxRetries := 3
+	retryDelay := 5 * time.Second
+
+	for i := 0; i < maxRetries; i++ {
+		db, openErr := sql.Open(driver, connStr)
+		if openErr != nil {
+			err = openErr
+		} else {
+			pingErr := db.Ping()
+			closeErr := db.Close()
+			if pingErr == nil && closeErr == nil {
+				return nil // success
+			}
+
+			if pingErr != nil {
+				err = pingErr
+			} else {
+				err = closeErr
+			}
+		}
+		time.Sleep(retryDelay)
+	}
+	return fmt.Errorf("pingDatabase failed even after '%d' retries: %w", maxRetries, err)
 }

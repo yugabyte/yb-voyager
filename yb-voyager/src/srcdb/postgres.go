@@ -109,6 +109,18 @@ func newPostgreSQL(s *Source) *PostgreSQL {
 }
 
 func (pg *PostgreSQL) Connect() error {
+	if pg.db != nil {
+		err := pg.db.Ping()
+		if err == nil {
+			log.Infof("Already connected to the source database")
+				log.Infof("Already connected to the source database")
+				return nil
+		} else {
+			log.Infof("Failed to ping the source database: %s", err)
+			pg.Disconnect()
+		}
+		log.Info("Reconnecting to the source database")
+	}
 	db, err := sql.Open("pgx", pg.getConnectionUri())
 	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)

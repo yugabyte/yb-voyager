@@ -22,7 +22,7 @@ type YugabyteDBContainer struct {
 }
 
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
-	if yb.container != nil {
+	if yb.container != nil && yb.container.IsRunning() {
 		utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
 		return nil
 	}
@@ -39,6 +39,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	}
 
 	// this will create a 1 Node RF-1 cluster
+	// TODO: Ideally we should test with 3 Node RF-3 cluster
 	req := testcontainers.ContainerRequest{
 		Image:        fmt.Sprintf("yugabytedb/yugabyte:%s", yb.DBVersion),
 		ExposedPorts: []string{"5433/tcp", "15433/tcp", "7000/tcp", "9000/tcp", "9042/tcp"},
@@ -67,7 +68,15 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		Started:          true,
 	})
 	printContainerLogs(yb.container)
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to start yugabytedb container: %w", err)
+	}
+
+	err = pingDatabase("pgx", yb.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to ping yugabytedb container: %w", err)
+	}
+	return nil
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
@@ -115,10 +124,14 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 }
 
 func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+
 	connStr := yb.GetConnectionString()
 	conn, err := pgx.Connect(context.Background(), connStr)
 	if err != nil {
-		utils.ErrExit("failed to connect postgres for executing sqls: %w", err)
+		utils.ErrExit("failed to connect to yugabytedb for executing sqls: %w", err)
 	}
 	defer conn.Close(context.Background())
 

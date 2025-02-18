@@ -48,6 +48,7 @@ func TestPostgresGetAllTableNames(t *testing.T) {
 	testPostgresSource.Source.Schema = "test_schema" // used in query of GetAllTableNames()
 
 	// Test GetAllTableNames
+	_ = testPostgresSource.DB().Connect()
 	actualTables := testPostgresSource.DB().GetAllTableNames()
 	expectedTables := []*sqlname.SourceName{
 		sqlname.NewSourceName("test_schema", "foo"),
@@ -86,6 +87,8 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
 	}
 
+	// Test GetTableToUniqueKeyColumnsMap
+	_ = testPostgresSource.DB().Connect()
 	actualUniqKeys, err := testPostgresSource.DB().GetTableToUniqueKeyColumnsMap(uniqueTablesList)
 	if err != nil {
 		t.Fatalf("Error retrieving unique keys: %v", err)
@@ -128,6 +131,8 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 	);`)
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
+	// Test GetNonPKTables
+	_ = testPostgresSource.DB().Connect()
 	actualTables, err := testPostgresSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 

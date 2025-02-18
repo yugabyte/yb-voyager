@@ -46,6 +46,18 @@ func newMySQL(s *Source) *MySQL {
 }
 
 func (ms *MySQL) Connect() error {
+	if ms.db != nil {
+		err := ms.db.Ping()
+		if err == nil {
+			log.Infof("Already connected to the source database")
+			return nil
+		} else {
+			log.Infof("Failed to ping the source database: %s", err)
+			ms.Disconnect()
+		}
+		log.Info("Reconnecting to the source database")
+	}
+
 	db, err := sql.Open("mysql", ms.getConnectionUri())
 	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
