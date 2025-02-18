@@ -231,9 +231,11 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
 	}
-	err = picker.initializeChooser()
-	if err != nil {
-		return nil, fmt.Errorf("initializing chooser: %w", err)
+	if len(picker.tableWisePendingTasks.Keys()) > 0 {
+		err = picker.initializeChooser()
+		if err != nil {
+			return nil, fmt.Errorf("initializing chooser: %w", err)
+		}
 	}
 
 	log.Infof("ColocatedAwareRandomTaskPicker initialized with params:%v", spew.Sdump(picker))
