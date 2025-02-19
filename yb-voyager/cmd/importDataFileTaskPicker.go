@@ -147,9 +147,10 @@ type ColocatedAwareRandomTaskPicker struct {
 	// tasks which the picker has picked at least once, and are essentially in progress.
 	// the length of this list will be <= maxTasksInProgress
 	// inProgressTasks    []*ImportFileTask
-	maxTasksInProgress       int
-	inProgressColocatedTasks []*ImportFileTask
-	inProgressShardedTasks   []*ImportFileTask
+	maxTasksInProgress          int
+	maxColocatedTasksInProgress int
+	inProgressColocatedTasks    []*ImportFileTask
+	inProgressShardedTasks      []*ImportFileTask
 
 	// tasks which have not yet been picked even once.
 	// the tableChooser will be employed to pick a table from this list.
@@ -262,7 +263,8 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		pendingColcatedTasks:     pendingColcatedTasks,
 		pendingShardedTasks:      pendingShardedTasks,
 		// inProgressTasks:       inProgressTasks,
-		maxTasksInProgress: maxTasksInProgress,
+		maxTasksInProgress:          maxTasksInProgress,
+		maxColocatedTasksInProgress: 3,
 		// tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes: tableTypes,
 		state:      state,
@@ -328,42 +330,42 @@ func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
 
 }
 
-func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) float64 {
-	switch tableType {
-	case COLOCATED:
-		colocatedTasks := append(c.inProgressColocatedTasks, c.pendingColcatedTasks...)
-		colocatedTasks = append(colocatedTasks, c.doneColocatedTasks...)
-		totalRowCount := int64(0)
-		totalDoneOrInProgressRowCount := int64(0)
-		for _, task := range colocatedTasks {
-			totalRowCount += task.RowCount
-			taskImporter, ok := taskImporters[task.ID]
-			if !ok {
-				continue
-			}
-			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
-		}
-		log.Debugf("colocated totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
-		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
-	case SHARDED:
-		shardedTasks := append(c.inProgressShardedTasks, c.pendingShardedTasks...)
-		shardedTasks = append(shardedTasks, c.doneShardedTasks...)
-		totalRowCount := int64(0)
-		totalDoneOrInProgressRowCount := int64(0)
-		for _, task := range shardedTasks {
-			totalRowCount += task.RowCount
-			taskImporter, ok := taskImporters[task.ID]
-			if !ok {
-				continue
-			}
-			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
-		}
-		log.Debugf("sharded totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
-		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
-	default:
-		panic(fmt.Sprintf("unexpected table type: %s", tableType))
-	}
-}
+// func (c *ColocatedAwareRandomTaskPicker) getTotalWorkLeftPct(tableType string) float64 {
+// 	switch tableType {
+// 	case COLOCATED:
+// 		colocatedTasks := append(c.inProgressColocatedTasks, c.pendingColcatedTasks...)
+// 		colocatedTasks = append(colocatedTasks, c.doneColocatedTasks...)
+// 		totalRowCount := int64(0)
+// 		totalDoneOrInProgressRowCount := int64(0)
+// 		for _, task := range colocatedTasks {
+// 			totalRowCount += task.RowCount
+// 			taskImporter, ok := taskImporters[task.ID]
+// 			if !ok {
+// 				continue
+// 			}
+// 			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+// 		}
+// 		log.Debugf("colocated totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
+// 		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
+// 	case SHARDED:
+// 		shardedTasks := append(c.inProgressShardedTasks, c.pendingShardedTasks...)
+// 		shardedTasks = append(shardedTasks, c.doneShardedTasks...)
+// 		totalRowCount := int64(0)
+// 		totalDoneOrInProgressRowCount := int64(0)
+// 		for _, task := range shardedTasks {
+// 			totalRowCount += task.RowCount
+// 			taskImporter, ok := taskImporters[task.ID]
+// 			if !ok {
+// 				continue
+// 			}
+// 			totalDoneOrInProgressRowCount += taskImporter.currentProgressAmount + taskImporter.currentPendingProgressAmount
+// 		}
+// 		log.Debugf("sharded totalRowCount: %d, totalDoneOrInProgressRowCount: %d", totalRowCount, totalDoneOrInProgressRowCount)
+// 		return (float64(totalRowCount-totalDoneOrInProgressRowCount) / float64(totalRowCount)) * 100
+// 	default:
+// 		panic(fmt.Sprintf("unexpected table type: %s", tableType))
+// 	}
+// }
 
 func (c *ColocatedAwareRandomTaskPicker) pickRandomFromListOfTasks(tasks []*ImportFileTask) (int, *ImportFileTask) {
 	if len(tasks) == 0 {
@@ -381,32 +383,53 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 		return nil, fmt.Errorf("no tasks in progress")
 	}
 
-	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
-	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
-
-	if pctLeftSharded > pctLeftColocated {
-		// prefer sharded
-		if len(c.inProgressShardedTasks) > 0 {
-			_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		} else {
-			_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
+	maxColocatedBatchesInProgress := c.maxColocatedTasksInProgress * 2
+	totalColacatedBatchesInProgress := 0
+	for _, task := range c.inProgressColocatedTasks {
+		taskImporter, ok := taskImporters[task.ID]
+		if !ok {
+			continue
 		}
-	} else {
-		// prefer colocated
-		if len(c.inProgressColocatedTasks) > 0 {
-			_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		} else {
-			_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		}
+		totalColacatedBatchesInProgress += int(taskImporter.numBatchesInProgress.Load())
 	}
+	if totalColacatedBatchesInProgress < maxColocatedBatchesInProgress {
+		_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+		return task, nil
+	}
+	// pick from sharded tasks
+	if len(c.inProgressShardedTasks) == 0 {
+		return nil, nil
+	}
+
+	_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
+	return task, nil
+
+	// pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
+	// pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
+
+	// if pctLeftSharded > pctLeftColocated {
+	// 	// prefer sharded
+	// 	if len(c.inProgressShardedTasks) > 0 {
+	// 		_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	} else {
+	// 		_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	}
+	// } else {
+	// 	// prefer colocated
+	// 	if len(c.inProgressColocatedTasks) > 0 {
+	// 		_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	} else {
+	// 		_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked in-progress sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	}
+	// }
 
 	// pick a random task from inProgressTasks
 	// taskIndex := rand.Intn(len(c.inProgressTasks))
@@ -419,40 +442,56 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		return nil, fmt.Errorf("no pending tasks")
 	}
 
-	pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
-	pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
-
-	if pctLeftSharded > pctLeftColocated {
-		// prefer sharded
-		if len(c.pendingShardedTasks) > 0 {
-			i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
-			c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
-			c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		} else {
+	if len(c.pendingColcatedTasks) > 0 {
+		// can pick from colocated tasks
+		if len(c.inProgressColocatedTasks) < c.maxColocatedTasksInProgress {
+			// pick a colocated task
 			i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
 			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
 			c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		}
-	} else {
-		// prefer colocated
-		if len(c.pendingColcatedTasks) > 0 {
-			i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
-			c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
-			c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
-			return task, nil
-		} else {
-			i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
-			c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
-			c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
-			log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
 			return task, nil
 		}
 	}
+	// pick from sharded tasks
+	i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+	c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+	c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+	return task, nil
+
+	// pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
+	// pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
+
+	// if pctLeftSharded > pctLeftColocated {
+	// 	// prefer sharded
+	// 	if len(c.pendingShardedTasks) > 0 {
+	// 		i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+	// 		c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+	// 		c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	} else {
+	// 		i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
+	// 		c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
+	// 		c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	}
+	// } else {
+	// 	// prefer colocated
+	// 	if len(c.pendingColcatedTasks) > 0 {
+	// 		i, task := c.pickRandomFromListOfTasks(c.pendingColcatedTasks)
+	// 		c.inProgressColocatedTasks = append(c.inProgressColocatedTasks, task)
+	// 		c.pendingColcatedTasks = append(c.pendingColcatedTasks[:i], c.pendingColcatedTasks[i+1:]...)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending colocated task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	} else {
+	// 		i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+	// 		c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+	// 		c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+	// 		log.Debugf("pctLeftSharded: %f, pctLeftColocated:%f. Picked pending sharded task: %v.", pctLeftSharded, pctLeftColocated, task)
+	// 		return task, nil
+	// 	}
+	// }
 
 	// if len(c.tableWisePendingTasks.Keys()) == 0 {
 	// 	return nil, fmt.Errorf("no pending tasks to pick from")

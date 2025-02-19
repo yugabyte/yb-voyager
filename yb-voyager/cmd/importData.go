@@ -741,6 +741,10 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
+		if task == nil {
+			log.Info("No task picked. Waiting for tasks to be available.")
+			continue
+		}
 		log.Infof("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool

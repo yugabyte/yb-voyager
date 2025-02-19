@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -45,6 +46,7 @@ type FileTaskImporter struct {
 	totalProgressAmount          int64
 	currentProgressAmount        int64
 	currentPendingProgressAmount int64
+	numBatchesInProgress         atomic.Int64
 
 	progressReporter *ImportDataProgressReporter
 }
@@ -144,6 +146,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
+		fti.numBatchesInProgress.Add(1)
 		fti.updatePendingProgress(batch.RecordCount)
 		fti.importBatch(batch)
 		if reportProgressInBytes {
@@ -151,6 +154,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		} else {
 			fti.updateProgress(batch.RecordCount)
 		}
+		fti.numBatchesInProgress.Add(-1)
 	})
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
