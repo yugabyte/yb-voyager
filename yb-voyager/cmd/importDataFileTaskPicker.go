@@ -383,27 +383,29 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 		return nil, fmt.Errorf("no tasks in progress")
 	}
 
-	maxColocatedBatchesInProgress := c.maxColocatedTasksInProgress * 2
-	totalColacatedBatchesInProgress := 0
-	for _, task := range c.inProgressColocatedTasks {
-		taskImporter, ok := taskImporters[task.ID]
-		if !ok {
-			continue
+	if len(c.inProgressColocatedTasks) > 0 {
+		maxColocatedBatchesInProgress := c.maxColocatedTasksInProgress * 2
+		totalColacatedBatchesInProgress := 0
+		for _, task := range c.inProgressColocatedTasks {
+			taskImporter, ok := taskImporters[task.ID]
+			if !ok {
+				continue
+			}
+			totalColacatedBatchesInProgress += int(taskImporter.numBatchesInProgress.Load())
 		}
-		totalColacatedBatchesInProgress += int(taskImporter.numBatchesInProgress.Load())
+		if totalColacatedBatchesInProgress < maxColocatedBatchesInProgress {
+			_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+			return task, nil
+		}
 	}
-	if totalColacatedBatchesInProgress < maxColocatedBatchesInProgress {
-		_, task := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+
+	// pick from sharded tasks
+	if len(c.inProgressShardedTasks) > 0 {
+		_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
 		return task, nil
 	}
-	// pick from sharded tasks
-	if len(c.inProgressShardedTasks) == 0 {
-		return nil, nil
-	}
 
-	_, task := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
-	return task, nil
-
+	return nil, nil
 	// pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
 	// pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
 
@@ -453,10 +455,13 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFile
 		}
 	}
 	// pick from sharded tasks
-	i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
-	c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
-	c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
-	return task, nil
+	if len(c.pendingShardedTasks) > 0 {
+		i, task := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
+		c.inProgressShardedTasks = append(c.inProgressShardedTasks, task)
+		c.pendingShardedTasks = append(c.pendingShardedTasks[:i], c.pendingShardedTasks[i+1:]...)
+		return task, nil
+	}
+	return nil, nil
 
 	// pctLeftSharded := c.getTotalWorkLeftPct(SHARDED)
 	// pctLeftColocated := c.getTotalWorkLeftPct(COLOCATED)
