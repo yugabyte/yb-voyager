@@ -578,42 +578,48 @@ func testIndexOnComplexDataType(t *testing.T) {
 	// We have to create indexes on the tables to check if the index creation is supported or not
 	// We will create indexes on the unsupported datatypes and check if the index creation fails
 
-	struct testIndexOnComplexDataType {
-		sql string
+	type testIndexOnComplexDataTypeTests struct {
+		sql    string
 		errMsg string
-		Issue issue.Issue
+		Issue  issue.Issue
 	}
 
-	sqls := []testIndexOnComplexDataType{
-		{
+	testCases := []testIndexOnComplexDataTypeTests{
+		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE citext_table (id int, name CITEXT);
 			CREATE INDEX citext_index ON citext_table (name);`,
 			errMsg: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
-			Issue: indexOnCitextDatatypeIssue,
+			Issue:  indexOnCitextDatatypeIssue,
 		},
-		{
+		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsvector_table (id int, name TSVECTOR);
 			CREATE INDEX tsvector_index ON tsvector_table (name);`,
 			errMsg: "ERROR: INDEX on column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
-			Issue: indexOnTsvectorDatatypeIssue,
+			Issue:  indexOnTsVectorDatatypeIssue,
 		},
-		{
+		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsquery_table (id int, name TSQUERY);
 			CREATE INDEX tsquery_index ON tsquery_table (name);`,
 			errMsg: "ERROR: INDEX on column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
-			Issue: indexOnTsqueryDatatypeIssue,
+			Issue:  indexOnTsQueryDatatypeIssue,
+		},
+		testIndexOnComplexDataTypeTests{
+			sql: `CREATE TABLE jsonb_table (id int, name JSONB);
+			CREATE INDEX jsonb_index ON jsonb_table (name);`,
+			errMsg: "ERROR: INDEX on column of type 'JSONB' not yet supported (SQLSTATE 0A000)",
+			Issue:  indexOnJsonbDatatypeIssue,
 		},
 	}
 
-	for _, sql := range sqls {
+	for _, testCase := range testCases {
 		ctx := context.Background()
 		conn, err := getConn()
 		assert.NoError(t, err)
 
-		defer conn.Close(context.Background())
-		
-		_, err = conn.Exec(ctx, sql.sql)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, sql.errMsg, sql.Issue)
+		_, err = conn.Exec(ctx, testCase.sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, testCase.errMsg, testCase.Issue)
+
+		conn.Close(ctx)
 	}
 }
 
