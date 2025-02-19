@@ -540,6 +540,83 @@ func testCompressionClauseIssue(t *testing.T) {
 
 }
 
+func testIndexOnComplexDataType(t *testing.T) {
+	// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
+	// var UnsupportedIndexDatatypes = []string{
+	// 	"citext",
+	// 	"tsvector",
+	// 	"tsquery",
+	// 	"jsonb",
+	// 	"inet",
+	// 	"json",
+	// 	"macaddr",
+	// 	"macaddr8",
+	// 	"cidr",
+	// 	"bit",    // for BIT (n)
+	// 	"varbit", // for BIT varying (n)
+	// 	"daterange",
+	// 	"tsrange",
+	// 	"tstzrange",
+	// 	"numrange",
+	// 	"int4range",
+	// 	"int8range",
+	// 	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
+	// 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
+	// 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
+	// 	"circle",
+	// 	"box",
+	// 	"line",
+	// 	"lseg",
+	// 	"point",
+	// 	"pg_lsn",
+	// 	"path",
+	// 	"polygon",
+	// 	"txid_snapshot",
+	// 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
+	// }
+
+	// We have to create indexes on the tables to check if the index creation is supported or not
+	// We will create indexes on the unsupported datatypes and check if the index creation fails
+
+	struct testIndexOnComplexDataType {
+		sql string
+		errMsg string
+		Issue issue.Issue
+	}
+
+	sqls := []testIndexOnComplexDataType{
+		{
+			sql: `CREATE TABLE citext_table (id int, name CITEXT);
+			CREATE INDEX citext_index ON citext_table (name);`,
+			errMsg: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			Issue: indexOnCitextDatatypeIssue,
+		},
+		{
+			sql: `CREATE TABLE tsvector_table (id int, name TSVECTOR);
+			CREATE INDEX tsvector_index ON tsvector_table (name);`,
+			errMsg: "ERROR: INDEX on column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
+			Issue: indexOnTsvectorDatatypeIssue,
+		},
+		{
+			sql: `CREATE TABLE tsquery_table (id int, name TSQUERY);
+			CREATE INDEX tsquery_index ON tsquery_table (name);`,
+			errMsg: "ERROR: INDEX on column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
+			Issue: indexOnTsqueryDatatypeIssue,
+		},
+	}
+
+	for _, sql := range sqls {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		defer conn.Close(context.Background())
+		
+		_, err = conn.Exec(ctx, sql.sql)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, sql.errMsg, sql.Issue)
+	}
+}
+
 func TestDDLIssuesInYBVersion(t *testing.T) {
 	var err error
 	ybVersion := os.Getenv("YB_VERSION")
@@ -618,6 +695,9 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "compression clause", ybVersion), testCompressionClauseIssue)
 	assert.True(t, success)
 	success = t.Run(fmt.Sprintf("%s-%s", "database options", ybVersion), testDatabaseOptions)
+	assert.True(t, success)
+
+	success = t.Run(fmt.Sprintf("%s-%s", "index on complex data type", ybVersion), testIndexOnComplexDataType)
 	assert.True(t, success)
 
 }
