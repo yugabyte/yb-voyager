@@ -297,7 +297,12 @@ func (c *ColocatedAwareRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	}
 
 	// pick a new task from pending tasks
-	return c.PickTaskFromPendingTasks()
+	task, err := c.PickTaskFromPendingTasks()
+	if task == nil && err == nil {
+		return c.PickTaskFromInProgressTasks()
+	} else {
+		return task, err
+	}
 }
 
 func (c *ColocatedAwareRandomTaskPicker) reportStateOfInProgressTasks() {
