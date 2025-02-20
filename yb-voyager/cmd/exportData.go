@@ -736,6 +736,25 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
+func getNameTupleFromObjectName(obj *sqlname.ObjectName) sqlname.NameTuple {
+	var err error
+	tuple := sqlname.NameTuple{
+		SourceName:  obj,
+		CurrentName: obj,
+	}
+	parent := ""
+	if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
+		parent = source.DB().ParentTableOfPartition(tuple)
+	}
+	if parent == "" {
+		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName, obj.Unqualified))
+		if err != nil {
+			utils.ErrExit("lookup for table name failed err: %s: %v", obj.Unqualified, err)
+		}
+	}
+	return tuple
+}
+
 func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlname.NameTuple) {
 	var includeTableList []sqlname.NameTuple
 	var finalTableList []sqlname.NameTuple
@@ -748,20 +767,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		//For partitions case there is no defined mapping and
 		//hence lookup will fail, need to create nametuple for non-root table by hand
 		obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
-		tuple := sqlname.NameTuple{
-			SourceName:  obj,
-			CurrentName: obj,
-		}
-		parent := ""
-		if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
-			parent = source.DB().ParentTableOfPartition(tuple)
-		}
-		if parent == "" {
-			tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", schema, table))
-			if err != nil {
-				utils.ErrExit("lookup for table name failed err: %s: %v", table, err)
-			}
-		}
+		tuple := getNameTupleFromObjectName(obj)
 		fullTableList = append(fullTableList, tuple)
 	}
 	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
@@ -833,10 +839,15 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 
 	//TODO: fix later this registered list also contains sequence names right now
 	//so in case some include/exclude table names are not proper we will display this registeredList as valid table names
-	registeredList, err := namereg.NameReg.GetRegisteredTableList()
+	registeredListObjNames, err := namereg.NameReg.GetRegisteredTableList()
 	if err != nil {
 		utils.ErrExit("error getting registered list in name registry: %v", err)
 	}
+
+	registeredList := lo.Map(registeredListObjNames, func(obj *sqlname.ObjectName, _ int) sqlname.NameTuple {
+		return getNameTupleFromObjectName(obj)
+	})
+
 	excludeTableList := extractTableListFromString(registeredList, source.ExcludeTableList, "exclude")
 	if len(excludeTableList) > 0 {
 		_, excludeTableList, err = addLeafPartitionsInTableList(excludeTableList, true)

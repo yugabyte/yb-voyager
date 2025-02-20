@@ -164,23 +164,28 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	return true, nil
 }
 
-func (reg *NameRegistry) GetRegisteredTableList() ([]sqlname.NameTuple, error) {
-	var res []sqlname.NameTuple
+func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error) {
+	var res []*sqlname.ObjectName
 	var m map[string][]string
+	var dbType string
+	var defaultSchemaName string
 	switch reg.params.Role {
 	case SOURCE_DB_EXPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		m = reg.SourceDBTableNames
+		dbType = reg.SourceDBType
+		defaultSchemaName = reg.DefaultSourceDBSchemaName
+		if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+			defaultSchemaName = reg.DefaultSourceReplicaDBSchemaName
+		}
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_IMPORTER_ROLE:
 		m = reg.YBTableNames
+		dbType = constants.YUGABYTEDB
+		defaultSchemaName = reg.DefaultYBSchemaName
 	}
 	for s, tables := range m {
-		//TODO: this also returns the sequence names so will have to fix it with sequence handling to have separate maps 
+		//TODO: this also returns the sequence names so will have to fix it with sequence handling to have separate maps
 		for _, t := range tables {
-			tuple, err := NameReg.LookupTableName(fmt.Sprintf("%s.%s", s, t))
-			if err != nil {
-				return nil, fmt.Errorf("lookup failed for tablename: %v", t)
-			}
-			res = append(res, tuple)
+			res = append(res, sqlname.NewObjectName(dbType, defaultSchemaName, s, t))
 		}
 	}
 	return res, nil
