@@ -105,10 +105,10 @@ ERROR: VIEW WITH CASCADED CHECK OPTION not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS
- SELECT b1.a,
-    b1.b
+ SELECT a,
+    b
    FROM regress_rls_schema.b1
-  WHERE (b1.a > 0)
+  WHERE (a > 0)
   WITH CASCADED CHECK OPTION;
 
 /*
@@ -223,10 +223,10 @@ ERROR: relation "composite_type_examples.ordinary_table" does not exist (SQLSTAT
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW composite_type_examples.basic_view AS
- SELECT ordinary_table.basic_,
-    ordinary_table._basic,
-    ordinary_table.nested,
-    ordinary_table._nested
+ SELECT basic_,
+    _basic,
+    nested,
+    _nested
    FROM composite_type_examples.ordinary_table;
 
 /*
@@ -234,8 +234,8 @@ ERROR: relation "enum_example.bugs" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW enum_example._bugs AS
- SELECT bugs.id,
-    bugs.status
+ SELECT id,
+    status
    FROM enum_example.bugs;
 
 /*
@@ -243,11 +243,11 @@ ERROR: relation "foreign_db_example.technically_doesnt_exist" does not exist (SQ
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW public.foreign_db_example AS
- SELECT technically_doesnt_exist.id,
-    technically_doesnt_exist.uses_type,
-    technically_doesnt_exist._uses_type,
-    technically_doesnt_exist.positive_number,
-    technically_doesnt_exist._positive_number
+ SELECT id,
+    uses_type,
+    _uses_type,
+    positive_number,
+    _positive_number
    FROM foreign_db_example.technically_doesnt_exist;
 
 /*
@@ -255,7 +255,7 @@ ERROR: relation "range_type_example.example_tbl" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/views/view.sql
 */
 CREATE VIEW range_type_example.depends_on_col_using_type AS
- SELECT example_tbl.col
+ SELECT col
    FROM range_type_example.example_tbl;
 
 /*

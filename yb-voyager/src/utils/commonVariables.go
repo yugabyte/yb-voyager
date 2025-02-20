@@ -74,11 +74,10 @@ var WaitChannel = make(chan int)
 // ================== Schema Report ==============================
 
 type SchemaReport struct {
-	VoyagerVersion      string               `json:"VoyagerVersion"`
-	TargetDBVersion     *ybversion.YBVersion `json:"TargetDBVersion"`
-	MigrationComplexity string               `json:"MigrationComplexity"`
-	SchemaSummary       SchemaSummary        `json:"Summary"`
-	Issues              []Issue              `json:"Issues"`
+	VoyagerVersion  string               `json:"VoyagerVersion"`
+	TargetDBVersion *ybversion.YBVersion `json:"TargetDBVersion"`
+	SchemaSummary   SchemaSummary        `json:"Summary"`
+	Issues          []AnalyzeSchemaIssue `json:"Issues"`
 }
 
 type SchemaSummary struct {
@@ -90,6 +89,7 @@ type SchemaSummary struct {
 	DBObjects   []DBObject `json:"DatabaseObjects"`
 }
 
+// TODO: Rename the variables of TotalCount and InvalidCount -> TotalObjects and ObjectsWithIssues
 type DBObject struct {
 	ObjectType   string `json:"ObjectType"`
 	TotalCount   int    `json:"TotalCount"`
@@ -99,11 +99,15 @@ type DBObject struct {
 }
 
 // TODO: support MinimumVersionsFixedIn in xml
-type Issue struct {
-	IssueType              string                          `json:"IssueType"`
+type AnalyzeSchemaIssue struct {
+	// TODO: deprecate this and rename to Category
+	IssueType              string                          `json:"IssueType"` //category: unsupported_features, unsupported_plpgsql_objects, etc
 	ObjectType             string                          `json:"ObjectType"`
 	ObjectName             string                          `json:"ObjectName"`
 	Reason                 string                          `json:"Reason"`
+	Type                   string                          `json:"-" xml:"-"` // identifier for issue type ADVISORY_LOCKS, SYSTEM_COLUMNS, etc
+	Name                   string                          `json:"-" xml:"-"` // to use for AssessmentIssue
+	Impact                 string                          `json:"-" xml:"-"` // temporary field; since currently we generate assessment issue from analyze issue
 	SqlStatement           string                          `json:"SqlStatement,omitempty"`
 	FilePath               string                          `json:"FilePath"`
 	Suggestion             string                          `json:"Suggestion"`
@@ -112,7 +116,7 @@ type Issue struct {
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
 }
 
-func (i Issue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
+func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
 	if i.MinimumVersionsFixedIn == nil {
 		return false, nil
 	}

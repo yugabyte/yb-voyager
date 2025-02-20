@@ -24,22 +24,7 @@ import (
 )
 
 const (
-	PG_QUERY_NODE_NODE           = "pg_query.Node"
-	PG_QUERY_STRING_NODE         = "pg_query.String"
-	PG_QUERY_ASTAR_NODE          = "pg_query.A_Star"
-	PG_QUERY_ACONST_NODE         = "pg_query.A_Const"
-	PG_QUERY_TYPECAST_NODE       = "pg_query.TypeCast"
-	PG_QUERY_XMLEXPR_NODE        = "pg_query.XmlExpr"
-	PG_QUERY_FUNCCALL_NODE       = "pg_query.FuncCall"
-	PG_QUERY_COLUMNREF_NODE      = "pg_query.ColumnRef"
-	PG_QUERY_RANGEFUNCTION_NODE  = "pg_query.RangeFunction"
-	PG_QUERY_RANGEVAR_NODE       = "pg_query.RangeVar"
-	PG_QUERY_RANGETABLEFUNC_NODE = "pg_query.RangeTableFunc"
-	PG_QUERY_PARAMREF_NODE       = "pg_query.ParamRef"
-
-	PG_QUERY_INSERTSTMT_NODE = "pg_query.InsertStmt"
-	PG_QUERY_UPDATESTMT_NODE = "pg_query.UpdateStmt"
-	PG_QUERY_DELETESTMT_NODE = "pg_query.DeleteStmt"
+	
 )
 
 // function type for processing nodes during traversal
@@ -219,7 +204,7 @@ func GetSchemaUsed(query string) ([]string, error) {
 
 	msg := GetProtoMessageFromParseTree(parseTree)
 	visited := make(map[protoreflect.Message]bool)
-	objectCollector := NewObjectCollector()
+	objectCollector := NewObjectCollector(TablesOnlyPredicate)
 	err = TraverseParseTree(msg, visited, func(msg protoreflect.Message) error {
 		objectCollector.Collect(msg)
 		return nil

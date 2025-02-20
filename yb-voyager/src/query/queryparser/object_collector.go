@@ -21,16 +21,40 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-// ObjectCollector collects unique schema-qualified object names.
+// ObjectPredicate defines a function signature that decides whether to include an object.
+type ObjectPredicate func(schemaName string, objectName string, objectType string) bool
+
+// Using a predicate makes it easy to adapt or swap filtering logic in the future without changing the collector.
+
+// ObjectCollector collects unique schema-qualified object names based on the provided predicate.
 type ObjectCollector struct {
 	objectSet map[string]bool
+	predicate ObjectPredicate
 }
 
-func NewObjectCollector() *ObjectCollector {
+// AllObjectsPredicate always returns true, meaning it will collect all objects found.
+func AllObjectsPredicate(schemaName, objectName, objectType string) bool {
+	return true
+}
+
+// TablesOnlyPredicate returns true only if the object type is "table".
+func TablesOnlyPredicate(schemaName, objectName, objectType string) bool {
+	return objectType == constants.TABLE
+}
+
+func NewObjectCollector(predicate ObjectPredicate) *ObjectCollector {
+	if predicate == nil {
+		predicate = AllObjectsPredicate
+	}
+
 	return &ObjectCollector{
 		objectSet: make(map[string]bool),
+		predicate: predicate,
 	}
 }
 
@@ -54,9 +78,12 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 	case PG_QUERY_RANGEVAR_NODE:
 		schemaName := GetStringField(msg, "schemaname")
 		relName := GetStringField(msg, "relname")
-		objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
+		objectName := utils.BuildObjectName(schemaName, relName)
 		log.Debugf("[RangeVar] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
-		c.addObject(objectName)
+		// it will be either table or view, considering objectType=table for both
+		if c.predicate(schemaName, relName, constants.TABLE) {
+			c.addObject(objectName)
+		}
 
 	// Extract target table names from DML statements
 	case PG_QUERY_INSERTSTMT_NODE, PG_QUERY_UPDATESTMT_NODE, PG_QUERY_DELETESTMT_NODE:
@@ -64,9 +91,11 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 		if relationMsg != nil {
 			schemaName := GetStringField(relationMsg, "schemaname")
 			relName := GetStringField(relationMsg, "relname")
-			objectName := lo.Ternary(schemaName != "", schemaName+"."+relName, relName)
+			objectName := utils.BuildObjectName(schemaName, relName)
 			log.Debugf("[IUD] fetched schemaname=%s relname=%s objectname=%s field\n", schemaName, relName, objectName)
-			c.addObject(objectName)
+			if c.predicate(schemaName, relName, constants.TABLE) {
+				c.addObject(objectName)
+			}
 		}
 
 	// Extract function names
@@ -76,9 +105,11 @@ func (c *ObjectCollector) Collect(msg protoreflect.Message) {
 			return
 		}
 
-		objectName := lo.Ternary(schemaName != "", schemaName+"."+functionName, functionName)
+		objectName := utils.BuildObjectName(schemaName, functionName)
 		log.Debugf("[Funccall] fetched schemaname=%s objectname=%s field\n", schemaName, objectName)
-		c.addObject(objectName)
+		if c.predicate(schemaName, functionName, constants.FUNCTION) {
+			c.addObject(objectName)
+		}
 
 		// Add more cases as needed for other message types
 	}

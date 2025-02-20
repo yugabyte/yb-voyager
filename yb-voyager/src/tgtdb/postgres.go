@@ -29,11 +29,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
 	"github.com/jackc/pgx/v4"
+	pgconn5 "github.com/jackc/pgx/v5/pgconn"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -76,6 +78,12 @@ func (pg *TargetPostgreSQL) Exec(query string) (int64, error) {
 
 	res, err := pg.db.Exec(query)
 	if err != nil {
+		var pgErr *pgconn5.PgError
+		if errors.As(err, &pgErr) {
+			if pgErr.Hint != "" || pgErr.Detail != "" {
+				return rowsAffected, fmt.Errorf("run query %q on target %q: %w \nHINT: %s\nDETAIL: %s", query, pg.tconf.Host, err, pgErr.Hint, pgErr.Detail)
+			}
+		}
 		return rowsAffected, fmt.Errorf("run query %q on target %q: %w", query, pg.tconf.Host, err)
 	}
 	rowsAffected, err = res.RowsAffected()
@@ -267,6 +275,9 @@ func (pg *TargetPostgreSQL) CreateVoyagerSchema() error {
 			rows_imported BIGINT,
 			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN data_file_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
@@ -284,6 +295,7 @@ func (pg *TargetPostgreSQL) CreateVoyagerSchema() error {
 			num_deletes BIGINT,
 			num_updates BIGINT,
 			PRIMARY KEY (migration_uuid, table_name, channel_no));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
@@ -324,7 +336,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table %q empty: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
 		}
 		result = append(result, table)
 	}
@@ -644,7 +656,7 @@ func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
 	}
 }
 
@@ -765,7 +777,7 @@ func (pg *TargetPostgreSQL) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	rows, err := pg.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query %s is empty: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
 	}
 	defer rows.Close()
 
@@ -785,7 +797,7 @@ func (pg *TargetPostgreSQL) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	tables := []sqlname.NameTuple{}
 	for _, tableName := range tableNames {
 		parts := strings.Split(tableName, ".")
-		objName := sqlname.NewObjectName(sqlname.POSTGRESQL, "", parts[0], parts[1])
+		objName := sqlname.NewObjectName(constants.POSTGRESQL, "", parts[0], parts[1])
 		nt := sqlname.NameTuple{
 			CurrentName: objName,
 			SourceName:  objName,

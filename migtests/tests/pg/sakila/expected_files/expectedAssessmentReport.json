@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "HIGH",
+	"MigrationComplexityExplanation": "Found 0 Level 2 issue(s) and 6 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_sakila",
@@ -115,148 +116,112 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
+	"AssessmentIssues": [
 		{
-			"FeatureName": "GIST indexes",
-			"Objects": [
-				{
-					"ObjectName": "film_fulltext_idx ON public.film",
-					"SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEX_METHOD",
+			"Name": "Index with access method",
+			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "film_fulltext_idx ON public.film",
+			"SqlStatement": "CREATE INDEX film_fulltext_idx ON public.film USING gist (fulltext);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "BRIN indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "SPGIST indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Constraint triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Inherited tables",
-			"Objects": [
-				{
-					"ObjectName": "public.payment_p2007_01",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date \u003e= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_02",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date \u003e= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_03",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date \u003e= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_04",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date \u003e= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_05",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date \u003e= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				},
-				{
-					"ObjectName": "public.payment_p2007_06",
-					"SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date \u003e= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_01",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_01 (\n    CONSTRAINT payment_p2007_01_payment_date_check CHECK (((payment_date \u003e= '2007-01-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-02-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Tables with stored generated columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_02",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_02 (\n    CONSTRAINT payment_p2007_02_payment_date_check CHECK (((payment_date \u003e= '2007-02-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-03-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Conversion objects",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_03",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_03 (\n    CONSTRAINT payment_p2007_03_payment_date_check CHECK (((payment_date \u003e= '2007-03-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-04-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_04",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_04 (\n    CONSTRAINT payment_p2007_04_payment_date_check CHECK (((payment_date \u003e= '2007-04-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-05-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_05",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_05 (\n    CONSTRAINT payment_p2007_05_payment_date_check CHECK (((payment_date \u003e= '2007-05-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-06-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_06",
+			"SqlStatement": "CREATE TABLE public.payment_p2007_06 (\n    CONSTRAINT payment_p2007_06_payment_date_check CHECK (((payment_date \u003e= '2007-06-01 00:00:00'::timestamp without time zone) AND (payment_date \u003c '2007-07-01 00:00:00'::timestamp without time zone)))\n)\nINHERITS (public.payment);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Clustering table on index",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Extensions",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Exclusion constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Deferrable constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "View with check option",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Primary / Unique key constraints on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unlogged tables",
-			"Objects": [],
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.film.fulltext",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"MinimumVersionsFixedIn": null
 		}
 	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
@@ -268,7 +233,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -282,7 +247,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -296,7 +261,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -310,7 +275,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -324,7 +289,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -338,7 +303,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -352,7 +317,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -366,7 +331,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -380,7 +345,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -394,7 +359,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -408,7 +373,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -422,7 +387,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -436,7 +401,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -450,7 +415,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -464,7 +429,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -478,7 +443,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -492,7 +457,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -506,7 +471,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -520,7 +485,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -534,7 +499,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -548,7 +513,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -562,7 +527,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.film",
 			"SizeInBytes": 8192
 		},
@@ -576,7 +541,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.actor",
 			"SizeInBytes": 8192
 		},
@@ -590,7 +555,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.customer",
 			"SizeInBytes": 8192
 		},
@@ -604,7 +569,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.address",
 			"SizeInBytes": 8192
 		},
@@ -618,7 +583,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.city",
 			"SizeInBytes": 8192
 		},
@@ -632,7 +597,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment",
 			"SizeInBytes": 8192
 		},
@@ -646,7 +611,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.film_actor",
 			"SizeInBytes": 8192
 		},
@@ -660,7 +625,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.rental",
 			"SizeInBytes": 8192
 		},
@@ -674,7 +639,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.film",
 			"SizeInBytes": 8192
 		},
@@ -688,7 +653,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.film",
 			"SizeInBytes": 8192
 		},
@@ -702,7 +667,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_01",
 			"SizeInBytes": 8192
 		},
@@ -716,7 +681,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_01",
 			"SizeInBytes": 8192
 		},
@@ -730,7 +695,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_02",
 			"SizeInBytes": 8192
 		},
@@ -744,7 +709,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_02",
 			"SizeInBytes": 8192
 		},
@@ -758,7 +723,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_03",
 			"SizeInBytes": 8192
 		},
@@ -772,7 +737,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_03",
 			"SizeInBytes": 8192
 		},
@@ -786,7 +751,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_04",
 			"SizeInBytes": 8192
 		},
@@ -800,7 +765,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_04",
 			"SizeInBytes": 8192
 		},
@@ -814,7 +779,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_05",
 			"SizeInBytes": 8192
 		},
@@ -828,7 +793,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_05",
 			"SizeInBytes": 8192
 		},
@@ -842,7 +807,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_06",
 			"SizeInBytes": 8192
 		},
@@ -856,7 +821,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment_p2007_06",
 			"SizeInBytes": 8192
 		},
@@ -870,7 +835,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.payment",
 			"SizeInBytes": 8192
 		},
@@ -884,7 +849,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.customer",
 			"SizeInBytes": 8192
 		},
@@ -898,7 +863,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.customer",
 			"SizeInBytes": 8192
 		},
@@ -912,7 +877,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.inventory",
 			"SizeInBytes": 8192
 		},
@@ -926,7 +891,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.film",
 			"SizeInBytes": 8192
 		},
@@ -940,7 +905,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.store",
 			"SizeInBytes": 8192
 		},
@@ -954,44 +919,222 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.rental",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "actor_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.actor",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "store_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.store",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "payment_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.payment",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "film_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.film",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "address_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.address",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "category_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.category",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "city_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.city",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "country_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.country",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "customer_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.customer",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "film_actor_pkey",
+			"RowCount": null,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.film_actor",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "film_category_pkey",
+			"RowCount": null,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.film_category",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "inventory_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.inventory",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "language_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.language",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "rental_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.rental",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "staff_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.staff",
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Policies",
-			"Objects": [],
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
-			"Objects": [
-				{
-					"ObjectName": "public.film.fulltext (tsvector)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	"Notes": [
+		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+	]
 }

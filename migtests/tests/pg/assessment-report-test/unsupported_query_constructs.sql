@@ -136,3 +136,39 @@ FROM
             product TEXT PATH 'product',
             quantity TEXT PATH 'quantity'
 ) AS items;
+
+
+SELECT lo_create('32142');
+
+-- Unsupported COPY constructs
+
+CREATE TABLE IF NOT EXISTS employeesCopyFromWhere (
+    id INT PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INT NOT NULL
+);
+
+
+-- COPY FROM with WHERE clause
+COPY employeesCopyFromWhere (id, name, age)
+FROM STDIN WITH (FORMAT csv)
+WHERE age > 30;
+1,John Smith,25
+2,Jane Doe,34
+3,Bob Johnson,31
+\.
+
+CREATE TABLE IF NOT EXISTS employeesCopyOnError (
+    id INT PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INT NOT NULL
+);
+
+-- COPY with ON_ERROR clause
+COPY employeesCopyOnError (id, name, age)
+FROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE );
+4,Adam Smith,22
+5,John Doe,34
+6,Ron Johnson,31
+\.
+

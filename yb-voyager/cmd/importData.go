@@ -16,9 +16,7 @@ limitations under the License.
 package cmd
 
 import (
-	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -29,7 +27,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/fatih/color"
-	"github.com/jackc/pgx/v4"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
@@ -82,8 +79,12 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		sourceDBType = GetSourceDBTypeFromMSR()
-		err := validateImportFlags(cmd, importerRole)
+		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
 			utils.ErrExit("Error: %s", err.Error())
 		}
@@ -154,6 +155,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// TODO: handle case-sensitive in table names with oracle ff-db
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
+	log.Debugf("Discovered import file tasks: %v", importFileTasks)
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
 
 		importType = record.ExportType
@@ -303,7 +305,7 @@ func startExportDataFromTargetIfRequired() {
 
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
-		utils.ErrExit("failed to run yb-voyager export data from target - %w\n Please re-run with command :\n%s", execErr, cmdStr)
+		utils.ErrExit("failed to run yb-voyager export data from target: %w\n Please re-run with command :\n%s", execErr, cmdStr)
 	}
 }
 
@@ -313,6 +315,10 @@ type ImportFileTask struct {
 	TableNameTup sqlname.NameTuple
 	RowCount     int64
 	FileSize     int64
+}
+
+func (task *ImportFileTask) String() string {
+	return fmt.Sprintf("{ID: %d, FilePath: %s, TableName: %s, RowCount: %d, FileSize: %d}", task.ID, task.FilePath, task.TableNameTup.ForOutput(), task.RowCount, task.FileSize)
 }
 
 // func quoteTableNameIfRequired() {
@@ -416,7 +422,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 			}
 		}
 		if len(unqualifiedTables) > 0 {
-			utils.ErrExit("Qualify following table names %v in the %s list with schema-name.", unqualifiedTables, listName)
+			utils.ErrExit("Qualify following table names in the %s list with schema-name: %v", listName, unqualifiedTables)
 		}
 		log.Infof("%s tableList: %v", listName, result)
 		return result, unknownTables
@@ -472,10 +478,6 @@ func updateTargetConfInMigrationStatus() {
 }
 
 func importData(importFileTasks []*ImportFileTask) {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
@@ -546,6 +548,8 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
 	}
+	log.Infof("pending tasks: %v", pendingTasks)
+	log.Infof("completed tasks: %v", completedTasks)
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
@@ -587,44 +591,36 @@ func importData(importFileTasks []*ImportFileTask) {
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 			}
 
-			for _, task := range pendingTasks {
-				// The code can produce `poolSize` number of batches at a time. But, it can consume only
-				// `parallelism` number of batches at a time.
-				batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-				log.Infof("created batch import pool of size: %d", poolSize)
+			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
+			if useTaskPicker {
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, poolSize)
+				if err != nil {
+					utils.ErrExit("Failed to import tasks via task picker: %s", err)
+				}
+			} else {
+				for _, task := range pendingTasks {
+					// The code can produce `poolSize` number of batches at a time. But, it can consume only
+					// `parallelism` number of batches at a time.
+					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+					log.Infof("created batch import pool of size: %d", poolSize)
 
-				totalProgressAmount := getTotalProgressAmount(task)
-				progressReporter.ImportFileStarted(task, totalProgressAmount)
-				importedProgressAmount := getImportedProgressAmount(task, state)
-				progressReporter.AddProgressAmount(task, importedProgressAmount)
-
-				var currentProgress int64
-				updateProgressFn := func(progressAmount int64) {
-					currentProgress += progressAmount
-					progressReporter.AddProgressAmount(task, progressAmount)
-
-					if importerRole == TARGET_DB_IMPORTER_ROLE && totalProgressAmount > currentProgress {
-						importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
-							currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_IN_PROGRESS)
-						// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
-						controlPlane.UpdateImportedRowCount(
-							[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+					if err != nil {
+						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
+
+					for !taskImporter.AllBatchesSubmitted() {
+						err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+						if err != nil {
+							utils.ErrExit("Failed to submit next batch: task:%v err: %s", task, err)
+						}
+					}
+
+					batchImportPool.Wait() // wait for file import to finish
+					taskImporter.PostProcess()
 				}
-
-				importFile(state, task, updateProgressFn)
-				batchImportPool.Wait() // Wait for the file import to finish.
-
-				if importerRole == TARGET_DB_IMPORTER_ROLE {
-					importDataTableMetrics := createImportDataTableMetrics(task.TableNameTup.ForKey(),
-						currentProgress, totalProgressAmount, ROW_UPDATE_STATUS_COMPLETED)
-					controlPlane.UpdateImportedRowCount(
-						[]*cp.UpdateImportedRowCountEvent{&importDataTableMetrics})
-				}
-
-				progressReporter.FileImportDone(task) // Remove the progress-bar for the file.\
+				time.Sleep(time.Second * 2)
 			}
-			time.Sleep(time.Second * 2)
 		}
 		utils.PrintAndLog("snapshot data import complete\n\n")
 	}
@@ -694,13 +690,82 @@ func importData(importFileTasks []*ImportFileTask) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE)
+		packAndSendImportDataPayload(COMPLETE, "")
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE)
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE)
+		packAndSendImportDataToSourcePayload(COMPLETE, "")
 	}
 
+}
+
+/*
+1. Initialize a worker pool
+2. Create a task picker which helps the importer choose which task to process in each iteration.
+3. Loop until all tasks are done:
+  - Pick a task from the task picker.
+  - If the task is not already being processed, create a new FileTaskImporter for the task.
+  - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
+  - If task is done, mark it as done in the task picker.
+*/
+func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int) error {
+	// The code can produce `poolSize` number of batches at a time. But, it can consume only
+	// `parallelism` number of batches at a time.
+	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
+	log.Infof("created batch import pool of size: %d", poolSize)
+
+	taskPicker, err := NewSequentialTaskPicker(pendingTasks, state)
+	if err != nil {
+		return fmt.Errorf("create task picker: %w", err)
+	}
+	taskImporters := map[int]*FileTaskImporter{}
+
+	for taskPicker.HasMoreTasks() {
+		task, err := taskPicker.Pick()
+		if err != nil {
+			return fmt.Errorf("get next task: %w", err)
+		}
+		var taskImporter *FileTaskImporter
+		var ok bool
+		taskImporter, ok = taskImporters[task.ID]
+		if !ok {
+			taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+			if err != nil {
+				return fmt.Errorf("create file task importer: %s", err)
+			}
+			log.Infof("created file task importer for table: %s, task: %v", task.TableNameTup.ForOutput(), task)
+			taskImporters[task.ID] = taskImporter
+		}
+
+		if taskImporter.AllBatchesSubmitted() {
+			// All batches for this task have been submitted.
+			// task could have been completed (all batches imported) OR still in progress
+			// in case task is done, we should inform task picker so that we stop picking that task.
+			taskDone, err := taskImporter.AllBatchesImported()
+			if err != nil {
+				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
+			}
+			if taskDone {
+				taskImporter.PostProcess()
+				err = taskPicker.MarkTaskAsDone(task)
+				if err != nil {
+					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
+				}
+				continue
+			} else {
+				// some batches are still in progress, wait for them to complete as decided by the picker.
+				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
+				taskPicker.WaitForTasksBatchesTobeImported()
+				continue
+			}
+
+		}
+		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		if err != nil {
+			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)
+		}
+	}
+	return nil
 }
 
 func startAdaptiveParallelism() (bool, error) {
@@ -756,7 +821,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string) {
+func packAndSendImportDataPayload(status string, errorMsg string) {
 
 	if !shouldSendCallhome() {
 		return
@@ -775,6 +840,7 @@ func packAndSendImportDataPayload(status string) {
 		ParallelJobs: int64(tconf.Parallelism),
 		StartClean:   bool(startClean),
 		EnableUpsert: bool(tconf.EnableUpsert),
+		Error:        callhome.SanitizeErrorMsg(errorMsg),
 	}
 
 	//Getting the imported snapshot details
@@ -846,7 +912,7 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 	for _, table := range tables {
 		identityColumns, err := tdb.GetIdentityColumnNamesForTable(table, identityType)
 		if err != nil {
-			utils.ErrExit("error in getting identity(%s) columns for table %s: %w", identityType, table, err)
+			utils.ErrExit("error in getting identity(%s) columns for table: %s: %w", identityType, table, err)
 		}
 		if len(identityColumns) > 0 {
 			log.Infof("identity(%s) columns for table %s: %v", identityType, table, identityColumns)
@@ -854,30 +920,6 @@ func getIdentityColumnsForTables(tables []sqlname.NameTuple, identityType string
 		}
 	}
 	return result
-}
-
-func getTotalProgressAmount(task *ImportFileTask) int64 {
-	if reportProgressInBytes {
-		return task.FileSize
-	} else {
-		return task.RowCount
-	}
-}
-
-func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int64 {
-	if reportProgressInBytes {
-		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table %s: %s", task.TableNameTup, err)
-		}
-		return byteCount
-	} else {
-		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
-		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table %s: %s", task.TableNameTup, err)
-		}
-		return rowCount
-	}
 }
 
 func importFileTasksToTableNames(tasks []*ImportFileTask) []string {
@@ -928,7 +970,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		nonEmptyTableNames := lo.Map(nonEmptyNts, func(nt sqlname.NameTuple, _ int) string {
 			return nt.ForOutput()
 		})
-		if importerRole == TARGET_DB_IMPORTER_ROLE && truncateTables {
+		if truncateTables {
 			// truncate tables only supported for import-data-to-target.
 			utils.PrintAndLog("Truncating non-empty tables on DB: %v", nonEmptyTableNames)
 			err := tdb.TruncateTables(nonEmptyNts)
@@ -938,11 +980,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 		} else {
 			utils.PrintAndLog("Non-Empty tables: [%s]", strings.Join(nonEmptyTableNames, ", "))
 			utils.PrintAndLog("The above list of tables on DB are not empty.")
-			if importerRole == TARGET_DB_IMPORTER_ROLE {
-				utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
-			} else {
-				utils.PrintAndLog("If you wish to truncate them, re-run the import command after manually truncating the tables on DB.")
-			}
+			utils.PrintAndLog("If you wish to truncate them, re-run the import command with --truncate-tables true")
 			yes := utils.AskPrompt("Do you want to start afresh without truncating tables")
 			if !yes {
 				utils.ErrExit("Aborting import.")
@@ -954,7 +992,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	for _, task := range tasks {
 		err := state.Clean(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("failed to clean import data state for table %q: %s", task.TableNameTup, err)
+			utils.ErrExit("failed to clean import data state for table: %q: %s", task.TableNameTup, err)
 		}
 	}
 
@@ -962,7 +1000,7 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	if utils.FileOrFolderExists(sqlldrDir) {
 		err := os.RemoveAll(sqlldrDir)
 		if err != nil {
-			utils.ErrExit("failed to remove sqlldr directory %q: %s", sqlldrDir, err)
+			utils.ErrExit("failed to remove sqlldr directory: %q: %s", sqlldrDir, err)
 		}
 	}
 
@@ -979,178 +1017,6 @@ func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
 	}
 }
 
-func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns, _ := TableToColumnNames.Get(tableNameTup)
-	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
-	if err != nil {
-		utils.ErrExit("if required quote column names: %s", err)
-	}
-	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
-	fileFormat := dataFileDescriptor.FileFormat
-	if fileFormat == datafile.SQL {
-		fileFormat = datafile.TEXT
-	}
-	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
-	}
-	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
-	return importBatchArgsProto
-}
-
-func importFile(state *ImportDataState, task *ImportFileTask, updateProgressFn func(int64)) {
-
-	origDataFile := task.FilePath
-	importBatchArgsProto := getImportBatchArgsProto(task.TableNameTup, task.FilePath)
-	log.Infof("Start splitting table %q: data-file: %q", task.TableNameTup, origDataFile)
-
-	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
-	if err != nil {
-		utils.ErrExit("preparing for file import: %s", err)
-	}
-	log.Infof("Collect all interrupted/remaining splits.")
-	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
-	if err != nil {
-		utils.ErrExit("recovering state for table %q: %s", task.TableNameTup, err)
-	}
-	for _, batch := range pendingBatches {
-		submitBatch(batch, updateProgressFn, importBatchArgsProto)
-	}
-	if !fileFullySplit {
-		splitFilesForTable(state, origDataFile, task.TableNameTup, lastBatchNumber, lastOffset, updateProgressFn, importBatchArgsProto)
-	}
-}
-
-func splitFilesForTable(state *ImportDataState, filePath string, t sqlname.NameTuple,
-	lastBatchNumber int64, lastOffset int64, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
-	log.Infof("Split data file %q: tableName=%q, largestSplit=%v, largestOffset=%v", filePath, t, lastBatchNumber, lastOffset)
-	batchNum := lastBatchNumber + 1
-	numLinesTaken := lastOffset
-
-	reader, err := dataStore.Open(filePath)
-	if err != nil {
-		utils.ErrExit("preparing reader for split generation on file %q: %v", filePath, err)
-	}
-
-	dataFile, err := datafile.NewDataFile(filePath, reader, dataFileDescriptor)
-	if err != nil {
-		utils.ErrExit("open datafile %q: %v", filePath, err)
-	}
-	defer dataFile.Close()
-
-	log.Infof("Skipping %d lines from %q", lastOffset, filePath)
-	err = dataFile.SkipLines(lastOffset)
-	if err != nil {
-		utils.ErrExit("skipping line for offset=%d: %v", lastOffset, err)
-	}
-
-	var readLineErr error = nil
-	var line string
-	var currentBytesRead int64
-	var batchWriter *BatchWriter
-	header := ""
-	if dataFileDescriptor.HasHeader {
-		header = dataFile.GetHeader()
-	}
-
-	// Helper function to initialize a new batchWriter
-	initBatchWriter := func() {
-		batchWriter = state.NewBatchWriter(filePath, t, batchNum)
-		err := batchWriter.Init()
-		if err != nil {
-			utils.ErrExit("initializing batch writer for table %q: %s", t, err)
-		}
-		// Write the header if necessary
-		if header != "" && dataFileDescriptor.FileFormat == datafile.CSV {
-			err = batchWriter.WriteHeader(header)
-			if err != nil {
-				utils.ErrExit("writing header for table %q: %s", t, err)
-			}
-		}
-	}
-
-	// Function to finalize and submit the current batch
-	finalizeBatch := func(isLastBatch bool, offsetEnd int64, bytesInBatch int64) {
-		batch, err := batchWriter.Done(isLastBatch, offsetEnd, bytesInBatch)
-		if err != nil {
-			utils.ErrExit("finalizing batch %d: %s", batchNum, err)
-		}
-		batchWriter = nil
-		submitBatch(batch, updateProgressFn, importBatchArgsProto)
-
-		// Increment batchNum only if this is not the last batch
-		if !isLastBatch {
-			batchNum++
-		}
-	}
-
-	for readLineErr == nil {
-
-		if batchWriter == nil {
-			initBatchWriter() // Create a new batchWriter
-		}
-
-		line, currentBytesRead, readLineErr = dataFile.NextLine()
-		if readLineErr == nil || (readLineErr == io.EOF && line != "") {
-			// handling possible case: last dataline(i.e. EOF) but no newline char at the end
-			numLinesTaken += 1
-		}
-		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, dataFile.GetBytesRead(), currentBytesRead)
-		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
-			//If a row is itself larger than MaxBatchSizeInBytes erroring out
-			ybSpecificMsg := ""
-			if tconf.TargetDBType == YUGABYTEDB {
-				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
-			}
-			utils.ErrExit("record num=%d for table %q in file %s is larger than the max batch size %d bytes Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", numLinesTaken, t.ForOutput(), filePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
-		}
-		if line != "" {
-			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
-			columnNames, _ := TableToColumnNames.Get(t)
-			line, err = valueConverter.ConvertRow(t, columnNames, line)
-			if err != nil {
-				utils.ErrExit("transforming line number=%d for table %q in file %s: %s", numLinesTaken, t.ForOutput(), filePath, err)
-			}
-
-			// Check if adding this record exceeds the max batch size
-			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
-				dataFile.GetBytesRead() > tdb.MaxBatchSizeInBytes() { // GetBytesRead - returns the total bytes read until now including the currentBytesRead
-
-				// Finalize the current batch without adding the record
-				finalizeBatch(false, numLinesTaken-1, dataFile.GetBytesRead()-currentBytesRead)
-
-				//carry forward the bytes to next batch
-				dataFile.ResetBytesRead(currentBytesRead)
-
-				// Start a new batch by calling the initBatchWriter function
-				initBatchWriter()
-			}
-
-			// Write the record to the new or current batch
-			err = batchWriter.WriteRecord(line)
-			if err != nil {
-				utils.ErrExit("Write to batch %d: %s", batchNum, err)
-			}
-		}
-
-		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0
-		if readLineErr == io.EOF {
-			finalizeBatch(true, numLinesTaken, dataFile.GetBytesRead())
-			dataFile.ResetBytesRead(0)
-		} else if readLineErr != nil {
-			utils.ErrExit("read line from data file %q: %s", filePath, readLineErr)
-		}
-	}
-
-	log.Infof("splitFilesForTable: done splitting data file %q for table %q", filePath, t)
-}
-
 func executePostSnapshotImportSqls() error {
 	sequenceFilePath := filepath.Join(exportDir, "data", "postdata.sql")
 	if utils.FileOrFolderExists(sequenceFilePath) {
@@ -1161,118 +1027,6 @@ func executePostSnapshotImportSqls() error {
 		}
 	}
 	return nil
-}
-
-func submitBatch(batch *Batch, updateProgressFn func(int64), importBatchArgsProto *tgtdb.ImportBatchArgs) {
-	batchImportPool.Go(func() {
-		// There are `poolSize` number of competing go-routines trying to invoke COPY.
-		// But the `connPool` will allow only `parallelism` number of connections to be
-		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		importBatch(batch, importBatchArgsProto)
-		if reportProgressInBytes {
-			updateProgressFn(batch.ByteCount)
-		} else {
-			updateProgressFn(batch.RecordCount)
-		}
-	})
-	log.Infof("Queued batch: %s", spew.Sdump(batch))
-}
-
-func importBatch(batch *Batch, importBatchArgsProto *tgtdb.ImportBatchArgs) {
-	err := batch.MarkPending()
-	if err != nil {
-		utils.ErrExit("marking batch %d as pending: %s", batch.Number, err)
-	}
-	log.Infof("Importing %q", batch.FilePath)
-
-	importBatchArgs := *importBatchArgsProto
-	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
-
-	var rowsAffected int64
-	sleepIntervalSec := 0
-	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
-			break
-		}
-		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
-		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
-		}
-		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, batch.FilePath, attempt)
-		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	}
-	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("import %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch %q as done: %s", batch.FilePath, err)
-	}
-}
-
-func newTargetConn() *pgx.Conn {
-	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
-	if err != nil {
-		utils.WaitChannel <- 1
-		<-utils.WaitChannel
-		utils.ErrExit("connect to target db: %s", err)
-	}
-
-	setTargetSchema(conn)
-
-	if sourceDBType == ORACLE && enableOrafce {
-		setOrafceSearchPath(conn)
-	}
-
-	return conn
-}
-
-// TODO: Eventually get rid of this function in favour of TargetYugabyteDB.setTargetSchema().
-func setTargetSchema(conn *pgx.Conn) {
-	if sourceDBType == POSTGRESQL || tconf.Schema == YUGABYTEDB_DEFAULT_SCHEMA {
-		// For PG, schema name is already included in the object name.
-		// No need to set schema if importing in the default schema.
-		return
-	}
-	checkSchemaExistsQuery := fmt.Sprintf("SELECT count(schema_name) FROM information_schema.schemata WHERE schema_name = '%s'", tconf.Schema)
-	var cntSchemaName int
-
-	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
-	} else if cntSchemaName == 0 {
-		utils.ErrExit("schema '%s' does not exist in target", tconf.Schema)
-	}
-
-	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
-	_, err := conn.Exec(context.Background(), setSchemaQuery)
-	if err != nil {
-		utils.ErrExit("run query %q on target %q: %s", setSchemaQuery, tconf.Host, err)
-	}
-}
-
-func dropIdx(conn *pgx.Conn, idxName string) error {
-	dropIdxQuery := fmt.Sprintf("DROP INDEX IF EXISTS %s", idxName)
-	log.Infof("Dropping index: %q", dropIdxQuery)
-	_, err := conn.Exec(context.Background(), dropIdxQuery)
-	if err != nil {
-		return fmt.Errorf("failed to drop index %q: %w", idxName, err)
-	}
-	return nil
-}
-
-func setOrafceSearchPath(conn *pgx.Conn) {
-	// append oracle schema in the search_path for orafce
-	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
-	_, err := conn.Exec(context.Background(), updateSearchPath)
-	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
-	}
 }
 
 func getIndexName(sqlQuery string, indexName string) (string, error) {
@@ -1292,63 +1046,6 @@ func getIndexName(sqlQuery string, indexName string) (string, error) {
 	return "", fmt.Errorf("could not find `ON` keyword in the CREATE INDEX statement")
 }
 
-// TODO: need automation tests for this, covering cases like schema(public vs non-public) or case sensitive names
-func beforeIndexCreation(sqlInfo sqlInfo, conn **pgx.Conn, objType string) error {
-	if !strings.Contains(strings.ToUpper(sqlInfo.stmt), "CREATE INDEX") {
-		return nil
-	}
-
-	fullyQualifiedObjName, err := getIndexName(sqlInfo.stmt, sqlInfo.objName)
-	if err != nil {
-		return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
-	}
-	if invalidTargetIndexesCache == nil {
-		invalidTargetIndexesCache, err = getInvalidIndexes(conn)
-		if err != nil {
-			return fmt.Errorf("failed to fetch invalid indexes: %w", err)
-		}
-	}
-
-	// check index valid or not
-	if invalidTargetIndexesCache[fullyQualifiedObjName] {
-		log.Infof("index %q already exists but in invalid state, dropping it", fullyQualifiedObjName)
-		err = dropIdx(*conn, fullyQualifiedObjName)
-		if err != nil {
-			return fmt.Errorf("drop invalid index %q: %w", fullyQualifiedObjName, err)
-		}
-	}
-
-	// print the index name as index creation takes time and user can see the progress
-	color.Yellow("creating index %s ...", fullyQualifiedObjName)
-	return nil
-}
-
-func getInvalidIndexes(conn **pgx.Conn) (map[string]bool, error) {
-	var result = make(map[string]bool)
-	// NOTE: this shouldn't fetch any predefined indexes of pg_catalog schema (assuming they can't be invalid) or indexes of other successful migrations
-	query := "SELECT indexrelid::regclass FROM pg_index WHERE indisvalid = false"
-
-	rows, err := (*conn).Query(context.Background(), query)
-	if err != nil {
-		return nil, fmt.Errorf("querying invalid indexes: %w", err)
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var fullyQualifiedIndexName string
-		err := rows.Scan(&fullyQualifiedIndexName)
-		if err != nil {
-			return nil, fmt.Errorf("scanning row for invalid index name: %w", err)
-		}
-		// if schema is not provided by catalog table, then it is public schema
-		if !strings.Contains(fullyQualifiedIndexName, ".") {
-			fullyQualifiedIndexName = fmt.Sprintf("public.%s", fullyQualifiedIndexName)
-		}
-		result[fullyQualifiedIndexName] = true
-	}
-	return result, nil
-}
-
 // TODO: This function is a duplicate of the one in tgtdb/yb.go. Consolidate the two.
 func getTargetSchemaName(tableName string) string {
 	parts := strings.Split(tableName, ".")
@@ -1358,7 +1055,7 @@ func getTargetSchemaName(tableName string) string {
 	if tconf.TargetDBType == POSTGRESQL {
 		defaultSchema, noDefaultSchema := GetDefaultPGSchema(tconf.Schema, ",")
 		if noDefaultSchema {
-			utils.ErrExit("no default schema for table %q ", tableName)
+			utils.ErrExit("no default schema for table: %q ", tableName)
 		}
 		return defaultSchema
 	}
@@ -1375,11 +1072,11 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			// File is either exported from debezium OR this is `import data file` case.
 			reader, err := dataStore.Open(task.FilePath)
 			if err != nil {
-				utils.ErrExit("datastore.Open %q: %v", task.FilePath, err)
+				utils.ErrExit("datastore.Open: %q: %v", task.FilePath, err)
 			}
 			df, err := datafile.NewDataFile(task.FilePath, reader, dataFileDescriptor)
 			if err != nil {
-				utils.ErrExit("opening datafile %q: %v", task.FilePath, err)
+				utils.ErrExit("opening datafile: %q: %v", task.FilePath, err)
 			}
 			header := df.GetHeader()
 			columns = strings.Split(header, dataFileDescriptor.Delimiter)
@@ -1400,7 +1097,7 @@ func getDfdTableNameToExportedColumns(dataFileDescriptor *datafile.Descriptor) *
 	for tableNameRaw, columnList := range dataFileDescriptor.TableNameToExportedColumns {
 		nt, err := namereg.NameReg.LookupTableName(tableNameRaw)
 		if err != nil {
-			utils.ErrExit("lookup table [%s] in name registry: %v", tableNameRaw, err)
+			utils.ErrExit("lookup table in name registry: %q: %v", tableNameRaw, err)
 		}
 		result.Put(nt, columnList)
 	}
@@ -1476,32 +1173,6 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 			},
 		}
 		result = append(result, &tableMetrics)
-	}
-
-	return result
-}
-
-func createImportDataTableMetrics(tableName string, countLiveRows int64, countTotalRows int64,
-	status int) cp.UpdateImportedRowCountEvent {
-
-	var schemaName, tableName2 string
-	if strings.Count(tableName, ".") == 1 {
-		schemaName, tableName2 = cp.SplitTableNameForPG(tableName)
-	} else {
-		schemaName, tableName2 = tconf.Schema, tableName
-	}
-	result := cp.UpdateImportedRowCountEvent{
-		BaseUpdateRowCountEvent: cp.BaseUpdateRowCountEvent{
-			BaseEvent: cp.BaseEvent{
-				EventType:     "IMPORT DATA",
-				MigrationUUID: migrationUUID,
-				SchemaNames:   []string{schemaName},
-			},
-			TableName:         tableName2,
-			Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[status],
-			TotalRowCount:     countTotalRows,
-			CompletedRowCount: countLiveRows,
-		},
 	}
 
 	return result

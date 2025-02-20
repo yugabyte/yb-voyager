@@ -17,35 +17,18 @@ package queryparser
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
-	"github.com/samber/lo"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
-
-func DeparseSelectStmt(selectStmt *pg_query.SelectStmt) (string, error) {
-	if selectStmt != nil {
-		parseResult := &pg_query.ParseResult{
-			Stmts: []*pg_query.RawStmt{
-				{
-					Stmt: &pg_query.Node{
-						Node: &pg_query.Node_SelectStmt{SelectStmt: selectStmt},
-					},
-				},
-			},
-		}
-
-		// Deparse the SelectStmt to get the string representation
-		selectSQL, err := pg_query.Deparse(parseResult)
-		return selectSQL, err
-	}
-	return "", nil
-}
 
 func IsPLPGSQLObject(parseTree *pg_query.ParseResult) bool {
 	// CREATE FUNCTION is same parser NODE for FUNCTION/PROCEDURE
-	_, isPlPgSQLObject := getCreateFuncStmtNode(parseTree)
-	return isPlPgSQLObject
+	node, ok := getCreateFuncStmtNode(parseTree)
+	return ok && (node.CreateFunctionStmt.SqlBody == nil) //TODO fix proper https://github.com/pganalyze/pg_query_go/issues/129
 }
 
 func IsViewObject(parseTree *pg_query.ParseResult) bool {
@@ -58,20 +41,20 @@ func IsMviewObject(parseTree *pg_query.ParseResult) bool {
 	return isCreateAsStmt && createAsNode.CreateTableAsStmt.Objtype == pg_query.ObjectType_OBJECT_MATVIEW
 }
 
-func GetSelectStmtQueryFromViewOrMView(parseTree *pg_query.ParseResult) (string, error) {
-	viewNode, isViewStmt := getCreateViewNode(parseTree)
-	createAsNode, _ := getCreateTableAsStmtNode(parseTree) //For MVIEW case
-	var selectStmt *pg_query.SelectStmt
-	if isViewStmt {
-		selectStmt = viewNode.ViewStmt.GetQuery().GetSelectStmt()
-	} else {
-		selectStmt = createAsNode.CreateTableAsStmt.GetQuery().GetSelectStmt()
-	}
-	selectStmtQuery, err := DeparseSelectStmt(selectStmt)
-	if err != nil {
-		return "", fmt.Errorf("deparsing the select stmt: %v", err)
-	}
-	return selectStmtQuery, nil
+func getDefineStmtNode(parseTree *pg_query.ParseResult) (*pg_query.DefineStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_DefineStmt)
+	return node.DefineStmt, ok
+}
+
+func IsCollationObject(parseTree *pg_query.ParseResult) bool {
+	collation, ok := getDefineStmtNode(parseTree)
+	/*
+		stmts:{stmt:{define_stmt:{kind:OBJECT_COLLATION  defnames:{string:{sval:"ignore_accents"}}  definition:{def_elem:{defname:"provider"
+		arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:48}}  defaction:DEFELEM_UNSPEC  location:37}}  definition:{def_elem:{defname:"locale"
+		arg:{string:{sval:"und-u-ks-level1-kc-true"}}  defaction:DEFELEM_UNSPEC  location:55}}  definition:{def_elem:{defname:"deterministic"
+		arg:{string:{sval:"false"}}  defaction:DEFELEM_UNSPEC  location:91}}}}  stmt_len:113}
+	*/
+	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
 }
 
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
@@ -98,7 +81,8 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 			objectType = "PROCEDURE"
 		}
 		funcNameList := stmt.GetFuncname()
-		return objectType, getFunctionObjectName(funcNameList)
+		funcSchemaName, funcName := getSchemaAndObjectName(funcNameList)
+		return objectType, utils.BuildObjectName(funcSchemaName, funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
 		return "VIEW", getObjectNameFromRangeVar(viewName)
@@ -113,7 +97,7 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		indexName := createIndexNode.IndexStmt.Idxname
 		schemaName := createIndexNode.IndexStmt.Relation.GetSchemaname()
 		tableName := createIndexNode.IndexStmt.Relation.GetRelname()
-		fullyQualifiedName := lo.Ternary(schemaName != "", schemaName+"."+tableName, tableName)
+		fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
 		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 		return "INDEX", displayObjName
 	default:
@@ -129,32 +113,19 @@ func isArrayType(typeName *pg_query.TypeName) bool {
 func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
 	schema := obj.Schemaname
 	name := obj.Relname
-	return lo.Ternary(schema != "", fmt.Sprintf("%s.%s", schema, name), name)
+	return utils.BuildObjectName(schema, name)
 }
 
-func getFunctionObjectName(funcNameList []*pg_query.Node) string {
-	funcName := ""
-	funcSchemaName := ""
-	if len(funcNameList) > 0 {
-		funcName = funcNameList[len(funcNameList)-1].GetString_().Sval // func name can be qualified / unqualifed or native / non-native proper func name will always be available at last index
+func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
+	objName := ""
+	schemaName := ""
+	if len(nameList) > 0 {
+		objName = nameList[len(nameList)-1].GetString_().Sval // obj name can be qualified / unqualifed or native / non-native proper func name will always be available at last index
 	}
-	if len(funcNameList) >= 2 { // Names list will have all the parts of qualified func name
-		funcSchemaName = funcNameList[len(funcNameList)-2].GetString_().Sval // // func name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
+	if len(nameList) >= 2 { // Names list will have all the parts of qualified func name
+		schemaName = nameList[len(nameList)-2].GetString_().Sval // // obj name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
 	}
-	return lo.Ternary(funcSchemaName != "", fmt.Sprintf("%s.%s", funcSchemaName, funcName), funcName)
-}
-
-func getTypeNameAndSchema(typeNames []*pg_query.Node) (string, string) {
-	typeName := ""
-	typeSchemaName := ""
-	if len(typeNames) > 0 {
-		typeName = typeNames[len(typeNames)-1].GetString_().Sval // type name can be qualified / unqualifed or native / non-native proper type name will always be available at last index
-	}
-	if len(typeNames) >= 2 { // Names list will have all the parts of qualified type name
-		typeSchemaName = typeNames[len(typeNames)-2].GetString_().Sval // // type name can be qualified / unqualifed or native / non-native proper schema name will always be available at last 2nd index
-	}
-
-	return typeName, typeSchemaName
+	return schemaName, objName
 }
 
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
@@ -245,6 +216,9 @@ func getQualifiedTypeName(typeNames []*pg_query.Node) string {
 }
 
 func convertParserTypeNameToString(typeVar *pg_query.TypeName) string {
+	if typeVar == nil {
+		return ""
+	}
 	typeNames := typeVar.GetNames()
 	finalTypeName := getQualifiedTypeName(typeNames) // type name can qualified table_name.column in case of %TYPE
 	if typeVar.PctType {                             // %TYPE declaration, so adding %TYPE for using it further
@@ -293,4 +267,77 @@ func IsDDL(parseTree *pg_query.ParseResult) (bool, error) {
 	//Considering all the DDLs we have a Processor for as of now.
 	//Not Full-proof as we don't have all DDL types but atleast we will skip all the types we know currently
 	return !ok, nil
+}
+
+/*
+this function checks whether the current node handles the jsonb data or not by evaluating all different type of nodes -
+column ref - column of jsonb type
+type cast - constant data with type casting to jsonb type
+func call - function call returning the jsonb data
+Expression - if any of left and right operands are of node type handling jsonb data
+*/
+func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFunctions []string) bool {
+	switch {
+	case node.GetColumnRef() != nil:
+		/*
+			SELECT numbers[1] AS first_number
+			FROM array_data;
+			{a_indirection:{arg:{column_ref:{fields:{string:{sval:"numbers"}}  location:69}}
+			indirection:{a_indices:{uidx:{a_const:{ival:{ival:1}  location:77}}}}}}  location:69}}
+		*/
+		_, col := GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		if slices.Contains(jsonbColumns, col) {
+			return true
+		}
+
+	case node.GetTypeCast() != nil:
+		/*
+			SELECT ('{"a": {"b": {"c": 1}}}'::jsonb)['a']['b']['c'];
+			{a_indirection:{arg:{type_cast:{arg:{a_const:{sval:{sval:"{\"a\": {\"b\": {\"c\": 1}}}"}  location:280}}
+			type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:306}  location:304}}
+		*/
+		typeCast := node.GetTypeCast()
+		_, typeName := getSchemaAndObjectName(typeCast.GetTypeName().GetNames())
+		if typeName == "jsonb" {
+			return true
+		}
+	case node.GetFuncCall() != nil:
+		/*
+			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE))['name'] AS json_obj;
+			val:{a_indirection:{arg:{func_call:{funcname:{string:{sval:"jsonb_build_object"}}  args:{a_const:{sval:{sval:"name"}
+			location:194}}  args:{a_const:{sval:{sval:"PostgreSQL"}  location:202}}  args:{a_const:{sval:{sval:"version"}  location:216}}
+			args:{a_const:{ival:{ival:14}  location:227}}
+		*/
+		funcCall := node.GetFuncCall()
+		_, funcName := getSchemaAndObjectName(funcCall.Funcname)
+		if slices.Contains(jsonbFunctions, funcName) {
+			return true
+		}
+	case node.GetAExpr() != nil:
+		/*
+			SELECT ('{"key": "value1"}'::jsonb || '{"key1": "value2"}'::jsonb)['key'] AS object_in_array;
+			val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key\": \"value1\"}"}
+			location:81}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:102}  location:100}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"{\"key1\": \"value2\"}"}
+			location:111}}  type_name:{names:{string:{sval:"jsonb"}}  typemod:-1  location:132}  location:130}}  location:108}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"key"}
+			location:139}}}}}}
+
+			SELECT (data || '{"new_key": "new_value"}' )['name'] FROM test_jsonb;
+			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
+			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}
+
+			SELECT (jsonb_build_object('name', 'PostgreSQL', 'version', 14, 'open_source', TRUE) || '{"key": "value2"}')['name'] AS json_obj;
+			{val:{a_indirection:{arg:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"||"}}  lexpr:{column_ref:{fields:{string:{sval:"data"}}  location:10}}  rexpr:{a_const:{sval:{sval:"{\"new_key\": \"new_value\"}"}
+			location:18}}  location:15}}  indirection:{a_indices:{uidx:{a_const:{sval:{sval:"name"}  location:47}}}}}}  location:9}}
+		*/
+		expr := node.GetAExpr()
+		lExpr := expr.GetLexpr()
+		rExpr := expr.GetRexpr()
+		if lExpr != nil && DoesNodeHandleJsonbData(lExpr, jsonbColumns, jsonbFunctions) {
+			return true
+		}
+		if rExpr != nil && DoesNodeHandleJsonbData(rExpr, jsonbColumns, jsonbFunctions) {
+			return true
+		}
+	}
+	return false
 }

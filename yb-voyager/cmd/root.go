@@ -80,7 +80,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(bulkAssessmentDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
-				lockFile.Lock()
+				//lockFile.Lock()
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
@@ -108,7 +108,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if shouldLock(cmd) {
 				lockFPath := filepath.Join(exportDir, fmt.Sprintf(".%sLockfile.lck", GetCommandID(cmd)))
 				lockFile = lockfile.NewLockfile(lockFPath)
-				lockFile.Lock()
+				//lockFile.Lock()
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
@@ -128,6 +128,14 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// Initialize the metaDB variable only if the metaDB is already created. For example, resumption of a command.
 			if metaDBIsCreated(exportDir) {
 				metaDB = initMetaDB(exportDir)
+				msr, err := metaDB.GetMigrationStatusRecord()
+				if err != nil {
+					utils.ErrExit("get migration status record: %v", err)
+				}
+
+				msrVoyagerVersionString := msr.VoyagerVersion
+
+				detectVersionCompatibility(msrVoyagerVersionString, exportDir)
 			}
 
 			if perfProfile {
@@ -311,7 +319,7 @@ func validateExportDirFlag() {
 		utils.ErrExit(`ERROR: required flag "export-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
-		utils.ErrExit("export-dir %q doesn't exists.\n", exportDir)
+		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
 	} else {
 		if exportDir == "." {
 			fmt.Println("Note: Using current directory as export-dir")
@@ -319,7 +327,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}

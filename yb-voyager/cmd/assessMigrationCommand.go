@@ -31,12 +31,14 @@ import (
 	"syscall"
 	"text/template"
 
+	//"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -55,6 +57,7 @@ var (
 	intervalForCapturingIOPS         int64
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
+	pgssEnabledForAssessment         = false
 )
 
 var sourceConnectionFlags = []string{
@@ -77,13 +80,18 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
+		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		validateSourceDBTypeForAssessMigration()
 		setExportFlagsDefaults()
 		validateSourceSchema()
 		validatePortRange()
 		validateSSLMode()
 		validateOracleParams()
-		err := validateAndSetTargetDbVersionFlag()
+		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
@@ -112,25 +120,29 @@ var assessMigrationCmd = &cobra.Command{
 	},
 }
 
-// Assessment feature names to send the object names for to callhome
-var featuresToSendObjectsToCallhome = []string{
-	EXTENSION_FEATURE,
-}
-
 func packAndSendAssessMigrationPayload(status string, errMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
-	payload := createCallhomePayload()
 
+	payload := createCallhomePayload()
 	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
+	payload.Status = status
+	if assessmentMetadataDirFlag == "" {
+		sourceDBDetails := callhome.SourceDBDetails{
+			DBType:    source.DBType,
+			DBVersion: source.DBVersion,
+			DBSize:    source.DBSize,
+		}
+		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
+	}
 
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
 				//redacting schema and object name
-				ObjectName:      "XXX",
+				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
@@ -146,77 +158,66 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		Notes: assessmentReport.SchemaSummary.Notes,
 		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		}),
 	}
 
-	unsupportedDatatypesList := lo.Map(assessmentReport.UnsupportedDataTypes, func(datatype utils.TableColumnsDataTypes, _ int) string {
-		return datatype.DataType
-	})
+	var obfuscatedIssues []callhome.AssessmentIssueCallhome
+	for _, issue := range assessmentReport.Issues {
+		obfuscatedIssue := callhome.AssessmentIssueCallhome{
+			Category:            issue.Category,
+			CategoryDescription: issue.CategoryDescription,
+			Type:                issue.Type,
+			Name:                issue.Name,
+			Impact:              issue.Impact,
+			ObjectType:          issue.ObjectType,
+		}
 
-	groupedByConstructType := lo.GroupBy(assessmentReport.UnsupportedQueryConstructs, func(q utils.UnsupportedQueryConstruct) string {
-		return q.ConstructTypeName
-	})
-	countByConstructType := lo.MapValues(groupedByConstructType, func(constructs []utils.UnsupportedQueryConstruct, _ string) int {
-		return len(constructs)
-	})
+		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
+
+		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
+		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
+		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
+		// }
+
+		// appending the issue after obfuscating sensitive information
+		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
+	}
+
+	var callhomeSizingAssessment callhome.SizingCallhome
+	if assessmentReport.Sizing != nil {
+		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
+		callhomeSizingAssessment = callhome.SizingCallhome{
+			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
+			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
+			NumShardedTables:                len(sizingRecommedation.ShardedTables),
+			NumNodes:                        sizingRecommedation.NumNodes,
+			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
+			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
+			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
+			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
+			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
+			ParallelVoyagerJobs:             sizingRecommedation.ParallelVoyagerJobs,
+		}
+	}
 
 	assessPayload := callhome.AssessMigrationPhasePayload{
-		TargetDBVersion:     assessmentReport.TargetDBVersion,
-		MigrationComplexity: assessmentReport.MigrationComplexity,
-		UnsupportedFeatures: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedFeatures, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			var objects []string
-			if slices.Contains(featuresToSendObjectsToCallhome, feature.FeatureName) {
-				objects = lo.Map(feature.Objects, func(o ObjectInfo, _ int) string {
-					return o.ObjectName
-				})
-			}
-			res := callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				Objects:          objects,
-				TotalOccurrences: len(feature.Objects),
-			}
-			return res
-		})),
-		UnsupportedQueryConstructs: callhome.MarshalledJsonString(countByConstructType),
-		UnsupportedDatatypes:       callhome.MarshalledJsonString(unsupportedDatatypesList),
-		MigrationCaveats: callhome.MarshalledJsonString(lo.Map(assessmentReport.MigrationCaveats, func(feature UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			return callhome.UnsupportedFeature{
-				FeatureName:      feature.FeatureName,
-				ObjectCount:      len(feature.Objects),
-				TotalOccurrences: len(feature.Objects),
-			}
-		})),
-		UnsupportedPlPgSqlObjects: callhome.MarshalledJsonString(lo.Map(assessmentReport.UnsupportedPlPgSqlObjects, func(plpgsql UnsupportedFeature, _ int) callhome.UnsupportedFeature {
-			groupedObjects := groupByObjectName(plpgsql.Objects)
-			return callhome.UnsupportedFeature{
-				FeatureName:      plpgsql.FeatureName,
-				ObjectCount:      len(lo.Keys(groupedObjects)),
-				TotalOccurrences: len(plpgsql.Objects),
-			}
-		})),
-		TableSizingStats: callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats: callhome.MarshalledJsonString(indexSizingStats),
-		SchemaSummary:    callhome.MarshalledJsonString(schemaSummaryCopy),
-		IopsInterval:     intervalForCapturingIOPS,
+		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
+		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		Sizing:                         &callhomeSizingAssessment,
+		MigrationComplexity:            assessmentReport.MigrationComplexity,
+		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
+		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
+		Issues:                         obfuscatedIssues,
+		Error:                          callhome.SanitizeErrorMsg(errMsg),
+		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
+		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
+		SourceConnectivity:             assessmentMetadataDirFlag == "",
+		IopsInterval:                   intervalForCapturingIOPS,
 	}
-	if status == ERROR {
-		assessPayload.Error = "ERROR" // removing error for now, TODO to see if we want to keep it
-	}
-	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
-		}
-		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-		assessPayload.SourceConnectivity = true
-	} else {
-		assessPayload.SourceConnectivity = false
-	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	payload.Status = status
 	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
@@ -294,8 +295,7 @@ func init() {
 	BoolVar(assessMigrationCmd.Flags(), &source.RunGuardrailsChecks, "run-guardrails-checks", true, "run guardrails checks before assess migration. (only valid for PostgreSQL)")
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to assess migration for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	assessMigrationCmd.Flags().MarkHidden("target-db-version")
+		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 }
 
 func assessMigration() (err error) {
@@ -304,92 +304,100 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	/*
-		checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
-		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
+	/*checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
+	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
-		err = retrieveMigrationUUID()
+	assessmentDir := filepath.Join(exportDir, "assessment")
+	migassessment.AssessmentDir = assessmentDir
+	migassessment.SourceDBType = source.DBType
+
+	if source.Password == "" {
+		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			return fmt.Errorf("failed to get migration UUID: %w", err)
+			return fmt.Errorf("failed to get source DB password: %w", err)
+		}
+	}
+
+	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
+		err := source.DB().Connect()
+		if err != nil {
+			utils.ErrExit("error connecting source db: %v", err)
 		}
 
-		assessmentDir := filepath.Join(exportDir, "assessment")
-		migassessment.AssessmentDir = assessmentDir
-		migassessment.SourceDBType = source.DBType
-
-		if source.Password == "" {
-			source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
+		// We will require source db connection for the below checks
+		// Check if required binaries are installed.
+		if source.RunGuardrailsChecks {
+			// Check source database version.
+			log.Info("checking source DB version")
+			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
-				return fmt.Errorf("failed to get source DB password: %w", err)
-			}
-		}
-
-		if assessmentMetadataDirFlag == "" { // only in case of source connectivity
-			err := source.DB().Connect()
-			if err != nil {
-				utils.ErrExit("error connecting source db: %v", err)
+				return fmt.Errorf("source DB version check failed: %w", err)
 			}
 
-			// We will require source db connection for the below checks
 			// Check if required binaries are installed.
-			if source.RunGuardrailsChecks {
-				binaryCheckIssues, err := checkDependenciesForExport()
-				if err != nil {
-					return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
-				} else if len(binaryCheckIssues) > 0 {
-					return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
-				}
+			binaryCheckIssues, err := checkDependenciesForExport()
+			if err != nil {
+				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
+			} else if len(binaryCheckIssues) > 0 {
+				return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for assess migration:"), strings.Join(binaryCheckIssues, "\n"))
 			}
-
-			res := source.DB().CheckSchemaExists()
-			if !res {
-				return fmt.Errorf("schema %q does not exist", source.Schema)
-			}
-
-			// Check if source db has permissions to assess migration
-			if source.RunGuardrailsChecks {
-				checkIfSchemasHaveUsagePermissions()
-				missingPerms, err := source.DB().GetMissingAssessMigrationPermissions()
-				if err != nil {
-					return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
-				}
-				if len(missingPerms) > 0 {
-					color.Red("\nPermissions missing in the source database for assess migration:\n")
-					output := strings.Join(missingPerms, "\n")
-					utils.PrintAndLog("%s\n\n", output)
-
-					link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
-					fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
-
-					reply := utils.AskPrompt("\nDo you want to continue anyway")
-					if !reply {
-						return fmt.Errorf("grant the required permissions and try again")
-					}
-				}
-			}
-
-			fetchSourceInfo()
-
-			source.DB().Disconnect()
 		}
 
-		startEvent := createMigrationAssessmentStartedEvent()
-		controlPlane.MigrationAssessmentStarted(startEvent)
-
-		initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
-
-		err = gatherAssessmentMetadata()
-		if err != nil {
-			return fmt.Errorf("failed to gather assessment metadata: %w", err)
+		res := source.DB().CheckSchemaExists()
+		if !res {
+			return fmt.Errorf("schema %q does not exist", source.Schema)
 		}
 
-		parseExportedSchemaFileForAssessmentIfRequired()
+		// Check if source db has permissions to assess migration
+		if source.RunGuardrailsChecks {
+			checkIfSchemasHaveUsagePermissions()
+			var missingPerms []string
+			missingPerms, pgssEnabledForAssessment, err = source.DB().GetMissingAssessMigrationPermissions()
+			if err != nil {
+				return fmt.Errorf("failed to get missing assess migration permissions: %w", err)
+			}
+			if len(missingPerms) > 0 {
+				color.Red("\nPermissions missing in the source database for assess migration:\n")
+				output := strings.Join(missingPerms, "\n")
+				utils.PrintAndLog("%s\n\n", output)
 
-		err = populateMetadataCSVIntoAssessmentDB()
-		if err != nil {
-			return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
-		}*/
+				link := "https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/migrate-steps/#prepare-the-source-database"
+				fmt.Println("Check the documentation to prepare the database for migration:", color.BlueString(link))
 
+				reply := utils.AskPrompt("\nDo you want to continue anyway")
+				if !reply {
+					return fmt.Errorf("grant the required permissions and try again")
+				}
+			}
+		}
+
+		fetchSourceInfo()
+
+		source.DB().Disconnect()
+	}
+
+	startEvent := createMigrationAssessmentStartedEvent()
+	controlPlane.MigrationAssessmentStarted(startEvent)
+
+	initAssessmentDB() // Note: migassessment.AssessmentDir needs to be set beforehand
+
+	err = gatherAssessmentMetadata()
+	if err != nil {
+		return fmt.Errorf("failed to gather assessment metadata: %w", err)
+	}
+
+	parseExportedSchemaFileForAssessmentIfRequired()
+
+	err = populateMetadataCSVIntoAssessmentDB()
+	if err != nil {
+		return fmt.Errorf("failed to populate metadata CSV into SQLite DB: %w", err)
+	}
+
+	err = validateSourceDBIOPSForAssessMigration()
+	if err != nil {
+		return fmt.Errorf("failed to validate source database IOPS: %w", err)
+	}
+	*/
 	err = runAssessment(filepath.Join(exportDir, "assessment"))
 	if err != nil {
 		utils.PrintAndLog("failed to run assessment: %v", err)
@@ -399,6 +407,8 @@ func assessMigration() (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report: %w", err)
 	}
+
+	//log.Infof("number of assessment issues detected: %d\n", len(assessmentReport.Issues))
 
 	utils.PrintAndLog("Migration assessment completed successfully.")
 	completedEvent := createMigrationAssessmentCompletedEvent()
@@ -469,15 +479,16 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		utils.PrintAndLog("failed to calculate the total sharded table size from tableIndexStats: %v", err)
 	}
 
-	assessmentIssues := flattenAssessmentReportToAssessmentIssues(assessmentReport)
+	assessmentIssues := convertAssessmentIssueToYugabyteDAssessmentIssue(assessmentReport)
 
 	payload := AssessMigrationPayload{
-		PayloadVersion:      ASSESS_MIGRATION_PAYLOAD_VERSION,
-		VoyagerVersion:      assessmentReport.VoyagerVersion,
-		TargetDBVersion:     assessmentReport.TargetDBVersion,
-		MigrationComplexity: assessmentReport.MigrationComplexity,
-		SchemaSummary:       assessmentReport.SchemaSummary,
-		AssessmentIssues:    assessmentIssues,
+		PayloadVersion:                 ASSESS_MIGRATION_YBD_PAYLOAD_VERSION,
+		VoyagerVersion:                 assessmentReport.VoyagerVersion,
+		TargetDBVersion:                assessmentReport.TargetDBVersion,
+		MigrationComplexity:            assessmentReport.MigrationComplexity,
+		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
+		SchemaSummary:                  assessmentReport.SchemaSummary,
+		AssessmentIssues:               assessmentIssues,
 		SourceSizeDetails: SourceDBSizeDetails{
 			TotalIndexSize:     assessmentReport.GetTotalIndexSize(),
 			TotalTableSize:     assessmentReport.GetTotalTableSize(),
@@ -488,8 +499,23 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalColocatedSize: totalColocatedSize,
 			TotalShardedSize:   totalShardedSize,
 		},
-		ConversionIssues:     schemaAnalysisReport.Issues,
-		AssessmentJsonReport: assessmentReport,
+		ConversionIssues: schemaAnalysisReport.Issues,
+		AssessmentJsonReport: AssessmentReportYugabyteD{
+			VoyagerVersion:             assessmentReport.VoyagerVersion,
+			TargetDBVersion:            assessmentReport.TargetDBVersion,
+			MigrationComplexity:        assessmentReport.MigrationComplexity,
+			SchemaSummary:              assessmentReport.SchemaSummary,
+			Sizing:                     assessmentReport.Sizing,
+			TableIndexStats:            assessmentReport.TableIndexStats,
+			Notes:                      assessmentReport.Notes,
+			UnsupportedDataTypes:       assessmentReport.UnsupportedDataTypes,
+			UnsupportedDataTypesDesc:   assessmentReport.UnsupportedDataTypesDesc,
+			UnsupportedFeatures:        assessmentReport.UnsupportedFeatures,
+			UnsupportedFeaturesDesc:    assessmentReport.UnsupportedFeaturesDesc,
+			UnsupportedQueryConstructs: assessmentReport.UnsupportedQueryConstructs,
+			UnsupportedPlPgSqlObjects:  assessmentReport.UnsupportedPlPgSqlObjects,
+			MigrationCaveats:           assessmentReport.MigrationCaveats,
+		},
 	}
 
 	payloadBytes, err := json.Marshal(payload)
@@ -502,84 +528,25 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 	return ev
 }
 
-// flatten UnsupportedDataTypes, UnsupportedFeatures, MigrationCaveats
-func flattenAssessmentReportToAssessmentIssues(ar AssessmentReport) []AssessmentIssuePayload {
-	var issues []AssessmentIssuePayload
-
-	var dataTypesDocsLink string
-	switch source.DBType {
-	case POSTGRESQL:
-		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK
-	case ORACLE:
-		dataTypesDocsLink = UNSUPPORTED_DATATYPES_DOC_LINK_ORACLE
-	}
-	for _, unsupportedDataType := range ar.UnsupportedDataTypes {
-		issues = append(issues, AssessmentIssuePayload{
-			Type:            DATATYPE,
-			TypeDescription: DATATYPE_ISSUE_TYPE_DESCRIPTION,
-			Subtype:         unsupportedDataType.DataType,
-			ObjectName:      fmt.Sprintf("%s.%s.%s", unsupportedDataType.SchemaName, unsupportedDataType.TableName, unsupportedDataType.ColumnName),
-			SqlStatement:    "",
-			DocsLink:        dataTypesDocsLink,
-		})
-	}
-
-	for _, unsupportedFeature := range ar.UnsupportedFeatures {
-		for _, object := range unsupportedFeature.Objects {
-			issues = append(issues, AssessmentIssuePayload{
-				Type:                   FEATURE,
-				TypeDescription:        FEATURE_ISSUE_TYPE_DESCRIPTION,
-				Subtype:                unsupportedFeature.FeatureName,
-				SubtypeDescription:     unsupportedFeature.FeatureDescription, // TODO: test payload once we add desc for unsupported features
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               unsupportedFeature.DocsLink,
-				MinimumVersionsFixedIn: unsupportedFeature.MinimumVersionsFixedIn,
-			})
+func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
+	var result []AssessmentIssueYugabyteD
+	for _, issue := range ar.Issues {
+		ybdIssue := AssessmentIssueYugabyteD{
+			Category:               issue.Category,
+			CategoryDescription:    issue.CategoryDescription,
+			Type:                   issue.Type, // Ques: should we be just sending Name in AssessmentIssueYugabyteD payload
+			Name:                   issue.Name,
+			Description:            issue.Description,
+			Impact:                 issue.Impact,
+			ObjectType:             issue.ObjectType,
+			ObjectName:             issue.ObjectName,
+			SqlStatement:           issue.SqlStatement,
+			DocsLink:               issue.DocsLink,
+			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 		}
+		result = append(result, ybdIssue)
 	}
-
-	for _, migrationCaveat := range ar.MigrationCaveats {
-		for _, object := range migrationCaveat.Objects {
-			issues = append(issues, AssessmentIssuePayload{
-				Type:                   MIGRATION_CAVEATS,
-				TypeDescription:        MIGRATION_CAVEATS_TYPE_DESCRIPTION,
-				Subtype:                migrationCaveat.FeatureName,
-				SubtypeDescription:     migrationCaveat.FeatureDescription,
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               migrationCaveat.DocsLink,
-				MinimumVersionsFixedIn: migrationCaveat.MinimumVersionsFixedIn,
-			})
-		}
-	}
-
-	for _, uqc := range ar.UnsupportedQueryConstructs {
-		issues = append(issues, AssessmentIssuePayload{
-			Type:                   QUERY_CONSTRUCT,
-			TypeDescription:        UNSUPPORTED_QUERY_CONSTRUTS_DESCRIPTION,
-			Subtype:                uqc.ConstructTypeName,
-			SqlStatement:           uqc.Query,
-			DocsLink:               uqc.DocsLink,
-			MinimumVersionsFixedIn: uqc.MinimumVersionsFixedIn,
-		})
-	}
-
-	for _, plpgsqlObjects := range ar.UnsupportedPlPgSqlObjects {
-		for _, object := range plpgsqlObjects.Objects {
-			issues = append(issues, AssessmentIssuePayload{
-				Type:                   PLPGSQL_OBJECT,
-				TypeDescription:        UNSUPPPORTED_PLPGSQL_OBJECT_DESCRIPTION,
-				Subtype:                plpgsqlObjects.FeatureName,
-				SubtypeDescription:     plpgsqlObjects.FeatureDescription,
-				ObjectName:             object.ObjectName,
-				SqlStatement:           object.SqlStatement,
-				DocsLink:               plpgsqlObjects.DocsLink,
-				MinimumVersionsFixedIn: plpgsqlObjects.MinimumVersionsFixedIn,
-			})
-		}
-	}
-	return issues
+	return result
 }
 
 func runAssessment(assessmentDir string) error {
@@ -623,7 +590,7 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 				utils.ErrExit("failed to start clean: %v", err)
 			}
 		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory at '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
 		}
 	}
 }
@@ -688,8 +655,9 @@ func gatherAssessmentMetadataFromPG() (err error) {
 	if err != nil {
 		return err
 	}
+
 	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%d", intervalForCapturingIOPS))
+		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS))
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {
@@ -863,16 +831,25 @@ func generateAssessmentReport() (err error) {
 		return fmt.Errorf("failed to fetch columns with unsupported data types: %w", err)
 	}
 	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
-	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_ISSUE_TYPE_DESCRIPTION
+	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_CATEGORY_DESCRIPTION
+
+	assessmentReport.AppendIssues(getAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)...)
+
+	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
+
+	// calculating migration complexity after collecting all assessment issues
+	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
+	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
+	assessmentReport.MigrationComplexity = complexity
+	assessmentReport.MigrationComplexityExplanation = explanation
 
 	assessmentReport.Sizing = migassessment.SizingReport
 	assessmentReport.TableIndexStats, err = assessmentDB.FetchAllStats()
 	if err != nil {
 		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
-	}*/
-
+	}
+	*/
 	addNotesToAssessmentReport()
-	//addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 	postProcessingOfAssessmentReport()
 
 	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
@@ -889,15 +866,16 @@ func generateAssessmentReport() (err error) {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
-	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
-	assessmentReport.MigrationComplexity = schemaAnalysisReport.MigrationComplexity
-	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
-	assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION
-	if source.DBType == ORACLE {
-		assessmentReport.SchemaSummary.Description = SCHEMA_SUMMARY_DESCRIPTION_ORACLE
-	}
+	/*
+		Here we are generating analyze schema report which converts issue instance to analyze schema issue
+		Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
 
-	// fetching unsupportedFeaturing with the help of Issues report in SchemaReport
+		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
+	*/
+	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
+	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
+	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
+
 	var unsupportedFeatures []UnsupportedFeature
 	var err error
 	switch source.DBType {
@@ -909,13 +887,14 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 		panic(fmt.Sprintf("unsupported source db type %q", source.DBType))
 	}
 	if err != nil {
-		return fmt.Errorf("failed to fetch %s unsupported features: %w", source.DBType, err)
+		return fmt.Errorf("failed to fetch '%s' unsupported features: %w", source.DBType, err)
 	}
 	assessmentReport.UnsupportedFeatures = append(assessmentReport.UnsupportedFeatures, unsupportedFeatures...)
-	assessmentReport.UnsupportedFeaturesDesc = FEATURE_ISSUE_TYPE_DESCRIPTION
+	assessmentReport.UnsupportedFeaturesDesc = FEATURE_CATEGORY_DESCRIPTION
+
+	// Ques: Do we still need this and REPORT_UNSUPPORTED_QUERY_CONSTRUCTS env var
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
-		unsupportedPlpgSqlObjects := fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport)
-		assessmentReport.UnsupportedPlPgSqlObjects = unsupportedPlpgSqlObjects
+		assessmentReport.UnsupportedPlPgSqlObjects = fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport)
 	}
 	return nil
 }
@@ -942,68 +921,119 @@ func areMinVersionsFixedInEqual(m1 map[string]*ybversion.YBVersion, m2 map[strin
 	return true
 }
 
-func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueReason string, schemaAnalysisReport utils.SchemaReport, displayDDLInHTML bool, description string) UnsupportedFeature {
+func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDescription string, issueType string, schemaAnalysisReport utils.SchemaReport, displayDDLInHTML bool) UnsupportedFeature {
 	log.Info("filtering issues for feature: ", featureName)
 	objects := make([]ObjectInfo, 0)
 	link := "" // for oracle we shouldn't display any line for links
 	var minVersionsFixedIn map[string]*ybversion.YBVersion
 	var minVersionsFixedInSet bool
 
-	for _, issue := range schemaAnalysisReport.Issues {
-		if strings.Contains(issue.Reason, issueReason) {
-			objectInfo := ObjectInfo{
-				ObjectName:   issue.ObjectName,
-				SqlStatement: issue.SqlStatement,
-			}
-			link = issue.DocsLink
-			objects = append(objects, objectInfo)
+	for _, analyzeIssue := range schemaAnalysisReport.Issues {
+		if !slices.Contains([]string{UNSUPPORTED_FEATURES_CATEGORY, MIGRATION_CAVEATS_CATEGORY}, analyzeIssue.IssueType) {
+			continue
+		}
+
+		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
+		issueMatched := lo.Ternary[bool](issueType != "", issueType == analyzeIssue.Type, strings.Contains(analyzeIssue.Reason, issueDescription))
+		if issueMatched {
 			if !minVersionsFixedInSet {
-				minVersionsFixedIn = issue.MinimumVersionsFixedIn
+				minVersionsFixedIn = analyzeIssue.MinimumVersionsFixedIn
 				minVersionsFixedInSet = true
 			}
-			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", featureName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+			if !areMinVersionsFixedInEqual(minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn) {
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", featureName, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
 			}
+
+			objectInfo := ObjectInfo{
+				ObjectName:   analyzeIssue.ObjectName,
+				SqlStatement: analyzeIssue.SqlStatement,
+			}
+			link = analyzeIssue.DocsLink
+			objects = append(objects, objectInfo)
+			issueDescription = analyzeIssue.Reason
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, issueDescription, minVersionsFixedIn))
 		}
 	}
-	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, description, minVersionsFixedIn}
+
+	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
+}
+
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+	return AssessmentIssue{
+		Category:            analyzeSchemaIssue.IssueType,
+		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
+		Type:                analyzeSchemaIssue.Type,
+		Name:                analyzeSchemaIssue.Name,
+
+		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
+		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
+
+		Impact:                 analyzeSchemaIssue.Impact,
+		ObjectType:             analyzeSchemaIssue.ObjectType,
+		ObjectName:             analyzeSchemaIssue.ObjectName,
+		SqlStatement:           analyzeSchemaIssue.SqlStatement,
+		DocsLink:               analyzeSchemaIssue.DocsLink,
+		MinimumVersionsFixedIn: minVersionsFixedIn,
+	}
 }
 
 func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for PG...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
+
 	for _, indexMethod := range queryissue.UnsupportedIndexMethods {
 		displayIndexMethod := strings.ToUpper(indexMethod)
-		feature := fmt.Sprintf("%s indexes", displayIndexMethod)
-		reason := fmt.Sprintf(INDEX_METHOD_ISSUE_REASON, displayIndexMethod)
-		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(feature, reason, schemaAnalysisReport, false, ""))
+		featureName := fmt.Sprintf("%s indexes", displayIndexMethod)
+		reason := fmt.Sprintf(queryissue.UNSUPPORTED_INDEX_METHOD_DESCRIPTION, displayIndexMethod)
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(featureName, reason, "", schemaAnalysisReport, false))
 	}
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, CONSTRAINT_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(INHERITED_TABLES_FEATURE, INHERITANCE_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(GENERATED_COLUMNS_FEATURE, STORED_GENERATED_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONVERSIONS_OBJECTS_FEATURE, CONVERSION_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(MULTI_COLUMN_GIN_INDEX_FEATURE, GIN_INDEX_MULTI_COLUMN_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_SETTING_ATTRIBUTE_FEATURE, ALTER_TABLE_SET_ATTRIBUTE_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, ALTER_TABLE_DISABLE_RULE_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, ALTER_TABLE_CLUSTER_ON_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, STORAGE_PARAMETERS_DDL_STMT_ISSUE, schemaAnalysisReport, true, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, UNSUPPORTED_EXTENSION_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, EXCLUSION_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, DEFERRABLE_CONSTRAINT_ISSUE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, VIEW_CHECK_OPTION_ISSUE, schemaAnalysisReport, false, ""))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONSTRAINT_TRIGGERS_FEATURE, "", queryissue.CONSTRAINT_TRIGGER, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(INHERITED_TABLES_FEATURE, "", queryissue.INHERITANCE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(GENERATED_COLUMNS_FEATURE, "", queryissue.STORED_GENERATED_COLUMNS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CONVERSIONS_OBJECTS_FEATURE, "", CREATE_CONVERSION_ISSUE_TYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(MULTI_COLUMN_GIN_INDEX_FEATURE, "", queryissue.MULTI_COLUMN_GIN_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_SETTING_ATTRIBUTE_FEATURE, "", queryissue.ALTER_TABLE_SET_COLUMN_ATTRIBUTE, schemaAnalysisReport, true))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, "", queryissue.ALTER_TABLE_DISABLE_RULE, schemaAnalysisReport, true))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, "", queryissue.ALTER_TABLE_CLUSTER_ON, schemaAnalysisReport, true))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, "", queryissue.STORAGE_PARAMETERS, schemaAnalysisReport, true))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, "", UNSUPPORTED_EXTENSION_ISSUE_TYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, "", queryissue.EXCLUSION_CONSTRAINTS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, "", queryissue.DEFERRABLE_CONSTRAINTS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, "", VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, "", queryissue.PK_UK_ON_COMPLEX_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, "", queryissue.UNLOGGED_TABLES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, "", queryissue.REFERENCING_CLAUSE_IN_TRIGGER, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, "", queryissue.BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ADVISORY_LOCKS_NAME, "", queryissue.ADVISORY_LOCKS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.XML_FUNCTIONS_NAME, "", queryissue.XML_FUNCTIONS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SYSTEM_COLUMNS_NAME, "", queryissue.SYSTEM_COLUMNS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_NAME, "", queryissue.LARGE_OBJECT_FUNCTIONS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REGEX_FUNCTIONS_FEATURE, "", queryissue.REGEX_FUNCTIONS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(FETCH_WITH_TIES_FEATURE, "", queryissue.FETCH_WITH_TIES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_QUERY_FUNCTIONS_NAME, "", queryissue.JSON_QUERY_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ANY_VALUE_AGGREGATE_FUNCTION_NAME, "", queryissue.ANY_VALUE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_AGGREGATE_FUNCTION_NAME, "", queryissue.RANGE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.DETERMINISTIC_OPTION_WITH_COLLATION_NAME, "", queryissue.DETERMINISTIC_OPTION_WITH_COLLATION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DETERMINISTIC_COLLATION_NAME, "", queryissue.NON_DETERMINISTIC_COLLATION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.UNIQUE_NULLS_NOT_DISTINCT_NAME, "", queryissue.UNIQUE_NULLS_NOT_DISTINCT, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSONB_SUBSCRIPTING_NAME, "", queryissue.JSONB_SUBSCRIPTING, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME, "", queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_TYPE_PREDICATE_NAME, "", queryissue.JSON_TYPE_PREDICATE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.CTE_WITH_MATERIALIZED_CLAUSE_NAME, "", queryissue.CTE_WITH_MATERIALIZED_CLAUSE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DECIMAL_INTEGER_LITERAL_NAME, "", queryissue.NON_DECIMAL_INTEGER_LITERAL, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
 
-	pkOrUkConstraintIssuePrefix := strings.Split(ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES, "%s")[0]
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, pkOrUkConstraintIssuePrefix, schemaAnalysisReport, false, ""))
-
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, ISSUE_UNLOGGED_TABLE, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, REFERENCING_CLAUSE_FOR_TRIGGERS, schemaAnalysisReport, false, ""))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE, schemaAnalysisReport, false, ""))
-
-	return unsupportedFeatures, nil
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
-func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
 	// TODO: include MinimumVersionsFixedIn
 	indexesOnComplexTypesFeature := UnsupportedFeature{
 		FeatureName: "Index on complex datatypes",
@@ -1013,7 +1043,7 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
 	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
 	for _, unsupportedType := range unsupportedIndexDatatypes {
-		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(ISSUE_INDEX_WITH_COMPLEX_DATATYPES, unsupportedType), schemaAnalysisReport, false, "")
+		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION, unsupportedType), "", schemaAnalysisReport, false)
 		for _, object := range indexes.Objects {
 			formattedObject := object
 			formattedObject.ObjectName = fmt.Sprintf("%s: %s", strings.ToUpper(unsupportedType), object.ObjectName)
@@ -1023,15 +1053,16 @@ func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisiReport utils.Schem
 			}
 		}
 	}
-
 	return indexesOnComplexTypesFeature
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
 	log.Infof("fetching unsupported features for Oracle...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(COMPOUND_TRIGGER_FEATURE, COMPOUND_TRIGGER_ISSUE_REASON, schemaAnalysisReport, false, ""))
-	return unsupportedFeatures, nil
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(COMPOUND_TRIGGER_FEATURE, "", COMPOUND_TRIGGER_ISSUE_TYPE, schemaAnalysisReport, false))
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
 var OracleUnsupportedIndexTypes = []string{"CLUSTER INDEX", "DOMAIN INDEX", "FUNCTION-BASED DOMAIN INDEX", "IOT - TOP INDEX", "NORMAL/REV INDEX", "FUNCTION-BASED NORMAL/REV INDEX"}
@@ -1065,13 +1096,53 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 			unsupportedIndexes = append(unsupportedIndexes, ObjectInfo{
 				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
 			})
+			// For oracle migration complexity comes from ora2pg, so defining Impact not required right now
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                UNSUPPORTED_INDEXES_ISSUE_TYPE,
+				Name:                UNSUPPORTED_INDEXES_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.INDEX,
+				// TODO: here it should be only ObjectName, to populate Index Type there should be a separate field
+				ObjectName: fmt.Sprintf("Index Name: %s, Index Type=%s", objectName, objectType),
+			})
 		} else if objectType == VIRTUAL_COLUMN {
 			virtualColumns = append(virtualColumns, ObjectInfo{ObjectName: objectName})
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                VIRTUAL_COLUMNS_ISSUE_TYPE,
+				Name:                VIRTUAL_COLUMNS_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.COLUMN,
+				ObjectName:          objectName,
+			})
 		} else if objectType == INHERITED_TYPE {
 			inheritedTypes = append(inheritedTypes, ObjectInfo{ObjectName: objectName})
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                INHERITED_TYPES_ISSUE_TYPE,
+				Name:                INHERITED_TYPES_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.TYPE,
+				ObjectName:          objectName,
+			})
 		} else if objectType == REFERENCE_PARTITION || objectType == SYSTEM_PARTITION {
 			referenceOrTablePartitionPresent = true
 			unsupportedPartitionTypes = append(unsupportedPartitionTypes, ObjectInfo{ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType)})
+
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:            UNSUPPORTED_FEATURES_CATEGORY,
+				CategoryDescription: GetCategoryDescription(UNSUPPORTED_FEATURES_CATEGORY),
+				Type:                UNSUPPORTED_PARTITIONING_METHODS_ISSUE_TYPE,
+				Name:                UNSUPPORTED_PARTITIONING_METHODS_FEATURE,
+				Description:         "", // TODO
+				ObjectType:          constants.TABLE,
+				// TODO: here it should be only ObjectName, to populate Partition Method there should be a separate field
+				ObjectName: fmt.Sprintf("Table Name: %s, Partition Method: %s", objectName, objectType),
+			})
 		}
 	}
 
@@ -1080,52 +1151,70 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{VIRTUAL_COLUMNS_FEATURE, virtualColumns, false, "", "", nil})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{INHERITED_TYPES_FEATURE, inheritedTypes, false, "", "", nil})
 	unsupportedFeatures = append(unsupportedFeatures, UnsupportedFeature{UNSUPPORTED_PARTITIONING_METHODS_FEATURE, unsupportedPartitionTypes, false, "", "", nil})
-	return unsupportedFeatures, nil
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	}), nil
 }
 
 func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
 	if source.DBType != POSTGRESQL {
 		return nil
 	}
-	analyzeIssues := schemaAnalysisReport.Issues
-	plpgsqlIssues := lo.Filter(analyzeIssues, func(issue utils.Issue, _ int) bool {
-		return issue.IssueType == UNSUPPORTED_PLPGSQL_OBEJCTS
+
+	plpgsqlIssues := lo.Filter(schemaAnalysisReport.Issues, func(issue utils.AnalyzeSchemaIssue, _ int) bool {
+		return issue.IssueType == UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	})
-	groupPlpgsqlIssuesByReason := lo.GroupBy(plpgsqlIssues, func(issue utils.Issue) string {
-		return issue.Reason
+	groupPlpgsqlIssuesByIssueName := lo.GroupBy(plpgsqlIssues, func(issue utils.AnalyzeSchemaIssue) string {
+		return issue.Name
 	})
 	var unsupportedPlpgSqlObjects []UnsupportedFeature
-	for reason, issues := range groupPlpgsqlIssuesByReason {
+	for issueName, analyzeSchemaIssues := range groupPlpgsqlIssuesByIssueName {
 		var objects []ObjectInfo
 		var docsLink string
 		var minVersionsFixedIn map[string]*ybversion.YBVersion
 		var minVersionsFixedInSet bool
 
-		for _, issue := range issues {
-			objects = append(objects, ObjectInfo{
-				ObjectType:   issue.ObjectType,
-				ObjectName:   issue.ObjectName,
-				SqlStatement: issue.SqlStatement,
-			})
+		for _, issue := range analyzeSchemaIssues {
 			if !minVersionsFixedInSet {
 				minVersionsFixedIn = issue.MinimumVersionsFixedIn
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", reason, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", issueName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
 			}
+
+			objects = append(objects, ObjectInfo{
+				ObjectType:   issue.ObjectType,
+				ObjectName:   issue.ObjectName,
+				SqlStatement: issue.SqlStatement,
+			})
 			docsLink = issue.DocsLink
+
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Reason,
+				ObjectType:             issue.ObjectType,
+				ObjectName:             issue.ObjectName,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+			})
 		}
 		feature := UnsupportedFeature{
-			FeatureName: reason,
-			DisplayDDL:  true,
-			DocsLink:    docsLink,
-			Objects:     objects,
+			FeatureName:            issueName,
+			DisplayDDL:             true,
+			DocsLink:               docsLink,
+			Objects:                objects,
+			MinimumVersionsFixedIn: minVersionsFixedIn,
 		}
 		unsupportedPlpgSqlObjects = append(unsupportedPlpgSqlObjects, feature)
 	}
-	return unsupportedPlpgSqlObjects
 
+	return unsupportedPlpgSqlObjects
 }
 
 func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error) {
@@ -1185,11 +1274,23 @@ func fetchUnsupportedQueryConstructs() ([]utils.UnsupportedQueryConstruct, error
 		for _, issue := range issues {
 			uqc := utils.UnsupportedQueryConstruct{
 				Query:                  issue.SqlStatement,
-				ConstructTypeName:      issue.TypeName,
+				ConstructTypeName:      issue.Name,
 				DocsLink:               issue.DocsLink,
 				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 			}
 			result = append(result, uqc)
+
+			assessmentReport.AppendIssues(AssessmentIssue{
+				Category:               UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY),
+				Type:                   issue.Type,
+				Name:                   issue.Name,
+				Impact:                 issue.Impact,
+				Description:            issue.Description,
+				SqlStatement:           issue.SqlStatement,
+				DocsLink:               issue.DocsLink,
+				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+			})
 		}
 	}
 
@@ -1282,6 +1383,28 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
+func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
+	var assessmentIssues []AssessmentIssue
+	for _, colInfo := range unsupportedDatatypes {
+		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+		issue := AssessmentIssue{
+			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+			Description:            "",               // TODO
+			Impact:                 constants.IMPACT_LEVEL_3,
+			ObjectType:             constants.COLUMN,
+			ObjectName:             qualifiedColName,
+			DocsLink:               "",  // TODO
+			MinimumVersionsFixedIn: nil, // TODO
+		}
+		assessmentIssues = append(assessmentIssues, issue)
+	}
+
+	return assessmentIssues
+}
+
 /*
 Queries to ignore:
 - Collected schemas is totally different than source schema list, not containing ""
@@ -1329,11 +1452,14 @@ To manually modify the schema, please refer: <a class="highlight-link" href="htt
 
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
 
-	GIN_INDEXES = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	GIN_INDEXES                = `There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in <a class="highlight-link" href="https://github.com/yugabyte/yugabyte-db/issues/7850">https://github.com/yugabyte/yugabyte-db/issues/7850</a> so take a look and modify them if not supported.`
+	UNLOGGED_TABLE_NOTE        = `There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported.`
+	REPORTING_LIMITATIONS_NOTE = `<a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a>`
 )
 
 const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but during the export schema phase, exported schema does not include the SERVER and USER MAPPING objects. Therefore, you must manually create these objects before import schema. For more information on each of them, run analyze-schema. `
 
+// TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
 	switch source.DBType {
@@ -1356,7 +1482,13 @@ func addNotesToAssessmentReport() {
 				}
 			}
 		}
+	case POSTGRESQL:
+		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
+			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
+		}
+		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
 	}
+
 }
 
 func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration []utils.TableColumnsDataTypes, unsupportedDataTypesForLiveMigrationWithFForFB []utils.TableColumnsDataTypes) {
@@ -1364,28 +1496,62 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 	case POSTGRESQL:
 		log.Infof("add migration caveats to assessment report")
 		migrationCaveats := make([]UnsupportedFeature, 0)
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE, ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, true, DESCRIPTION_ADD_PK_TO_PARTITION_TABLE))
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(FOREIGN_TABLE_CAVEAT_FEATURE, FOREIGN_TABLE_ISSUE_REASON,
-			schemaAnalysisReport, false, DESCRIPTION_FOREIGN_TABLES))
-		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, POLICY_ROLE_ISSUE,
-			schemaAnalysisReport, false, DESCRIPTION_POLICY_ROLE_ISSUE))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(ALTER_PARTITION_ADD_PK_CAVEAT_FEATURE, "", queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+			schemaAnalysisReport, true))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(FOREIGN_TABLE_CAVEAT_FEATURE, "", queryissue.FOREIGN_TABLE,
+			schemaAnalysisReport, false))
+		migrationCaveats = append(migrationCaveats, getUnsupportedFeaturesFromSchemaAnalysisReport(POLICIES_CAVEAT_FEATURE, "", queryissue.POLICY_WITH_ROLES,
+			schemaAnalysisReport, false))
 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
-			for _, col := range unsupportedDataTypesForLiveMigration {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
+			for _, colInfo := range unsupportedDataTypesForLiveMigration {
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+
+				assessmentReport.AppendIssues(AssessmentIssue{
+					Category:            MIGRATION_CAVEATS_CATEGORY,
+					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
+					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
+					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
+					ObjectType:          constants.COLUMN,
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
+					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+				})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_ISSUE, nil})
+			if len(columns) > 0 {
+				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
+			}
 		}
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
-			for _, col := range unsupportedDataTypesForLiveMigrationWithFForFB {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", col.SchemaName, col.TableName, col.ColumnName, col.DataType)})
+			for _, colInfo := range unsupportedDataTypesForLiveMigrationWithFForFB {
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+
+				assessmentReport.AppendIssues(AssessmentIssue{
+					Category:            MIGRATION_CAVEATS_CATEGORY,
+					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
+					Impact:              constants.IMPACT_LEVEL_1,
+					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
+					ObjectType:          constants.COLUMN,
+					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
+					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+				})
 			}
-			migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_ISSUE, nil})
+			if len(columns) > 0 {
+				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION, nil})
+			}
 		}
-		assessmentReport.MigrationCaveats = migrationCaveats
+		migrationCaveats = lo.Filter(migrationCaveats, func(m UnsupportedFeature, _ int) bool {
+			return len(m.Objects) > 0
+		})
+		if len(migrationCaveats) > 0 {
+			assessmentReport.MigrationCaveats = migrationCaveats
+		}
+
 	}
 }
 
@@ -1406,12 +1572,20 @@ func postProcessingOfAssessmentReport() {
 				assessmentReport.Sizing.SizingRecommendation.ColocatedTables[i] = parts[1]
 			}
 		}
+
+		// redact Impact info from the assessment report for Oracle
+		// TODO: Remove this processing step in future when supporting Explanation for Oracle
+		for i := range assessmentReport.Issues {
+			assessmentReport.Issues[i].Impact = "-"
+		}
+
 	}
 }
 
 func generateAssessmentReportJson(reportDir string) error {
 	jsonReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, JSON_EXTENSION))
 	log.Infof("writing assessment report to file: %s", jsonReportFilePath)
+
 	strReport, err := json.MarshalIndent(assessmentReport, "", "\t")
 	if err != nil {
 		return fmt.Errorf("failed to marshal the assessment report: %w", err)
@@ -1449,6 +1623,8 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"groupByObjectName":                groupByObjectName,
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
+		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1457,7 +1633,17 @@ func generateAssessmentReportHtml(reportDir string) error {
 		// marking this as empty to not display this in html report for PG
 		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
-	err = tmpl.Execute(file, assessmentReport)
+
+	type CombinedStruct struct {
+		AssessmentReport
+		MigrationComplexityCategorySummary []MigrationComplexityCategorySummary
+	}
+	combined := CombinedStruct{
+		AssessmentReport:                   assessmentReport,
+		MigrationComplexityCategorySummary: buildCategorySummary(source.DBType, assessmentReport.Issues),
+	}
+
+	err = tmpl.Execute(file, combined)
 	if err != nil {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
@@ -1523,7 +1709,7 @@ func validateSourceDBTypeForAssessMigration() {
 func validateAssessmentMetadataDirFlag() {
 	if assessmentMetadataDirFlag != "" {
 		if !utils.FileOrFolderExists(assessmentMetadataDirFlag) {
-			utils.ErrExit("assessment metadata directory %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
+			utils.ErrExit("assessment metadata directory: %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
 		} else {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}
@@ -1532,10 +1718,15 @@ func validateAssessmentMetadataDirFlag() {
 
 func validateAndSetTargetDbVersionFlag() error {
 	if targetDbVersionStrFlag == "" {
-		targetDbVersion = ybversion.LatestStable
-		utils.PrintAndLog("Defaulting to latest stable YugabyteDB version: %s", targetDbVersion)
-		return nil
+		if utils.AskPrompt("No target-db-version has been specified.\nDo you want to continue with the latest stable YugabyteDB version:", ybversion.LatestStable.String()) {
+			targetDbVersion = ybversion.LatestStable
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
 	}
+
 	var err error
 	targetDbVersion, err = ybversion.NewYBVersion(targetDbVersionStrFlag)
 
@@ -1552,4 +1743,40 @@ func validateAndSetTargetDbVersionFlag() error {
 		utils.ErrExit("Aborting..")
 		return nil
 	}
+}
+
+func validateSourceDBIOPSForAssessMigration() error {
+	var totalIOPS int64
+
+	tableIndexStats, err := assessmentDB.FetchAllStats()
+	if err != nil {
+		return fmt.Errorf("fetching all stats info from AssessmentDB: %w", err)
+	}
+
+	// Checking if source schema has zero objects.
+	if tableIndexStats == nil || len(*tableIndexStats) == 0 {
+		if utils.AskPrompt("No objects found in the specified schema(s). Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	for _, stat := range *tableIndexStats {
+		totalIOPS += utils.SafeDereferenceInt64(stat.ReadsPerSecond)
+		totalIOPS += utils.SafeDereferenceInt64(stat.WritesPerSecond)
+	}
+
+	// Checking if source schema IOPS is not zero.
+	if totalIOPS == 0 {
+		if utils.AskPrompt("Detected 0 read/write IOPS on the tables in specified schema(s). In order to get an accurate assessment, it is recommended that the source database is actively handling its typical workloads. Do you want to continue anyway") {
+			return nil
+		} else {
+			utils.ErrExit("Aborting..")
+			return nil
+		}
+	}
+
+	return nil
 }

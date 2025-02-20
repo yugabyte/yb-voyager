@@ -16,23 +16,17 @@ limitations under the License.
 package queryparser
 
 import (
+	"fmt"
 	"strings"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-const (
-	DOCS_LINK_PREFIX        = "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/"
-	POSTGRESQL_PREFIX       = "postgresql/"
-	ADVISORY_LOCKS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#advisory-locks-is-not-yet-implemented"
-	SYSTEM_COLUMNS_DOC_LINK = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#system-columns-is-not-yet-supported"
-	XML_FUNCTIONS_DOC_LINK  = DOCS_LINK_PREFIX + POSTGRESQL_PREFIX + "#xml-functions-is-not-yet-supported"
-)
-
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
+
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {
@@ -328,6 +322,21 @@ func GetStatementType(msg protoreflect.Message) string {
 	return GetMsgFullName(node)
 }
 
+func getOneofActiveNode(msg protoreflect.Message) protoreflect.Message {
+	nodeField := getOneofActiveField(msg, "node")
+	if nodeField == nil {
+		return nil
+	}
+
+	value := msg.Get(nodeField)
+	node := value.Message()
+	if node == nil || !node.IsValid() {
+		return nil
+	}
+
+	return node
+}
+
 // == Generic helper functions ==
 
 // GetStringField retrieves a string field from a message.
@@ -349,6 +358,14 @@ func GetMessageField(msg protoreflect.Message, fieldName string) protoreflect.Me
 	return nil
 }
 
+func GetBoolField(msg protoreflect.Message, fieldName string) bool {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Bool()
+	}
+	return false
+}
+
 // GetListField retrieves a list field from a message.
 func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List {
 	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
@@ -356,6 +373,17 @@ func GetListField(msg protoreflect.Message, fieldName string) protoreflect.List 
 		return msg.Get(field).List()
 	}
 	return nil
+}
+
+// GetEnumNumField retrieves a enum field from a message
+// FieldDescriptor{Syntax: proto3, FullName: pg_query.JsonFuncExpr.op, Number: 1, Cardinality: optional, Kind: enum, HasJSONName: true, JSONName: "op", Enum: pg_query.JsonExprOp}
+// val:{json_func_expr:{op:JSON_QUERY_OP  context_item:{raw_expr:{column_ref:{fields:{string:{sval:"details"}}  location:2626}}  format:{format_type:JS_FORMAT_DEFAULT  encoding:JS_ENC_DEFAULT
+func GetEnumNumField(msg protoreflect.Message, fieldName string) protoreflect.EnumNumber {
+	field := msg.Descriptor().Fields().ByName(protoreflect.Name(fieldName))
+	if field != nil && msg.Has(field) {
+		return msg.Get(field).Enum()
+	}
+	return 0
 }
 
 // GetSchemaAndObjectName extracts the schema and object name from a list.
@@ -369,4 +397,110 @@ func GetSchemaAndObjectName(nameList protoreflect.List) (string, string) {
 		objectName = GetStringField(nameList.Get(1).Message(), "string")
 	}
 	return schemaName, objectName
+}
+
+func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
+	selectStmtNode, ok := msg.Interface().(*pg_query.SelectStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_SELECTSTMT_NODE)
+	}
+	return selectStmtNode, nil
+}
+
+func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
+	aConstNode, ok := msg.Interface().(*pg_query.A_Const)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_ACONST_NODE)
+	}
+	return aConstNode, nil
+}
+
+func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
+	cteNode, ok := msg.Interface().(*pg_query.CommonTableExpr)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CTE_NODE)
+	}
+	return cteNode, nil
+}
+
+func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, error) {
+	defElemNode, ok := msg.Interface().(*pg_query.DefElem)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+	}
+	return defElemNode, nil
+}
+
+func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+	}
+
+	return indexStmtNode, nil
+}
+
+func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
+	consNode, ok := msg.Interface().(*pg_query.Constraint)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
+	}
+
+	return consNode, nil
+}
+
+func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
+	node, ok := msg.Interface().(*pg_query.TransactionStmt)
+	if !ok {
+		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_TRANSACTION_STMT_NODE)
+	}
+
+	return node, nil
+}
+
+
+/*
+Example:
+options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
+options:{def_elem:{defname:"security_barrier" arg:{string:{sval:"false"}} defaction:DEFELEM_UNSPEC location:57}}
+Extract all defnames from the def_eleme node
+*/
+func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string]string, error) {
+	defNamesWithValues := make(map[string]string)
+	collectorFunc := func(msg protoreflect.Message) error {
+		if GetMsgFullName(msg) != PG_QUERY_DEFELEM_NODE {
+			return nil
+		}
+
+		defElemNode, err := ProtoAsDefElemNode(msg)
+		if err != nil {
+			return err
+		}
+
+		defName := defElemNode.Defname
+		arg := defElemNode.GetArg()
+		if arg != nil && arg.GetString_()!= nil {
+			defElemVal := arg.GetString_().Sval
+			defNamesWithValues[defName] = defElemVal
+		} else {
+			log.Warnf("defElem Node doesn't have arg or the arg is not the string type [%s]", defElemNode)
+			//TODO: see how to handle this later where GetString_() is not directly available or arg is of different type
+			//e.g. defname:"provider"  arg:{type_name:{names:{string:{sval:"icu"}}  typemod:-1  location:37}}  defaction:DEFELEM_UNSPEC  location:26defname:"locale"
+			defNamesWithValues[defName] = ""
+		}
+		return nil
+	}
+	visited := make(map[protoreflect.Message]bool)
+	err := TraverseParseTree(msg, visited, collectorFunc)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse parse tree for fetching defnames: %w", err)
+	}
+
+	return defNamesWithValues, nil
+}
+
+func GetAIndirectionNode(msg protoreflect.Message) (*pg_query.A_Indirection, bool) {
+	protoMsg := msg.Interface().(protoreflect.ProtoMessage)
+	aIndirection, ok := protoMsg.(*pg_query.A_Indirection)
+	return aIndirection, ok
 }

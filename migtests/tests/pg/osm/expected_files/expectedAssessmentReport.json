@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
-	"MigrationComplexity": "LOW",
+	"MigrationComplexity": "MEDIUM",
+	"MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_osm",
@@ -63,135 +64,60 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": [
+	"AssessmentIssues": [
 		{
-	       "SchemaName": "public",
-	       "TableName": "osm_changeset",
-	       "ColumnName": "geom",
-	       "DataType": "public.geometry"
-    	}
-	],
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "GIST indexes",
-			"Objects": [
-				{
-					"ObjectName": "changeset_geom_gist ON public.osm_changeset",
-					"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEX_METHOD",
+			"Name": "Index with access method",
+			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "changeset_geom_gist ON public.osm_changeset",
+			"SqlStatement": "CREATE INDEX changeset_geom_gist ON public.osm_changeset USING gist (geom);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "BRIN indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "SPGIST indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Constraint triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Inherited tables",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Tables with stored generated columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Conversion objects",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Clustering table on index",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Extensions",
-			"Objects": [
-				{
-					"ObjectName": "postgis",
-					"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "postgis",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
 			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Exclusion constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "public.geometry",
+			"Name": "public.geometry",
+			"Description": "",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.osm_changeset.geom",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Deferrable constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "View with check option",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Primary / Unique key constraints on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unlogged tables",
-			"Objects": [],
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.osm_changeset.tags",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"MinimumVersionsFixedIn": null
 		}
 	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",
@@ -203,7 +129,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 7061504
 		},
@@ -217,7 +143,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -231,7 +157,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -245,7 +171,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -259,7 +185,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -273,7 +199,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -287,7 +213,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 16384
 		},
@@ -301,7 +227,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		},
@@ -315,32 +241,40 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
+			"ParentTableName": "public.osm_changeset",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "spatial_ref_sys_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 8500,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "public.spatial_ref_sys",
+			"SizeInBytes": 212992
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "osm_changeset_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
 			"ParentTableName": "public.osm_changeset",
 			"SizeInBytes": 8192
 		}
 	],
-	"Notes": null,
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": [],
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Policies",
-			"Objects": [],
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	"Notes": [
+		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+	]
 }

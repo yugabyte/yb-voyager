@@ -43,7 +43,7 @@ var useDebezium bool
 var runId string
 var excludeTableListFilePath string
 var tableListFilePath string
-var pgExportDependencies = []string{"pg_dump", "pg_restore", "psql"}
+var pgExportCommands = []string{"pg_dump", "pg_restore", "psql"}
 
 var exportCmd = &cobra.Command{
 	Use:   "export",
@@ -299,7 +299,7 @@ func validateSSLMode() {
 	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
 		return
 	} else {
-		utils.ErrExit("Error: Invalid sslmode: %q. Valid SSL modes are %v", validSSLModes[source.DBType])
+		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, validSSLModes[source.DBType])
 	}
 }
 
@@ -392,9 +392,11 @@ func saveExportTypeInMSR() {
 }
 
 func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
-	if source.DBType == POSTGRESQL {
+	var missingTools []string
+	switch source.DBType {
+	case POSTGRESQL:
 		sourceDBVersion := source.DB().GetVersion()
-		for _, binary := range pgExportDependencies {
+		for _, binary := range pgExportCommands {
 			_, binaryCheckIssue, err := srcdb.GetAbsPathOfPGCommandAboveVersion(binary, sourceDBVersion)
 			if err != nil {
 				return nil, err
@@ -402,7 +404,31 @@ func checkDependenciesForExport() (binaryCheckIssues []string, err error) {
 				binaryCheckIssues = append(binaryCheckIssues, binaryCheckIssue)
 			}
 		}
+
+		missingTools = utils.CheckTools("strings")
+
+	case MYSQL:
+		// In case if it is not a live migration, then we need to check for ora2pg
+		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
+			missingTools = utils.CheckTools("ora2pg")
+		}
+
+	case ORACLE:
+		// In case if it is not a live migration, then we need to check for ora2pg
+		if !(changeStreamingIsEnabled(exportType) || useDebezium) {
+			missingTools = utils.CheckTools("ora2pg", "sqlplus")
+		} else {
+			missingTools = utils.CheckTools("sqlplus")
+		}
+
+	case YUGABYTEDB:
+		missingTools = utils.CheckTools("strings")
+
+	default:
+		return nil, fmt.Errorf("unknown source database type %q", source.DBType)
 	}
+
+	binaryCheckIssues = append(binaryCheckIssues, missingTools...)
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
 		// Check for java
@@ -489,7 +515,7 @@ func checkJavaVersion() (binaryCheckIssue string, err error) {
 	}
 
 	if majorVersion < MIN_REQUIRED_JAVA_VERSION {
-		return fmt.Sprintf("Java version %s is not supported. Please install Java version %d or higher", version, MIN_REQUIRED_JAVA_VERSION), nil
+		return fmt.Sprintf("java: required version >= %d; current version: %s", MIN_REQUIRED_JAVA_VERSION, version), nil
 	}
 
 	return "", nil

@@ -23,19 +23,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const (
-	PLPGSQL_EXPR = "PLpgSQL_expr"
-	QUERY        = "query"
-
-	ACTION           = "action"
-	DATUMS           = "datums"
-	PLPGSQL_VAR      = "PLpgSQL_var"
-	DATATYPE         = "datatype"
-	TYPENAME         = "typname"
-	PLPGSQL_TYPE     = "PLpgSQL_type"
-	PLPGSQL_FUNCTION = "PLpgSQL_function"
-)
-
 /*
 *
 This function is not concrete yet because of following limitation from parser -
@@ -209,8 +196,24 @@ func formatExprQuery(q string) string {
 		 "PLpgSQL_expr": {
 			"query": "'DROP TABLE IF EXISTS employees'",
 	*/
-	q = strings.Trim(q, "'") //to remove any extra '' around the statement
+	//to remove only first and last ' around the statement
+	//can't use trim as we don't want any other single quote in the statement to be removed.
+	//e.g. NOTIFY my_table_changes, 'New row added with name: Charlie'
+	if strings.HasPrefix(q, "'") && strings.HasSuffix(q, "'") {
+		q = q[1 : len(q)-1]
+	}
 	q = strings.TrimSpace(q)
+	/*
+		Unescape single quotes in the stmt for the cases like -
+		PLPGSQL line -
+		EXECUTE 'COMMIT TRANSACTION ''txt_db1''';
+
+		json str -
+		"PLpgSQL_expr":{
+		"query":"'COMMIT PREPARED ''txn_db1'''",
+		
+	*/
+	q = strings.ReplaceAll(q, "''", "'")
 	if !strings.HasSuffix(q, ";") { // adding the ; to query in case not added already
 		q += ";"
 	}

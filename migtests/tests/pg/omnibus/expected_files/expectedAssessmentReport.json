@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
-	"MigrationComplexity": "MEDIUM",
+	"MigrationComplexity": "HIGH",
+	"MigrationComplexityExplanation": "Found 0 Level 2 issue(s) and 5 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_omnibus",
@@ -65,7 +66,7 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 339,
-				"InvalidCount": 8,
+				"InvalidCount": 9,
 				"ObjectNames": "fn_examples.ordinary_table, agg_ex.my_table, am_examples.am_partitioned, am_examples.fast_emp4000, am_examples.heaptable, am_examples.tableam_parted_heapx, am_examples.tableam_parted_1_heapx, am_examples.tableam_parted_2_heapx, am_examples.tableam_parted_heap2, am_examples.tableam_parted_c_heap2, am_examples.tableam_parted_d_heap2, am_examples.tableam_tbl_heap2, am_examples.tableam_tbl_heapx, am_examples.tableam_tblas_heap2, am_examples.tableam_tblas_heapx, base_type_examples.default_test, composite_type_examples.ordinary_table, composite_type_examples.equivalent_rowtype, composite_type_examples.i_0, composite_type_examples.i_1, composite_type_examples.i_2, composite_type_examples.i_3, composite_type_examples.i_4, composite_type_examples.i_5, composite_type_examples.i_6, composite_type_examples.i_7, composite_type_examples.i_8, composite_type_examples.i_9, composite_type_examples.i_10, composite_type_examples.i_11, composite_type_examples.i_12, composite_type_examples.i_13, composite_type_examples.i_14, composite_type_examples.i_15, composite_type_examples.i_16, composite_type_examples.i_17, composite_type_examples.i_18, composite_type_examples.i_19, composite_type_examples.i_20, composite_type_examples.i_21, composite_type_examples.i_22, composite_type_examples.i_23, composite_type_examples.i_24, composite_type_examples.i_25, composite_type_examples.i_26, composite_type_examples.i_27, composite_type_examples.i_28, composite_type_examples.i_29, composite_type_examples.i_30, composite_type_examples.i_31, composite_type_examples.i_32, composite_type_examples.i_33, composite_type_examples.i_34, composite_type_examples.i_35, composite_type_examples.i_36, composite_type_examples.i_37, composite_type_examples.i_38, composite_type_examples.i_39, composite_type_examples.i_40, composite_type_examples.i_41, composite_type_examples.i_42, composite_type_examples.i_43, composite_type_examples.i_44, composite_type_examples.i_45, composite_type_examples.i_46, composite_type_examples.i_47, composite_type_examples.i_48, composite_type_examples.i_49, composite_type_examples.i_50, composite_type_examples.i_51, composite_type_examples.i_52, composite_type_examples.i_53, composite_type_examples.i_54, composite_type_examples.i_55, composite_type_examples.i_56, composite_type_examples.i_57, composite_type_examples.i_58, composite_type_examples.i_59, composite_type_examples.i_60, composite_type_examples.i_61, composite_type_examples.i_62, composite_type_examples.i_63, composite_type_examples.i_64, composite_type_examples.i_65, composite_type_examples.i_66, composite_type_examples.i_67, composite_type_examples.i_68, composite_type_examples.i_69, composite_type_examples.i_70, composite_type_examples.i_71, composite_type_examples.i_72, composite_type_examples.i_73, composite_type_examples.i_74, composite_type_examples.i_75, composite_type_examples.i_76, composite_type_examples.i_77, composite_type_examples.i_78, composite_type_examples.i_79, composite_type_examples.i_80, composite_type_examples.i_81, composite_type_examples.i_82, composite_type_examples.i_83, composite_type_examples.i_84, composite_type_examples.i_85, composite_type_examples.i_86, composite_type_examples.i_87, composite_type_examples.i_88, composite_type_examples.i_89, composite_type_examples.i_90, composite_type_examples.i_91, composite_type_examples.i_92, composite_type_examples.i_93, composite_type_examples.i_94, composite_type_examples.i_95, composite_type_examples.i_96, composite_type_examples.i_97, composite_type_examples.i_98, composite_type_examples.i_99, composite_type_examples.i_100, composite_type_examples.i_101, composite_type_examples.i_102, composite_type_examples.i_103, composite_type_examples.i_104, composite_type_examples.i_105, composite_type_examples.i_106, composite_type_examples.i_107, composite_type_examples.i_108, composite_type_examples.i_109, composite_type_examples.i_110, composite_type_examples.i_111, composite_type_examples.i_112, composite_type_examples.i_113, composite_type_examples.i_114, composite_type_examples.i_115, composite_type_examples.i_116, composite_type_examples.i_117, composite_type_examples.i_118, composite_type_examples.i_119, composite_type_examples.i_120, composite_type_examples.i_121, composite_type_examples.i_122, composite_type_examples.i_123, composite_type_examples.i_124, composite_type_examples.i_125, composite_type_examples.i_126, composite_type_examples.i_127, composite_type_examples.i_128, composite_type_examples.i_129, composite_type_examples.i_130, composite_type_examples.i_131, composite_type_examples.i_132, composite_type_examples.i_133, composite_type_examples.i_134, composite_type_examples.i_135, composite_type_examples.i_136, composite_type_examples.i_137, composite_type_examples.i_138, composite_type_examples.i_139, composite_type_examples.i_140, composite_type_examples.i_141, composite_type_examples.i_142, composite_type_examples.i_143, composite_type_examples.i_144, composite_type_examples.i_145, composite_type_examples.i_146, composite_type_examples.i_147, composite_type_examples.i_148, composite_type_examples.i_149, composite_type_examples.i_150, composite_type_examples.i_151, composite_type_examples.i_152, composite_type_examples.i_153, composite_type_examples.i_154, composite_type_examples.i_155, composite_type_examples.i_156, composite_type_examples.i_157, composite_type_examples.i_158, composite_type_examples.i_159, composite_type_examples.i_160, composite_type_examples.i_161, composite_type_examples.i_162, composite_type_examples.i_163, composite_type_examples.i_164, composite_type_examples.i_165, composite_type_examples.i_166, composite_type_examples.i_167, composite_type_examples.i_168, composite_type_examples.i_169, composite_type_examples.i_170, composite_type_examples.i_171, composite_type_examples.i_172, composite_type_examples.i_173, composite_type_examples.i_174, composite_type_examples.i_175, composite_type_examples.i_176, composite_type_examples.i_177, composite_type_examples.i_178, composite_type_examples.i_179, composite_type_examples.i_180, composite_type_examples.i_181, composite_type_examples.i_182, composite_type_examples.i_183, composite_type_examples.i_184, composite_type_examples.i_185, composite_type_examples.i_186, composite_type_examples.i_187, composite_type_examples.i_188, composite_type_examples.i_189, composite_type_examples.i_190, composite_type_examples.i_191, composite_type_examples.i_192, composite_type_examples.i_193, composite_type_examples.i_194, composite_type_examples.i_195, composite_type_examples.i_196, composite_type_examples.i_197, composite_type_examples.i_198, composite_type_examples.i_199, composite_type_examples.i_200, composite_type_examples.i_201, composite_type_examples.i_202, composite_type_examples.i_203, composite_type_examples.i_204, composite_type_examples.i_205, composite_type_examples.i_206, composite_type_examples.i_207, composite_type_examples.i_208, composite_type_examples.i_209, composite_type_examples.i_210, composite_type_examples.i_211, composite_type_examples.i_212, composite_type_examples.i_213, composite_type_examples.i_214, composite_type_examples.i_215, composite_type_examples.i_216, composite_type_examples.i_217, composite_type_examples.i_218, composite_type_examples.i_219, composite_type_examples.i_220, composite_type_examples.i_221, composite_type_examples.i_222, composite_type_examples.i_223, composite_type_examples.i_224, composite_type_examples.i_225, composite_type_examples.i_226, composite_type_examples.i_227, composite_type_examples.i_228, composite_type_examples.i_229, composite_type_examples.i_230, composite_type_examples.i_231, composite_type_examples.i_232, composite_type_examples.i_233, composite_type_examples.i_234, composite_type_examples.i_235, composite_type_examples.i_236, composite_type_examples.i_237, composite_type_examples.i_238, composite_type_examples.i_239, composite_type_examples.i_240, composite_type_examples.i_241, composite_type_examples.i_242, composite_type_examples.i_243, composite_type_examples.i_244, composite_type_examples.i_245, composite_type_examples.i_246, composite_type_examples.i_247, composite_type_examples.i_248, composite_type_examples.i_249, composite_type_examples.i_250, composite_type_examples.i_251, composite_type_examples.i_252, composite_type_examples.i_253, composite_type_examples.i_254, composite_type_examples.i_255, composite_type_examples.i_256, composite_type_examples.inherited_table, domain_examples.even_numbers, domain_examples.us_snail_addy, enum_example._bug_severity, enum_example.bugs, enum_example.bugs_clone, extension_example.testhstore, idx_ex.films, ordinary_tables.binary_examples, ordinary_tables.bit_string_examples, ordinary_tables.boolean_examples, ordinary_tables.character_examples, ordinary_tables.geometric_examples, ordinary_tables.money_example, ordinary_tables.network_addr_examples, ordinary_tables.numeric_type_examples, ordinary_tables.\"time\", range_type_example.example_tbl, regress_rls_schema.b1, regress_rls_schema.category, regress_rls_schema.dependee, regress_rls_schema.dependent, regress_rls_schema.dob_t1, regress_rls_schema.dob_t2, regress_rls_schema.document, regress_rls_schema.part_document, regress_rls_schema.part_document_fiction, regress_rls_schema.part_document_nonfiction, regress_rls_schema.part_document_satire, regress_rls_schema.r1, regress_rls_schema.r1_2, regress_rls_schema.r1_3, regress_rls_schema.r1_4, regress_rls_schema.r1_5, regress_rls_schema.r2, regress_rls_schema.r2_3, regress_rls_schema.r2_4, regress_rls_schema.r2_5, regress_rls_schema.rec1, regress_rls_schema.rec2, regress_rls_schema.ref_tbl, regress_rls_schema.y1, regress_rls_schema.rls_tbl, regress_rls_schema.rls_tbl_2, regress_rls_schema.rls_tbl_3, regress_rls_schema.z1, regress_rls_schema.s1, regress_rls_schema.s2, regress_rls_schema.t, regress_rls_schema.t1, regress_rls_schema.t1_2, regress_rls_schema.t1_3, regress_rls_schema.t2, regress_rls_schema.t2_3, regress_rls_schema.t3_3, regress_rls_schema.tbl1, regress_rls_schema.test_qual_pushdown, regress_rls_schema.uaccount, regress_rls_schema.x1, regress_rls_schema.y2, regress_rls_schema.z1_blacklist, regress_rls_schema.z2, trigger_test.accounts, trigger_test.update_log"
 			},
 			{
@@ -490,182 +491,714 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
+	"AssessmentIssues": [
 		{
-			"FeatureName": "GIST indexes",
-			"Objects": [
-				{
-					"ObjectName": "hidx ON extension_example.testhstore",
-					"SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEX_METHOD",
+			"Name": "Index with access method",
+			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "hidx ON extension_example.testhstore",
+			"SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "BRIN indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "SPGIST indexes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Constraint triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Inherited tables",
-			"Objects": [
-				{
-					"ObjectName": "composite_type_examples.inherited_table",
-					"SqlStatement": "CREATE TABLE composite_type_examples.inherited_table (\n)\nINHERITS (composite_type_examples.ordinary_table);"
-				},
-				{
-					"ObjectName": "enum_example.bugs_clone",
-					"SqlStatement": "CREATE TABLE enum_example.bugs_clone (\n)\nINHERITS (enum_example.bugs);"
-				},
-				{
-					"ObjectName": "regress_rls_schema.t2",
-					"SqlStatement": "CREATE TABLE regress_rls_schema.t2 (\n    c double precision\n)\nINHERITS (regress_rls_schema.t1);"
-				},
-				{
-					"ObjectName": "regress_rls_schema.t3_3",
-					"SqlStatement": "CREATE TABLE regress_rls_schema.t3_3 (\n    id integer NOT NULL,\n    c text,\n    b text,\n    a integer\n)\nINHERITS (regress_rls_schema.t1_3);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "composite_type_examples.inherited_table",
+			"SqlStatement": "CREATE TABLE composite_type_examples.inherited_table (\n)\nINHERITS (composite_type_examples.ordinary_table);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "REFERENCING clause for triggers",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "enum_example.bugs_clone",
+			"SqlStatement": "CREATE TABLE enum_example.bugs_clone (\n)\nINHERITS (enum_example.bugs);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "BEFORE ROW triggers on Partitioned tables",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "regress_rls_schema.t2",
+			"SqlStatement": "CREATE TABLE regress_rls_schema.t2 (\n    c double precision\n)\nINHERITS (regress_rls_schema.t1);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Tables with stored generated columns",
-			"Objects": [
-				{
-					"ObjectName": "composite_type_examples.ordinary_table",
-					"SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 \u003e 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 \u003e 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 \u003e 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 \u003e 1))\n);"
-				},
-				{
-					"ObjectName": "enum_example.bugs",
-					"SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITANCE",
+			"Name": "Table Inheritance",
+			"Description": "Table inheritance is not yet supported in YugabyteDB.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "TABLE",
+			"ObjectName": "regress_rls_schema.t3_3",
+			"SqlStatement": "CREATE TABLE regress_rls_schema.t3_3 (\n    id integer NOT NULL,\n    c text,\n    b text,\n    a integer\n)\nINHERITS (regress_rls_schema.t1_3);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "STORED_GENERATED_COLUMNS",
+			"Name": "Stored Generated Columns",
+			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_basic, _nested). Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "composite_type_examples.ordinary_table",
+			"SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (\n    basic_ composite_type_examples.basic_comp_type,\n    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,\n    nested composite_type_examples.nested,\n    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,\n    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 \u003e 1)),\n    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 \u003e 1)),\n    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 \u003e 1)),\n    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 \u003e 1))\n);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
 		{
-			"FeatureName": "Conversion objects",
-			"Objects": [
-				{
-					"ObjectName": "conversion_example.myconv",
-					"SqlStatement": "CREATE CONVERSION conversion_example.myconv FOR 'LATIN1' TO 'UTF8' FROM iso8859_1_to_utf8;"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "STORED_GENERATED_COLUMNS",
+			"Name": "Stored Generated Columns",
+			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_status, _severity, info). Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "enum_example.bugs",
+			"SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "CREATE_CONVERSION",
+			"Name": "Create Conversion",
+			"Description": "CREATE CONVERSION is not supported yet Remove it from the exported schema",
+			"Impact": "LEVEL_3",
+			"ObjectType": "CONVERSION",
+			"ObjectName": "conversion_example.myconv",
+			"SqlStatement": "CREATE CONVERSION conversion_example.myconv FOR 'LATIN1' TO 'UTF8' FROM iso8859_1_to_utf8;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#create-or-alter-conversion-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Gin indexes on multi-columns",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Setting attribute=value on column",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Disabling rule on table",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Clustering table on index",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Storage parameters in DDLs",
-			"Objects": [
-				{
-					"ObjectName": "gin_idx ON idx_ex.films",
-					"SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);"
-				},
-				{
-					"ObjectName": "title_idx ON idx_ex.films",
-					"SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');"
-				},
-				{
-					"ObjectName": "title_idx_with_duplicates ON idx_ex.films",
-					"SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "STORAGE_PARAMETERS",
+			"Name": "Storage Parameters",
+			"Description": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB. Remove the storage parameters from the DDL",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "gin_idx ON idx_ex.films",
+			"SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Extensions",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "STORAGE_PARAMETERS",
+			"Name": "Storage Parameters",
+			"Description": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB. Remove the storage parameters from the DDL",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "title_idx ON idx_ex.films",
+			"SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Exclusion constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "STORAGE_PARAMETERS",
+			"Name": "Storage Parameters",
+			"Description": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB. Remove the storage parameters from the DDL",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "title_idx_with_duplicates ON idx_ex.films",
+			"SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Deferrable constraints",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "View with check option",
-			"Objects": [
-				{
-					"ObjectName": "regress_rls_schema.bv1",
-					"SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT b1.a,\n    b1.b\n   FROM regress_rls_schema.b1\n  WHERE (b1.a \u003e 0)\n  WITH CASCADED CHECK OPTION;"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "VIEW_WITH_CHECK_OPTION",
+			"Name": "View With Check Option",
+			"Description": "Schema containing VIEW WITH CHECK OPTION is not supported yet. Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality",
+			"Impact": "LEVEL_1",
+			"ObjectType": "VIEW",
+			"ObjectName": "regress_rls_schema.bv1",
+			"SqlStatement": "CREATE VIEW regress_rls_schema.bv1 WITH (security_barrier='true') AS\n SELECT a,\n    b\n   FROM regress_rls_schema.b1\n  WHERE (a \u003e 0)\n  WITH CASCADED CHECK OPTION;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#view-with-check-option-is-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Primary / Unique key constraints on complex datatypes",
-			"Objects": [],
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Index on complex datatypes",
-			"Objects": [
-				{
-					"ObjectName": "USER_DEFINED_TYPE: idx_1 ON composite_type_examples.ordinary_table",
-					"SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);"
-				}
-			],
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INDEX_ON_COMPLEX_DATATYPE",
+			"Name": "Index on column with complex datatype",
+			"Description": "Indexes on columns with complex data types like 'user_defined_type' are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "idx_1 ON composite_type_examples.ordinary_table",
+			"SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
-		    "MinimumVersionsFixedIn": null
-        },
+			"MinimumVersionsFixedIn": null
+		},
 		{
-			"FeatureName": "Unlogged tables",
-			"Objects": [],
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "FOREIGN_TABLE",
+			"Name": "Foreign Table",
+			"Description": "Foreign table creation fails as SERVER and USER MAPPING objects are not exported by voyager. SERVER 'technically_this_server', and USER MAPPING should be created manually on the target to create and use the foreign table",
+			"Impact": "LEVEL_1",
+			"ObjectType": "FOREIGN TABLE",
+			"ObjectName": "foreign_db_example.technically_doesnt_exist",
+			"SqlStatement": "CREATE FOREIGN TABLE foreign_db_example.technically_doesnt_exist (\n    id integer,\n    uses_type foreign_db_example.example_type,\n    _uses_type foreign_db_example.example_type GENERATED ALWAYS AS (uses_type) STORED,\n    positive_number foreign_db_example.positive_number,\n    _positive_number foreign_db_example.positive_number GENERATED ALWAYS AS (positive_number) STORED,\n    CONSTRAINT imaginary_table_id_gt_1 CHECK ((id \u003e 1))\n)\nSERVER technically_this_server;",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_eve, regress_rls_frank) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p ON regress_rls_schema.tbl1",
+			"SqlStatement": "CREATE POLICY p ON regress_rls_schema.tbl1 TO regress_rls_eve, regress_rls_frank USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dob_role1) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1 ON regress_rls_schema.dob_t1",
+			"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1 ON regress_rls_schema.dob_t2",
+			"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t2 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_bob) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1 ON regress_rls_schema.t1_2",
+			"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.t1_2 TO regress_rls_bob USING (((a % 2) = 0));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_group1) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1 ON regress_rls_schema.z1",
+			"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.z1 TO regress_rls_group1 USING (((a % 2) = 0));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1_2 ON regress_rls_schema.dob_t1",
+			"SqlStatement": "CREATE POLICY p1_2 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dob_role1) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1_3 ON regress_rls_schema.dob_t1",
+			"SqlStatement": "CREATE POLICY p1_3 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dob_role1, regress_rls_dob_role2) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1_4 ON regress_rls_schema.dob_t1",
+			"SqlStatement": "CREATE POLICY p1_4 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p1r ON regress_rls_schema.document",
+			"SqlStatement": "CREATE POLICY p1r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c\u003e 44));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_carol) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p2 ON regress_rls_schema.t1_2",
+			"SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.t1_2 TO regress_rls_carol USING (((a % 4) = 0));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_group2) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p2 ON regress_rls_schema.z1",
+			"SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.z1 TO regress_rls_group2 USING (((a % 2) = 1));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "p2r ON regress_rls_schema.document",
+			"SqlStatement": "CREATE POLICY p2r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING (((cid \u003c\u003e 44) AND (cid \u003c 50)));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "POLICY_WITH_ROLES",
+			"Name": "Policy with Roles",
+			"Description": "Policies require specific roles (regress_rls_dave) to be created in the target database, as roles are not migrated during schema migration. Create the Users manually to make the policies work.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "POLICY",
+			"ObjectName": "pp1r ON regress_rls_schema.part_document",
+			"SqlStatement": "CREATE POLICY pp1r ON regress_rls_schema.part_document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c 55));",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.line_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "am_examples.fast_emp4000.home_base",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.path_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.point_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.box_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.lseg_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.polygon_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+			"Name": "Unsupported datatype for Live migration",
+			"Description": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "ordinary_tables.geometric_examples.circle_example",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "enum_example.bugs.info",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.basic_view._basic",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.basic_view._nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.basic_view.basic_",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.basic_view.nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "extension_example.testhstore.h",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "foreign_db_example.technically_doesnt_exist._uses_type",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.ordinary_table._basic",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.inherited_table.basic_",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.inherited_table._nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.foreign_db_example.uses_type",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.inherited_table.nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.foreign_db_example._uses_type",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.inherited_table._basic",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.ordinary_table.basic_",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.ordinary_table._nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "foreign_db_example.technically_doesnt_exist.uses_type",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "enum_example.bugs_clone.info",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "migration_caveats",
+			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
+			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "COLUMN",
+			"ObjectName": "composite_type_examples.ordinary_table.nested",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"MinimumVersionsFixedIn": null
 		}
 	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "agg_ex",
@@ -677,7 +1210,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -691,7 +1224,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -705,7 +1238,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -719,7 +1252,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -733,7 +1266,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -747,7 +1280,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -761,7 +1294,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -775,7 +1308,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -789,7 +1322,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -803,7 +1336,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -817,7 +1350,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "materialized view",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -831,7 +1364,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "materialized view",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -845,7 +1378,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -859,7 +1392,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -873,7 +1406,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -887,7 +1420,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -901,7 +1434,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -915,7 +1448,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -929,7 +1462,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -943,7 +1476,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -957,7 +1490,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -971,7 +1504,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -985,7 +1518,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -999,7 +1532,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1013,7 +1546,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1027,7 +1560,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1041,7 +1574,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1055,7 +1588,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1069,7 +1602,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1083,7 +1616,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1097,7 +1630,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1111,7 +1644,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1125,7 +1658,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1139,7 +1672,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1153,7 +1686,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1167,7 +1700,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1181,7 +1714,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1195,7 +1728,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1209,7 +1742,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1223,7 +1756,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1237,7 +1770,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1251,7 +1784,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1265,7 +1798,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1279,7 +1812,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1293,7 +1826,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1307,7 +1840,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1321,7 +1854,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1335,7 +1868,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1349,7 +1882,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1363,7 +1896,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1377,7 +1910,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1391,7 +1924,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1405,7 +1938,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1419,7 +1952,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1433,7 +1966,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1447,7 +1980,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1461,7 +1994,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1475,7 +2008,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1489,7 +2022,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1503,7 +2036,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1517,7 +2050,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1531,7 +2064,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1545,7 +2078,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1559,7 +2092,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1573,7 +2106,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1587,7 +2120,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1601,7 +2134,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1615,7 +2148,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1629,7 +2162,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1643,7 +2176,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1657,7 +2190,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1671,7 +2204,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1685,7 +2218,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1699,7 +2232,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1713,7 +2246,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1727,7 +2260,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1741,7 +2274,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1755,7 +2288,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1769,7 +2302,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1783,7 +2316,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1797,7 +2330,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1811,7 +2344,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1825,7 +2358,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1839,7 +2372,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1853,7 +2386,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1867,7 +2400,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1881,7 +2414,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1895,7 +2428,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1909,7 +2442,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1923,7 +2456,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1937,7 +2470,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1951,7 +2484,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1965,7 +2498,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1979,7 +2512,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -1993,7 +2526,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2007,7 +2540,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2021,7 +2554,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2035,7 +2568,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2049,7 +2582,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2063,7 +2596,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2077,7 +2610,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2091,7 +2624,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2105,7 +2638,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2119,7 +2652,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2133,7 +2666,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2147,7 +2680,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2161,7 +2694,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2175,7 +2708,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2189,7 +2722,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2203,7 +2736,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2217,7 +2750,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2231,7 +2764,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2245,7 +2778,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2259,7 +2792,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2273,7 +2806,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2287,7 +2820,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2301,7 +2834,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2315,7 +2848,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2329,7 +2862,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2343,7 +2876,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2357,7 +2890,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2371,7 +2904,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2385,7 +2918,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2399,7 +2932,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2413,7 +2946,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2427,7 +2960,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2441,7 +2974,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2455,7 +2988,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2469,7 +3002,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2483,7 +3016,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2497,7 +3030,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2511,7 +3044,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2525,7 +3058,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2539,7 +3072,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2553,7 +3086,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2567,7 +3100,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2581,7 +3114,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2595,7 +3128,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2609,7 +3142,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2623,7 +3156,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2637,7 +3170,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2651,7 +3184,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2665,7 +3198,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2679,7 +3212,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2693,7 +3226,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2707,7 +3240,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2721,7 +3254,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2735,7 +3268,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2749,7 +3282,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2763,7 +3296,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2777,7 +3310,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2791,7 +3324,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2805,7 +3338,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2819,7 +3352,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2833,7 +3366,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2847,7 +3380,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2861,7 +3394,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2875,7 +3408,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2889,7 +3422,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2903,7 +3436,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2917,7 +3450,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2931,7 +3464,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2945,7 +3478,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2959,7 +3492,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2973,7 +3506,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -2987,7 +3520,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3001,7 +3534,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3015,7 +3548,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3029,7 +3562,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3043,7 +3576,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3057,7 +3590,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3071,7 +3604,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3085,7 +3618,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3099,7 +3632,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3113,7 +3646,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3127,7 +3660,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3141,7 +3674,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3155,7 +3688,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3169,7 +3702,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3183,7 +3716,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3197,7 +3730,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3211,7 +3744,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3225,7 +3758,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3239,7 +3772,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3253,7 +3786,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3267,7 +3800,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3281,7 +3814,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3295,7 +3828,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3309,7 +3842,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3323,7 +3856,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3337,7 +3870,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3351,7 +3884,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3365,7 +3898,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3379,7 +3912,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3393,7 +3926,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3407,7 +3940,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3421,7 +3954,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3435,7 +3968,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3449,7 +3982,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3463,7 +3996,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3477,7 +4010,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3491,7 +4024,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3505,7 +4038,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3519,7 +4052,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3533,7 +4066,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3547,7 +4080,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3561,7 +4094,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3575,7 +4108,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3589,7 +4122,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3603,7 +4136,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3617,7 +4150,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3631,7 +4164,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3645,7 +4178,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3659,7 +4192,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3673,7 +4206,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3687,7 +4220,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3701,7 +4234,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3715,7 +4248,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3729,7 +4262,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3743,7 +4276,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3757,7 +4290,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3771,7 +4304,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3785,7 +4318,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3799,7 +4332,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3813,7 +4346,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3827,7 +4360,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3841,7 +4374,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3855,7 +4388,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3869,7 +4402,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3883,7 +4416,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3897,7 +4430,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3911,7 +4444,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3925,7 +4458,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3939,7 +4472,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3953,7 +4486,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3967,7 +4500,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3981,7 +4514,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -3995,7 +4528,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4009,7 +4542,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4023,7 +4556,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4037,7 +4570,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4051,7 +4584,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4065,7 +4598,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4079,7 +4612,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4093,7 +4626,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4107,7 +4640,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4121,7 +4654,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4135,7 +4668,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4149,7 +4682,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4163,7 +4696,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4177,7 +4710,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4191,7 +4724,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4205,7 +4738,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4219,7 +4752,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4233,7 +4766,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4247,7 +4780,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4261,7 +4794,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4275,7 +4808,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4289,7 +4822,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4303,7 +4836,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4317,7 +4850,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4331,7 +4864,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4345,7 +4878,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4359,7 +4892,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4373,7 +4906,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4387,7 +4920,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4401,7 +4934,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4415,7 +4948,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4429,7 +4962,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4443,7 +4976,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4457,7 +4990,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4471,7 +5004,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4485,7 +5018,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4499,7 +5032,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4513,7 +5046,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4527,7 +5060,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4541,7 +5074,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4555,7 +5088,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4569,7 +5102,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4583,7 +5116,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4597,7 +5130,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4611,7 +5144,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4625,7 +5158,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4639,7 +5172,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4653,7 +5186,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4667,7 +5200,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4681,7 +5214,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4695,7 +5228,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4709,7 +5242,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4723,7 +5256,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4737,7 +5270,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4751,7 +5284,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4765,7 +5298,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4779,7 +5312,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4793,7 +5326,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4807,7 +5340,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4821,7 +5354,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4835,7 +5368,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4849,7 +5382,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4863,7 +5396,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4877,7 +5410,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4891,7 +5424,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -4905,7 +5438,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4919,7 +5452,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4933,7 +5466,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4947,7 +5480,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4961,7 +5494,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4975,7 +5508,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -4989,7 +5522,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5003,7 +5536,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5017,7 +5550,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5031,7 +5564,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5045,7 +5578,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5059,7 +5592,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5073,7 +5606,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5087,7 +5620,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5101,7 +5634,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5115,7 +5648,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5129,7 +5662,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5143,7 +5676,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5157,7 +5690,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5171,7 +5704,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5185,7 +5718,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5199,7 +5732,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5213,7 +5746,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5227,7 +5760,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5241,7 +5774,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5255,7 +5788,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5269,7 +5802,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5283,7 +5816,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5297,7 +5830,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5311,7 +5844,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5325,7 +5858,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5339,7 +5872,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 8192
 		},
@@ -5353,7 +5886,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5367,7 +5900,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "table",
 			"ParentTableName": null,
 			"SizeInBytes": 0
 		},
@@ -5381,7 +5914,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "extension_example.testhstore",
 			"SizeInBytes": 8192
 		},
@@ -5395,7 +5928,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "composite_type_examples.ordinary_table",
 			"SizeInBytes": 8192
 		},
@@ -5409,7 +5942,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "am_examples.fast_emp4000",
 			"SizeInBytes": 8192
 		},
@@ -5423,7 +5956,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "am_examples.fast_emp4000",
 			"SizeInBytes": 8192
 		},
@@ -5437,7 +5970,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5451,7 +5984,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5465,7 +5998,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5479,7 +6012,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5493,7 +6026,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5507,7 +6040,7 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
 			"SizeInBytes": 8192
 		},
@@ -5521,212 +6054,236 @@
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "index",
 			"ParentTableName": "idx_ex.films",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "domain_examples",
+			"ObjectName": "us_snail_addy_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "domain_examples.us_snail_addy",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "ordinary_tables",
+			"ObjectName": "numeric_type_examples_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "ordinary_tables.numeric_type_examples",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "ordinary_tables",
+			"ObjectName": "character_examples_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "ordinary_tables.character_examples",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "ordinary_tables",
+			"ObjectName": "binary_examples_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "ordinary_tables.binary_examples",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "trigger_test",
+			"ObjectName": "accounts_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "trigger_test.accounts",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "trigger_test",
+			"ObjectName": "update_log_pk",
+			"RowCount": null,
+			"ColumnCount": 2,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "trigger_test.update_log",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "idx_ex",
+			"ObjectName": "films_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "idx_ex.films",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "uaccount_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.uaccount",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "category_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 10,
+			"Writes": 10,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.category",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "document_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.document",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "t1_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.t1",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "t3_3_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.t3_3",
+			"SizeInBytes": 8192
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "r1_3_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.r1_3",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "r1_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 6,
+			"Writes": 6,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.r1",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "r1_4_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.r1_4",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "regress_rls_schema",
+			"ObjectName": "r1_5_pkey",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"Reads": 0,
+			"Writes": 0,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "primary key",
+			"ParentTableName": "regress_rls_schema.r1_5",
 			"SizeInBytes": 16384
 		}
 	],
-	"Notes": null,
-	"MigrationCaveats": [
-		{
-			"FeatureName": "Alter partitioned tables to add Primary Key",
-			"Objects": [],
-			"FeatureDescription": "After export schema, the ALTER table should be merged with CREATE table for partitioned tables as alter of partitioned tables to add primary key is not supported.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Foreign tables",
-			"Objects": [
-				{
-					"ObjectName": "foreign_db_example.technically_doesnt_exist",
-					"SqlStatement": "CREATE FOREIGN TABLE foreign_db_example.technically_doesnt_exist (     id integer,     uses_type foreign_db_example.example_type,     _uses_type foreign_db_example.example_type GENERATED ALWAYS AS (uses_type) STORED,     positive_number foreign_db_example.positive_number,     _positive_number foreign_db_example.positive_number GENERATED ALWAYS AS (positive_number) STORED,     CONSTRAINT imaginary_table_id_gt_1 CHECK ((id \u003e 1)) ) SERVER technically_this_server;"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-table-in-the-source-database-requires-server-and-user-mapping",
-			"FeatureDescription": "During the export schema phase, SERVER and USER MAPPING objects are not exported. These should be manually created to make the foreign tables work.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Policies",
-			"Objects": [
-				{
-					"ObjectName": "p ON regress_rls_schema.tbl1",
-					"SqlStatement": "CREATE POLICY p ON regress_rls_schema.tbl1 TO regress_rls_eve, regress_rls_frank USING (true);"
-				},
-				{
-					"ObjectName": "p1 ON regress_rls_schema.dob_t1",
-					"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);"
-				},
-				{
-					"ObjectName": "p1 ON regress_rls_schema.dob_t2",
-					"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.dob_t2 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);"
-				},
-				{
-					"ObjectName": "p1 ON regress_rls_schema.t1_2",
-					"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.t1_2 TO regress_rls_bob USING (((a % 2) = 0));"
-				},
-				{
-					"ObjectName": "p1 ON regress_rls_schema.z1",
-					"SqlStatement": "CREATE POLICY p1 ON regress_rls_schema.z1 TO regress_rls_group1 USING (((a % 2) = 0));"
-				},
-				{
-					"ObjectName": "p1_2 ON regress_rls_schema.dob_t1",
-					"SqlStatement": "CREATE POLICY p1_2 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);"
-				},
-				{
-					"ObjectName": "p1_3 ON regress_rls_schema.dob_t1",
-					"SqlStatement": "CREATE POLICY p1_3 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1 USING (true);"
-				},
-				{
-					"ObjectName": "p1_4 ON regress_rls_schema.dob_t1",
-					"SqlStatement": "CREATE POLICY p1_4 ON regress_rls_schema.dob_t1 TO regress_rls_dob_role1, regress_rls_dob_role2 USING (true);"
-				},
-				{
-					"ObjectName": "p1r ON regress_rls_schema.document",
-					"SqlStatement": "CREATE POLICY p1r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c\u003e 44));"
-				},
-				{
-					"ObjectName": "p2 ON regress_rls_schema.t1_2",
-					"SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.t1_2 TO regress_rls_carol USING (((a % 4) = 0));"
-				},
-				{
-					"ObjectName": "p2 ON regress_rls_schema.z1",
-					"SqlStatement": "CREATE POLICY p2 ON regress_rls_schema.z1 TO regress_rls_group2 USING (((a % 2) = 1));"
-				},
-				{
-					"ObjectName": "p2r ON regress_rls_schema.document",
-					"SqlStatement": "CREATE POLICY p2r ON regress_rls_schema.document AS RESTRICTIVE TO regress_rls_dave USING (((cid \u003c\u003e 44) AND (cid \u003c 50)));"
-				},
-				{
-					"ObjectName": "pp1r ON regress_rls_schema.part_document",
-					"SqlStatement": "CREATE POLICY pp1r ON regress_rls_schema.part_document AS RESTRICTIVE TO regress_rls_dave USING ((cid \u003c 55));"
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#policies-on-users-in-source-require-manual-user-creation",
-			"FeatureDescription": "There are some policies that are created for certain users/roles. During the export schema phase, USERs and GRANTs are not exported. Therefore, they will have to be manually created before running import schema.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration",
-			"Objects": [
-				{
-					"ObjectName": "am_examples.fast_emp4000.home_base (box)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.point_example (point)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.line_example (line)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.lseg_example (lseg)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.box_example (box)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.path_example (path)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.polygon_example (polygon)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "ordinary_tables.geometric_examples.circle_example (circle)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink":"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration of data. These columns will be excluded when exporting and importing data in live migration workflows.",
-		    "MinimumVersionsFixedIn": null
-        },
-		{
-			"FeatureName": "Unsupported Data Types for Live Migration with Fall-forward/Fallback",
-			"Objects": [
-				{
-					"ObjectName": "composite_type_examples.ordinary_table.basic_ (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.ordinary_table._basic (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.ordinary_table.nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.ordinary_table._nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.inherited_table.basic_ (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.inherited_table._basic (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.inherited_table.nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.inherited_table._nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "enum_example.bugs.info (enum_example.bug_info)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "enum_example.bugs_clone.info (enum_example.bug_info)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "foreign_db_example.technically_doesnt_exist.uses_type (foreign_db_example.example_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "foreign_db_example.technically_doesnt_exist._uses_type (foreign_db_example.example_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "public.foreign_db_example.uses_type (foreign_db_example.example_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "public.foreign_db_example._uses_type (foreign_db_example.example_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.basic_view.basic_ (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.basic_view._basic (composite_type_examples.basic_comp_type)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.basic_view.nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "composite_type_examples.basic_view._nested (composite_type_examples.nested)",
-					"SqlStatement": ""
-				}
-			],
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-			"FeatureDescription": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	"Notes": [
+		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
+	]
 }

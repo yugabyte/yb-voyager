@@ -27,13 +27,14 @@ import (
 	"strings"
 	"text/template"
 
-	pg_query "github.com/pganalyze/pg_query_go/v5"
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
@@ -133,6 +134,7 @@ var (
 	parserIssueDetector = queryissue.NewParserIssueDetector()
 	multiRegex          = regexp.MustCompile(`([a-zA-Z0-9_\.]+[,|;])`)
 	dollarQuoteRegex    = regexp.MustCompile(`(\$.*\$)`)
+	sqlBodyBeginRegex   = re("BEGIN", "ATOMIC")
 	//TODO: optional but replace every possible space or new line char with [\s\n]+ in all regexs
 	viewWithCheckRegex        = re("VIEW", capture(ident), anything, "WITH", opt(commonClause), "CHECK", "OPTION")
 	rangeRegex                = re("PRECEDING", "and", anything, ":float")
@@ -194,66 +196,64 @@ var (
 )
 
 const (
-	CONVERSION_ISSUE_REASON                           = "CREATE CONVERSION is not supported yet"
-	GIN_INDEX_MULTI_COLUMN_ISSUE_REASON               = "Schema contains gin index on multi column which is not supported."
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON       = "Adding primary key to a partitioned table is not supported yet."
-	INHERITANCE_ISSUE_REASON                          = "TABLE INHERITANCE not supported in YugabyteDB"
-	CONSTRAINT_TRIGGER_ISSUE_REASON                   = "CONSTRAINT TRIGGER not supported yet."
-	REFERENCING_CLAUSE_FOR_TRIGGERS                   = "REFERENCING clause (transition tables) not supported yet."
-	BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE = "Partitioned tables cannot have BEFORE / FOR EACH ROW triggers."
-	COMPOUND_TRIGGER_ISSUE_REASON                     = "COMPOUND TRIGGER not supported in YugabyteDB."
+	// Type and Reason for Issues detected using regexp, reported in assessment and analyze both
+	CREATE_CONVERSION_ISSUE_TYPE      = "CREATE_CONVERSION"
+	UNSUPPORTED_EXTENSION_ISSUE_TYPE  = "UNSUPPORTED_EXTENSION"
+	VIEW_WITH_CHECK_OPTION_ISSUE_TYPE = "VIEW_WITH_CHECK_OPTION"
+	COMPOUND_TRIGGER_ISSUE_TYPE       = "COMPOUND_TRIGGER"
+	UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE  = "UNSUPPORTED_PG_SYNTAX"
 
-	STORED_GENERATED_COLUMN_ISSUE_REASON           = "Stored generated columns are not supported."
-	UNSUPPORTED_EXTENSION_ISSUE                    = "This extension is not supported in YugabyteDB by default."
-	EXCLUSION_CONSTRAINT_ISSUE                     = "Exclusion constraint is not supported yet"
-	ALTER_TABLE_DISABLE_RULE_ISSUE                 = "ALTER TABLE name DISABLE RULE not supported yet"
-	STORAGE_PARAMETERS_DDL_STMT_ISSUE              = "Storage parameters are not supported yet."
-	ALTER_TABLE_SET_ATTRIBUTE_ISSUE                = "ALTER TABLE .. ALTER COLUMN .. SET ( attribute = value )	 not supported yet"
-	FOREIGN_TABLE_ISSUE_REASON                     = "Foreign tables require manual intervention."
-	ALTER_TABLE_CLUSTER_ON_ISSUE                   = "ALTER TABLE CLUSTER not supported yet."
-	DEFERRABLE_CONSTRAINT_ISSUE                    = "DEFERRABLE constraints not supported yet"
-	POLICY_ROLE_ISSUE                              = "Policy require roles to be created."
-	VIEW_CHECK_OPTION_ISSUE                        = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
-	ISSUE_INDEX_WITH_COMPLEX_DATATYPES             = `INDEX on column '%s' not yet supported`
-	ISSUE_PK_UK_CONSTRAINT_WITH_COMPLEX_DATATYPES  = `Primary key and Unique constraint on column '%s' not yet supported`
-	ISSUE_UNLOGGED_TABLE                           = "UNLOGGED tables are not supported yet."
+	CREATE_CONVERSION_ISSUE_REASON     = "CREATE CONVERSION is not supported yet"
+	UNSUPPORTED_EXTENSION_ISSUE_REASON = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
+	VIEW_CHECK_OPTION_ISSUE_REASON     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
+	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER not supported in YugabyteDB."
+	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON = "SQL statement(s) might be unsupported please review and edit to match PostgreSQL syntax if required"
+
+	// Refactor: constants below used in some comparisions (use Issue Type there and remove these)
+	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
+	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
+
 	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
 	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
 
-	INDEX_METHOD_ISSUE_REASON                = "Schema contains %s index which is not supported."
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 )
 
 // Reports one case in JSON
-func reportCase(filePath string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string, issueType string, docsLink string) {
-	var issue utils.Issue
-	issue.FilePath = filePath
-	issue.Reason = reason
-	issue.GH = ghIssue
-	issue.Suggestion = suggestion
-	issue.ObjectType = objType
-	issue.ObjectName = objName
-	issue.SqlStatement = sqlStmt
-	issue.IssueType = issueType
-	if sourceDBType == POSTGRESQL {
-		issue.DocsLink = docsLink
+func reportCase(filePath string, issueType string, reason string, ghIssue string, suggestion string, objType string, objName string, sqlStmt string, category string, docsLink string, impact string) {
+	issue := utils.AnalyzeSchemaIssue{
+		IssueType:    category,                                       // TODO: to be replaced with Category as a field
+		Type:         lo.Ternary(issueType != "", issueType, reason), // for regexp cases where issueType is not defined, default to reason as type
+		Reason:       reason,
+		Impact:       lo.Ternary(impact != "", impact, constants.IMPACT_LEVEL_1),
+		ObjectType:   objType,
+		ObjectName:   objName,
+		SqlStatement: sqlStmt,
+		FilePath:     filePath,
+		Suggestion:   suggestion,
+		GH:           ghIssue,
+		DocsLink:     docsLink,
 	}
+
+	// Note: Here for each regexp report analyze issue(eventually converted to assessment issue) consider issue name same as issue type
+	// Ideally we should declare constant vars for each issue name, but future plan is to move to parser based issue detection hence quick workaround for now
+	issue.Name = utils.SnakeCaseToTitleCase(issue.Type)
 
 	schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 }
 
 func reportBasedOnComment(comment int, fpath string, issue string, suggestion string, objName string, objType string, line string) {
 	if comment == 1 {
-		reportCase(fpath, "Unsupported, please edit to match PostgreSQL syntax", "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES, "")
+		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		summaryMap[objType].invalidCount[objName] = true
 	} else if comment == 2 {
-		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType)
+		// reportCase(fpath, "PACKAGE in oracle are exported as Schema, please review and edit to match PostgreSQL syntax if required, Package is "+objName, issue, suggestion, objType, "")
 		summaryMap["PACKAGE"].objSet = append(summaryMap["PACKAGE"].objSet, objName)
 	} else if comment == 3 {
-		reportCase(fpath, "SQLs in file might be unsupported please review and edit to match PostgreSQL syntax if required. ", "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES, "")
+		reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1625", suggestion, objType, objName, line, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 	} else if comment == 4 {
 		summaryMap[objType].details["Inherited Types are present which are not supported in PostgreSQL syntax, so exported as Inherited Tables"] = true
 	}
@@ -327,22 +327,22 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 		_, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
-				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX, err.Error())
-				reportCase(fpath, reason, "https://github.com/yugabyte/yb-voyager/issues/1625",
-					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, err.Error())
+				reportCase(fpath, UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE, reason, "https://github.com/yugabyte/yb-voyager/issues/1625",
+					"Fix the schema as per PG syntax", objType, sqlStmtInfo.objName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 			}
 			continue
 		}
 		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
 		if err != nil {
-			utils.ErrExit("error parsing stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		if parserIssueDetector.IsGinIndexPresentInSchema {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
-			utils.ErrExit("error getting ddl issues for stmt[%s]: %v", sqlStmtInfo.formattedStmt, err)
+			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
@@ -353,17 +353,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 // Checks compatibility of views
 func checkViews(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
-		/*if dropMatViewRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP MATERIALIZED VIEW not supported yet.",a
-				"https://github.com/YugaByte/yugabyte-db/issues/10102", "")
-		} else if view := matViewRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
-			reportCase(fpath, "Schema contains materialized view which is not supported. The view is: "+view[1],
-				"https://github.com/yugabyte/yugabyte-db/issues/10102", "")
-		} else */
 		if view := viewWithCheckRegex.FindStringSubmatch(sqlInfo.stmt); view != nil {
 			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, VIEW_CHECK_OPTION_ISSUE, "https://github.com/yugabyte/yugabyte-db/issues/22716",
-				"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, VIEW_CHECK_OPTION_DOC_LINK)
+			reportCase(fpath, VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, VIEW_CHECK_OPTION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/22716",
+				"Use Trigger with INSTEAD OF clause on INSERT/UPDATE on view to get this functionality", "VIEW", view[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, VIEW_CHECK_OPTION_DOC_LINK, "")
 		}
 	}
 }
@@ -385,41 +378,49 @@ func separateMultiObj(objType string, line string) string {
 func checkSql(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if rangeRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath,
+			reportCase(fpath, "",
 				"RANGE with offset PRECEDING/FOLLOWING is not supported for column type numeric and offset type double precision",
-				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+				"https://github.com/yugabyte/yugabyte-db/issues/10692", "", "TABLE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
 		} else if stmt := fetchRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
 			location := strings.ToUpper(stmt[1])
 			if slices.Contains(notSupportedFetchLocation, location) {
 				summaryMap["PROCEDURE"].invalidCount[sqlInfo.objName] = true
-				reportCase(fpath, "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514",
-					"Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+				reportCase(fpath, "", "This FETCH clause might not be supported yet", "https://github.com/YugaByte/yugabyte-db/issues/6514",
+					"Please verify the DDL on your YugabyteDB version before proceeding", "CURSOR", sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 			}
 		} else if stmt := alterAggRegex.FindStringSubmatch(sqlInfo.stmt); stmt != nil {
-			reportCase(fpath, "ALTER AGGREGATE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/2717", "", "AGGREGATE", stmt[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["AGGREGATE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER AGGREGATE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/2717", "", "AGGREGATE", stmt[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if dropCollRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP COLLATION", sqlInfo.formattedStmt), "COLLATION", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["COLLATION"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP multiple objects not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP COLLATION", sqlInfo.formattedStmt), "COLLATION", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if dropIdxRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP INDEX", sqlInfo.formattedStmt), "INDEX", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["INDEX"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP multiple objects not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP INDEX", sqlInfo.formattedStmt), "INDEX", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if dropViewRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP VIEW", sqlInfo.formattedStmt), "VIEW", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP multiple objects not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP VIEW", sqlInfo.formattedStmt), "VIEW", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if dropSeqRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP SEQUENCE", sqlInfo.formattedStmt), "SEQUENCE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["SEQUENCE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP multiple objects not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP SEQUENCE", sqlInfo.formattedStmt), "SEQUENCE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if dropForeignRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "DROP multiple objects not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", sqlInfo.formattedStmt), "FOREIGN TABLE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["FOREIGN TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP multiple objects not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/880", separateMultiObj("DROP FOREIGN TABLE", sqlInfo.formattedStmt), "FOREIGN TABLE", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if idx := dropIdxConcurRegex.FindStringSubmatch(sqlInfo.stmt); idx != nil {
-			reportCase(fpath, "DROP INDEX CONCURRENTLY not supported yet",
-				"https://github.com/yugabyte/yugabyte-db/issues/22717", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["INDEX"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "DROP INDEX CONCURRENTLY not supported yet",
+				"https://github.com/yugabyte/yugabyte-db/issues/22717", "", "INDEX", idx[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if currentOfRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "WHERE CURRENT OF not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/737", "", "CURSOR", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if bulkCollectRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "BULK COLLECT keyword of oracle is not converted into PostgreSQL compatible syntax", "https://github.com/yugabyte/yb-voyager/issues/1539", "", "", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "BULK COLLECT keyword of oracle is not converted into PostgreSQL compatible syntax", "https://github.com/yugabyte/yb-voyager/issues/1539", "", "", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		}
 	}
 }
@@ -430,110 +431,130 @@ func checkDDL(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if am := amRegex.FindStringSubmatch(sqlInfo.stmt); am != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "CREATE ACCESS METHOD is not supported.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "CREATE ACCESS METHOD is not supported.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10693", "", "ACCESS METHOD", am[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := idxConcRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "REINDEX is not supported.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "REINDEX is not supported.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10267", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := likeAllRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "LIKE ALL is not supported yet.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "LIKE ALL is not supported yet.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10697", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := likeRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "LIKE clause not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "LIKE clause not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1129", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := withOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "OIDs are not supported for user tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "OIDs are not supported for user tables.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10273", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterOfRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE OF not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE OF not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterSchemaRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE SET SCHEMA not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/3947", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE SET SCHEMA not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/3947", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if createSchemaRegex.MatchString(sqlInfo.stmt) {
-			reportCase(fpath, "CREATE SCHEMA with elements not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/10865", "", "SCHEMA", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["SCHEMA"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "CREATE SCHEMA with elements not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/10865", "", "SCHEMA", "", sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterNotOfRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE NOT OF not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE NOT OF not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterColumnStatsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE ALTER column SET STATISTICS not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterColumnStorageRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column SET STORAGE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE ALTER column SET STORAGE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterColumnResetAttributesRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER column RESET (attribute) not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE ALTER column RESET (attribute) not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterConstrRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE ALTER CONSTRAINT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE ALTER CONSTRAINT not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := setOidsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE SET WITH OIDS not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[4], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE SET WITH OIDS not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[4], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := withoutClusterRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE SET WITHOUT CLUSTER not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterSetRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE SET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE SET not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterIdxRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER INDEX SET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "INDEX", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER INDEX SET not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "INDEX", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterResetRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE RESET not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE RESET not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterOptionsRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if typ := dropAttrRegex.FindStringSubmatch(sqlInfo.stmt); typ != nil {
-			reportCase(fpath, "ALTER TYPE DROP ATTRIBUTE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TYPE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TYPE DROP ATTRIBUTE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if typ := alterTypeRegex.FindStringSubmatch(sqlInfo.stmt); typ != nil {
-			reportCase(fpath, "ALTER TYPE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TYPE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TYPE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1893", "", "TYPE", typ[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := alterInhRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE INHERIT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE INHERIT not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := valConstrRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLE VALIDATE CONSTRAINT not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1124", "", "TABLE", tbl[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if spc := alterTblSpcRegex.FindStringSubmatch(sqlInfo.stmt); spc != nil {
-			reportCase(fpath, "ALTER TABLESPACE not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLESPACE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER TABLESPACE not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1153", "", "TABLESPACE", spc[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if spc := alterViewRegex.FindStringSubmatch(sqlInfo.stmt); spc != nil {
-			reportCase(fpath, "ALTER VIEW not supported yet.",
-				"https://github.com/YugaByte/yugabyte-db/issues/1131", "", "VIEW", spc[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["VIEW"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "ALTER VIEW not supported yet.",
+				"https://github.com/YugaByte/yugabyte-db/issues/1131", "", "VIEW", spc[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := cLangRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "LANGUAGE C not supported yet.",
-				"https://github.com/yugabyte/yb-voyager/issues/1540", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "LANGUAGE C not supported yet.",
+				"https://github.com/yugabyte/yb-voyager/issues/1540", "", "FUNCTION", tbl[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 			summaryMap["FUNCTION"].invalidCount[sqlInfo.objName] = true
 		} else if strings.Contains(strings.ToLower(sqlInfo.stmt), "drop temporary table") {
 			filePath := strings.Split(fpath, "/")
 			fileName := filePath[len(filePath)-1]
 			objType := strings.ToUpper(strings.Split(fileName, ".")[0])
 			summaryMap[objType].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, `temporary table is not a supported clause for drop`,
-				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, DROP_TEMP_TABLE_DOC_LINK)
+			reportCase(fpath, "", `temporary table is not a supported clause for drop`,
+				"https://github.com/yugabyte/yb-voyager/issues/705", `remove "temporary" and change it to "drop table"`, objType, sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, DROP_TEMP_TABLE_DOC_LINK, "")
 		} else if regMatch := anydataRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "AnyData datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyData datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "AnyData datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyData datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if regMatch := anydatasetRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyDataSet datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "AnyDataSet datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyDataSet datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if regMatch := anyTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "AnyType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "AnyType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with AnyType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if regMatch := uriTypeRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "URIType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "URIType datatype doesn't have a mapping in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1541", `Remove the column with URIType datatype or change it to a relevant supported datatype`, "TABLE", regMatch[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if regMatch := jsonFuncRegex.FindStringSubmatch(sqlInfo.stmt); regMatch != nil {
 			summaryMap[objType].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, objType, regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, "", "JSON_ARRAYAGG() function is not available in YugabyteDB", "https://github.com/yugabyte/yb-voyager/issues/1542", `Rename the function to YugabyteDB's equivalent JSON_AGG()`, objType, regMatch[3], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		}
 
 	}
@@ -544,11 +565,13 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		//TODO: refactor it later to remove all the unneccessary regexes
 		if tbl := primRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "Primary key constraints are not supported on foreign tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "Primary key constraints are not supported on foreign tables.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10698", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		} else if tbl := foreignKeyRegex.FindStringSubmatch(sqlInfo.stmt); tbl != nil {
-			reportCase(fpath, "Foreign key constraints are not supported on foreign tables.",
-				"https://github.com/yugabyte/yugabyte-db/issues/10699", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			summaryMap["TABLE"].invalidCount[sqlInfo.objName] = true
+			reportCase(fpath, "", "Foreign key constraints are not supported on foreign tables.",
+				"https://github.com/yugabyte/yugabyte-db/issues/10699", "", "TABLE", tbl[1], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 		}
 	}
 }
@@ -557,8 +580,8 @@ func checkForeign(sqlInfoArr []sqlInfo, fpath string) {
 func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if trig := compoundTrigRegex.FindStringSubmatch(sqlInfo.stmt); trig != nil {
-			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_REASON,
-				"https://github.com/yugabyte/yb-voyager/issues/1543", "", "TRIGGER", trig[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, "")
+			reportCase(fpath, COMPOUND_TRIGGER_ISSUE_TYPE, COMPOUND_TRIGGER_ISSUE_REASON,
+				"https://github.com/yugabyte/yb-voyager/issues/1543", "", "TRIGGER", trig[2], sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, "", "")
 			summaryMap["TRIGGER"].invalidCount[sqlInfo.objName] = true
 		}
 	}
@@ -597,42 +620,72 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 }
 
 var MigrationCaveatsIssues = []string{
-	ADDING_PK_TO_PARTITIONED_TABLE_ISSUE_REASON,
-	FOREIGN_TABLE_ISSUE_REASON,
-	POLICY_ROLE_ISSUE,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+	queryissue.FOREIGN_TABLE,
+	queryissue.POLICY_WITH_ROLES,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.Issue {
-	issueType := UNSUPPORTED_FEATURES
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
+	issueType := UNSUPPORTED_FEATURES_CATEGORY
 	switch true {
-	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
-		//Adding the MIGRATION_CAVEATS issueType of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.Contains(issueInstance.TypeName, i)
-	}):
-		issueType = MIGRATION_CAVEATS
-	case strings.HasPrefix(issueInstance.TypeName, UNSUPPORTED_DATATYPE):
-		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
-		issueType = UNSUPPORTED_DATATYPES
 	case isPlPgSQLIssue:
-		issueType = UNSUPPORTED_PLPGSQL_OBEJCTS
+		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
+	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
+		return strings.Contains(issueInstance.Type, i)
+	}):
+		issueType = MIGRATION_CAVEATS_CATEGORY
+	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
+		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
+		issueType = UNSUPPORTED_DATATYPES_CATEGORY
 	}
 
-	//TODO: how to different between same issue on differnt obejct types like ALTER/INDEX for not adding it ot invalid count map
-	increaseInvalidCount, ok := issueInstance.Details["INCREASE_INVALID_COUNT"]
-	if !ok || (increaseInvalidCount.(bool)) {
-		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	var constraintIssues = []string{
+		queryissue.EXCLUSION_CONSTRAINTS,
+		queryissue.DEFERRABLE_CONSTRAINTS,
+		queryissue.PK_UK_ON_COMPLEX_DATATYPE,
+		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
+	}
+	/*
+		TODO:
+		// unsupportedIndexIssue
+		// ObjectType = INDEX
+		// ObjectName = idx_name ON table_name
+		// invalidCount.Type = INDEX
+		// invalidCount.Name = ObjectName (because this is fully qualified)
+		// DisplayName = ObjectName
+
+		// deferrableConstraintIssue
+		// ObjectType = TABLE
+		// ObjectName = table_name
+		// invalidCount.Type = TABLE
+		// invalidCount.Name = ObjectName
+		// DisplayName = table_name (constraint_name) (!= ObjectName)
+
+		// Solutions
+		// 1. Define a issue.ObjectDisplayName
+		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
+	*/
+	displayObjectName := issueInstance.ObjectName
+	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(constraintIssues, issueInstance.Type) && ok {
+		//In case of constraint issues we add constraint name to the object name to achieve the uniqueness
+		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
 
-	return utils.Issue{
+	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	return utils.AnalyzeSchemaIssue{
+		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
-		ObjectName:             issueInstance.ObjectName,
-		Reason:                 issueInstance.TypeName,
+		ObjectName:             displayObjectName,
+		Type:                   issueInstance.Type,
+		Name:                   issueInstance.Name,
+		Reason:                 issueInstance.Description,
+		Impact:                 issueInstance.Impact,
 		SqlStatement:           issueInstance.SqlStatement,
 		DocsLink:               issueInstance.DocsLink,
 		FilePath:               fileName,
-		IssueType:              issueType,
 		Suggestion:             issueInstance.Suggestion,
 		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
@@ -643,8 +696,8 @@ func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
 	for _, sqlInfo := range sqlInfoArr {
 		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
 			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE+" Refer to the docs link for the more information on supported extensions.", "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
-				sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES, EXTENSION_DOC_LINK)
+			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE_TYPE, UNSUPPORTED_EXTENSION_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
+				sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, EXTENSION_DOC_LINK, constants.IMPACT_LEVEL_3)
 		}
 		if strings.ToLower(sqlInfo.objName) == "hll" {
 			summaryMap["EXTENSION"].details[`'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version.`] = true
@@ -803,7 +856,7 @@ func parseSqlFileForObjectType(path string, objType string) []sqlInfo {
 	reportNextSql := 0
 	file, err := os.ReadFile(path)
 	if err != nil {
-		utils.ErrExit("Error while reading %q: %s", path, err)
+		utils.ErrExit("Error while reading file: %q: %s", path, err)
 	}
 
 	lines := strings.Split(string(file), "\n")
@@ -863,7 +916,6 @@ sqlParsingLoop:
 
 		stmt += currLine + " "
 		formattedStmt += currLine + "\n"
-
 		// Assuming that both the dollar quote strings will not be in same line
 		switch dollarQuoteFlag {
 		case CODE_BLOCK_NOT_STARTED:
@@ -872,14 +924,30 @@ sqlParsingLoop:
 			} else if matches := dollarQuoteRegex.FindStringSubmatch(currLine); matches != nil {
 				dollarQuoteFlag = 1 //denotes start of the code/body part
 				codeBlockDelimiter = matches[0]
+			} else if matches := sqlBodyBeginRegex.FindStringSubmatch(currLine); matches != nil {
+				dollarQuoteFlag = 1        //denotes start of the sql body part https://www.postgresql.org/docs/15/sql-createfunction.html#:~:text=a%20new%20session.-,sql_body,-The%20body%20of
+				codeBlockDelimiter = "END" //SQL body to determine the end of BEGIN ATOMIC ... END; sql body
 			}
 		case CODE_BLOCK_STARTED:
-			if strings.Contains(currLine, codeBlockDelimiter) {
-				dollarQuoteFlag = 2 //denotes end of code/body part
-				if isEndOfSqlStmt(currLine) {
-					break sqlParsingLoop
+			switch codeBlockDelimiter {
+			case "END":
+				if strings.Contains(currLine, codeBlockDelimiter) ||
+					strings.Contains(currLine, strings.ToLower(codeBlockDelimiter)) {
+					//TODO: anyways we should be using pg-parser: but for now for the END sql body delimiter checking the UPPER and LOWER both
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
+				}
+			default:
+				if strings.Contains(currLine, codeBlockDelimiter) {
+					dollarQuoteFlag = 2 //denotes end of code/body part
+					if isEndOfSqlStmt(currLine) {
+						break sqlParsingLoop
+					}
 				}
 			}
+
 		case CODE_BLOCK_COMPLETED:
 			if isEndOfSqlStmt(currLine) {
 				break sqlParsingLoop
@@ -922,6 +990,9 @@ func isEndOfSqlStmt(line string) bool {
 	if cmtStartIdx != -1 {
 		line = line[0:cmtStartIdx] // ignore comment
 		line = strings.TrimRight(line, " ")
+	}
+	if len(line) == 0 {
+		return false
 	}
 	return line[len(line)-1] == ';'
 }
@@ -1029,7 +1100,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 
 			// Ideally all filtering of issues should happen in queryissue pkg layer,
 			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
-			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.Issue, index int) bool {
+			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
 				fixed, err := i.IsFixedIn(targetDbVersion)
 				if err != nil {
 					utils.ErrExit("checking if issue %v is supported: %v", i, err)
@@ -1042,7 +1113,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 	schemaAnalysisReport.SchemaSummary = reportSchemaSummary(sourceDBConf)
 	schemaAnalysisReport.VoyagerVersion = utils.YB_VOYAGER_VERSION
 	schemaAnalysisReport.TargetDBVersion = targetDbVersion
-	schemaAnalysisReport.MigrationComplexity = getMigrationComplexity(sourceDBConf.DBType, schemaDir, schemaAnalysisReport)
 	return schemaAnalysisReport
 }
 
@@ -1050,7 +1120,7 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
 		parseTree, err := pg_query.Parse(sqlStmtInfo.stmt)
 		if err != nil {
-			utils.ErrExit("failed to parse the stmt %v: %v", sqlStmtInfo.stmt, err)
+			utils.ErrExit("failed to parse the stmt: %v: %v", sqlStmtInfo.stmt, err)
 		}
 
 		createConvNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateConversionStmt)
@@ -1063,13 +1133,13 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 			if len(nameList) > 1 {
 				convName = fmt.Sprintf("%s.%s", convName, nameList[1].GetString_().Sval)
 			}
-			reportCase(filePath, CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
-				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CREATE_CONVERSION_DOC_LINK)
+			reportCase(filePath, CREATE_CONVERSION_ISSUE_TYPE, CREATE_CONVERSION_ISSUE_REASON, "https://github.com/yugabyte/yugabyte-db/issues/10866",
+				"Remove it from the exported schema", "CONVERSION", convName, sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, CREATE_CONVERSION_DOC_LINK, constants.IMPACT_LEVEL_3)
 		} else {
 			//pg_query doesn't seem to have a Node type of AlterConversionStmt so using regex for now
 			if stmt := alterConvRegex.FindStringSubmatch(sqlStmtInfo.stmt); stmt != nil {
-				reportCase(filePath, "ALTER CONVERSION is not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866",
-					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES, CREATE_CONVERSION_DOC_LINK)
+				reportCase(filePath, "", "ALTER CONVERSION is not supported yet", "https://github.com/YugaByte/yugabyte-db/issues/10866",
+					"Remove it from the exported schema", "CONVERSION", stmt[1], sqlStmtInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, CREATE_CONVERSION_DOC_LINK, "")
 			}
 		}
 
@@ -1077,11 +1147,8 @@ func checkConversions(sqlInfoArr []sqlInfo, filePath string) {
 }
 
 func analyzeSchema() {
-	err := retrieveMigrationUUID()
-	if err != nil {
-		utils.ErrExit("failed to get migration UUID: %w", err)
-	}
 
+	utils.PrintAndLog("Analyzing schema for target YugabyteDB version %s\n", targetDbVersion)
 	schemaAnalysisStartedEvent := createSchemaAnalysisStartedEvent()
 	controlPlane.SchemaAnalysisStarted(&schemaAnalysisStartedEvent)
 
@@ -1102,7 +1169,7 @@ func analyzeSchema() {
 		generateAnalyzeSchemaReport(msr, JSON)
 	}
 
-	packAndSendAnalyzeSchemaPayload(COMPLETE)
+	packAndSendAnalyzeSchemaPayload(COMPLETE, "")
 
 	schemaAnalysisReport := createSchemaAnalysisIterationCompletedEvent(schemaAnalysisReport)
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
@@ -1153,7 +1220,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		utils.ErrExit("Error while opening %q: %s", reportPath, err)
+		utils.ErrExit("Error while opening: %q: %s", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1163,68 +1230,55 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		utils.ErrExit("failed to write report to %q: %s", reportPath, err)
+		utils.ErrExit("failed to write report to: %q: %s", reportPath, err)
 	}
 	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
 	return nil
 }
 
-// analyze issue reasons to modify the reason before sending to callhome as will have sensitive information
-var reasonsIncludingSensitiveInformationToCallhome = []string{
-	UNSUPPORTED_PG_SYNTAX,
-	POLICY_ROLE_ISSUE,
-	UNSUPPORTED_DATATYPE,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-	STORED_GENERATED_COLUMN_ISSUE_REASON,
-	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION,
+// analyze issue types to send the object names for to callhome
+var includeObjectNameInCallhomePayloadForIssueTypes = []string{
+	UNSUPPORTED_EXTENSION_ISSUE_TYPE,
 }
 
-// analyze issue reasons to send the object names for to callhome
-var reasonsToSendObjectNameToCallhome = []string{
-	UNSUPPORTED_EXTENSION_ISSUE,
-}
-
-func packAndSendAnalyzeSchemaPayload(status string) {
+func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 	if !shouldSendCallhome() {
 		return
 	}
 	payload := createCallhomePayload()
-
 	payload.MigrationPhase = ANALYZE_PHASE
-	var callhomeIssues []utils.Issue
-	for _, issue := range schemaAnalysisReport.Issues {
-		issue.SqlStatement = "" // Obfuscate sensitive information before sending to callhome cluster
-		if !lo.ContainsBy(reasonsToSendObjectNameToCallhome, func(r string) bool {
-			return strings.Contains(issue.Reason, r)
-		}) {
-			issue.ObjectName = "XXX" // Redacting object name before sending in case reason is not in list
+
+	var callhomeIssues []callhome.AnalyzeIssueCallhome
+	for _, origIssue := range schemaAnalysisReport.Issues {
+		// No need to send Reason/Description as we already plan to break down required issues into individual issue for each type
+		var callhomeIssue = callhome.AnalyzeIssueCallhome{
+			Category:   origIssue.IssueType,
+			Type:       origIssue.Type,
+			Name:       origIssue.Name,
+			Impact:     origIssue.Impact,
+			ObjectType: origIssue.ObjectType,
+			ObjectName: constants.OBFUSCATE_STRING,
 		}
-		for _, sensitiveReason := range reasonsIncludingSensitiveInformationToCallhome {
-			if strings.Contains(issue.Reason, sensitiveReason) {
-				switch sensitiveReason {
-				case UNSUPPORTED_DATATYPE, UNSUPPORTED_DATATYPE_LIVE_MIGRATION:
-					//e.g. Reason "Unsupported datatype - xml on column - data"
-					//sending only "Unsupported datatype - xml"
-					issue.Reason = strings.Split(issue.Reason, "on column -")[0]
-				default:
-					issue.Reason = sensitiveReason
-				}
-			}
+
+		if slices.Contains(includeObjectNameInCallhomePayloadForIssueTypes, origIssue.Type) {
+			callhomeIssue.ObjectName = origIssue.ObjectName
 		}
-		//no need to send this in callhome as we already have it documented.
-		issue.Suggestion = "XXX"
-		callhomeIssues = append(callhomeIssues, issue)
+
+		callhomeIssues = append(callhomeIssues, callhomeIssue)
 	}
 
 	analyzePayload := callhome.AnalyzePhasePayload{
+		PayloadVersion:  callhome.ANALYZE_PHASE_PAYLOAD_VERSION,
 		TargetDBVersion: schemaAnalysisReport.TargetDBVersion,
-		Issues:          callhome.MarshalledJsonString(callhomeIssues),
+		Issues:          callhomeIssues,
 		DatabaseObjects: callhome.MarshalledJsonString(lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
 			dbObject.ObjectNames = ""
+			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		})),
+		Error: callhome.SanitizeErrorMsg(errorMsg),
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
 	payload.Status = status
 
@@ -1240,9 +1294,13 @@ var analyzeSchemaCmd = &cobra.Command{
 		"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/",
 	Long: ``,
 	PreRun: func(cmd *cobra.Command, args []string) {
+		err := retrieveMigrationUUID()
+		if err != nil {
+			utils.ErrExit("failed to get migration UUID: %w", err)
+		}
 		validOutputFormats := []string{"html", "json", "txt", "xml"}
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
-		err := validateAndSetTargetDbVersionFlag()
+		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
@@ -1260,8 +1318,7 @@ func init() {
 		"format in which report can be generated: ('html', 'txt', 'json', 'xml'). If not provided, reports will be generated in both 'json' and 'html' formats by default.")
 
 	analyzeSchemaCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
-		fmt.Sprintf("Target YugabyteDB version to analyze schema for. Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
-	analyzeSchemaCmd.Flags().MarkHidden("target-db-version")
+		fmt.Sprintf("Target YugabyteDB version to analyze schema for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 }
 
 func validateReportOutputFormat(validOutputFormats []string, format string) {

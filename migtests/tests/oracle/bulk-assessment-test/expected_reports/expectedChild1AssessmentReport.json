@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "LOW",
+	"MigrationComplexityExplanation": "",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
 		"DbName": "ORCLPDB1",
@@ -74,122 +75,229 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": [
+	"AssessmentIssues": [
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "XML_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "XMLTYPE"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "COMPOUND_TRIGGER",
+			"Name": "Compound Trigger",
+			"Description": "COMPOUND TRIGGER not supported in YugabyteDB.",
+			"Impact": "-",
+			"ObjectType": "TRIGGER",
+			"ObjectName": "trg_simple_insert",
+			"SqlStatement": "CREATE TRIGGER trg_simple_insert\n\tCOMPOUND INSERT ON simple_table FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_trg_simple_insert();",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "NCLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "NCLOB"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEXES",
+			"Name": "Unsupported Indexes",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "INDEX",
+			"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "BFILE_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "BFILE"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEXES",
+			"Name": "Unsupported Indexes",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "INDEX",
+			"ObjectName": "Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "CLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "CLOB"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEXES",
+			"Name": "Unsupported Indexes",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "INDEX",
+			"ObjectName": "Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "BLOB_TABLE",
-			"ColumnName": "DATA",
-			"DataType": "BLOB"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEXES",
+			"Name": "Unsupported Indexes",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "INDEX",
+			"ObjectName": "Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		},
 		{
-			"SchemaName": "TEST_SCHEMA",
-			"TableName": "TEXT_TABLE",
-			"ColumnName": "TEXT_DATA",
-			"DataType": "CLOB"
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_INDEXES",
+			"Name": "Unsupported Indexes",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "INDEX",
+			"ObjectName": "Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "INHERITED_TYPES",
+			"Name": "Inherited Types",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "TYPE",
+			"ObjectName": "SIMPLE_CAR_TYPE",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "VIRTUAL_COLUMNS",
+			"Name": "Virtual Columns",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "GENERATED_COLUMN_TABLE.TOTAL_PRICE",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "VIRTUAL_COLUMNS",
+			"Name": "Virtual Columns",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "XML_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_PARTITIONING_METHODS",
+			"Name": "Unsupported Partitioning Methods",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "TABLE",
+			"ObjectName": "Table Name: SALES, Partition Method: SYSTEM PARTITION",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_PARTITIONING_METHODS",
+			"Name": "Unsupported Partitioning Methods",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "TABLE",
+			"ObjectName": "Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "XMLTYPE",
+			"Name": "XMLTYPE",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.XML_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "NCLOB",
+			"Name": "NCLOB",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.NCLOB_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "BFILE",
+			"Name": "BFILE",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.BFILE_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "CLOB",
+			"Name": "CLOB",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.TEXT_TABLE.TEXT_DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "CLOB",
+			"Name": "CLOB",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.CLOB_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "BLOB",
+			"Name": "BLOB",
+			"Description": "",
+			"Impact": "-",
+			"ObjectType": "COLUMN",
+			"ObjectName": "TEST_SCHEMA.BLOB_TABLE.DATA",
+			"SqlStatement": "",
+			"DocsLink": "",
+			"MinimumVersionsFixedIn": null
 		}
 	],
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "Compound Triggers",
-			"Objects": [
-				{
-					"ObjectName": "trg_simple_insert",
-					"SqlStatement": "CREATE TRIGGER trg_simple_insert\n\tCOMPOUND INSERT ON simple_table FOR EACH ROW\n\tEXECUTE PROCEDURE trigger_fct_trg_simple_insert();"
-				}
-			],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Unsupported Indexes",
-			"Objects": [
-				{
-					"ObjectName": "Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX",
-					"SqlStatement": ""
-				}
-			],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Virtual Columns",
-			"Objects": [
-				{
-					"ObjectName": "XML_TABLE.DATA",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "GENERATED_COLUMN_TABLE.TOTAL_PRICE",
-					"SqlStatement": ""
-				}
-			],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Inherited Types",
-			"Objects": [
-				{
-					"ObjectName": "SIMPLE_CAR_TYPE",
-					"SqlStatement": ""
-				}
-			],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Unsupported Partitioning Methods",
-			"Objects": [
-				{
-					"ObjectName": "Table Name: SALES, Partition Method: SYSTEM PARTITION",
-					"SqlStatement": ""
-				},
-				{
-					"ObjectName": "Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION",
-					"SqlStatement": ""
-				}
-			],
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
 	"TableIndexStats": [
 		{
 			"SchemaName": "TEST_SCHEMA",
@@ -201,7 +309,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -215,7 +323,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -229,7 +337,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -243,7 +351,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -257,7 +365,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -271,7 +379,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -285,7 +393,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -299,7 +407,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -313,7 +421,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -327,7 +435,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -341,7 +449,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -355,7 +463,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -369,7 +477,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -383,7 +491,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -397,7 +505,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -411,7 +519,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -425,7 +533,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -439,7 +547,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -453,7 +561,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -467,7 +575,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -481,7 +589,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -495,7 +603,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -509,7 +617,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "BITMAP INDEX",
 			"ParentTableName": "TEST_SCHEMA.SALES_BITMAP_IDX_TABLE",
 			"SizeInBytes": 65536
 		},
@@ -523,7 +631,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "BITMAP INDEX",
 			"ParentTableName": "TEST_SCHEMA.ORDERS",
 			"SizeInBytes": 65536
 		},
@@ -537,7 +645,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "FUNCTION-BASED NORMAL INDEX",
 			"ParentTableName": "TEST_SCHEMA.FUNC_BASED_TABLE",
 			"SizeInBytes": 65536
 		}
@@ -546,8 +654,5 @@
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e.",
 		"Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.",
 		"There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yugabyte-db/issues/7850\"\u003ehttps://github.com/yugabyte/yugabyte-db/issues/7850\u003c/a\u003e so take a look and modify them if not supported."
-	],
-	"MigrationCaveats": null,
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }

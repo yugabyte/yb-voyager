@@ -42,7 +42,7 @@ import (
 
 const MIN_SUPPORTED_PG_VERSION_OFFLINE = "9"
 const MIN_SUPPORTED_PG_VERSION_LIVE = "10"
-const MAX_SUPPORTED_PG_VERSION = "16"
+const MAX_SUPPORTED_PG_VERSION = "17"
 const MISSING = "MISSING"
 const GRANTED = "GRANTED"
 const NO_USAGE_PERMISSION = "NO USAGE PERMISSION"
@@ -50,8 +50,8 @@ const PG_STAT_STATEMENTS = "pg_stat_statements"
 
 var pg_catalog_tables_required = []string{"regclass", "pg_class", "pg_inherits", "setval", "pg_index", "pg_relation_size", "pg_namespace", "pg_tables", "pg_sequences", "pg_roles", "pg_database", "pg_extension"}
 var information_schema_tables_required = []string{"schemata", "tables", "columns", "key_column_usage", "sequences"}
-var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID"}
-var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML"}
+var PostgresUnsupportedDataTypes = []string{"GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "XID", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
+var PostgresUnsupportedDataTypesForDbzm = []string{"POINT", "LINE", "LSEG", "BOX", "PATH", "POLYGON", "CIRCLE", "GEOMETRY", "GEOGRAPHY", "BOX2D", "BOX3D", "TOPOGEOMETRY", "RASTER", "PG_LSN", "TXID_SNAPSHOT", "XML", "LO", "INT4MULTIRANGE", "INT8MULTIRANGE", "NUMMULTIRANGE", "TSMULTIRANGE", "TSTZMULTIRANGE", "DATEMULTIRANGE"}
 
 func GetPGLiveMigrationUnsupportedDatatypes() []string {
 	liveMigrationUnsupportedDataTypes, _ := lo.Difference(PostgresUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
@@ -140,10 +140,6 @@ func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 	return trimmedList
 }
 
-func (pg *PostgreSQL) CheckRequiredToolsAreInstalled() {
-	checkTools("strings")
-}
-
 func (pg *PostgreSQL) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
@@ -164,7 +160,7 @@ func (pg *PostgreSQL) GetTableApproxRowCount(tableName sqlname.NameTuple) int64 
 	log.Infof("Querying '%s' approx row count of table %q", query, tableName.String())
 	err := pg.db.QueryRow(query).Scan(&approxRowCount)
 	if err != nil {
-		utils.ErrExit("Failed to query %q for approx row count of %q: %s", query, tableName.String(), err)
+		utils.ErrExit("Failed to query for approx row count of table: %q: %q: %s", tableName.String(), query, err)
 	}
 
 	log.Infof("Table %q has approx %v rows.", tableName.String(), approxRowCount)
@@ -199,7 +195,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	WHERE nspname IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(chkSchemaExistsQuery)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for checking mentioned schema(s) present or not: %v\n", chkSchemaExistsQuery, err)
+		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %v\n", chkSchemaExistsQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -220,7 +216,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 
 	schemaNotPresent := utils.SetDifference(trimmedSchemaList, listOfSchemaPresent)
 	if len(schemaNotPresent) > 0 {
-		utils.ErrExit("Following schemas are not present in source database %v, please provide a valid schema list.\n", schemaNotPresent)
+		utils.ErrExit("Following schemas are not present in source database: %v, please provide a valid schema list.\n", schemaNotPresent)
 	}
 	return trimmedSchemaList
 }
@@ -285,7 +281,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for table names: %v\n", query, err)
+		utils.ErrExit("error in querying source database for table names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -471,7 +467,7 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for sequence names: %v\n", query, err)
+		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -597,7 +593,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 			if err == sql.ErrNoRows {
 				empty = true
 			} else {
-				utils.ErrExit("error in querying table %v: %v", tableName, err)
+				utils.ErrExit("error in querying table LIMIT 1: %v: %v", tableName, err)
 			}
 		}
 		if !empty {
@@ -690,7 +686,7 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 	err := pg.db.QueryRow(query).Scan(&parentTable)
 	if err != sql.ErrNoRows && err != nil {
-		utils.ErrExit("Error in query=%s for parent tablename of table=%s: %v", query, table, err)
+		utils.ErrExit("Error in query: %s for parent tablename of table=%s: %v", query, table, err)
 	}
 
 	return parentTable
@@ -708,7 +704,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		rows, err := pg.db.Query(query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table=%s: %v", table, err)
+			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -719,7 +715,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		for rows.Next() {
 			err := rows.Scan(&columeName, &sequenceName, &schemaName)
 			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table=%s: %v", table, err)
+				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
@@ -727,7 +723,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
 		}
 	}
 
@@ -789,7 +785,7 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		log.Errorf("failed to list partitions of table %s: query = [ %s ], error = %s", tableName, query, err)
-		utils.ErrExit("failed to find the partitions for table %s:", tableName, err)
+		utils.ErrExit("failed to find the partitions for table: %s: %v", tableName, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -801,12 +797,12 @@ WHERE parent.relname='%s' AND nmsp_parent.nspname = '%s' `, tname, sname)
 		var childSchema, childTable string
 		err := rows.Scan(&childSchema, &childTable)
 		if err != nil {
-			utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, err)
+			utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, err)
 		}
 		partitions = append(partitions, fmt.Sprintf(`%s.%s`, childSchema, childTable))
 	}
 	if rows.Err() != nil {
-		utils.ErrExit("Error in scanning for child partitions of table=%s: %v", tableName, rows.Err())
+		utils.ErrExit("Error in scanning for child partitions of table: %s: %v", tableName, rows.Err())
 	}
 	return partitions
 }
@@ -944,6 +940,7 @@ var PG_QUERY_TO_CHECK_IF_TABLE_HAS_PK = `SELECT nspname AS schema_name, relname 
 FROM pg_class c
 LEFT JOIN pg_namespace n ON n.oid = c.relnamespace
 LEFT JOIN pg_constraint con ON con.conrelid = c.oid AND con.contype = 'p'
+WHERE c.relkind = 'r' OR c.relkind = 'p'  -- Only consider table objects
 GROUP BY schema_name, table_name HAVING nspname IN (%s);`
 
 func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
@@ -968,8 +965,9 @@ func (pg *PostgreSQL) GetNonPKTables() ([]string, error) {
 		if err != nil {
 			return nil, fmt.Errorf("error in scanning query rows for primary key: %v", err)
 		}
-		table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
+
 		if pkCount == 0 {
+			table := sqlname.NewSourceName(schemaName, fmt.Sprintf(`"%s"`, tableName))
 			nonPKTables = append(nonPKTables, table.Qualified.Quoted)
 		}
 	}
@@ -983,14 +981,24 @@ func (pg *PostgreSQL) CheckSourceDBVersion(exportType string) error {
 	if pgVersion == "" {
 		return fmt.Errorf("failed to get source database version")
 	}
+
+	// Extract the major version from the full version string
+	// Version can be like: 17.2 (Ubuntu 17.2-1.pgdg20.04+1), 17.2, 17alpha1 etc.
+	re := regexp.MustCompile(`^(\d+)`)
+	match := re.FindStringSubmatch(pgVersion)
+	if len(match) < 2 {
+		return fmt.Errorf("failed to extract major version from source database version: %s", pgVersion)
+	}
+	majorVersion := match[1]
+
 	supportedVersionRange := fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_OFFLINE, MAX_SUPPORTED_PG_VERSION)
 
-	if version.CompareSimple(pgVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
+	if version.CompareSimple(majorVersion, MAX_SUPPORTED_PG_VERSION) > 0 || version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_OFFLINE) < 0 {
 		return fmt.Errorf("current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange)
 	}
 	// for live migration
 	if exportType == utils.CHANGES_ONLY || exportType == utils.SNAPSHOT_AND_CHANGES {
-		if version.CompareSimple(pgVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
+		if version.CompareSimple(majorVersion, MIN_SUPPORTED_PG_VERSION_LIVE) < 0 {
 			supportedVersionRange = fmt.Sprintf("%s to %s", MIN_SUPPORTED_PG_VERSION_LIVE, MAX_SUPPORTED_PG_VERSION)
 			utils.PrintAndLog(color.RedString("Warning: Live Migration: Current source db version: %s. Supported versions: %s", pgVersion, supportedVersionRange))
 		}
@@ -1136,13 +1144,13 @@ func (pg *PostgreSQL) GetMissingExportDataPermissions(exportType string, finalTa
 	return combinedResult, nil
 }
 
-func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
+func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, bool, error) {
 	var combinedResult []string
 
 	// Check if tables have SELECT permission
 	missingTables, err := pg.listTablesMissingSelectPermission("")
 	if err != nil {
-		return nil, fmt.Errorf("error checking table select permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking table select permissions: %w", err)
 	}
 	if len(missingTables) > 0 {
 		combinedResult = append(combinedResult, fmt.Sprintf("\n%s[%s]", color.RedString("Missing SELECT permission for user %s on Tables: ", pg.source.User), strings.Join(missingTables, ", ")))
@@ -1150,13 +1158,15 @@ func (pg *PostgreSQL) GetMissingAssessMigrationPermissions() ([]string, error) {
 
 	result, err := pg.checkPgStatStatementsSetup()
 	if err != nil {
-		return nil, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
+		return nil, false, fmt.Errorf("error checking pg_stat_statement extension installed with read permissions: %w", err)
 	}
 
+	pgssEnabled := true
 	if result != "" {
+		pgssEnabled = false
 		combinedResult = append(combinedResult, result)
 	}
-	return combinedResult, nil
+	return combinedResult, pgssEnabled, nil
 }
 
 const (
@@ -1208,7 +1218,7 @@ func (pg *PostgreSQL) checkPgStatStatementsSetup() (string, error) {
 	}
 
 	if !hasReadAllStats {
-		return "User doesn't have permissions to read pg_stat_statements view, required for detecting Unsupported Query Constructs", nil
+		return "\n" + color.RedString("Missing Permission:") + " User doesn't have the `pg_read_all_stats` grant, required for detecting Unsupported Query Constructs", nil
 	}
 
 	// To access "shared_preload_libraries" must be superuser or a member of pg_read_all_settings
@@ -1423,7 +1433,7 @@ func (pg *PostgreSQL) checkWalLevel() (msg string) {
 	var walLevel string
 	err := pg.db.QueryRow(query).Scan(&walLevel)
 	if err != nil {
-		utils.ErrExit("error in querying(%q) source database for wal_level: %v\n", query, err)
+		utils.ErrExit("error in querying source database for wal_level: %q %v\n", query, err)
 	}
 	if walLevel != "logical" {
 		msg = fmt.Sprintf("\n%s Current wal_level: %s; Required wal_level: logical", color.RedString("ERROR"), walLevel)

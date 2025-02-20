@@ -24,6 +24,7 @@ import (
 	"net"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -32,10 +33,13 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 var DoNotPrompt bool
@@ -430,7 +434,8 @@ func GetRedactedURLs(urlList []string) []string {
 	for _, u := range urlList {
 		obj, err := url.Parse(u)
 		if err != nil {
-			ErrExit("invalid URL: %q", u)
+			log.Error("error redacting connection url: invalid connection URL")
+			fmt.Printf("error redacting connection url: invalid connection URL: %v", u)
 		}
 		result = append(result, obj.Redacted())
 	}
@@ -445,11 +450,15 @@ func GetSqlStmtToPrint(stmt string) string {
 	}
 }
 
-func PrintSqlStmtIfDDL(stmt string, fileName string) {
+func PrintSqlStmtIfDDL(stmt string, fileName string, noticeMsg string) {
 	setOrSelectStmt := strings.HasPrefix(strings.ToUpper(stmt), "SET ") ||
 		strings.HasPrefix(strings.ToUpper(stmt), "SELECT ")
 	if !setOrSelectStmt {
 		fmt.Printf("%s: %s\n", fileName, GetSqlStmtToPrint(stmt))
+		if noticeMsg != "" {
+			fmt.Printf(color.YellowString("%s\n", noticeMsg))
+			log.Infof("notice for %q: %s", GetSqlStmtToPrint(stmt), noticeMsg)
+		}
 	}
 }
 
@@ -717,4 +726,141 @@ func GetFinalReleaseVersionFromRCVersion(msrVoyagerFinalVersion string) (string,
 		return "", fmt.Errorf("unexpected version format %q", msrVoyagerFinalVersion)
 	}
 	return msrVoyagerFinalVersion, nil
+}
+
+// Return list of missing tools from the provided list of tools
+func CheckTools(tools ...string) []string {
+	var missingTools []string
+	for _, tool := range tools {
+		execPath, err := exec.LookPath(tool)
+		if err != nil {
+			missingTools = append(missingTools, tool)
+		} else {
+			log.Infof("Found %s at %s", tool, execPath)
+		}
+	}
+
+	return missingTools
+}
+
+func BuildObjectName(schemaName, objName string) string {
+	return lo.Ternary(schemaName != "", schemaName+"."+objName, objName)
+}
+
+// SnakeCaseToTitleCase converts a snake_case string to a title case string with spaces.
+func SnakeCaseToTitleCase(snake string) string {
+	words := strings.Split(snake, "_")
+	c := cases.Title(language.English)
+	for i, word := range words {
+		words[i] = c.String(word)
+	}
+
+	return strings.Join(words, " ")
+}
+
+// MatchesFormatString checks if the final string matches the format string with %s placeholders filled.
+func MatchesFormatString(format, final string) (bool, error) {
+	regexPattern, err := formatToRegex(format)
+	if err != nil {
+		return false, err
+	}
+
+	re, err := regexp.Compile(regexPattern)
+	if err != nil {
+		return false, fmt.Errorf("failed to compile regex pattern: %v", err)
+	}
+
+	return re.MatchString(final), nil
+}
+
+// formatToRegex converts a format string containing %s and %v
+// into a regex pattern.
+//   - %s => (.+?)    (capturing group)
+//   - %v => (?:.+?)  (non-capturing group)
+//
+// Everything else is escaped literally.
+// Example:
+//
+//	Input:  "PostGIS datatypes... column: %s and type: %v."
+//	Output: "^PostGIS\\ datatypes\\.\\.\\. column:\\ (.+?) and type:\\ (?:.+?)\\.$"
+//
+// NOTE: This function is written for handling issue description, please test it before using for other purposes.
+func formatToRegex(format string) (string, error) {
+	var sb strings.Builder
+
+	// Anchor start
+	sb.WriteString("^")
+
+	// Iterate rune-by-rune so we can detect '%s' or '%v'
+	runes := []rune(format)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] == '%' && i+1 < len(runes) {
+			// Look at the next character
+			switch runes[i+1] {
+			case 's':
+				// %s => capturing group
+				sb.WriteString(`(.+?)`)
+				i++
+			case 'v':
+				// %v => non-capturing group
+				sb.WriteString(`(?:.+?)`)
+				i++
+			default:
+				// If it's % followed by something else, treat '%' literally (escape it)
+				sb.WriteString(regexp.QuoteMeta(string(runes[i])))
+			}
+		} else {
+			// Normal character - escape it
+			sb.WriteString(regexp.QuoteMeta(string(runes[i])))
+		}
+	}
+
+	// Anchor end
+	sb.WriteString("$")
+	return sb.String(), nil
+}
+
+// ObfuscateFormatDetails obfuscates the captured groups in the final string with the provided obfuscation string.
+// It assumes that the format string matches the final string.
+func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error) {
+	regexPattern, err := formatToRegex(format)
+	if err != nil {
+		return "", err
+	}
+
+	re, err := regexp.Compile(regexPattern)
+	if err != nil {
+		return "", fmt.Errorf("failed to compile regex pattern: %v", err)
+	}
+
+	// Find the indexes of all capture groups using FindStringSubmatchIndex to get positions.
+	matchIndices := re.FindStringSubmatchIndex(final)
+	if matchIndices == nil {
+		return "", fmt.Errorf("no matches found")
+	}
+
+	// matchIndices is a slice where:
+	// matchIndices[0], matchIndices[1] are the start and end of the entire match.
+	// matchIndices[2], matchIndices[3], etc., are the start and end of each capture group.
+	// Collect all capture group indices.
+	var groups [][2]int
+	for i := 2; i < len(matchIndices); i += 2 {
+		start, end := matchIndices[i], matchIndices[i+1]
+		groups = append(groups, [2]int{start, end})
+	}
+
+	// Build the obfuscated string by replacing the captured groups.
+	var sb strings.Builder
+	lastIndex := 0
+	for _, group := range groups {
+		start, end := group[0], group[1]
+		sb.WriteString(final[lastIndex:start]) // Append the text before the group.
+		sb.WriteString(obfuscateWith)          // Append the obfuscation string.
+
+		// Update the lastIndex for next iteration.
+		lastIndex = end
+	}
+
+	sb.WriteString(final[lastIndex:]) // Append the text after the last group.
+	return sb.String(), nil
 }

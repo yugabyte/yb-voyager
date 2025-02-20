@@ -1,6 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "MEDIUM",
+	"MigrationComplexityExplanation": "",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB. Some of the index and sequence names might be different from those in the source database.",
 		"DbName": "",
@@ -104,36 +105,7 @@
 		},
 		"FailureReasoning": ""
 	},
-	"UnsupportedDataTypes": null,
-	"UnsupportedDataTypesDesc": "Data types of the source database that are not supported on the target YugabyteDB.",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "Compound Triggers",
-			"Objects": [],
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Unsupported Indexes",
-			"Objects": null,
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Virtual Columns",
-			"Objects": null,
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Inherited Types",
-			"Objects": null,
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"FeatureName": "Unsupported Partitioning Methods",
-			"Objects": null,
-			"MinimumVersionsFixedIn": null
-		}
-	],
-	"UnsupportedFeaturesDesc": "Features of the source database that are not supported on the target YugabyteDB.",
+	"AssessmentIssues": null,
 	"TableIndexStats": [
 		{
 			"SchemaName": "TEST_SCHEMA2",
@@ -145,7 +117,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -159,7 +131,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -173,7 +145,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -187,7 +159,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -201,7 +173,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -215,7 +187,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -229,7 +201,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -243,7 +215,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -257,7 +229,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -271,7 +243,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -285,7 +257,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -299,7 +271,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -313,7 +285,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -327,7 +299,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -341,7 +313,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -355,7 +327,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -369,7 +341,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -383,7 +355,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -397,7 +369,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -411,7 +383,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -425,7 +397,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -439,7 +411,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -453,7 +425,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -467,7 +439,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -481,7 +453,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -495,7 +467,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -509,7 +481,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -523,7 +495,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -537,7 +509,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -551,7 +523,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -565,7 +537,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE PARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -579,7 +551,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -593,7 +565,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -607,7 +579,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -621,7 +593,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -635,7 +607,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -649,7 +621,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -663,7 +635,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -677,7 +649,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -691,7 +663,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -705,7 +677,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -719,7 +691,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -733,7 +705,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -747,7 +719,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -761,7 +733,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE SUBPARTITION",
 			"ParentTableName": null,
 			"SizeInBytes": 8388608
 		},
@@ -775,7 +747,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": null
 		},
@@ -789,7 +761,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -803,7 +775,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -817,7 +789,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -831,7 +803,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -845,7 +817,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -859,7 +831,7 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": false,
-			"ObjectType": "",
+			"ObjectType": "TABLE",
 			"ParentTableName": null,
 			"SizeInBytes": 65536
 		},
@@ -873,15 +845,12 @@
 			"ReadsPerSecond": null,
 			"WritesPerSecond": null,
 			"IsIndex": true,
-			"ObjectType": "",
+			"ObjectType": "FUNCTION-BASED NORMAL INDEX",
 			"ParentTableName": "TEST_SCHEMA2.EMPLOYEE_MV_IMMEDIATE",
 			"SizeInBytes": 65536
 		}
 	],
 	"Notes": [
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
-	],
-	"MigrationCaveats": null,
-	"UnsupportedQueryConstructs": null,
-    "UnsupportedPlPgSqlObjects": null
+	]
 }

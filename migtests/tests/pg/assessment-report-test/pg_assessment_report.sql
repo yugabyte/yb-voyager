@@ -24,6 +24,36 @@ CREATE TABLE Mixed_Data_Types_Table2 (
     path_data PATH
 );
 
+CREATE TABLE int_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int4multirange
+);
+
+CREATE TABLE bigint_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int8multirange
+);
+
+CREATE TABLE numeric_multirange_table (
+    id SERIAL PRIMARY KEY,
+    price_ranges nummultirange
+);
+
+CREATE TABLE timestamp_multirange_table (
+    id SERIAL PRIMARY KEY,
+    event_times tsmultirange
+);
+
+CREATE TABLE timestamptz_multirange_table (
+    id SERIAL PRIMARY KEY,
+    global_event_times tstzmultirange
+);
+
+CREATE TABLE date_multirange_table (
+    id SERIAL PRIMARY KEY,
+    project_dates datemultirange
+);
+
 -- GIST Index on point_data column
 CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data);
 
@@ -114,7 +144,9 @@ WITH CHECK OPTION;
 CREATE TABLE public.test_jsonb (
     id integer,
     data jsonb,
-	data2 text
+	data2 text,
+    region text,
+    FOREIGN KEY (id, region) REFERENCES sales_region(id, region)
 );
 
 CREATE TABLE public.inet_type (
@@ -173,6 +205,9 @@ CREATE TYPE public.address_type AS (
     zip_code VARCHAR(10)
 );
 
+CREATE EXTENSION lo;
+
+CREATE EXTENSION hstore;
 --other misc types
 create table public.combined_tbl (
 	id int, 
@@ -185,7 +220,9 @@ create table public.combined_tbl (
 	bitt bit (13),
 	bittv bit varying(15) UNIQUE,
     address address_type,
+    raster lo,
     arr_enum enum_kind[],
+    data hstore,
     PRIMARY KEY (id, arr_enum)
 );
 
@@ -240,7 +277,8 @@ EXECUTE FUNCTION public.check_sales_region();
     product_name TEXT NOT NULL,
     quantity INT NOT NULL,
     price NUMERIC(10, 2) NOT NULL,
-    processed_at timestamp
+    processed_at timestamp,
+    r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
 );
 
 INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
@@ -345,5 +383,141 @@ BEGIN
 
     RAISE NOTICE 'Updated record with ID: %, CIDR: %, BIT: %, Date range: %', 
         p_id, p_c, p_bitt, p_d;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER t_raster BEFORE UPDATE OR DELETE ON public.combined_tbl
+    FOR EACH ROW EXECUTE FUNCTION lo_manage(raster);
+
+CREATE OR REPLACE FUNCTION public.manage_large_object(loid OID) RETURNS VOID AS $$
+BEGIN
+    IF loid IS NOT NULL THEN
+        -- Unlink the large object to free up storage
+        PERFORM lo_unlink(loid);
+    END IF;
+END;
+$$ LANGUAGE plpgsql;
+
+-- for FETCH .. WITH TIES
+CREATE TABLE employeesForView (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+);
+
+CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employeesForView
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees;
+
+-- SECURITY INVOKER VIEW
+CREATE TABLE public.employees (
+    employee_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100),
+    last_name VARCHAR(100),
+    department VARCHAR(50)
+);
+
+INSERT INTO public.employees (first_name, last_name, department)
+VALUES
+    ('Alice', 'Smith', 'HR'),
+    ('Bob', 'Jones', 'Finance'),
+    ('Charlie', 'Brown', 'IT'),
+    ('Diana', 'Prince', 'HR'),
+    ('Ethan', 'Hunt', 'Security');
+
+CREATE VIEW public.view_explicit_security_invoker
+WITH (security_invoker = true) AS
+    SELECT employee_id, first_name
+    FROM public.employees;
+
+CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false);
+
+ CREATE COLLATION public.numeric (provider = icu, locale = 'en@colNumeric=yes');
+-- Testing tables with unique nulls not distinct constraints
+
+-- Control case
+CREATE TABLE users_unique_nulls_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT COMPRESSION pglz,
+    UNIQUE (email)
+);
+
+CREATE TABLE users_unique_nulls_not_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+);
+
+CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+);
+
+ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);
+
+-- Create a unique index on a column with NULLs with the NULLS NOT DISTINCT option
+CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+);
+
+CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT;
+
+
+CREATE OR REPLACE FUNCTION insert_non_decimal()
+RETURNS VOID AS $$
+BEGIN
+    -- Create a table for demonstration
+    CREATE TEMP TABLE non_decimal_table (
+        id SERIAL,
+        binary_value INTEGER,
+        octal_value INTEGER,
+        hex_value INTEGER
+    );
+    SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;
+    -- Insert values into the table
+    --not reported as parser converted these values to decimal ones while giving parseTree
+    INSERT INTO non_decimal_table (binary_value, octal_value, hex_value)
+    VALUES (0b1010, 0o012, 0xA); -- Binary (10), Octal (10), Hexadecimal (10)
+
+    RAISE NOTICE 'Row inserted with non-decimal integers.';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS SETOF text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+BEGIN ATOMIC
+SELECT repeat('*', g) FROM generate_series (1, n) g;
+END;
+-- BEGIN ATOMIC syntax is not working with regex parser we have for functions TODO: fix 
+
+CREATE OR REPLACE FUNCTION asterisks1(n int)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURN repeat('*', n);
+
+CREATE OR REPLACE FUNCTION notify_and_insert()
+RETURNS VOID AS $$
+BEGIN
+	LISTEN my_table_changes;
+    INSERT INTO my_table (name) VALUES ('Charlie');
+	NOTIFY my_table_changes, 'New row added with name: Charlie';
+    PERFORM pg_notify('my_table_changes', 'New row added with name: Charlie');
+	UNLISTEN my_table_changes;
 END;
 $$ LANGUAGE plpgsql;

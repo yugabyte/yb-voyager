@@ -1,3 +1,20 @@
+//go:build unit
+
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package callhome
 
 import (
@@ -5,8 +22,8 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestCallhomeStructs(t *testing.T) {
@@ -55,39 +72,57 @@ func TestCallhomeStructs(t *testing.T) {
 			}{},
 		},
 		{
-			name:       "Validate UnsupportedFeature Struct Definition",
-			actualType: reflect.TypeOf(UnsupportedFeature{}),
-			expectedType: struct {
-				FeatureName      string   `json:"FeatureName"`
-				Objects          []string `json:"Objects,omitempty"`
-				ObjectCount      int      `json:"ObjectCount"`
-				TotalOccurrences int      `json:"TotalOccurrences"`
-			}{},
-		},
-		{
 			name:       "Validate AssessMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationPhasePayload{}),
 			expectedType: struct {
-				TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
-				MigrationComplexity        string               `json:"migration_complexity"`
-				UnsupportedFeatures        string               `json:"unsupported_features"`
-				UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
-				UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
-				MigrationCaveats           string               `json:"migration_caveats"`
-				UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-				Error                      string               `json:"error,omitempty"`
-				TableSizingStats           string               `json:"table_sizing_stats"`
-				IndexSizingStats           string               `json:"index_sizing_stats"`
-				SchemaSummary              string               `json:"schema_summary"`
-				SourceConnectivity         bool                 `json:"source_connectivity"`
-				IopsInterval               int64                `json:"iops_interval"`
+				PayloadVersion                 string                    `json:"payload_version"`
+				TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
+				Sizing                         *SizingCallhome           `json:"sizing"`
+				MigrationComplexity            string                    `json:"migration_complexity"`
+				MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
+				SchemaSummary                  string                    `json:"schema_summary"`
+				Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
+				Error                          string                    `json:"error"`
+				TableSizingStats               string                    `json:"table_sizing_stats"`
+				IndexSizingStats               string                    `json:"index_sizing_stats"`
+				SourceConnectivity             bool                      `json:"source_connectivity"`
+				IopsInterval                   int64                     `json:"iops_interval"`
+			}{},
+		},
+		{
+			name:       "Validate AssessmentIssueCallhome Struct Definition",
+			actualType: reflect.TypeOf(AssessmentIssueCallhome{}),
+			expectedType: struct {
+				Category            string `json:"category"`
+				CategoryDescription string `json:"category_description"`
+				Type                string `json:"type"`
+				Name                string `json:"name"`
+				Impact              string `json:"impact"`
+				ObjectType          string `json:"object_type"`
+			}{},
+		},
+		{
+			name:       "Validate SizingCallhome Struct Definition",
+			actualType: reflect.TypeOf(SizingCallhome{}),
+			expectedType: struct {
+				NumColocatedTables              int     `json:"num_colocated_tables"`
+				ColocatedReasoning              string  `json:"colocated_reasoning"`
+				NumShardedTables                int     `json:"num_sharded_tables"`
+				NumNodes                        float64 `json:"num_nodes"`
+				VCPUsPerInstance                int     `json:"vcpus_per_instance"`
+				MemoryPerInstance               int     `json:"memory_per_instance"`
+				OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
+				OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
+				EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+				ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 			}{},
 		},
 		{
 			name:       "Validate AssessMigrationBulkPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationBulkPhasePayload{}),
 			expectedType: struct {
-				FleetConfigCount int `json:"fleet_config_count"`
+				FleetConfigCount int    `json:"fleet_config_count"`
+				Error            string `json:"error"`
 			}{},
 		},
 		{
@@ -105,19 +140,34 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ExportSchemaPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ExportSchemaPhasePayload{}),
 			expectedType: struct {
-				StartClean             bool `json:"start_clean"`
-				AppliedRecommendations bool `json:"applied_recommendations"`
-				UseOrafce              bool `json:"use_orafce"`
-				CommentsOnObjects      bool `json:"comments_on_objects"`
+				StartClean             bool   `json:"start_clean"`
+				AppliedRecommendations bool   `json:"applied_recommendations"`
+				UseOrafce              bool   `json:"use_orafce"`
+				CommentsOnObjects      bool   `json:"comments_on_objects"`
+				Error                  string `json:"error"`
 			}{},
 		},
 		{
 			name:       "Validate AnalyzePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AnalyzePhasePayload{}),
 			expectedType: struct {
-				TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
-				Issues          string               `json:"issues"`
-				DatabaseObjects string               `json:"database_objects"`
+				PayloadVersion  string                 `json:"payload_version"`
+				TargetDBVersion *ybversion.YBVersion   `json:"target_db_version"`
+				Issues          []AnalyzeIssueCallhome `json:"issues"`
+				DatabaseObjects string                 `json:"database_objects"`
+				Error           string                 `json:"error"`
+			}{},
+		},
+		{
+			name:       "Validate AnalyzeIssueCallhome Struct Definition",
+			actualType: reflect.TypeOf(AnalyzeIssueCallhome{}),
+			expectedType: struct {
+				Category   string `json:"category"`
+				Type       string `json:"type"`
+				Name       string `json:"name"`
+				Impact     string `json:"impact"`
+				ObjectType string `json:"object_type"`
+				ObjectName string `json:"object_name"`
 			}{},
 		},
 		{
@@ -133,19 +183,21 @@ func TestCallhomeStructs(t *testing.T) {
 				TotalExportedEvents     int64  `json:"total_exported_events,omitempty"`
 				EventsExportRate        int64  `json:"events_export_rate_3m,omitempty"`
 				LiveWorkflowType        string `json:"live_workflow_type,omitempty"`
+				Error                   string `json:"error"`
 			}{},
 		},
 		{
 			name:       "Validate ImportSchemaPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportSchemaPhasePayload{}),
 			expectedType: struct {
-				ContinueOnError    bool `json:"continue_on_error"`
-				EnableOrafce       bool `json:"enable_orafce"`
-				IgnoreExist        bool `json:"ignore_exist"`
-				RefreshMviews      bool `json:"refresh_mviews"`
-				ErrorCount         int  `json:"errors"`
-				PostSnapshotImport bool `json:"post_snapshot_import"`
-				StartClean         bool `json:"start_clean"`
+				ContinueOnError    bool   `json:"continue_on_error"`
+				EnableOrafce       bool   `json:"enable_orafce"`
+				IgnoreExist        bool   `json:"ignore_exist"`
+				RefreshMviews      bool   `json:"refresh_mviews"`
+				ErrorCount         int    `json:"errors"`
+				PostSnapshotImport bool   `json:"post_snapshot_import"`
+				StartClean         bool   `json:"start_clean"`
+				Error              string `json:"error"`
 			}{},
 		},
 		{
@@ -161,6 +213,7 @@ func TestCallhomeStructs(t *testing.T) {
 				EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
 				LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 				EnableUpsert        bool   `json:"enable_upsert"`
+				Error               string `json:"error"`
 			}{},
 		},
 		{
@@ -173,6 +226,7 @@ func TestCallhomeStructs(t *testing.T) {
 				FileStorageType    string `json:"file_storage_type"`
 				StartClean         bool   `json:"start_clean"`
 				DataFileParameters string `json:"data_file_parameters"`
+				Error              string `json:"error"`
 			}{},
 		},
 		{
@@ -191,10 +245,11 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate EndMigrationPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(EndMigrationPhasePayload{}),
 			expectedType: struct {
-				BackupDataFiles      bool `json:"backup_data_files"`
-				BackupLogFiles       bool `json:"backup_log_files"`
-				BackupSchemaFiles    bool `json:"backup_schema_files"`
-				SaveMigrationReports bool `json:"save_migration_reports"`
+				BackupDataFiles      bool   `json:"backup_data_files"`
+				BackupLogFiles       bool   `json:"backup_log_files"`
+				BackupSchemaFiles    bool   `json:"backup_schema_files"`
+				SaveMigrationReports bool   `json:"save_migration_reports"`
+				Error                string `json:"error"`
 			}{},
 		},
 	}

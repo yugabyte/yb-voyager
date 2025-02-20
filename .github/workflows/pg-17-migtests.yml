@@ -1,4 +1,4 @@
-name: "PG 13: Migration Tests"
+name: "PG 17: Migration Tests"
 
 on:
   push:
@@ -7,10 +7,10 @@ on:
     branches: ['main']
 
 jobs:
-  run-pg-migration-tests:
+  run-pg-17-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.0.0-b145, 2.20.8.0-b53, 2024.1.3.1-b8, 2.23.1.0-b220]
+        version: [2024.2.1.0-b185, 2.20.9.0-b47, 2024.1.4.0-b108, 2.23.1.0-b220]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -22,9 +22,9 @@ jobs:
     runs-on: ubuntu-22.04
     services:
       postgres:
-        image: postgres:13
+        image: postgres:17
         env:
-          POSTGRES_PASSWORD: secret
+          POSTGRES_PASSWORD: postgres
         # Set health checks to wait until postgres has started
         options: >-
           --health-cmd pg_isready
@@ -55,7 +55,7 @@ jobs:
       - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
           docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
-          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-13-postgis postgresql-13-postgis-3"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis postgresql-17-postgis-3"
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
@@ -70,16 +70,18 @@ jobs:
           cd installer_scripts
           yes | ./install-yb-voyager --install-from-local-source --only-pg-support
           sudo rm /usr/bin/pg_dump
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_dump /usr/bin/pg_dump
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
           sudo rm /usr/bin/pg_restore
-          sudo ln -s /usr/lib/postgresql/16/bin/pg_restore /usr/bin/pg_restore
+          sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
           pg_dump --version
+          pg_restore --version
+          psql --version
         env:
           ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
       - name: Test PostgreSQL Connection
         run: |
-          psql "postgresql://postgres:secret@127.0.0.1:5432/postgres" -c "SELECT version();"
+          psql "postgresql://postgres:postgres@127.0.0.1:5432/postgres" -c "SELECT version();"
 
       - name: Create PostgreSQL user
         run: |
@@ -87,10 +89,10 @@ jobs:
 
       - name: Start YugabyteDB cluster
         run: |
-          docker run -d --name yugabytedb \
+          docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --background=false --ui=false
+            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -101,11 +103,11 @@ jobs:
         run: |
           ./migtests/scripts/yugabytedb/create_yb_user
 
-      - name: Enable yb-tserver-n1 and yb-master-n1 name resolution
+      - name: Enable yb-cluster-test name resolution
         run: |
-          echo "127.0.0.1	yb-tserver-n1" | sudo tee -a /etc/hosts
-          echo "127.0.0.1 yb-master-n1" | sudo tee -a /etc/hosts
-          psql "postgresql://yugabyte@yb-tserver-n1:5433/yugabyte" -c "SELECT version();"
+          docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
+          echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
+          psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -114,6 +116,10 @@ jobs:
       - name: "TEST: PG sample schemas (osm)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-schema-migration.sh pg/osm
+
+      - name: "TEST: PG sample schemas (omnibus)"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-schema-migration.sh pg/omnibus
 
       - name: "TEST: PG sample schemas (adventureworks)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -125,7 +131,7 @@ jobs:
 
       - name: "TEST: PG sample schemas (pgtbrus)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus\
+        run: migtests/scripts/run-schema-migration.sh pg/pgtbrus
 
       - name: "TEST: PG sample schemas (stackexchange)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}

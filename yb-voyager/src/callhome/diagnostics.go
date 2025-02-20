@@ -58,7 +58,7 @@ CREATE TABLE diagnostics (
 	migration_type TEXT,
 	time_taken_sec int,
 	status TEXT,
-	host_ip character varying 255 -- set by the callhome service
+	host_ip character varying (255), -- set in callhome service
 	PRIMARY KEY (migration_uuid, migration_phase, collected_at)
 
 );
@@ -96,31 +96,43 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
-type UnsupportedFeature struct {
-	FeatureName      string   `json:"FeatureName"`
-	Objects          []string `json:"Objects,omitempty"`
-	ObjectCount      int      `json:"ObjectCount"`
-	TotalOccurrences int      `json:"TotalOccurrences"`
-}
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type AssessMigrationPhasePayload struct {
-	TargetDBVersion            *ybversion.YBVersion `json:"target_db_version"`
-	MigrationComplexity        string               `json:"migration_complexity"`
-	UnsupportedFeatures        string               `json:"unsupported_features"`
-	UnsupportedDatatypes       string               `json:"unsupported_datatypes"`
-	UnsupportedQueryConstructs string               `json:"unsupported_query_constructs"`
-	MigrationCaveats           string               `json:"migration_caveats"`
-	UnsupportedPlPgSqlObjects  string               `json:"unsupported_plpgsql_objects"`
-	Error                      string               `json:"error,omitempty"` // Removed it for now, TODO
-	TableSizingStats           string               `json:"table_sizing_stats"`
-	IndexSizingStats           string               `json:"index_sizing_stats"`
-	SchemaSummary              string               `json:"schema_summary"`
-	SourceConnectivity         bool                 `json:"source_connectivity"`
-	IopsInterval               int64                `json:"iops_interval"`
+	PayloadVersion                 string                    `json:"payload_version"`
+	TargetDBVersion                *ybversion.YBVersion      `json:"target_db_version"`
+	Sizing                         *SizingCallhome           `json:"sizing"`
+	MigrationComplexity            string                    `json:"migration_complexity"`
+	MigrationComplexityExplanation string                    `json:"migration_complexity_explanation"`
+	SchemaSummary                  string                    `json:"schema_summary"`
+	Issues                         []AssessmentIssueCallhome `json:"assessment_issues"`
+	Error                          string                    `json:"error"`
+	TableSizingStats               string                    `json:"table_sizing_stats"`
+	IndexSizingStats               string                    `json:"index_sizing_stats"`
+	SourceConnectivity             bool                      `json:"source_connectivity"`
+	IopsInterval                   int64                     `json:"iops_interval"`
 }
 
-type AssessMigrationBulkPhasePayload struct {
-	FleetConfigCount int `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+type AssessmentIssueCallhome struct {
+	Category            string `json:"category"`
+	CategoryDescription string `json:"category_description"`
+	Type                string `json:"type"`
+	Name                string `json:"name"`
+	Impact              string `json:"impact"`
+	ObjectType          string `json:"object_type"`
+}
+
+type SizingCallhome struct {
+	NumColocatedTables              int     `json:"num_colocated_tables"`
+	ColocatedReasoning              string  `json:"colocated_reasoning"`
+	NumShardedTables                int     `json:"num_sharded_tables"`
+	NumNodes                        float64 `json:"num_nodes"`
+	VCPUsPerInstance                int     `json:"vcpus_per_instance"`
+	MemoryPerInstance               int     `json:"memory_per_instance"`
+	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
+	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
+	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
+	ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 }
 
 type ObjectSizingStats struct {
@@ -131,20 +143,40 @@ type ObjectSizingStats struct {
 	SizeInBytes     int64  `json:"size_in_bytes"`
 }
 
-type ExportSchemaPhasePayload struct {
-	StartClean             bool `json:"start_clean"`
-	AppliedRecommendations bool `json:"applied_recommendations"`
-	UseOrafce              bool `json:"use_orafce"`
-	CommentsOnObjects      bool `json:"comments_on_objects"`
+type AssessMigrationBulkPhasePayload struct {
+	FleetConfigCount int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+	Error            string `json:"error"`
 }
+
+type ExportSchemaPhasePayload struct {
+	StartClean             bool   `json:"start_clean"`
+	AppliedRecommendations bool   `json:"applied_recommendations"`
+	UseOrafce              bool   `json:"use_orafce"`
+	CommentsOnObjects      bool   `json:"comments_on_objects"`
+	Error                  string `json:"error"`
+}
+
+var ANALYZE_PHASE_PAYLOAD_VERSION = "1.0"
 
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L563
 type AnalyzePhasePayload struct {
-	TargetDBVersion *ybversion.YBVersion `json:"target_db_version"`
-	Issues          string               `json:"issues"`
-	DatabaseObjects string               `json:"database_objects"`
+	PayloadVersion  string                 `json:"payload_version"`
+	TargetDBVersion *ybversion.YBVersion   `json:"target_db_version"`
+	Issues          []AnalyzeIssueCallhome `json:"issues"`
+	DatabaseObjects string                 `json:"database_objects"`
+	Error           string                 `json:"error"`
 }
+
+type AnalyzeIssueCallhome struct {
+	Category   string `json:"category"`
+	Type       string `json:"type"`
+	Name       string `json:"name"`
+	Impact     string `json:"impact"`
+	ObjectType string `json:"object_type"`
+	ObjectName string `json:"object_name"`
+}
+
 type ExportDataPhasePayload struct {
 	ParallelJobs            int64  `json:"parallel_jobs"`
 	TotalRows               int64  `json:"total_rows_exported"`
@@ -156,16 +188,18 @@ type ExportDataPhasePayload struct {
 	TotalExportedEvents int64  `json:"total_exported_events,omitempty"`
 	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
+	Error               string `json:"error"`
 }
 
 type ImportSchemaPhasePayload struct {
-	ContinueOnError    bool `json:"continue_on_error"`
-	EnableOrafce       bool `json:"enable_orafce"`
-	IgnoreExist        bool `json:"ignore_exist"`
-	RefreshMviews      bool `json:"refresh_mviews"`
-	ErrorCount         int  `json:"errors"` // changing it to count of errors only
-	PostSnapshotImport bool `json:"post_snapshot_import"`
-	StartClean         bool `json:"start_clean"`
+	ContinueOnError    bool   `json:"continue_on_error"`
+	EnableOrafce       bool   `json:"enable_orafce"`
+	IgnoreExist        bool   `json:"ignore_exist"`
+	RefreshMviews      bool   `json:"refresh_mviews"`
+	ErrorCount         int    `json:"errors"` // changing it to count of errors only
+	PostSnapshotImport bool   `json:"post_snapshot_import"`
+	StartClean         bool   `json:"start_clean"`
+	Error              string `json:"error"`
 }
 
 type ImportDataPhasePayload struct {
@@ -179,6 +213,7 @@ type ImportDataPhasePayload struct {
 	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 	EnableUpsert        bool   `json:"enable_upsert"`
+	Error               string `json:"error"`
 }
 
 type ImportDataFilePhasePayload struct {
@@ -188,6 +223,7 @@ type ImportDataFilePhasePayload struct {
 	FileStorageType    string `json:"file_storage_type"`
 	StartClean         bool   `json:"start_clean"`
 	DataFileParameters string `json:"data_file_parameters"`
+	Error              string `json:"error"`
 }
 
 type DataFileParameters struct {
@@ -200,17 +236,11 @@ type DataFileParameters struct {
 }
 
 type EndMigrationPhasePayload struct {
-	BackupDataFiles      bool `json:"backup_data_files"`
-	BackupLogFiles       bool `json:"backup_log_files"`
-	BackupSchemaFiles    bool `json:"backup_schema_files"`
-	SaveMigrationReports bool `json:"save_migration_reports"`
-}
-
-var DoNotStoreFlags = []string{
-	"source-db-password",
-	"target-db-password",
-	"source-replica-db-password",
-	"export-dir",
+	BackupDataFiles      bool   `json:"backup_data_files"`
+	BackupLogFiles       bool   `json:"backup_log_files"`
+	BackupSchemaFiles    bool   `json:"backup_schema_files"`
+	SaveMigrationReports bool   `json:"save_migration_reports"`
+	Error                string `json:"error"`
 }
 
 func MarshalledJsonString[T any](value T) string {
@@ -282,4 +312,13 @@ func SendPayload(payload *Payload) error {
 	log.Infof("callhome: HTTP response after sending diagnostics: %s\n", string(body))
 
 	return nil
+}
+
+// We want to ensure that no user-specific information is sent to the call-home service.
+// Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
+// Note: This is a temporary solution. A better solution would be to have
+// properly structured errors and only send the generic error message to callhome.
+func SanitizeErrorMsg(errorMsg string) string {
+	return "" // For now, returning empty string. After thorough testing, we can return the specific error message.
+	// return strings.Split(errorMsg, ":")[0]
 }

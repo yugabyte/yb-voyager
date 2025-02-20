@@ -1,3 +1,20 @@
+//go:build unit
+
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package cmd
 
 import (
@@ -8,9 +25,9 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestAssessmentReportStructs(t *testing.T) {
@@ -109,23 +126,42 @@ func TestAssessmentReportStructs(t *testing.T) {
 			}{},
 		},
 		{
+			name:       "Validate Assessment Issue Struct Definition",
+			actualType: reflect.TypeOf(AssessmentIssue{}),
+			expectedType: struct {
+				Category               string                          `json:"Category"`
+				CategoryDescription    string                          `json:"CategoryDescription"`
+				Type                   string                          `json:"Type"`
+				Name                   string                          `json:"Name"`
+				Description            string                          `json:"Description"`
+				Impact                 string                          `json:"Impact"`
+				ObjectType             string                          `json:"ObjectType"`
+				ObjectName             string                          `json:"ObjectName"`
+				SqlStatement           string                          `json:"SqlStatement"`
+				DocsLink               string                          `json:"DocsLink"`
+				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+			}{},
+		},
+		{
 			name:       "Validate AssessmentReport Struct Definition",
 			actualType: reflect.TypeOf(AssessmentReport{}),
 			expectedType: struct {
-				VoyagerVersion             string                                `json:"VoyagerVersion"`
-				TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
-				MigrationComplexity        string                                `json:"MigrationComplexity"`
-				SchemaSummary              utils.SchemaSummary                   `json:"SchemaSummary"`
-				Sizing                     *migassessment.SizingAssessmentReport `json:"Sizing"`
-				UnsupportedDataTypes       []utils.TableColumnsDataTypes         `json:"UnsupportedDataTypes"`
-				UnsupportedDataTypesDesc   string                                `json:"UnsupportedDataTypesDesc"`
-				UnsupportedFeatures        []UnsupportedFeature                  `json:"UnsupportedFeatures"`
-				UnsupportedFeaturesDesc    string                                `json:"UnsupportedFeaturesDesc"`
-				UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
-				UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
-				MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
-				TableIndexStats            *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
-				Notes                      []string                              `json:"Notes"`
+				VoyagerVersion                 string                                `json:"VoyagerVersion"`
+				TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+				MigrationComplexity            string                                `json:"MigrationComplexity"`
+				MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+				SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+				Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+				Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
+				TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+				Notes                          []string                              `json:"Notes"`
+				UnsupportedDataTypes           []utils.TableColumnsDataTypes         `json:"-"`
+				UnsupportedDataTypesDesc       string                                `json:"-"`
+				UnsupportedFeatures            []UnsupportedFeature                  `json:"-"`
+				UnsupportedFeaturesDesc        string                                `json:"-"`
+				UnsupportedQueryConstructs     []utils.UnsupportedQueryConstruct     `json:"-"`
+				UnsupportedPlPgSqlObjects      []UnsupportedFeature                  `json:"-"`
+				MigrationCaveats               []UnsupportedFeature                  `json:"-"`
 			}{},
 		},
 	}
@@ -147,9 +183,10 @@ func TestAssessmentReportJson(t *testing.T) {
 	}
 
 	assessmentReport = AssessmentReport{
-		VoyagerVersion:      "v1.0.0",
-		TargetDBVersion:     newYbVersion,
-		MigrationComplexity: "High",
+		VoyagerVersion:                 "v1.0.0",
+		TargetDBVersion:                newYbVersion,
+		MigrationComplexity:            "High",
+		MigrationComplexityExplanation: "",
 		SchemaSummary: utils.SchemaSummary{
 			Description: "Test Schema Summary",
 			DBName:      "test_db",
@@ -179,6 +216,25 @@ func TestAssessmentReportJson(t *testing.T) {
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
+		// TODO add expected values for Issues field
+		Issues: nil,
+		TableIndexStats: &[]migassessment.TableIndexStats{
+			{
+				SchemaName:      "public",
+				ObjectName:      "test_table",
+				RowCount:        Int64Ptr(100),
+				ColumnCount:     Int64Ptr(10),
+				Reads:           Int64Ptr(100),
+				Writes:          Int64Ptr(100),
+				ReadsPerSecond:  Int64Ptr(10),
+				WritesPerSecond: Int64Ptr(10),
+				IsIndex:         true,
+				ObjectType:      "Table",
+				ParentTableName: StringPtr("parent_table"),
+				SizeInBytes:     Int64Ptr(1024),
+			},
+		},
+		Notes: []string{"Test note"},
 		UnsupportedDataTypes: []utils.TableColumnsDataTypes{
 			{
 				SchemaName: "public",
@@ -245,23 +301,6 @@ func TestAssessmentReportJson(t *testing.T) {
 				MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{"2024.1.1": newYbVersion},
 			},
 		},
-		TableIndexStats: &[]migassessment.TableIndexStats{
-			{
-				SchemaName:      "public",
-				ObjectName:      "test_table",
-				RowCount:        Int64Ptr(100),
-				ColumnCount:     Int64Ptr(10),
-				Reads:           Int64Ptr(100),
-				Writes:          Int64Ptr(100),
-				ReadsPerSecond:  Int64Ptr(10),
-				WritesPerSecond: Int64Ptr(10),
-				IsIndex:         true,
-				ObjectType:      "Table",
-				ParentTableName: StringPtr("parent_table"),
-				SizeInBytes:     Int64Ptr(1024),
-			},
-		},
-		Notes: []string{"Test note"},
 	}
 
 	// Make the report directory
@@ -283,12 +322,13 @@ func TestAssessmentReportJson(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to write assessment report to JSON file: %v", err)
 	}
-
 	// expected JSON
+	// TODO: add migration complexity after updating the structs field to AssessmentIssue here
 	expectedJSON := `{
 	"VoyagerVersion": "v1.0.0",
 	"TargetDBVersion": "2024.1.1.1",
 	"MigrationComplexity": "High",
+	"MigrationComplexityExplanation": "",
 	"SchemaSummary": {
 		"Description": "Test Schema Summary",
 		"DbName": "test_db",
@@ -324,77 +364,7 @@ func TestAssessmentReportJson(t *testing.T) {
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
-	"UnsupportedDataTypes": [
-		{
-			"SchemaName": "public",
-			"TableName": "test_table",
-			"ColumnName": "test_column",
-			"DataType": "test_type"
-		}
-	],
-	"UnsupportedDataTypesDesc": "Test unsupported data types",
-	"UnsupportedFeatures": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"UnsupportedFeaturesDesc": "Test unsupported features",
-	"UnsupportedQueryConstructs": [
-		{
-			"ConstructTypeName": "test_construct",
-			"Query": "test_query",
-			"DocsLink": "https://test.com",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"UnsupportedPlPgSqlObjects": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
-	"MigrationCaveats": [
-		{
-			"FeatureName": "test_feature",
-			"Objects": [
-				{
-					"ObjectType": "test_type",
-					"ObjectName": "test_object",
-					"SqlStatement": "test_sql"
-				}
-			],
-			"DocsLink": "https://test.com",
-			"FeatureDescription": "Test feature description",
-			"MinimumVersionsFixedIn": {
-				"2024.1.1": "2024.1.1.1"
-			}
-		}
-	],
+	"AssessmentIssues": null,
 	"TableIndexStats": [
 		{
 			"SchemaName": "public",

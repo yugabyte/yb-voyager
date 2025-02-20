@@ -1,3 +1,20 @@
+//go:build integration
+
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package yugabyted
 
 import (
@@ -14,29 +31,33 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v4/pgxpool"
-	_ "github.com/lib/pq" // PostgreSQL driver
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/testutils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/testcontainers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestYugabyteDTableSchema(t *testing.T) {
 	ctx := context.Background()
 
-	// Start a YugabyteDB container
-	ybContainer, host, port, err := testcontainers.StartDBContainer(ctx, testcontainers.YUGABYTEDB)
+	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	err := yugabyteDBContainer.Start(ctx)
+	if err != nil {
+		utils.ErrExit("Failed to start yugabytedb container: %v", err)
+	}
+	defer testcontainers.TerminateAllContainers()
 	assert.NoError(t, err, "Failed to start YugabyteDB container")
-	defer ybContainer.Terminate(ctx)
 
 	// Connect to the database
-	dsn := fmt.Sprintf("host=%s port=%s user=yugabyte password=yugabyte dbname=yugabyte sslmode=disable", host, port.Port())
-	db, err := sql.Open("postgres", dsn)
+	dsn := yugabyteDBContainer.GetConnectionString()
+	db, err := sql.Open("pgx", dsn)
 	assert.NoError(t, err)
 	defer db.Close()
 
 	// Wait for the database to be ready
-	err = testcontainers.WaitForDBToBeReady(db)
+	err = testutils.WaitForDBToBeReady(db)
 	assert.NoError(t, err)
 	// Export the database connection string to env variable YUGABYTED_DB_CONN_STRING
 	err = os.Setenv("YUGABYTED_DB_CONN_STRING", dsn)
