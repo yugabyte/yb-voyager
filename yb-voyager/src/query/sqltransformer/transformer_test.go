@@ -355,3 +355,45 @@ func TestMergeConstraints_ExcludeConstraintType(t *testing.T) {
 
 	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
 }
+
+// In some case pg_query golang based pg parser removes default values from the sql statements
+// above TestMergeConstraints_ExcludeConstraintType is one example; this function will just document such known cases
+func Test_RemovalOfDefaultValuesByParser(t *testing.T) {
+
+	sqlFileContent := `
+		-- Case: Foreign Key Constraint with deferrability attributes default values
+		ALTER TABLE inventory ADD CONSTRAINT inventory_product_id_fk FOREIGN KEY (product_id) REFERENCES products(product_id)
+			ON DELETE NO ACTION
+			NOT DEFERRABLE
+			INITIALLY IMMEDIATE;
+
+		-- Case: Foreign Key Constraint with deferrability attributes default values
+		ALTER TABLE t1 ADD CONSTRAINT fk1 FOREIGN KEY (t2_id) REFERENCES t2 (id2)
+			ON UPDATE NO ACTION
+			ON DELETE NO ACTION
+			DEFERRABLE INITIALLY DEFERRED;
+
+		ALTER TABLE t1 ADD CONSTRAINT fk1 FOREIGN KEY (t2_id) REFERENCES t2 (id2);
+	`
+
+	expectedSqls := []string{
+		`ALTER TABLE inventory ADD CONSTRAINT inventory_product_id_fk FOREIGN KEY (product_id) REFERENCES products (product_id);`,
+		`ALTER TABLE t1 ADD CONSTRAINT fk1 FOREIGN KEY (t2_id) REFERENCES t2 (id2) DEFERRABLE INITIALLY DEFERRED;`,
+		`ALTER TABLE t1 ADD CONSTRAINT fk1 FOREIGN KEY (t2_id) REFERENCES t2 (id2);`,
+	}
+
+	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
+	testutils.FatalIfError(t, err)
+
+	stmts, err := queryparser.ParseSqlFile(tempFilePath)
+	testutils.FatalIfError(t, err)
+
+	transformer := NewTransformer()
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
+	testutils.FatalIfError(t, err)
+
+	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+	testutils.FatalIfError(t, err)
+
+	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
+}
