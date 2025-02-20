@@ -101,7 +101,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	setExportFlagsDefaults()
 	err := validateExportFlags(cmd, exporterRole)
 	if err != nil {
-		utils.ErrExit("Error: %s", err.Error())
+		utils.ErrExit("failed to validate export flags: %s", err.Error())
 	}
 	validateExportTypeFlag()
 	markFlagsRequired(cmd)
@@ -948,7 +948,7 @@ func validateTableListFlag(tableListValue string, flagName string) {
 	tableNameRegex := regexp.MustCompile(`[a-zA-Z0-9_."]+`)
 	for _, table := range tableList {
 		if !tableNameRegex.MatchString(table) {
-			utils.ErrExit("Error: Invalid table name '%v' provided with --%s flag", table, flagName)
+			utils.ErrExit("Error invalid table name: '%v' provided with --%s flag", table, flagName)
 		}
 	}
 }
@@ -1156,7 +1156,7 @@ func startFallBackSetupIfRequired() {
 func dataIsExported() bool {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+		utils.ErrExit("error getting migration status record for checking ExportDataDone: %s", err)
 	}
 
 	return msr.ExportDataDone
@@ -1167,7 +1167,7 @@ func setDataIsExported() {
 		record.ExportDataDone = true
 	})
 	if err != nil {
-		utils.ErrExit("set data is exported: update migration status record: %s", err)
+		utils.ErrExit("failed to set data is exported in migration status record: %s", err)
 	}
 }
 
@@ -1176,7 +1176,7 @@ func clearDataIsExported() {
 		record.ExportDataDone = false
 	})
 	if err != nil {
-		utils.ErrExit("clear data is exported: update migration status record: %s", err)
+		utils.ErrExit("failed to clear export data done flag in migration status record: %s", err)
 	}
 }
 

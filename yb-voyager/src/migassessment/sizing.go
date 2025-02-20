@@ -288,7 +288,7 @@ Returns:
   - The best IntermediateRecommendation based on the defined criteria.
 */
 func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) IntermediateRecommendation {
-	// find the one with least number of nodes
+	// find the one with the least number of nodes
 	var minCores int = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
 	var foundRecommendation bool = false
@@ -304,8 +304,11 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 		// Check if the recommendation has no failure reasoning (i.e., it's a valid recommendation)
 		if rec.FailureReasoning == "" {
 			foundRecommendation = true
-			// Update finalRecommendation if the current recommendation has fewer cores
-			if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance {
+			// Update finalRecommendation if the current recommendation has fewer cores.
+			// Buffer to choose setup with higher vCPU if difference between required cores between two setup is less
+			// than higher vCPU count.
+			if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance &&
+				(minCores-int(rec.NumNodes)*rec.VCPUsPerInstance) > finalRecommendation.VCPUsPerInstance {
 				finalRecommendation = rec
 				minCores = int(rec.NumNodes) * rec.VCPUsPerInstance
 			} else if minCores == int(rec.NumNodes)*rec.VCPUsPerInstance {
@@ -457,7 +460,7 @@ Description:
 This function calculates which size threshold applies to a table based on its size and determines the number of tablets required.
 Following details/comments are with assumption that the previous recommended nodes is 3.
 Similar works for other recommended nodes as well.:
-  - For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous recommended nodes.
+  - For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous-recommended nodes.
   - After 1*3 shards, the high phase threshold is used.
   - Intermediate phase upto 30 GB is calculated based on 3 tablets of 10 GB each.
   - For sizes up to the high phase limit (72(24*3) shards of 10 GB each, up to 720 GB), the high phase threshold is used.
@@ -1225,7 +1228,7 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 	var multiplicationFactor float64
 	// multiplication factor is different for colocated and sharded tables.
 	// multiplication factor would be maximum of the two:
-	//	max of (mf of selected entry from experiment data,  mf for table wrt selected entry)
+	//	max of (mf of selected entry from experiment data, mf for table wrt selected entry)
 	if objectType == COLOCATED {
 		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
 			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))

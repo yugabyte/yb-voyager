@@ -259,7 +259,7 @@ func GetCategoryDescription(category string) string {
 	case MIGRATION_CAVEATS_CATEGORY: // or constants.MIGRATION_CAVEATS (identical)
 		return MIGRATION_CAVEATS_CATEGORY_DESCRIPTION
 	default:
-		utils.ErrExit("ERROR: unsupported assessment issue category %q", category)
+		utils.ErrExit("ERROR unsupported assessment issue category %q", category)
 	}
 	return ""
 }
