@@ -13,7 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-package transform
+package sqltransformer
 
 import (
 	"fmt"
@@ -111,6 +111,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 			} else {
 				alterTableCmd := alterTableNode.Cmds[0].GetAlterTableCmd()
 				if alterTableCmd == nil {
+					result = append(result, stmt)
 					continue
 				}
 
@@ -122,6 +123,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				if *alterTableCmdType.Enum() == pg_query.AlterTableType_AT_AddConstraint {
 					constrNode := alterTableCmd.GetDef().GetConstraint()
 					if constrNode == nil {
+						result = append(result, stmt)
 						continue
 					}
 
