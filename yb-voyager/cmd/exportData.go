@@ -844,7 +844,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 			utils.ErrExit("adding leaf partititons to exclude table list: %s", err)
 		}
 	}
-	includeTableList := registeredList
+	includeTableList := finalTableList
 	if source.TableList != "" {
 		includeTableList = extractTableListFromString(registeredList, source.TableList, "include")
 	}
