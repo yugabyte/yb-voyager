@@ -178,7 +178,7 @@ func exportSchema() error {
 	// continue after logging the error; since this transformation is only for performance improvement
 	err = applyMergeConstraintsTransformations()
 	if err != nil {
-		log.Errorf("failed to apply merge constraints transformation to the schema files: %v", err)
+		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
 	}
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
@@ -341,7 +341,7 @@ func applyMigrationAssessmentRecommendations() error {
 
 // TODO: merge this function with applying sharded/colocated recommendation
 func applyMergeConstraintsTransformations() error {
-	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", true) {
 		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
 		return nil
 	}
