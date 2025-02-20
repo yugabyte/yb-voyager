@@ -119,6 +119,10 @@ func (yb *TargetYugabyteDB) Init() error {
 		return err
 	}
 
+	if len(yb.tconf.SessionVars) == 0 {
+		yb.tconf.SessionVars = getYBSessionInitScript(yb.tconf)
+	}
+
 	checkSchemaExistsQuery := fmt.Sprintf(
 		"SELECT count(nspname) FROM pg_catalog.pg_namespace WHERE nspname = '%s';",
 		yb.tconf.Schema)
@@ -241,7 +245,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 		NumConnections:    yb.tconf.Parallelism,
 		NumMaxConnections: yb.tconf.MaxParallelism,
 		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(yb.tconf),
+		SessionInitScript: yb.tconf.SessionVars,
 	}
 	yb.connPool = NewConnectionPool(params)
 	redactedParams := &ConnectionParams{}
@@ -996,6 +1000,17 @@ const (
 	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
 )
 
+func getPGSessionInitScript(tconf *TargetConf) []string {
+	var sessionVars []string
+	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
+		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
+	}
+	if checkSessionVariableSupport(tconf, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
+		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
+	}
+	return sessionVars
+}
+
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
@@ -1067,7 +1082,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 				if !utils.AskPrompt("Are you sure you want to proceed?") {
 					utils.ErrExit("Aborting import.")
 				}
-				return true
+				return false // support is not there even if the target user doesn't have privileges to set this parameter.
 			}
 			utils.ErrExit("error while executing sqlStatement: %q: %v", sqlStmt, err)
 		} else {

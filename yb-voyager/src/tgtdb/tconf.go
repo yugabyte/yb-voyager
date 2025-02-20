@@ -57,6 +57,7 @@ type TargetConf struct {
 	Parallelism                 int           `json:"parallelism"`
 	EnableYBAdaptiveParallelism utils.BoolStr `json:"enable_adaptive_parallelism"`
 	MaxParallelism              int           `json:"max_parallelism"` // in case adaptive parallelism is enabled.
+	SessionVars                 []string      `json:"session_vars"`
 }
 
 func (t *TargetConf) Clone() *TargetConf {

@@ -33,6 +33,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -114,6 +115,9 @@ func (pg *TargetPostgreSQL) Init() error {
 	err := pg.connect()
 	if err != nil {
 		return err
+	}
+	if len(pg.tconf.SessionVars) == 0 {
+		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	schemaList := strings.Join(schemas, "','") // a','b','c
@@ -241,12 +245,11 @@ func (pg *TargetPostgreSQL) InitConnPool() error {
 		pg.tconf.Parallelism = fetchDefaultParallelJobs(tconfs, PG_DEFAULT_PARALLELISM_FACTOR)
 		log.Infof("Using %d parallel jobs by default. Use --parallel-jobs to specify a custom value", pg.tconf.Parallelism)
 	}
-
 	params := &ConnectionParams{
 		NumConnections:    pg.tconf.Parallelism,
 		NumMaxConnections: pg.tconf.Parallelism,
 		ConnUriList:       targetUriList,
-		SessionInitScript: getYBSessionInitScript(pg.tconf),
+		SessionInitScript: pg.tconf.SessionVars,
 		// works fine as we check the support of any session variable before using it in the script.
 		// So upsert and disable transaction will never be used for PG
 	}
@@ -1054,6 +1057,10 @@ func (pg *TargetPostgreSQL) getSchemaList() []string {
 }
 
 func (pg *TargetPostgreSQL) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
+	if slices.Contains(pg.tconf.SessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
+		//Not check for any triggers / FKs in case this session parameter is used
+		return nil, nil, nil
+	}
 	querySchemaArray := pg.getSchemaList()
 	querySchemaList := strings.Join(querySchemaArray, ",")
 
