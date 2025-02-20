@@ -316,7 +316,7 @@ func initConfig() {
 
 func validateExportDirFlag() {
 	if exportDir == "" {
-		utils.ErrExit(`ERROR: required flag "export-dir" not set`)
+		utils.ErrExit(`ERROR required flag "export-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(exportDir) {
 		utils.ErrExit("export-dir doesn't exist: %q\n", exportDir)
@@ -373,7 +373,7 @@ func setControlPlane(cpType string) {
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			utils.ErrExit("ERROR: Failed to initialize the target DB for visualization. %s", err)
+			utils.ErrExit("ERROR Failed to initialize the target DB for visualization. %s", err)
 		}
 	}
 }

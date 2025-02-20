@@ -61,7 +61,7 @@ var assessMigrationBulkCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigrationBulk()
 		if err != nil {
-			utils.ErrExit("failed assess migration bulk: %s", err)
+			utils.ErrExit("%s", err)
 		}
 		packAndSendAssessMigrationBulkPayload(COMPLETE, "")
 	},
@@ -142,7 +142,7 @@ func assessMigrationBulk() error {
 		// cleaning all export-dir present inside bulk-assessment-dir
 		matches, err := filepath.Glob(fmt.Sprintf("%s/*-export-dir", bulkAssessmentDir))
 		if err != nil {
-			return fmt.Errorf("error while cleaning up export directories: %w", err)
+			return fmt.Errorf("error while cleaning up export directories for bulk assessment in case of start-clean: %w", err)
 		}
 		for _, match := range matches {
 			utils.CleanDir(match)
@@ -150,14 +150,14 @@ func assessMigrationBulk() error {
 
 		err = os.RemoveAll(filepath.Join(bulkAssessmentDir, fmt.Sprintf("%s%s", BULK_ASSESSMENT_FILE_NAME, HTML_EXTENSION)))
 		if err != nil {
-			return fmt.Errorf("failed to remove bulk assessment report: %w", err)
+			return fmt.Errorf("failed to remove bulk assessment report in case of start-clean: %w", err)
 		}
 	}
 
 	var err error
 	bulkAssessmentDBConfigs, err = parseFleetConfigFile(fleetConfigPath)
 	if err != nil {
-		return fmt.Errorf("failed to parse fleet config file: %w", err)
+		return fmt.Errorf("failed to parse fleet config file for bulk assessment: %w", err)
 	}
 
 	for _, dbConfig := range bulkAssessmentDBConfigs {
@@ -454,7 +454,7 @@ func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
 
 func validateBulkAssessmentDirFlag() {
 	if bulkAssessmentDir == "" {
-		utils.ErrExit(`ERROR: required flag "bulk-assessment-dir" not set`)
+		utils.ErrExit(`ERROR required flag "bulk-assessment-dir" not set`)
 	}
 	if !utils.FileOrFolderExists(bulkAssessmentDir) {
 		utils.ErrExit("bulk-assessment-dir doesn't exists: %q\n", bulkAssessmentDir)
@@ -479,7 +479,7 @@ var fleetConfDbIdentifierFields = []string{SOURCE_DB_NAME, ORACLE_DB_SID, ORACLE
 
 func validateFleetConfigFile(filePath string) error {
 	if filePath == "" {
-		utils.ErrExit(`ERROR: required flag "fleet-config-file" not set`)
+		utils.ErrExit(`ERROR required flag "fleet-config-file" not set`)
 	}
 	// Check if the file exists
 	if !utils.FileOrFolderExists(filePath) {

@@ -53,7 +53,7 @@ var endMigrationCmd = &cobra.Command{
 		}
 		err = validateEndMigrationFlags(cmd)
 		if err != nil {
-			utils.ErrExit(err.Error())
+			utils.ErrExit("failed to validate end-migration flags: %v", err.Error())
 		}
 
 	},

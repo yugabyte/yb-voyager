@@ -63,7 +63,7 @@ var importDataStatusCmd = &cobra.Command{
 		}
 		err = runImportDataStatusCmd()
 		if err != nil {
-			utils.ErrExit("error: %s\n", err)
+			utils.ErrExit("error running import data status: %s\n", err)
 		}
 	},
 }

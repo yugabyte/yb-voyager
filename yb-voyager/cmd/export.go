@@ -252,21 +252,21 @@ func registerExportDataFlags(cmd *cobra.Command) {
 
 func validateSourceDBType() {
 	if source.DBType == "" {
-		utils.ErrExit("Error: required flag \"source-db-type\" not set")
+		utils.ErrExit("Error required flag \"source-db-type\" not set")
 	}
 
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(supportedSourceDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types are: (postgresql, oracle, mysql)", source.DBType)
+		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types are: (postgresql, oracle, mysql)", source.DBType)
 	}
 }
 
 func validateConflictsBetweenTableListFlags(tableList string, excludeTableList string) {
 	if tableList != "" && tableListFilePath != "" {
-		utils.ErrExit("Error: Only one of --table-list and --table-list-file-path are allowed")
+		utils.ErrExit("Error Only one of --table-list and --table-list-file-path are allowed")
 	}
 	if excludeTableList != "" && excludeTableListFilePath != "" {
-		utils.ErrExit("Error: Only one of --exclude-table-list and --exclude-table-list-file-path are allowed")
+		utils.ErrExit("Error Only one of --exclude-table-list and --exclude-table-list-file-path are allowed")
 	}
 }
 
@@ -278,10 +278,10 @@ func validateSourceSchema() {
 	schemaList := utils.CsvStringToSlice(source.Schema)
 	switch source.DBType {
 	case MYSQL:
-		utils.ErrExit("Error: --source-db-schema flag is not valid for 'MySQL' db type")
+		utils.ErrExit("Error --source-db-schema flag is not valid for 'MySQL' db type")
 	case ORACLE:
 		if len(schemaList) > 1 {
-			utils.ErrExit("Error: single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
+			utils.ErrExit("Error single schema at a time is allowed to export from oracle. List of schemas provided: %s", schemaList)
 		}
 	case POSTGRESQL:
 		// In PG, its supported to export more than one schema
@@ -291,7 +291,7 @@ func validateSourceSchema() {
 
 func validatePortRange() {
 	if source.Port < 0 || source.Port > 65535 {
-		utils.ErrExit("Error: Invalid port number %d. Valid range is 0-65535", source.Port)
+		utils.ErrExit("Error Invalid port number %d. Valid range is 0-65535", source.Port)
 	}
 }
 
@@ -313,7 +313,7 @@ func validateOracleParams() {
 		source.Schema = strings.ToUpper(source.Schema)
 	}
 	if source.DBName == "" && source.DBSid == "" && source.TNSAlias == "" {
-		utils.ErrExit(`Error: one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
+		utils.ErrExit(`Error one flag required out of "oracle-tns-alias", "source-db-name", "oracle-db-sid" required.`)
 	} else if source.TNSAlias != "" {
 		//Priority order for Oracle: oracle-tns-alias > source-db-name > oracle-db-sid
 		// TODO: revisit voyager code wrt the priority among: sid, tnsalias, dbname
@@ -340,7 +340,7 @@ func validateOracleParams() {
 			utils.PrintAndLog("Using CDB SID for export.")
 		}
 		if source.DBName == "" {
-			utils.ErrExit(`Error: When using Container DB setup, specifying PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)
+			utils.ErrExit(`Error when using Container DB setup, specifying PDB via oracle-tns-alias or oracle-db-sid is not allowed. Please specify PDB name via source-db-name`)
 		}
 	}
 
@@ -378,7 +378,7 @@ func markFlagsRequired(cmd *cobra.Command) {
 func validateExportTypeFlag() {
 	exportType = strings.ToLower(exportType)
 	if !slices.Contains(validExportTypes, exportType) {
-		utils.ErrExit("Error: Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)
+		utils.ErrExit("Error Invalid export-type: %q. Supported export types are: %s", exportType, validExportTypes)
 	}
 }
 

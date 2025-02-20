@@ -20,6 +20,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -58,7 +59,7 @@ func checkAndReportCutoverStatus() {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("analyze schema report summary: load migration status record: %s", err)
+		utils.ErrExit("error getting migration status record: %s", err)
 	}
 	if msr.FallbackEnabled {
 		reportCutoverToSourceStatus()

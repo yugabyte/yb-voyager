@@ -19,6 +19,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -136,7 +137,7 @@ func ExitIfAlreadyCutover(importerOrExporterRole string) {
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("exit if already cutover: load migration status record: %s", err)
+		utils.ErrExit("error getting migration status record to check cutover: %s", err)
 	}
 	cTAlreadyCompleted := "cutover already completed for this migration, aborting..."
 	cSRAlreadyCompleted := "cutover to source-replica already completed for this migration, aborting..."

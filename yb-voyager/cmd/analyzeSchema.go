@@ -302,7 +302,7 @@ func addSummaryDetailsForIndexes() {
 	var indexesInfo []utils.IndexInfo
 	found, err := metaDB.GetJsonObject(nil, metadb.SOURCE_INDEXES_INFO_KEY, &indexesInfo)
 	if err != nil {
-		utils.ErrExit("analyze schema report summary: load indexes info: %s", err)
+		utils.ErrExit("failed to analyze schema while loading indexes info: %s", err)
 	}
 	if !found {
 		return
@@ -1103,7 +1103,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 			schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, index int) bool {
 				fixed, err := i.IsFixedIn(targetDbVersion)
 				if err != nil {
-					utils.ErrExit("checking if issue %v is supported: %v", i, err)
+					utils.ErrExit("error checking if analyze issue is supported: issue[%v]: %v", i, err)
 				}
 				return !fixed
 			})
@@ -1158,7 +1158,7 @@ func analyzeSchema() {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("analyze schema : load migration status record: %s", err)
+		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
 	analyzeSchemaInternal(msr.SourceDBConf, true)
 
@@ -1302,7 +1302,7 @@ var analyzeSchemaCmd = &cobra.Command{
 		validateReportOutputFormat(validOutputFormats, analyzeSchemaReportFormat)
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("%v", err)
+			utils.ErrExit("failed to validate target db version: %v", err)
 		}
 	},
 
@@ -1331,7 +1331,7 @@ func validateReportOutputFormat(validOutputFormats []string, format string) {
 			return
 		}
 	}
-	utils.ErrExit("Error: Invalid output format: %s. Supported formats are %v", format, validOutputFormats)
+	utils.ErrExit("Error invalid report output format: %s. Supported formats are %v", format, validOutputFormats)
 }
 
 func schemaIsAnalyzed() bool {

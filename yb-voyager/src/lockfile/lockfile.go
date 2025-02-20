@@ -10,6 +10,7 @@ import (
 
 	"github.com/nightlyone/lockfile"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -73,7 +74,7 @@ func (l *Lockfile) Lock() {
 	var err error
 	l.lockfile, err = lockfile.New(l.fpath)
 	if err != nil {
-		utils.ErrExit("Failed to create lockfile %q: %v\n", l.fpath, err)
+		utils.ErrExit("Failed to create lockfile: %q: %v\n", l.fpath, err)
 	}
 
 	err = l.lockfile.TryLock()
@@ -89,6 +90,6 @@ func (l *Lockfile) Lock() {
 func (l *Lockfile) Unlock() {
 	err := l.lockfile.Unlock()
 	if err != nil {
-		utils.ErrExit("Unable to unlock %q: %v\n", l.lockfile, err)
+		utils.ErrExit("Unable to unlock export-dir: %q: %v\n", l.lockfile, err)
 	}
 }

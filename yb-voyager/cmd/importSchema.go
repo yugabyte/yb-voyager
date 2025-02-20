@@ -42,7 +42,7 @@ var importSchemaCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if !schemaIsExported() {
-			utils.ErrExit("Error: schema is not exported yet.")
+			utils.ErrExit("Error schema is not exported yet.")
 		}
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
@@ -54,7 +54,7 @@ var importSchemaCmd = &cobra.Command{
 		sourceDBType = GetSourceDBTypeFromMSR()
 		err = validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
 		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
+			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 	},
 
@@ -62,8 +62,7 @@ var importSchemaCmd = &cobra.Command{
 		tconf.ImportMode = true
 		err := importSchema()
 		if err != nil {
-			packAndSendImportSchemaPayload(ERROR, err.Error())
-			utils.ErrExit("error in importing schema: %s", err)
+			utils.ErrExit("%s", err)
 		}
 		packAndSendImportSchemaPayload(COMPLETE, "")
 	},
@@ -95,7 +94,7 @@ func importSchema() error {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
-			utils.ErrExit("Failed to initialize the target DB: %s", err)
+			return fmt.Errorf("Failed to initialize the target DB during import schema: %s", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb
@@ -109,7 +108,7 @@ func importSchema() error {
 		// Check import schema permissions
 		missingPermissions, err := getMissingImportSchemaPermissions()
 		if err != nil {
-			utils.ErrExit("Failed to get missing import schema permissions: %s", err)
+			return fmt.Errorf("Failed to get missing import schema permissions: %s", err)
 		}
 		if len(missingPermissions) > 0 {
 			output := strings.Join(missingPermissions, "\n")
@@ -120,7 +119,7 @@ func importSchema() error {
 
 			// Prompt user to continue if missing permissions
 			if !utils.AskPrompt("Do you want to continue anyway") {
-				utils.ErrExit("Grant the required permissions and try again.")
+				return fmt.Errorf("Grant the required permissions and try again.")
 			}
 		} else {
 			log.Info("The target database has the required permissions for importing schema.")
@@ -132,7 +131,7 @@ func importSchema() error {
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		return fmt.Errorf("unable to connect to target YugabyteDB database: %v", err)
+		return fmt.Errorf("failed to connect to target database: %v", err)
 	}
 	defer conn.Close(context.Background())
 
@@ -140,13 +139,13 @@ func importSchema() error {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
 	if err != nil {
-		return fmt.Errorf("get target db version: %s", err)
+		return fmt.Errorf("failed to get target db version: %s", err)
 	}
 	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %s", err)
 	}
 
 	if migrationAssessmentDoneAndApplied && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),
@@ -171,7 +170,7 @@ func importSchema() error {
 	if !flagPostSnapshotImport {
 		objectList = utils.GetSchemaObjectList(sourceDBType)
 		if len(objectList) == 0 {
-			utils.ErrExit("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
+			return fmt.Errorf("No schema objects to import! Must import at least 1 of the supported schema object types: %v", utils.GetSchemaObjectList(sourceDBType))
 		}
 
 		objectList = applySchemaObjectFilterFlags(objectList)
@@ -199,7 +198,7 @@ func importSchema() error {
 		skipFn := isSkipStatement
 		err = importSchemaInternal(exportDir, objectList, skipFn)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to import schema for various objects: %s", err) // object list is the static list of object types
 		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
@@ -209,13 +208,13 @@ func importSchema() error {
 		if slices.Contains(objectList, "SEQUENCE") {
 			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to import schema for SEQUENCEs: %s", err)
 			}
 		}
 		if slices.Contains(objectList, "TABLE") {
 			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 			if err != nil {
-				return err
+				return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 			}
 		}
 
@@ -228,7 +227,7 @@ func importSchema() error {
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
-			return err
+			return fmt.Errorf("failed to import schema for TABLEs in post-snapshot-import phase: %s", err)
 		}
 		if flagRefreshMViews {
 			refreshMViews(conn)
