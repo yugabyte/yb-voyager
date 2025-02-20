@@ -31,6 +31,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -171,6 +173,12 @@ func exportSchema() error {
 	err = applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
+	}
+
+	// continue after logging the error; since this transformation is only for performance improvement
+	err = applyMergeConstraintsTransformations()
+	if err != nil {
+		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
 	}
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
@@ -328,6 +336,55 @@ func applyMigrationAssessmentRecommendations() error {
 	SetAssessmentRecommendationsApplied()
 
 	utils.PrintAndLog("Applied assessment recommendations.")
+	return nil
+}
+
+// TODO: merge this function with applying sharded/colocated recommendation
+func applyMergeConstraintsTransformations() error {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
+		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
+		return nil
+	}
+
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
+	transformer := sqltransformer.NewTransformer()
+
+	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
+		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
+		return nil
+	}
+
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
+	if err != nil {
+		return fmt.Errorf("failed to parse table.sql file: %w", err)
+	}
+
+	transformedRawStmts, err := transformer.MergeConstraints(rawStmts.Stmts)
+	if err != nil {
+		return fmt.Errorf("failed to merge constraints: %w", err)
+	}
+
+	sqlStmts, err := queryparser.DeparseRawStmts(transformedRawStmts)
+	if err != nil {
+		return fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
+	}
+
+	fileContent := strings.Join(sqlStmts, "\n\n")
+
+	// rename the old file to table_before_merge_constraints.sql
+	// replace filepath base with new name
+	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
+	err = os.Rename(fileName, renamedFileName)
+	if err != nil {
+		return fmt.Errorf("failed to rename table.sql file to table_before_merge_constraints.sql: %w", err)
+	}
+
+	err = os.WriteFile(fileName, []byte(fileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write transformed table.sql file: %w", err)
+	}
+
 	return nil
 }
 

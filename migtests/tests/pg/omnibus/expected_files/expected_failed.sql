@@ -12,67 +12,37 @@ CREATE TYPE range_type_example.float8_range AS RANGE (
 ERROR: syntax error at or near "(" (SQLSTATE 42601)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE composite_type_examples.ordinary_table (
-    basic_ composite_type_examples.basic_comp_type,
-    _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED,
-    nested composite_type_examples.nested,
-    _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED,
-    CONSTRAINT check_f1_gt_1 CHECK (((basic_).f1 > 1)),
-    CONSTRAINT check_f1_gt_1_again CHECK (((_basic).f1 > 1)),
-    CONSTRAINT check_nested_f1_gt_1 CHECK (((nested).foo.f1 > 1)),
-    CONSTRAINT check_nested_f1_gt_1_again CHECK (((_nested).foo.f1 > 1))
-);
+CREATE TABLE composite_type_examples.ordinary_table (basic_ composite_type_examples.basic_comp_type, _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED, nested composite_type_examples.nested, _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED, CONSTRAINT check_f1_gt_1 CHECK ((basic_).f1 > 1), CONSTRAINT check_f1_gt_1_again CHECK ((_basic).f1 > 1), CONSTRAINT check_nested_f1_gt_1 CHECK ((nested).foo.f1 > 1), CONSTRAINT check_nested_f1_gt_1_again CHECK ((_nested).foo.f1 > 1));
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE composite_type_examples.inherited_table (
-)
-INHERITS (composite_type_examples.ordinary_table);
+CREATE TABLE composite_type_examples.inherited_table () INHERITS (composite_type_examples.ordinary_table);
 
 /*
 ERROR: syntax error at or near "(" (SQLSTATE 42601)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE enum_example.bugs (
-    id integer NOT NULL,
-    description text,
-    status enum_example.bug_status,
-    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,
-    severity enum_example.bug_severity,
-    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,
-    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED
-);
+CREATE TABLE enum_example.bugs (id int NOT NULL, description text, status enum_example.bug_status, _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED, severity enum_example.bug_severity, _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED, info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE enum_example.bugs_clone (
-)
-INHERITS (enum_example.bugs);
+CREATE TABLE enum_example.bugs_clone () INHERITS (enum_example.bugs);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE regress_rls_schema.t2 (
-    c double precision
-)
-INHERITS (regress_rls_schema.t1);
+CREATE TABLE regress_rls_schema.t2 (c double precision) INHERITS (regress_rls_schema.t1);
 
 /*
 ERROR: INHERITS not supported yet (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE regress_rls_schema.t3_3 (
-    id integer NOT NULL,
-    c text,
-    b text,
-    a integer
-)
-INHERITS (regress_rls_schema.t1_3);
+CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CONSTRAINT t3_3_pkey PRIMARY KEY (id)) INHERITS (regress_rls_schema.t1_3);
 
 /*
 ERROR: syntax error at or near "(" (SQLSTATE 42601)
@@ -153,9 +123,7 @@ CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfact
 ERROR: type "range_type_example.float8_range" does not exist (SQLSTATE 42704)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
-CREATE TABLE range_type_example.example_tbl (
-    col range_type_example.float8_range
-);
+CREATE TABLE range_type_example.example_tbl (col range_type_example.float8_range);
 
 /*
 ERROR: relation "enum_example.bugs" does not exist (SQLSTATE 42P01)
@@ -168,13 +136,6 @@ ERROR: relation "enum_example.bugs_clone" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
 ALTER TABLE ONLY enum_example.bugs_clone ALTER COLUMN id SET DEFAULT nextval('enum_example.bugs_id_seq'::regclass);
-
-/*
-ERROR: relation "regress_rls_schema.t3_3" does not exist (SQLSTATE 42P01)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
-*/
-ALTER TABLE ONLY regress_rls_schema.t3_3
-    ADD CONSTRAINT t3_3_pkey PRIMARY KEY (id);
 
 /*
 ERROR: relation "regress_rls_schema.t2" does not exist (SQLSTATE 42P01)
