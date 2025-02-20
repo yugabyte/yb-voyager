@@ -117,7 +117,7 @@ func (s *Source) ApplyExportSchemaObjectListFilter() {
 
 func printAndCheckFilteredObjects(allowedObjects []string, filteredObjects []string, s *Source) {
 	if len(filteredObjects) > 0 {
-		utils.ErrExit("Error: invalid object types: %s\n Valid objects types are: %s\n", strings.Join(filteredObjects, ", "), strings.Join(allowedObjects, ", "))
+		utils.ErrExit("Error invalid object types: %s\n Valid objects types are: %s\n", strings.Join(filteredObjects, ", "), strings.Join(allowedObjects, ", "))
 	}
 	if !utils.ContainsString(s.ExportObjectTypeList, "TABLE") && utils.ContainsString(s.ExportObjectTypeList, "INDEX") {
 		s.ExportObjectTypeList = lo.Filter(s.ExportObjectTypeList, func(objType string, _ int) bool { return objType != "INDEX" })
