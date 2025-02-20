@@ -117,7 +117,7 @@ func (pg *TargetPostgreSQL) Init() error {
 		return err
 	}
 	if len(pg.tconf.SessionVars) == 0 {
-		pg.tconf.SessionVars = getYBSessionInitScript(pg.tconf)
+		pg.tconf.SessionVars = getPGSessionInitScript(pg.tconf)
 	}
 	schemas := strings.Split(pg.tconf.Schema, ",")
 	schemaList := strings.Join(schemas, "','") // a','b','c

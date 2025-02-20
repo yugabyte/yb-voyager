@@ -1000,6 +1000,17 @@ const (
 	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
 )
 
+func getPGSessionInitScript(tconf *TargetConf) []string {
+	var sessionVars []string
+	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
+		sessionVars = append(sessionVars, SET_CLIENT_ENCODING_TO_UTF8)
+	}
+	if checkSessionVariableSupport(tconf, SET_SESSION_REPLICATE_ROLE_TO_REPLICA) {
+		sessionVars = append(sessionVars, SET_SESSION_REPLICATE_ROLE_TO_REPLICA)
+	}
+	return sessionVars
+}
+
 func getYBSessionInitScript(tconf *TargetConf) []string {
 	var sessionVars []string
 	if checkSessionVariableSupport(tconf, SET_CLIENT_ENCODING_TO_UTF8) {
