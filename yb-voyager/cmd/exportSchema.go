@@ -341,7 +341,7 @@ func applyMigrationAssessmentRecommendations() error {
 
 // TODO: merge this function with applying sharded/colocated recommendation
 func applyMergeConstraintsTransformations() error {
-	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", true) {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
 		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
 		return nil
 	}
