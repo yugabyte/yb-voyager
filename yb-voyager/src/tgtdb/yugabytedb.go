@@ -1228,6 +1228,20 @@ func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	return rows.Next()
 }
 
+func (yb *TargetYugabyteDB) IsDBColocated() (bool, error) {
+	query := "select yb_is_database_colocated()"
+	var isColocated bool
+	err := yb.QueryRow(query).Scan(&isColocated)
+	return isColocated, err
+}
+
+func (yb *TargetYugabyteDB) IsTableColocated(tableName sqlname.NameTuple) (bool, error) {
+	query := fmt.Sprintf("select is_colocated from yb_table_properties('%s'::regclass)", tableName.ForUserQuery())
+	var isTableColocated bool
+	err := yb.QueryRow(query).Scan(&isTableColocated)
+	return isTableColocated, err
+}
+
 func (yb *TargetYugabyteDB) IsAdaptiveParallelismSupported() bool {
 	query := "SELECT * FROM pg_proc WHERE proname='yb_servers_metrics'"
 	return yb.isQueryResultNonEmpty(query)

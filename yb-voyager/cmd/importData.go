@@ -576,6 +576,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
 			poolSize := tconf.Parallelism * 2
+			maxTasksInProgress := tconf.Parallelism
 			if tconf.EnableYBAdaptiveParallelism {
 				// in case of adaptive parallelism, we need to use maxParalllelism * 2
 				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
@@ -593,7 +594,7 @@ func importData(importFileTasks []*ImportFileTask) {
 
 			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
-				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, poolSize)
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, poolSize, maxTasksInProgress)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker: %s", err)
 				}
@@ -708,16 +709,30 @@ func importData(importFileTasks []*ImportFileTask) {
   - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
   - If task is done, mark it as done in the task picker.
 */
-func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int) error {
+func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int, maxTasksInProgress int) error {
 	// The code can produce `poolSize` number of batches at a time. But, it can consume only
 	// `parallelism` number of batches at a time.
 	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 	log.Infof("created batch import pool of size: %d", poolSize)
 
-	taskPicker, err := NewSequentialTaskPicker(pendingTasks, state)
-	if err != nil {
-		return fmt.Errorf("create task picker: %w", err)
+	var taskPicker FileTaskPicker
+	var err error
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+		}
+		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb)
+		if err != nil {
+			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
+		}
+	} else {
+		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state)
+		if err != nil {
+			return fmt.Errorf("create sequential task picker: %w", err)
+		}
 	}
+
 	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
@@ -725,6 +740,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
+		log.Infof("Picked task for import: %s", task)
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -741,6 +757,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// All batches for this task have been submitted.
 			// task could have been completed (all batches imported) OR still in progress
 			// in case task is done, we should inform task picker so that we stop picking that task.
+			log.Infof("All batches submitted for task: %s", task)
 			taskDone, err := taskImporter.AllBatchesImported()
 			if err != nil {
 				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
@@ -751,6 +768,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
 				// some batches are still in progress, wait for them to complete as decided by the picker.
