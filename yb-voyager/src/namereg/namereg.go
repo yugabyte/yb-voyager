@@ -164,6 +164,28 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	return true, nil
 }
 
+func (reg *NameRegistry) GetRegisteredTableList() ([]sqlname.NameTuple, error) {
+	var res []sqlname.NameTuple
+	var m map[string][]string
+	switch reg.params.Role {
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		m = reg.SourceDBTableNames
+	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_IMPORTER_ROLE:
+		m = reg.YBTableNames
+	}
+	for s, tables := range m {
+		//TODO: this also returns the sequence names so will have to fix it with sequence handling to have separate maps 
+		for _, t := range tables {
+			tuple, err := NameReg.LookupTableName(fmt.Sprintf("%s.%s", s, t))
+			if err != nil {
+				return nil, fmt.Errorf("lookup failed for tablename: %v", t)
+			}
+			res = append(res, tuple)
+		}
+	}
+	return res, nil
+}
+
 func (reg *NameRegistry) initSourceDBSchemaNames() {
 	// source.Schema contains only one schema name for MySQL and Oracle; whereas
 	// it contains a pipe separated list for postgres.
