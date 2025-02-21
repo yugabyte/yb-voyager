@@ -443,7 +443,7 @@ var indexOnArrayDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_ARRAY_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -458,7 +458,7 @@ var indexOnUserDefinedDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -473,7 +473,7 @@ var indexOnCitextDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_CITEXT_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -488,7 +488,7 @@ var indexOnTsVectorDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_TSVECTOR_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -503,7 +503,7 @@ var indexOnTsQueryDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSQUERY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_TSQUERY_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -518,7 +518,7 @@ var indexOnJsonbDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_JSONB_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_JSONB_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -533,7 +533,7 @@ var indexOnInetDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INET_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_INET_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -548,7 +548,7 @@ var indexOnJsonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_JSON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_JSON_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -563,7 +563,7 @@ var indexOnMacaddrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_MACADDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_MACADDR_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -578,7 +578,7 @@ var indexOnMacaddr8DatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_MACADDR8_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_MACADDR8_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -593,7 +593,7 @@ var indexOnCidrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CIDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_CIDR_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -608,7 +608,7 @@ var indexOnBitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_BIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_BIT_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -623,7 +623,7 @@ var indexOnVarbitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_VARBIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_VARBIT_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -638,7 +638,7 @@ var indexOnDaterangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_DATERANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_DATERANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -653,7 +653,7 @@ var indexOnTsrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_TSRANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -668,7 +668,7 @@ var indexOnTstzrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSTZRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_TSTZRANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -683,7 +683,7 @@ var indexOnNumrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_NUMRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_NUMRANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -698,7 +698,7 @@ var indexOnInt4rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INT4RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_INT4RANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -713,7 +713,7 @@ var indexOnInt8rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INT8RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_INT8RANGE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -728,7 +728,7 @@ var indexOnIntervalDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INTERVAL_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_INTERVAL_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -743,7 +743,7 @@ var indexOnCircleDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CIRCLE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_CIRCLE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -758,7 +758,7 @@ var indexOnBoxDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_BOX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_BOX_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -773,7 +773,7 @@ var indexOnLineDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_LINE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_LINE_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -788,7 +788,7 @@ var indexOnLsegDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_LSEG_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_LSEG_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -803,7 +803,7 @@ var indexOnPointDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_POINT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_POINT_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -818,7 +818,7 @@ var indexOnPgLsnDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_PG_LSN_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_PG_LSN_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -833,7 +833,7 @@ var indexOnPathDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_PATH_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_PATH_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -848,7 +848,7 @@ var indexOnPolygonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_POLYGON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_POLYGON_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
@@ -863,7 +863,7 @@ var indexOnTxidSnapshotDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_SUGGESTION,
+	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 

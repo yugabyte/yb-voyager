@@ -399,7 +399,6 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				if !ok {
 					continue
 				}
-				fmt.Printf("I was here with %s", typeName)
 				issues = append(issues, reportIndexOnComplexDatatypesIssue(
 					obj.GetObjectType(),
 					index.GetObjectName(),
