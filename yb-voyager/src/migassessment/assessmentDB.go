@@ -257,14 +257,14 @@ const (
 		initial.schema_name,
 		initial.object_name,
 		initial.object_type,
-		(final.seq_reads - initial.seq_reads) / 120 AS seq_reads_per_second,
-		(final.row_writes - initial.row_writes) / 120 AS row_writes_per_second
+		(final.seq_reads - initial.seq_reads) / %d AS seq_reads_per_second, -- iops capture interval(default: 120)
+		(final.row_writes - initial.row_writes) / %d AS row_writes_per_second
 	FROM
 		%s AS initial
 	JOIN
 		%s AS final ON initial.schema_name = final.schema_name
-								  AND initial.object_name = final.object_name
-								  AND final.measurement_type = 'final'
+									AND initial.object_name = final.object_name
+									AND final.measurement_type = 'final'
 	WHERE
 		initial.measurement_type = 'initial';`
 
@@ -273,11 +273,11 @@ const (
 		reads_per_second = (SELECT seq_reads_per_second
 							FROM read_write_rates
 							WHERE read_write_rates.schema_name = table_index_stats.schema_name
-							  AND read_write_rates.object_name = table_index_stats.object_name),
+								AND read_write_rates.object_name = table_index_stats.object_name),
 		writes_per_second = (SELECT row_writes_per_second
-							 FROM read_write_rates
-							 WHERE read_write_rates.schema_name = table_index_stats.schema_name
-							   AND read_write_rates.object_name = table_index_stats.object_name)
+								FROM read_write_rates
+									WHERE read_write_rates.schema_name = table_index_stats.schema_name
+									AND read_write_rates.object_name = table_index_stats.object_name)
 	WHERE EXISTS (
 		SELECT 1
 		FROM read_write_rates
@@ -297,8 +297,15 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 
 	switch SourceDBType {
 	case constants.POSTGRESQL:
+		var createTempTableForIops string
+		if IntervalForCapturingIops == 0 { // considering value as 0 to avoid division by zero
+			createTempTableForIops = fmt.Sprintf(CreateTempTable, 1, 1, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS)
+		} else {
+			createTempTableForIops = fmt.Sprintf(CreateTempTable, IntervalForCapturingIops, IntervalForCapturingIops, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS)
+		}
+
 		statements = append(statements,
-			fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
+			createTempTableForIops,
 			UpdateStatsWithRates)
 	case constants.ORACLE:
 		// already accounted
