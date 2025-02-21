@@ -174,8 +174,8 @@ func (t *Transformer) ConvertToShardedTables(stmts []*pg_query.RawStmt, isObject
 			}
 
 			result = append(result, stmt)
-		case queryparser.PG_QUERY_ALTER_TABLE_STMT: // CREATE MATERIALIZED VIEW case
-			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetAlterTableStmt().Relation)
+		case queryparser.PG_QUERY_CREATE_TABLE_AS_STMT: // CREATE MATERIALIZED VIEW case
+			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateTableAsStmt().Into.Rel)
 			if isObjectSharded(objectName) {
 				addColocationOptionToCreateMaterializedView(stmt.Stmt.GetCreateTableAsStmt())
 			}
