@@ -736,11 +736,33 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
+		if !taskPicker.HasPendingTasks() {
+			// all remaining tasks are in-progress, wait for them to complete.
+			// no point in busy-looping
+			inProgressTasks := taskPicker.InProgressTasks()
+			allInProgressTasksAllBatchesSubmitted := true
+			for _, task := range inProgressTasks {
+				taskImporter, ok := taskImporters[task.ID]
+				if !ok {
+					continue
+				}
+				if !taskImporter.AllBatchesSubmitted() {
+					allInProgressTasksAllBatchesSubmitted = false
+					break
+				}
+			}
+			if allInProgressTasksAllBatchesSubmitted {
+				// all in-progress tasks have all batches submitted, wait for them to complete.
+				time.Sleep(1 * time.Second)
+				continue
+			}
+		}
+
 		task, err := taskPicker.Pick()
 		if err != nil {
 			return fmt.Errorf("get next task: %w", err)
 		}
-		log.Infof("Picked task for import: %s", task)
+
 		var taskImporter *FileTaskImporter
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
@@ -778,6 +800,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			}
 
 		}
+		log.Infof("Picked task for import: %s", task)
 		err = taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
 		if err != nil {
 			return fmt.Errorf("submit next batch: task:%v err: %s", task, err)

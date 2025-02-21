@@ -39,6 +39,8 @@ type FileTaskPicker interface {
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
 	WaitForTasksBatchesTobeImported()
+	HasPendingTasks() bool
+	InProgressTasks() []*ImportFileTask
 }
 
 /*
@@ -119,6 +121,17 @@ func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
 	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
 	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
 	time.Sleep(time.Second * 1)
+}
+
+func (s *SequentialTaskPicker) HasPendingTasks() bool {
+	return len(s.pendingTasks) > 0
+}
+
+func (s *SequentialTaskPicker) InProgressTasks() []*ImportFileTask {
+	if s.inProgressTask != nil {
+		return []*ImportFileTask{s.inProgressTask}
+	}
+	return []*ImportFileTask{}
 }
 
 /*
@@ -387,4 +400,12 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
 	// no wait
 	return
+}
+
+func (c *ColocatedAwareRandomTaskPicker) HasPendingTasks() bool {
+	return len(c.tableWisePendingTasks.Keys()) > 0
+}
+
+func (c *ColocatedAwareRandomTaskPicker) InProgressTasks() []*ImportFileTask {
+	return c.inProgressTasks
 }
