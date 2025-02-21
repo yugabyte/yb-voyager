@@ -858,6 +858,10 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	includeTableList := finalTableList
 	if source.TableList != "" {
 		includeTableList = extractTableListFromString(registeredList, source.TableList, "include")
+		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, true)
+		if err != nil {
+			utils.ErrExit("adding leaf partititons to include table list: %s", err)
+		}
 	}
 	filteredTableListFromFlags := sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 	missingTablesInFilteredList := sqlname.SetDifferenceNameTuples(finalTableList, filteredTableListFromFlags)
