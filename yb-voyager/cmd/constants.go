@@ -61,7 +61,6 @@ const (
 	ROW_UPDATE_STATUS_NOT_STARTED   = 0
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
-	COLOCATION_CLAUSE               = "colocation"
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
