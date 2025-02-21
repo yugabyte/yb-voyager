@@ -324,7 +324,7 @@ func applySchemaTransformations() {
 	{
 		mviewFilePath := utils.GetObjectFilePath(schemaDir, MVIEW)
 		transformations := []func([]*pg_query.RawStmt) ([]*pg_query.RawStmt, error){
-			applyShardedTableTransformation,	 // only transformation for mview
+			applyShardedTableTransformation, // only transformation for mview
 		}
 
 		err := transformSchemaFile(mviewFilePath, transformations, "mview")
@@ -355,7 +355,7 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 		newStmts, err := transformFn(transformedStmts)
 		if err != nil {
 			// Log and continue using the unmodified statements for subsequent transformations in case of error
-			log.Warnf("failed to apply transformation for %s object type in schema file %q: %v", objectType, filePath, err)
+			log.Warnf("failed to apply transformation function %T in schema file %q: %v", transformFn, filePath, err)
 			continue
 		}
 		transformedStmts = newStmts

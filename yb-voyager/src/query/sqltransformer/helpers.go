@@ -31,12 +31,12 @@ func addColocationOptionToCreateTable(createStmt *pg_query.CreateStmt) {
 		createStmt.Options = []*pg_query.Node{}
 	}
 
-	// Build DefElem: defname = "colocated", arg = "true"
+	// Build DefElem: defname = "colocated", arg = "false"
 	defElemNode := &pg_query.Node{
 		Node: &pg_query.Node_DefElem{
 			DefElem: &pg_query.DefElem{
 				Defname: constants.COLOCATION_CLAUSE,
-				Arg:     pg_query.MakeStrNode("true"),
+				Arg:     pg_query.MakeStrNode("false"),
 			},
 		},
 	}
@@ -53,12 +53,12 @@ func addColocationOptionToCreateMaterializedView(createMatViewStmt *pg_query.Cre
 		createMatViewStmt.Into.Options = []*pg_query.Node{}
 	}
 
-	// Build DefElem: defname = "colocated", arg = "true"
+	// Build DefElem: defname = "colocated", arg = "false"
 	defElemNode := &pg_query.Node{
 		Node: &pg_query.Node_DefElem{
 			DefElem: &pg_query.DefElem{
 				Defname: constants.COLOCATION_CLAUSE,
-				Arg:     pg_query.MakeStrNode("true"),
+				Arg:     pg_query.MakeStrNode("false"),
 			},
 		},
 	}
