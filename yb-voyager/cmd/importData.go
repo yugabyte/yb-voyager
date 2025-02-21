@@ -753,7 +753,6 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				// all remaining tasks are in-progress, wait for them to complete.
 				// no point in busy-looping, so sleep for a bit.
 				time.Sleep(1 * time.Second)
-				continue
 			}
 		}
 
