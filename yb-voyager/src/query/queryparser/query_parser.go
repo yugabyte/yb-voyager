@@ -28,6 +28,7 @@ package queryparser
 
 import (
 	"fmt"
+	"os"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
@@ -51,6 +52,22 @@ func ParsePLPGSQLToJson(query string) (string, error) {
 		return "", err
 	}
 	return jsonString, err
+}
+
+func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
+	log.Debugf("parsing the file [%s]", filePath)
+	bytes, err := os.ReadFile(filePath)
+	if err != nil {
+		return nil, fmt.Errorf("reading file failed: %v", err)
+	}
+
+	tree, err := pg_query.Parse(string(bytes))
+	if err != nil {
+		return nil, err
+	}
+	log.Debugf("sql file contents: %s\n", string(bytes))
+	log.Debugf("parse tree: %v\n", tree)
+	return tree, nil
 }
 
 func ProcessDDL(parseTree *pg_query.ParseResult) (DDLObject, error) {

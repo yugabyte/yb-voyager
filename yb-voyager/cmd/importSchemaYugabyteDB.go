@@ -117,6 +117,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	stmt = strings.ToUpper(stmt)
 
+	// TODO: should we filter these out at the time of export schema
 	// pg_dump generate `SET client_min_messages = 'warning';`, but we want to get
 	// NOTICE severity as well (which is the default), hence skipping this.
 	//pg_dump 17 gives this SET transaction_timeout = 0;

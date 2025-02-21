@@ -1083,7 +1083,7 @@ type AssessmentIssue struct {
 	ObjectName             string                          `json:"ObjectName"`
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
 type UnsupportedFeature struct {

@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -85,14 +86,14 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		return objectType, utils.BuildObjectName(funcSchemaName, funcName)
 	case isViewStmt:
 		viewName := viewNode.ViewStmt.View
-		return "VIEW", getObjectNameFromRangeVar(viewName)
+		return "VIEW", GetObjectNameFromRangeVar(viewName)
 	case IsMviewObject(parseTree):
 		intoMview := createAsNode.CreateTableAsStmt.Into.Rel
-		return "MVIEW", getObjectNameFromRangeVar(intoMview)
+		return "MVIEW", GetObjectNameFromRangeVar(intoMview)
 	case isCreateTable:
-		return "TABLE", getObjectNameFromRangeVar(createTableNode.CreateStmt.Relation)
+		return "TABLE", GetObjectNameFromRangeVar(createTableNode.CreateStmt.Relation)
 	case isAlterTable:
-		return "TABLE", getObjectNameFromRangeVar(alterTableNode.AlterTableStmt.Relation)
+		return "TABLE", GetObjectNameFromRangeVar(alterTableNode.AlterTableStmt.Relation)
 	case isCreateIndex:
 		indexName := createIndexNode.IndexStmt.Idxname
 		schemaName := createIndexNode.IndexStmt.Relation.GetSchemaname()
@@ -110,7 +111,12 @@ func isArrayType(typeName *pg_query.TypeName) bool {
 }
 
 // Range Var is the struct to get the relation information like relation name, schema name, persisted relation or not, etc..
-func getObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
+func GetObjectNameFromRangeVar(obj *pg_query.RangeVar) string {
+	if obj == nil {
+		log.Infof("RangeVar is nil")
+		return ""
+	}
+
 	schema := obj.Schemaname
 	name := obj.Relname
 	return utils.BuildObjectName(schema, name)
@@ -340,4 +346,17 @@ func DoesNodeHandleJsonbData(node *pg_query.Node, jsonbColumns []string, jsonbFu
 		}
 	}
 	return false
+}
+
+func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
+	var deparsedStmts []string
+	for _, rawStmt := range rawStmts {
+		deparsedStmt, err := pg_query.Deparse(&pg_query.ParseResult{Stmts: []*pg_query.RawStmt{rawStmt}})
+		if err != nil {
+			return nil, fmt.Errorf("error deparsing statement: %w", err)
+		}
+		deparsedStmts = append(deparsedStmts, deparsedStmt+";") // adding semicolon to make it a valid SQL statement
+	}
+
+	return deparsedStmts, nil
 }
