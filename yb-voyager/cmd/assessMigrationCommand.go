@@ -309,6 +309,7 @@ func assessMigration() (err error) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
+	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
