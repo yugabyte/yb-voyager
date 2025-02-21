@@ -737,8 +737,6 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 
 	for taskPicker.HasMoreTasks() {
 		if !taskPicker.HasPendingTasks() {
-			// all remaining tasks are in-progress, wait for them to complete.
-			// no point in busy-looping
 			inProgressTasks := taskPicker.InProgressTasks()
 			allInProgressTasksAllBatchesSubmitted := true
 			for _, task := range inProgressTasks {
@@ -752,7 +750,8 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				}
 			}
 			if allInProgressTasksAllBatchesSubmitted {
-				// all in-progress tasks have all batches submitted, wait for them to complete.
+				// all remaining tasks are in-progress, wait for them to complete.
+				// no point in busy-looping, so sleep for a bit.
 				time.Sleep(1 * time.Second)
 				continue
 			}
