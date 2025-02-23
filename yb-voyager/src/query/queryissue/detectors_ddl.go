@@ -392,7 +392,6 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						param.ExprCastTypeName,
 					))
 				}
-
 			} else {
 				colName := param.ColName
 				typeName, ok := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()][colName]
