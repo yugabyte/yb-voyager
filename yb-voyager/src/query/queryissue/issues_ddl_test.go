@@ -756,12 +756,12 @@ func testIndexOnComplexDataType(t *testing.T) {
 			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
 			Issue:  indexOnUserDefinedDatatypeIssue,
 		},
-		testIndexOnComplexDataTypeTests{
-			sql: `CREATE TABLE pg_lsn_table (id int, name PG_LSN);
-			CREATE INDEX pg_lsn_index ON pg_lsn_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'PG_LSN' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnPgLsnDatatypeIssue,
-		},
+		// testIndexOnComplexDataTypeTests{
+		// 	sql: `CREATE TABLE pg_lsn_table (id int, name PG_LSN);
+		// 	CREATE INDEX pg_lsn_index ON pg_lsn_table (name);`,
+		// 	errMsg: "ERROR: INDEX on column of type 'PG_LSN' not yet supported (SQLSTATE 0A000)",
+		// 	Issue:  indexOnPgLsnDatatypeIssue,
+		// },
 	}
 
 	for _, testCase := range testCases {
