@@ -37,6 +37,7 @@ import (
 	_ "github.com/godror/godror"
 	"github.com/google/uuid"
 	"github.com/gosuri/uitable"
+	"github.com/hashicorp/go-version"
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/mitchellh/go-ps"
 	"github.com/samber/lo"
@@ -45,7 +46,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
-	"github.com/hashicorp/go-version"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -1040,6 +1040,9 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	}))
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.TableListExportedFromSource = minQuotedTableList
+		record.SourceExportedTableListWithLeafPartitions = lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForKey()
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("update migration status record: %v", err)
