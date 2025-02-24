@@ -66,7 +66,7 @@ func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *
 	if len(parts) != 2 {
 		panic(fmt.Sprintf("invalid qualified name: %s", objName))
 	}
-	return NewObjectName(dbType, defaultSchemaName, parts[0], parts[1])
+	return NewObjectName(dbType, defaultSchemaName, parts[0], unquote(parts[1], dbType))
 }
 
 func (nv *ObjectName) String() string {

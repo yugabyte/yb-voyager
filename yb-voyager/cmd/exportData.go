@@ -286,7 +286,7 @@ func exportData() bool {
 			//partitions can change on target during migration so need to handle that case
 			record.TargetRenameTablesMap = partitionsToRootTableMap
 			record.TargetExportedTableListWithLeafPartitions = lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-				return t.ForKey()
+				return t.ForOutput()
 			})
 		}
 	})
@@ -853,7 +853,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		partitionsToRootTableMap = msr.SourceRenameTablesMap
 	case YUGABYTEDB:
 		//For the first run of export data from target we will fetch the leaf partitions from target and store them
-		if msr.TargetExportedTableListWithLeafPartitions == nil && msr.TargetRenameTablesMap == nil {
+		if msr.TargetExportedTableListWithLeafPartitions == nil || msr.TargetRenameTablesMap == nil {
 			//Now add the leaf partitions to the stored table-list for the first run of export data from target
 			// as it will only have root table names and get the partitionsToRootTableMap
 			partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(fullTableList, true)
