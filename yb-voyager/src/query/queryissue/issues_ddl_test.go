@@ -579,182 +579,211 @@ func testIndexOnComplexDataType(t *testing.T) {
 	// We will create indexes on the unsupported datatypes and check if the index creation fails
 
 	type testIndexOnComplexDataTypeTests struct {
-		sql    string
-		errMsg string
-		Issue  issue.Issue
+		sql             string
+		errMsgBase      string
+		errMsgv2_25_0_0 string
+		Issue           issue.Issue
 	}
 
 	testCases := []testIndexOnComplexDataTypeTests{
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE citext_table (id int, name CITEXT);
 			CREATE INDEX citext_index ON citext_table (name);`,
-			errMsg: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
-			Issue:  indexOnCitextDatatypeIssue,
+			errMsgBase:      "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnCitextDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsvector_table (id int, name TSVECTOR);
 			CREATE INDEX tsvector_index ON tsvector_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnTsVectorDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnTsVectorDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsquery_table (id int, name TSQUERY);
 			CREATE INDEX tsquery_index ON tsquery_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnTsQueryDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnTsQueryDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE jsonb_table (id int, name JSONB);
 			CREATE INDEX jsonb_index ON jsonb_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'JSONB' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnJsonbDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'JSONB' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnJsonbDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE inet_table (id int, name INET);
 			CREATE INDEX inet_index ON inet_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'INET' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnInetDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'INET' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnInetDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE json_table (id int, name JSON);
 			CREATE INDEX json_index ON json_table (name);`,
-			errMsg: "ERROR: data type json has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnJsonDatatypeIssue,
+			errMsgBase:      "ERROR: data type json has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnJsonDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE macaddr_table (id int, name MACADDR);
 			CREATE INDEX macaddr_index ON macaddr_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'MACADDR' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnMacaddrDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'MACADDR' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnMacaddrDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE macaddr8_table (id int, name MACADDR8);
 			CREATE INDEX macaddr8_index ON macaddr8_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'MACADDR8' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnMacaddr8DatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'MACADDR8' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnMacaddr8DatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE cidr_table (id int, name CIDR);
 			CREATE INDEX cidr_index ON cidr_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'CIDR' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnCidrDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'CIDR' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnCidrDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE bit_table (id int, name BIT(10));
 			CREATE INDEX bit_index ON bit_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'BIT' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnBitDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'BIT' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnBitDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE varbit_table (id int, name VARBIT(10));
 			CREATE INDEX varbit_index ON varbit_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'VARBIT' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnVarbitDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'VARBIT' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnVarbitDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE daterange_table (id int, name DATERANGE);
 			CREATE INDEX daterange_index ON daterange_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnDaterangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           indexOnDaterangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsrange_table (id int, name TSRANGE);
 			CREATE INDEX tsrange_index ON tsrange_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnTsrangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           indexOnTsrangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tstzrange_table (id int, name TSTZRANGE);
 			CREATE INDEX tstzrange_index ON tstzrange_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnTstzrangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           indexOnTstzrangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE numrange_table (id int, name NUMRANGE);
 			CREATE INDEX numrange_index ON numrange_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnNumrangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           indexOnNumrangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE int4range_table (id int, name INT4RANGE);
 			CREATE INDEX int4range_index ON int4range_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'INT4RANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnInt4rangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'INT4RANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnInt4rangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE int8range_table (id int, name INT8RANGE);
 			CREATE INDEX int8range_index ON int8range_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnInt8rangeDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           indexOnInt8rangeDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE interval_table (id int, name INTERVAL);
 			CREATE INDEX interval_index ON interval_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'INTERVAL' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnIntervalDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'INTERVAL' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnIntervalDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE circle_table (id int, name CIRCLE);
 			CREATE INDEX circle_index ON circle_table (name);`,
-			errMsg: "ERROR: data type circle has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnCircleDatatypeIssue,
+			errMsgBase:      "ERROR: data type circle has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnCircleDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE box_table (id int, name BOX);
 			CREATE INDEX box_index ON box_table (name);`,
-			errMsg: "ERROR: data type box has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnBoxDatatypeIssue,
+			errMsgBase:      "ERROR: data type box has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnBoxDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE line_table (id int, name LINE);
 			CREATE INDEX line_index ON line_table (name);`,
-			errMsg: "ERROR: data type line has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnLineDatatypeIssue,
+			errMsgBase:      "ERROR: data type line has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnLineDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE lseg_table (id int, name LSEG);
 			CREATE INDEX lseg_index ON lseg_table (name);`,
-			errMsg: "ERROR: data type lseg has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnLsegDatatypeIssue,
+			errMsgBase:      "ERROR: data type lseg has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnLsegDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE point_table (id int, name POINT);
 			CREATE INDEX point_index ON point_table (name);`,
-			errMsg: "ERROR: data type point has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnPointDatatypeIssue,
+			errMsgBase:      "ERROR: data type point has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnPointDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE path_table (id int, name PATH);
 			CREATE INDEX path_index ON path_table (name);`,
-			errMsg: "ERROR: data type path has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnPathDatatypeIssue,
+			errMsgBase:      "ERROR: data type path has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnPathDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE polygon_table (id int, name POLYGON);
 			CREATE INDEX polygon_index ON polygon_table (name);`,
-			errMsg: "ERROR: data type polygon has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnPolygonDatatypeIssue,
+			errMsgBase:      "ERROR: data type polygon has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnPolygonDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE txid_snapshot_table (id int, name TXID_SNAPSHOT);
 			CREATE INDEX txid_snapshot_index ON txid_snapshot_table (name);`,
-			errMsg: "ERROR: data type txid_snapshot has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
-			Issue:  indexOnTxidSnapshotDatatypeIssue,
+			errMsgBase:      "ERROR: data type txid_snapshot has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnTxidSnapshotDatatypeIssue,
 		},
 		// One with array datatype
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE array_table (id int, name int[]);
 			CREATE INDEX array_index ON array_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'INT4ARRAY' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnArrayDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'INT4ARRAY' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnArrayDatatypeIssue,
 		},
 		// One with UDT datatype
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TYPE my_udt AS (a int, b text);
 			CREATE TABLE udt_table (id int, name my_udt);
 			CREATE INDEX udt_index ON udt_table (name);`,
-			errMsg: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
-			Issue:  indexOnUserDefinedDatatypeIssue,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnUserDefinedDatatypeIssue,
 		},
 		// testIndexOnComplexDataTypeTests{
 		// 	sql: `CREATE TABLE pg_lsn_table (id int, name PG_LSN);
@@ -769,9 +798,16 @@ func testIndexOnComplexDataType(t *testing.T) {
 		conn, err := getConn()
 		assert.NoError(t, err)
 
+		var errMsg string
+		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+			errMsg = testCase.errMsgv2_25_0_0
+		} else {
+			errMsg = testCase.errMsgBase
+		}
+
 		_, err = conn.Exec(ctx, testCase.sql)
 		fmt.Println("Query executed: ", testCase.sql)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, testCase.errMsg, testCase.Issue)
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, testCase.Issue)
 
 		conn.Close(ctx)
 	}
