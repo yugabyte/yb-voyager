@@ -49,9 +49,10 @@ type SequentialTaskPicker struct {
 	inProgressTask *ImportFileTask
 	pendingTasks   []*ImportFileTask
 	doneTasks      []*ImportFileTask
+	taskImporters  map[int]*FileTaskImporter
 }
 
-func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*SequentialTaskPicker, error) {
+func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState, taskImporters map[int]*FileTaskImporter) (*SequentialTaskPicker, error) {
 	var pendingTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 	var inProgressTask *ImportFileTask
@@ -78,6 +79,7 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*
 		pendingTasks:   pendingTasks,
 		doneTasks:      doneTasks,
 		inProgressTask: inProgressTask,
+		taskImporters:  taskImporters,
 	}, nil
 }
 
@@ -89,7 +91,21 @@ func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 	if s.inProgressTask == nil {
 		s.inProgressTask = s.pendingTasks[0]
 		s.pendingTasks = s.pendingTasks[1:]
+		return s.inProgressTask, nil
 	}
+
+	// pick the in-progress task.
+	// if all batches for the in-progress task are already submitted, sleep for a bit
+	// before returning the task, so as to avoid busy-looping and checking if task is done.
+	taskImporter, ok := s.taskImporters[s.inProgressTask.ID]
+	if !ok {
+		return nil, fmt.Errorf("task importer not found for task: %v", s.inProgressTask)
+	}
+	if taskImporter.AllBatchesSubmitted() {
+		log.Infof("All batches submitted for task: %v. Sleeping", s.inProgressTask)
+		time.Sleep(time.Millisecond * 500)
+	}
+
 	return s.inProgressTask, nil
 }
 
@@ -153,8 +169,8 @@ type ColocatedAwareRandomTaskPicker struct {
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
 	tableChooser          *weightedrand.Chooser[sqlname.NameTuple, int]
 
-	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
-
+	tableTypes    *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
+	taskImporters map[int]*FileTaskImporter
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -162,7 +178,7 @@ type YbTargetDBColocatedChecker interface {
 	IsTableColocated(tableName sqlname.NameTuple) (bool, error)
 }
 
-func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
+func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker, taskImporters map[int]*FileTaskImporter) (*ColocatedAwareRandomTaskPicker, error) {
 	var doneTasks []*ImportFileTask
 	var inProgressTasks []*ImportFileTask
 	tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
@@ -230,6 +246,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		maxTasksInProgress:    maxTasksInProgress,
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
+		taskImporters:         taskImporters,
 	}
 	if len(picker.tableWisePendingTasks.Keys()) > 0 {
 		err = picker.initializeChooser()
@@ -266,9 +283,30 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 		return nil, fmt.Errorf("no tasks in progress")
 	}
 
+	var candidateInProgressTasks []*ImportFileTask
+	for _, task := range c.inProgressTasks {
+		taskImporter, ok := c.taskImporters[task.ID]
+		if !ok {
+			return nil, fmt.Errorf("task importer not found for task: %v", task)
+		}
+		if !taskImporter.AllBatchesSubmitted() {
+			candidateInProgressTasks = append(candidateInProgressTasks, task)
+		}
+	}
+	if len(candidateInProgressTasks) == 0 {
+		// batches are submitted for all in-progress tasks.
+		// in case these are the last tasks to be processed (i.e. no more pending tasks),
+		// sleep for a bit before returning the task, so as to avoid busy-looping and checking if task is done.
+		if len(c.tableWisePendingTasks.Keys()) == 0 {
+			log.Infof("All batches submitted for all in-progress tasks. Sleeping")
+			time.Sleep(time.Millisecond * 500)
+		}
+		candidateInProgressTasks = c.inProgressTasks
+	}
+
 	// pick a random task from inProgressTasks
-	taskIndex := rand.Intn(len(c.inProgressTasks))
-	return c.inProgressTasks[taskIndex], nil
+	taskIndex := rand.Intn(len(candidateInProgressTasks))
+	return candidateInProgressTasks[taskIndex], nil
 }
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFileTask, error) {

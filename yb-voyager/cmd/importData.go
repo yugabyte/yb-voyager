@@ -714,6 +714,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	// `parallelism` number of batches at a time.
 	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 	log.Infof("created batch import pool of size: %d", poolSize)
+	taskImporters := map[int]*FileTaskImporter{}
 
 	var taskPicker FileTaskPicker
 	var err error
@@ -722,18 +723,16 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if !ok {
 			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
-		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb)
+		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb, taskImporters)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
 		}
 	} else {
-		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state)
+		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state, taskImporters)
 		if err != nil {
 			return fmt.Errorf("create sequential task picker: %w", err)
 		}
 	}
-
-	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
 		task, err := taskPicker.Pick()
@@ -771,9 +770,9 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
-				// some batches are still in progress, wait for them to complete as decided by the picker.
-				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
-				taskPicker.WaitForTasksBatchesTobeImported()
+				// // some batches are still in progress, wait for them to complete as decided by the picker.
+				// // don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
+				// taskPicker.WaitForTasksBatchesTobeImported()
 				continue
 			}
 
