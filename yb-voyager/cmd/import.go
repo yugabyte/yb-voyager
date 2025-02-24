@@ -283,7 +283,7 @@ func validateTargetSchemaFlag() {
 	// For import-data-file, we allow this flag and source is PG(dummy)
 	if !slices.Contains([]string{SOURCE_REPLICA_DB_IMPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		if tconf.Schema != "" && sourceDBType == "postgresql" {
-			utils.ErrExit("Error: --target-db-schema flag is not valid for export from 'postgresql' db type")
+			utils.ErrExit("Error --target-db-schema flag is not valid for export from 'postgresql' db type")
 		}
 	}
 
@@ -330,7 +330,7 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 	objectList := utils.CsvStringToSlice(importObjectsString)
 	for _, object := range objectList {
 		if !slices.Contains(availableObjects, strings.ToUpper(object)) {
-			utils.ErrExit("Error: Invalid object type '%v' specified wtih --%s flag. Supported object types are: %v", object, flagName, availableObjects)
+			utils.ErrExit("Error Invalid object type '%v' specified wtih --%s flag. Supported object types are: %v", object, flagName, availableObjects)
 		}
 	}
 }
@@ -389,25 +389,25 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 	}
 
 	if numLinesInASplit > defaultBatchSize {
-		utils.ErrExit("Error: Invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
+		utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
 	}
 }
 
 func validateFFDBSchemaFlag() {
 	if tconf.Schema == "" && tconf.TargetDBType == ORACLE {
-		utils.ErrExit("Error: --source-replica-db-schema flag is mandatory for import data to source-replica")
+		utils.ErrExit("Error --source-replica-db-schema flag is mandatory for import data to source-replica")
 	}
 }
 
 func validateParallelismFlags() {
 	if tconf.EnableYBAdaptiveParallelism {
 		if tconf.Parallelism > 0 {
-			utils.ErrExit("Error: --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
+			utils.ErrExit("Error --parallel-jobs flag cannot be used with --enable-adaptive-parallelism true. If you wish to set the number of parallel jobs explicitly, disable adaptive parallelism using --enable-adaptive-parallelism false")
 		}
 	}
 	if tconf.MaxParallelism > 0 {
 		if !tconf.EnableYBAdaptiveParallelism {
-			utils.ErrExit("Error: --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
+			utils.ErrExit("Error --adaptive-parallelism-max flag can only be used with --enable-adaptive-parallelism true")
 		}
 	}
 
@@ -415,6 +415,6 @@ func validateParallelismFlags() {
 
 func validateTruncateTablesFlag() {
 	if truncateTables && !startClean {
-		utils.ErrExit("Error: --truncate-tables true can only be specified along with --start-clean true")
+		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
 }

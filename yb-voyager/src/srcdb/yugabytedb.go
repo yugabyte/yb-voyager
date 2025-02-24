@@ -51,6 +51,17 @@ func newYugabyteDB(s *Source) *YugabyteDB {
 }
 
 func (yb *YugabyteDB) Connect() error {
+	if yb.db != nil {
+		err := yb.db.Ping()
+		if err == nil {
+			log.Infof("Already connected to the source database")
+			return nil
+		} else {
+			log.Infof("Failed to ping the source database: %s", err)
+			yb.Disconnect()
+		}
+		log.Info("Reconnecting to the source database")
+	}
 	db, err := sql.Open("pgx", yb.getConnectionUri())
 	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)

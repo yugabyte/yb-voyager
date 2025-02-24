@@ -31,6 +31,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -46,12 +48,12 @@ var exportSchemaCmd = &cobra.Command{
 
 	PreRun: func(cmd *cobra.Command, args []string) {
 		if source.StrExportObjectTypeList != "" && source.StrExcludeObjectTypeList != "" {
-			utils.ErrExit("Error: only one of --object-type-list and --exclude-object-type-list is allowed")
+			utils.ErrExit("Error only one of --object-type-list and --exclude-object-type-list is allowed")
 		}
 		setExportFlagsDefaults()
 		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
 		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
+			utils.ErrExit("Error validating export schema flags: %s", err.Error())
 		}
 		markFlagsRequired(cmd)
 	},
@@ -60,7 +62,7 @@ var exportSchemaCmd = &cobra.Command{
 		source.ApplyExportSchemaObjectListFilter()
 		err := exportSchema()
 		if err != nil {
-			utils.ErrExit("failed to export schema: %v", err)
+			utils.ErrExit("%v", err)
 		}
 	},
 }
@@ -93,7 +95,7 @@ func exportSchema() error {
 	err := retrieveMigrationUUID()
 	if err != nil {
 		log.Errorf("failed to get migration UUID: %v", err)
-		return fmt.Errorf("failed to get migration UUID: %w", err)
+		return fmt.Errorf("failed to get migration UUID during export schema: %w", err)
 	}
 
 	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
@@ -101,7 +103,7 @@ func exportSchema() error {
 	err = source.DB().Connect()
 	if err != nil {
 		log.Errorf("failed to connect to the source db: %s", err)
-		return fmt.Errorf("failed to connect to the source db: %w", err)
+		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
 	defer source.DB().Disconnect()
 
@@ -110,7 +112,7 @@ func exportSchema() error {
 		log.Info("checking source DB version")
 		err = source.DB().CheckSourceDBVersion(exportType)
 		if err != nil {
-			return fmt.Errorf("source DB version check failed: %w", err)
+			return fmt.Errorf("failed to check source db version during export schema: %w", err)
 		}
 
 		// Check if required binaries are installed.
@@ -133,7 +135,7 @@ func exportSchema() error {
 
 	res := source.DB().CheckSchemaExists()
 	if !res {
-		return fmt.Errorf("schema %q does not exist", source.Schema)
+		return fmt.Errorf("failed to check if source schema exist during export schema: %q", source.Schema)
 	}
 
 	// Check if the source database has the required permissions for exporting schema.
@@ -141,7 +143,7 @@ func exportSchema() error {
 		checkIfSchemasHaveUsagePermissions()
 		missingPerms, err := source.DB().GetMissingExportSchemaPermissions("")
 		if err != nil {
-			return fmt.Errorf("failed to get missing migration permissions: %w", err)
+			return fmt.Errorf("failed to get missing export schema permissions: %w", err)
 		}
 		if len(missingPerms) > 0 {
 			color.Red("\nPermissions missing in the source database for export schema:\n")
@@ -165,12 +167,18 @@ func exportSchema() error {
 
 	err = updateIndexesInfoInMetaDB()
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
 
 	err = applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
+	}
+
+	// continue after logging the error; since this transformation is only for performance improvement
+	err = applyMergeConstraintsTransformations()
+	if err != nil {
+		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
 	}
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
@@ -282,7 +290,7 @@ func updateIndexesInfoInMetaDB() error {
 		*record = indexesInfo
 	})
 	if err != nil {
-		return fmt.Errorf("failed to update indexes info in meta db: %w", err)
+		return err
 	}
 	return nil
 }
@@ -328,6 +336,55 @@ func applyMigrationAssessmentRecommendations() error {
 	SetAssessmentRecommendationsApplied()
 
 	utils.PrintAndLog("Applied assessment recommendations.")
+	return nil
+}
+
+// TODO: merge this function with applying sharded/colocated recommendation
+func applyMergeConstraintsTransformations() error {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
+		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
+		return nil
+	}
+
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
+	transformer := sqltransformer.NewTransformer()
+
+	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
+		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
+		return nil
+	}
+
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
+	if err != nil {
+		return fmt.Errorf("failed to parse table.sql file: %w", err)
+	}
+
+	transformedRawStmts, err := transformer.MergeConstraints(rawStmts.Stmts)
+	if err != nil {
+		return fmt.Errorf("failed to merge constraints: %w", err)
+	}
+
+	sqlStmts, err := queryparser.DeparseRawStmts(transformedRawStmts)
+	if err != nil {
+		return fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
+	}
+
+	fileContent := strings.Join(sqlStmts, "\n\n")
+
+	// rename the old file to table_before_merge_constraints.sql
+	// replace filepath base with new name
+	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
+	err = os.Rename(fileName, renamedFileName)
+	if err != nil {
+		return fmt.Errorf("failed to rename table.sql file to table_before_merge_constraints.sql: %w", err)
+	}
+
+	err = os.WriteFile(fileName, []byte(fileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write transformed table.sql file: %w", err)
+	}
+
 	return nil
 }
 
