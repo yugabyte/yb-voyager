@@ -131,5 +131,12 @@
       "total_count": 1000,
       "imported_count": 1000,
       "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"users\"",
+      "status": "DONE",
+      "total_count": 3,
+      "imported_count": 3,
+      "percentage_complete": 100
     }
 ]

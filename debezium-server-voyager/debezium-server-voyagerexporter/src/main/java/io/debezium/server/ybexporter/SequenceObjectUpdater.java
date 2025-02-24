@@ -129,8 +129,15 @@ public class SequenceObjectUpdater {
             }
             String seqName = getFromColumnSequenceMap(schemaOrDbname, r.t.tableName, r.afterValueColumns.get(i));
             if (seqName != null){
-                Long columnValue = Long.valueOf(r.afterValueValues.get(i).toString());
-                sequenceMax.put(seqName, Math.max(sequenceMax.get(seqName), columnValue));
+                Long columnValue = null;
+                String value = r.afterValueValues.get(i).toString();
+                try {
+                    columnValue = Long.valueOf(value);
+                    sequenceMax.put(seqName, Math.max(sequenceMax.get(seqName), columnValue));
+                } catch (NumberFormatException e) {
+                    //Skipping the sequences that are not on Integer columns
+                    LOGGER.info("Skipping unsupported sequence with non-interger value: '{}'", seqName);
+                }
             }
         }
 
