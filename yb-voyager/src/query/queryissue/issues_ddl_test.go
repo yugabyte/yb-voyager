@@ -785,12 +785,13 @@ func testIndexOnComplexDataType(t *testing.T) {
 			errMsgv2_25_0_0: "",
 			Issue:           indexOnUserDefinedDatatypeIssue,
 		},
-		// testIndexOnComplexDataTypeTests{
-		// 	sql: `CREATE TABLE pg_lsn_table (id int, name PG_LSN);
-		// 	CREATE INDEX pg_lsn_index ON pg_lsn_table (name);`,
-		// 	errMsg: "ERROR: INDEX on column of type 'PG_LSN' not yet supported (SQLSTATE 0A000)",
-		// 	Issue:  indexOnPgLsnDatatypeIssue,
-		// },
+		testIndexOnComplexDataTypeTests{
+			sql: `CREATE TABLE pg_lsn_table (id int, name PG_LSN);
+			CREATE INDEX pg_lsn_index ON pg_lsn_table (name);`,
+			errMsgBase:      "", // It is possible to create index on pg_lsn datatype but operations on it throw error in YB
+			errMsgv2_25_0_0: "",
+			Issue:           indexOnPgLsnDatatypeIssue,
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -807,7 +808,12 @@ func testIndexOnComplexDataType(t *testing.T) {
 
 		_, err = conn.Exec(ctx, testCase.sql)
 		fmt.Println("Query executed: ", testCase.sql)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, testCase.Issue)
+		if errMsg == "" { // For the pg_lsn datatype, we are not throwing any error but the operations on it throw error
+			assert.NoError(t, err)
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), errMsg, testCase.Issue)
+		} else {
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, testCase.Issue)
+		}
 
 		conn.Close(ctx)
 	}
