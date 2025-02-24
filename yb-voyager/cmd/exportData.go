@@ -919,25 +919,6 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	missingTablesInFilteredList := sqlname.SetDifferenceNameTuples(finalTableListWithoutRootTable, filteredListWithoutRootTable)
 	missingTablesInPreviousList := sqlname.SetDifferenceNameTuples(filteredListWithoutRootTable, finalTableListWithoutRootTable)
 
-	// fmt.Printf("exc - %v\n", lo.Map(excludeTableList, func(t sqlname.NameTuple, _ int) string {
-	// 	return t.ForKey()
-	// }))
-	// fmt.Printf("incl - %v\n", lo.Map(includeTableList, func(t sqlname.NameTuple, _ int) string {
-	// 	return t.ForKey()
-	// }))
-
-	// fmt.Printf("filtered - %v\n", lo.Map(filteredTableListFromFlags, func(t sqlname.NameTuple, _ int) string {
-	// 	return t.ForKey()
-	// }))
-
-	// fmt.Printf("missing in filtered - %v\n", lo.Map(missingTablesInFilteredList, func(t sqlname.NameTuple, _ int) string {
-	// 	return t.ForKey()
-	// }))
-
-	// fmt.Printf("missing in previous - %v\n", lo.Map(missingTablesInPreviousList, func(t sqlname.NameTuple, _ int) string {
-	// 	return t.ForKey()
-	// }))
-
 	if len(missingTablesInFilteredList) > 0 || len(missingTablesInPreviousList) > 0 {
 		utils.PrintAndLog("Changing the table list during live-migration is not allowed.")
 		if len(missingTablesInFilteredList) > 0 {
@@ -950,8 +931,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 				return t.ForMinOutput()
 			}), ","))
 		}
-		msg := fmt.Sprintf("Using the table list passed in the initial phase of migration - %v. \nDo you want continue?", lo.Map(finalTableList, func(t sqlname.NameTuple, _ int) string {
-			return t.ForOutput()
+		msg := fmt.Sprintf("Using the table list passed in the initial phase of migration - %v. \nDo you want continue?", lo.Map(finalTableListWithoutRootTable, func(t sqlname.NameTuple, _ int) string {
+			return t.ForMinOutput()
 		}))
 		if !utils.AskPrompt(msg) {
 			utils.ErrExit("Aborting, Start a fresh migration...")

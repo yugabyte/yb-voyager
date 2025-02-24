@@ -170,7 +170,7 @@ func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error)
 	var dbType string
 	var defaultSchemaName string
 	switch reg.params.Role {
-	case SOURCE_DB_EXPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		m = reg.SourceDBTableNames
 		dbType = reg.SourceDBType
 		defaultSchemaName = reg.DefaultSourceDBSchemaName
