@@ -770,9 +770,9 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
-				// // some batches are still in progress, wait for them to complete as decided by the picker.
-				// // don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
-				// taskPicker.WaitForTasksBatchesTobeImported()
+				// some batches are still in progress, wait for them to complete as decided by the picker.
+				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
+				taskPicker.WaitForTasksBatchesTobeImported()
 				continue
 			}
 

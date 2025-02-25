@@ -283,34 +283,9 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 		return nil, fmt.Errorf("no tasks in progress")
 	}
 
-	var candidateInProgressTasks []*ImportFileTask
-	for _, task := range c.inProgressTasks {
-		taskImporter, ok := c.taskImporters[task.ID]
-		if !ok {
-			return nil, fmt.Errorf("task importer not found for task: %v", task)
-		}
-		if !taskImporter.AllBatchesSubmitted() {
-			candidateInProgressTasks = append(candidateInProgressTasks, task)
-		}
-	}
-	if len(candidateInProgressTasks) == 0 {
-		// batches are submitted for all in-progress tasks.
-		// in case these are the last tasks to be processed (i.e. no more pending tasks),
-		// sleep for a bit before returning the task, so as to avoid busy-looping and checking if task is done.
-		// if len(c.tableWisePendingTasks.Keys()) == 0 {
-		// 	log.Infof("All batches submitted for all in-progress tasks. Sleeping")
-		// 	time.Sleep(time.Millisecond * 500)
-		// } else {
-		// 	log.Info("All batches submitted for all in-progress tasks. Picking any random task")
-		// }
-		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
-		time.Sleep(time.Millisecond * 100)
-		candidateInProgressTasks = c.inProgressTasks
-	}
-
 	// pick a random task from inProgressTasks
-	taskIndex := rand.Intn(len(candidateInProgressTasks))
-	return candidateInProgressTasks[taskIndex], nil
+	taskIndex := rand.Intn(len(c.inProgressTasks))
+	return c.inProgressTasks[taskIndex], nil
 }
 
 func (c *ColocatedAwareRandomTaskPicker) PickTaskFromPendingTasks() (*ImportFileTask, error) {
@@ -427,6 +402,24 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 }
 
 func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
-	// no wait
+	// if for all in-progress tasks, all batches are submitted, then sleep for a bit
+	allTasksAllBatchesSubmitted := true
+
+	for _, task := range c.inProgressTasks {
+		taskImporter, ok := c.taskImporters[task.ID]
+		if !ok {
+			log.Errorf("task importer not found for task: %v", task)
+			continue
+		}
+		if !taskImporter.AllBatchesSubmitted() {
+			allTasksAllBatchesSubmitted = false
+			break
+		}
+	}
+
+	if allTasksAllBatchesSubmitted {
+		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
+		time.Sleep(time.Millisecond * 100)
+	}
 	return
 }
