@@ -297,10 +297,14 @@ func (c *ColocatedAwareRandomTaskPicker) PickTaskFromInProgressTasks() (*ImportF
 		// batches are submitted for all in-progress tasks.
 		// in case these are the last tasks to be processed (i.e. no more pending tasks),
 		// sleep for a bit before returning the task, so as to avoid busy-looping and checking if task is done.
-		if len(c.tableWisePendingTasks.Keys()) == 0 {
-			log.Infof("All batches submitted for all in-progress tasks. Sleeping")
-			time.Sleep(time.Millisecond * 500)
-		}
+		// if len(c.tableWisePendingTasks.Keys()) == 0 {
+		// 	log.Infof("All batches submitted for all in-progress tasks. Sleeping")
+		// 	time.Sleep(time.Millisecond * 500)
+		// } else {
+		// 	log.Info("All batches submitted for all in-progress tasks. Picking any random task")
+		// }
+		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
+		time.Sleep(time.Millisecond * 100)
 		candidateInProgressTasks = c.inProgressTasks
 	}
 
