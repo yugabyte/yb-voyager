@@ -632,7 +632,11 @@ var MigrationCaveatsIssues = []string{
 	queryissue.POLYGON_DATATYPE,
 	queryissue.CIRCLE_DATATYPE,
 	// Datatypes not supported in YB in live migration with FF and FB
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+	queryissue.ARRAY_OF_ENUM_DATATYPE,
+	queryissue.USER_DEFINED_DATATYPE,
+	queryissue.TSQUERY_DATATYPE,
+	queryissue.TSVECTOR_DATATYPE,
+	queryissue.HSTORE_DATATYPE,
 }
 
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {

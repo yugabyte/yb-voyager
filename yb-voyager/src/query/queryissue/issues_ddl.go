@@ -552,18 +552,83 @@ func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var unsupportedDatatypeForLiveMigrationWithFFOrFBIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_1,
+var arrayOfEnumDatatypeIssue = issue.Issue{
+	Type:        ARRAY_OF_ENUM_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: ARRAY_OF_ENUM_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewArrayOfEnumDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := arrayOfEnumDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var userDefinedDatatypeIssue = issue.Issue{
+	Type:        USER_DEFINED_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewUserDefinedDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := userDefinedDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tsQueryDatatypeIssue = issue.Issue{
+	Type:        TSQUERY_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsQuery Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := unsupportedDatatypeForLiveMigrationWithFFOrFBIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsQueryDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tsVectorDatatypeIssue = issue.Issue{
+	Type:        TSVECTOR_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsVector Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsVectorDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var hstoreDatatypeIssue = issue.Issue{
+	Type:        HSTORE_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Hstore Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := hstoreDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 

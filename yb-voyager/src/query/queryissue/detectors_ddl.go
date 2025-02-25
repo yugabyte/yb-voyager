@@ -146,16 +146,26 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
-			if col.IsArrayType { // For Array cases to make it clear in issue
+			if isArrayOfEnumsDatatype {
 				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+				issues = append(issues, NewArrayOfEnumDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else if isUDTDatatype {
+				issues = append(issues, NewUserDefinedDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else {
+				reportUnsupportedDatatypesInLiveWithFFOrFB(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 			}
-			issues = append(issues, NewUnsupportedDatatypesForLMWithFFOrFBIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				reportTypeName,
-				col.ColumnName,
-			))
 		}
 
 		if col.Compression != "" {
@@ -414,6 +424,39 @@ func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType strin
 		))
 	case "circle":
 		*issues = append(*issues, NewCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupportedDatatypesInLiveWithFFOrFB(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "tsquery":
+		*issues = append(*issues, NewTsQueryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tsvector":
+		*issues = append(*issues, NewTsVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "hstore":
+		*issues = append(*issues, NewHstoreDatatypeIssue(
 			objType,
 			objName,
 			"",

@@ -1549,7 +1549,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
 					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
 					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
 					Impact:              constants.IMPACT_LEVEL_1,
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
