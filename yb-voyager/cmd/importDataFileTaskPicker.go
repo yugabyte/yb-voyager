@@ -91,19 +91,6 @@ func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 	if s.inProgressTask == nil {
 		s.inProgressTask = s.pendingTasks[0]
 		s.pendingTasks = s.pendingTasks[1:]
-		return s.inProgressTask, nil
-	}
-
-	// pick the in-progress task.
-	// if all batches for the in-progress task are already submitted, sleep for a bit
-	// before returning the task, so as to avoid busy-looping and checking if task is done.
-	taskImporter, ok := s.taskImporters[s.inProgressTask.ID]
-	if !ok {
-		return nil, fmt.Errorf("task importer not found for task: %v", s.inProgressTask)
-	}
-	if taskImporter.AllBatchesSubmitted() {
-		log.Infof("All batches submitted for task: %v. Sleeping", s.inProgressTask)
-		time.Sleep(time.Millisecond * 500)
 	}
 
 	return s.inProgressTask, nil
