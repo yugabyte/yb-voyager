@@ -74,7 +74,7 @@ func TestSequentialTaskPickerBasic(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state, nil)
+	picker, err := NewSequentialTaskPicker(tasks, state)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -108,7 +108,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state, nil)
+	picker, err := NewSequentialTaskPicker(tasks, state)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -165,7 +165,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state, nil)
+	picker, err := NewSequentialTaskPicker(tasks, state)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -190,7 +190,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 
 	// simulate restart by creating a new picker
 	slices.Reverse(tasks) // reorder the tasks so that the in progress task is at the end
-	picker, err = NewSequentialTaskPicker(tasks, state, nil)
+	picker, err = NewSequentialTaskPicker(tasks, state)
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {

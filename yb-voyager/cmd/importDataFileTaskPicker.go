@@ -38,7 +38,7 @@ type FileTaskPicker interface {
 	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
-	WaitForTasksBatchesTobeImported()
+	WaitForTasksBatchesTobeImported() error
 }
 
 /*
@@ -49,10 +49,9 @@ type SequentialTaskPicker struct {
 	inProgressTask *ImportFileTask
 	pendingTasks   []*ImportFileTask
 	doneTasks      []*ImportFileTask
-	taskImporters  map[int]*FileTaskImporter
 }
 
-func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState, taskImporters map[int]*FileTaskImporter) (*SequentialTaskPicker, error) {
+func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState) (*SequentialTaskPicker, error) {
 	var pendingTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 	var inProgressTask *ImportFileTask
@@ -79,7 +78,6 @@ func NewSequentialTaskPicker(tasks []*ImportFileTask, state *ImportDataState, ta
 		pendingTasks:   pendingTasks,
 		doneTasks:      doneTasks,
 		inProgressTask: inProgressTask,
-		taskImporters:  taskImporters,
 	}, nil
 }
 
@@ -117,11 +115,12 @@ func (s *SequentialTaskPicker) HasMoreTasks() bool {
 	return len(s.pendingTasks) > 0
 }
 
-func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
+func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() error {
 	// Consider the scenario where we have a single task in progress and all batches are submitted, but not yet ingested.
 	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
 	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
 	time.Sleep(time.Second * 1)
+	return nil
 }
 
 /*
@@ -156,8 +155,9 @@ type ColocatedAwareRandomTaskPicker struct {
 	tableWisePendingTasks *utils.StructMap[sqlname.NameTuple, []*ImportFileTask]
 	tableChooser          *weightedrand.Chooser[sqlname.NameTuple, int]
 
-	tableTypes    *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
-	taskImporters map[int]*FileTaskImporter
+	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
+
+	state *ImportDataState
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -165,7 +165,7 @@ type YbTargetDBColocatedChecker interface {
 	IsTableColocated(tableName sqlname.NameTuple) (bool, error)
 }
 
-func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker, taskImporters map[int]*FileTaskImporter) (*ColocatedAwareRandomTaskPicker, error) {
+func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedAwareRandomTaskPicker, error) {
 	var doneTasks []*ImportFileTask
 	var inProgressTasks []*ImportFileTask
 	tableWisePendingTasks := utils.NewStructMap[sqlname.NameTuple, []*ImportFileTask]()
@@ -233,7 +233,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		maxTasksInProgress:    maxTasksInProgress,
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
-		taskImporters:         taskImporters,
+		state:                 state,
 	}
 	if len(picker.tableWisePendingTasks.Keys()) > 0 {
 		err = picker.initializeChooser()
@@ -388,17 +388,16 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 	return pendingTasks
 }
 
-func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
+func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
 	// if for all in-progress tasks, all batches are submitted, then sleep for a bit
 	allTasksAllBatchesSubmitted := true
 
 	for _, task := range c.inProgressTasks {
-		taskImporter, ok := c.taskImporters[task.ID]
-		if !ok {
-			log.Errorf("task importer not found for task: %v", task)
-			continue
+		taskAllBatchesSubmitted, err := c.state.AllBatchesSubmittedForTask(task.ID)
+		if err != nil {
+			return fmt.Errorf("checking if all batches are submitted for task: %v: %w", task, err)
 		}
-		if !taskImporter.AllBatchesSubmitted() {
+		if !taskAllBatchesSubmitted {
 			allTasksAllBatchesSubmitted = false
 			break
 		}
@@ -408,5 +407,5 @@ func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
 		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
 		time.Sleep(time.Millisecond * 100)
 	}
-	return
+	return nil
 }

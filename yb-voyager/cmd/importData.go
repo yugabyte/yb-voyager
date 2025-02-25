@@ -723,12 +723,12 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		if !ok {
 			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
-		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb, taskImporters)
+		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
 		}
 	} else {
-		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state, taskImporters)
+		taskPicker, err = NewSequentialTaskPicker(pendingTasks, state)
 		if err != nil {
 			return fmt.Errorf("create sequential task picker: %w", err)
 		}
@@ -757,7 +757,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// task could have been completed (all batches imported) OR still in progress
 			// in case task is done, we should inform task picker so that we stop picking that task.
 			log.Infof("All batches submitted for task: %s", task)
-			taskDone, err := taskImporter.AllBatchesImported()
+			taskDone, err := state.AllBatchesImported(task.FilePath, task.TableNameTup)
 			if err != nil {
 				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
 			}
@@ -767,12 +767,16 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				state.UnregisterFileTaskImporter(taskImporter)
 				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
 				// some batches are still in progress, wait for them to complete as decided by the picker.
 				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
-				taskPicker.WaitForTasksBatchesTobeImported()
+				err := taskPicker.WaitForTasksBatchesTobeImported()
+				if err != nil {
+					return fmt.Errorf("wait for tasks batches to be imported: %w", err)
+				}
 				continue
 			}
 
