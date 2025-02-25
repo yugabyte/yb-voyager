@@ -896,7 +896,6 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	includeTableList := finalTableList
 	if source.TableList != "" {
 		includeTableList = extractTableListFromString(registeredList, source.TableList, "include")
-		//Get the partition to root map for all the partitioned tables in table-list flag
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, true)
 		if err != nil {
 			utils.ErrExit("adding leaf partititons to include table list: %s", err)
@@ -913,7 +912,6 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		}
 		rootTables = append(rootTables, tuple)
 	}
-
 
 	filteredListWithoutRootTable := lo.Filter(filteredTableListFromFlags, func(t sqlname.NameTuple, _ int) bool {
 		return !lo.ContainsBy(rootTables, func(root sqlname.NameTuple) bool {
@@ -932,7 +930,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		if !lo.ContainsBy(registeredList, func(tbl sqlname.NameTuple) bool {
 			return tbl.AsQualifiedCatalogName() == leaf
 		}) {
-			//If this leaf table is not registered in name register then it is a newly added leaf tables
+			//If this leaf table is not registered in name registry then it is a newly added leaf tables
 			newLeafTables[value] = append(newLeafTables[value], leaf)
 		}
 	}
