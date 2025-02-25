@@ -235,7 +235,7 @@ func TestAllIssues(t *testing.T) {
 			NewExclusionConstraintIssue("TABLE", "Test", stmt11, "no_time_overlap_constr"),
 		},
 		stmt13: []QueryIssue{
-			NewIndexOnComplexDatatypesIssue("INDEX", "idx_on_daterange ON test_dt", stmt13, "daterange"),
+			NewIndexOnDaterangeDatatypeIssue("INDEX", "idx_on_daterange ON test_dt", stmt13),
 		},
 	}
 
@@ -1374,7 +1374,6 @@ $$;`,
 			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "COMMIT PREPARED 'txn_db1';"),
 			NewTwoPhaseCommitIssue("PROCEDURE", "transfer_money", "ROLLBACK PREPARED 'txn_db1';"),
 		},
-		
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -1389,11 +1388,10 @@ $$;`,
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
-	
+
 	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.LatestStable)
 	assert.Error(t, err, `syntax error at or near "$1"`)
 
-	
 }
 
 func TestCompressionClause(t *testing.T) {
@@ -1421,5 +1419,5 @@ func TestCompressionClause(t *testing.T) {
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
-	
+
 }
