@@ -74,7 +74,7 @@ func TestSequentialTaskPickerBasic(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state)
+	picker, err := NewSequentialTaskPicker(tasks, state, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -108,7 +108,7 @@ func TestSequentialTaskPickerMarkTaskDone(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state)
+	picker, err := NewSequentialTaskPicker(tasks, state, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -165,7 +165,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 		task2,
 	}
 
-	picker, err := NewSequentialTaskPicker(tasks, state)
+	picker, err := NewSequentialTaskPicker(tasks, state, nil)
 	testutils.FatalIfError(t, err)
 
 	assert.True(t, picker.HasMoreTasks())
@@ -190,7 +190,7 @@ func TestSequentialTaskPickerResumePicksInProgressTask(t *testing.T) {
 
 	// simulate restart by creating a new picker
 	slices.Reverse(tasks) // reorder the tasks so that the in progress task is at the end
-	picker, err = NewSequentialTaskPicker(tasks, state)
+	picker, err = NewSequentialTaskPicker(tasks, state, nil)
 
 	// no matter how many times we call NextTask, it should return the same task (first task)
 	for i := 0; i < 10; i++ {
@@ -252,7 +252,7 @@ func TestColocatedAwareRandomTaskPickerAdheresToMaxTasksInProgress(t *testing.T)
 		},
 	}
 
-	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -354,7 +354,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableAdheresToMaxTasksInP
 		},
 	}
 
-	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -446,7 +446,7 @@ func TestColocatedAwareRandomTaskPickerSingleTask(t *testing.T) {
 		},
 	}
 
-	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -505,7 +505,7 @@ func TestColocatedAwareRandomTaskPickerTasksEqualToMaxTasksInProgress(t *testing
 	}
 
 	// 3 tasks, 3 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(3, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(3, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -574,7 +574,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksEqualToMaxTasks
 	}
 
 	// 3 tasks, 3 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(3, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(3, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -643,7 +643,7 @@ func TestColocatedAwareRandomTaskPickerTasksLessThanMaxTasksInProgress(t *testin
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -712,7 +712,7 @@ func TestColocatedAwareRandomTaskPickerMultipleTasksPerTableTasksLessThanMaxTask
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -779,7 +779,7 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasks(t *testing.T) {
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -824,7 +824,7 @@ func TestColocatedAwareRandomTaskPickerAllShardedTasksChooser(t *testing.T) {
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -943,7 +943,7 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasks(t *testing.T) {
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -988,7 +988,7 @@ func TestColocatedAwareRandomTaskPickerAllColocatedTasksChooser(t *testing.T) {
 	}
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1052,7 +1052,7 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasks(t *testing.T) {
 	}
 
 	// 5 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1107,7 +1107,7 @@ func TestColocatedAwareRandomTaskPickerMixShardedColocatedTasksChooser(t *testin
 	}
 
 	// 5 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1178,7 +1178,7 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	}
 
 	// 5 tasks, 10 max tasks in progress
-	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err := NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1205,19 +1205,19 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	batch3.MarkInProgress()
 
 	// simulate restart. now, those 3 tasks should be in progress
-	picker, err = NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb)
+	picker, err = NewColocatedAwareRandomTaskPicker(10, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	assert.Equal(t, 3, len(picker.inProgressTasks))
 
 	// simulate restart with  a larger no. of max tasks in progress
-	picker, err = NewColocatedAwareRandomTaskPicker(20, tasks, state, dummyYb)
+	picker, err = NewColocatedAwareRandomTaskPicker(20, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	assert.Equal(t, 3, len(picker.inProgressTasks))
 
 	// simulate restart with a smaller no. of max tasks in progress
-	picker, err = NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb)
+	picker, err = NewColocatedAwareRandomTaskPicker(2, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	// only two shoudl be inprogress even though previously 3 were in progress.
