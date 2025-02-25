@@ -28,18 +28,18 @@ def extract_divs(soup):
         prev_h2 = div.find_previous("h2")
         if prev_h2 and "Sharding Recommendations" in prev_h2.get_text():
             should_sort = True
+        else:
+            should_sort = False  # Reset should_sort for each div
+
         # Skipping the parent wrapper div since it causes issues to be reported twice
         if "wrapper" not in div.get("class", []):  # Exclude wrapper divs
-            filtered_divs.append((div, should_sort))
+            div_text = normalize_text(div.get_text(separator=" ")).strip()
+            if should_sort:
+                div_text = " ".join(sorted(div_text.split()))  # Sort content within div
+            filtered_divs.append(div_text)
 
-    div_texts_sorted = []
-    for div, should_sort in filtered_divs:
-        div_text = normalize_text(div.get_text(separator=" ")).strip()
-        if should_sort:
-            div_text = " ".join(sorted(div_text.split()))  # Sort content within div
-        div_texts_sorted.append(div_text)
+    return sorted(filtered_divs) if any(s for s in filtered_divs) else filtered_divs
 
-    return sorted(div_texts_sorted) if any(s for _, s in filtered_divs) else div_texts_sorted
 
 def extract_paragraphs(soup):
     """Extract and filter paragraphs, skipping specific ones based on conditions."""
