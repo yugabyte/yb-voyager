@@ -238,12 +238,39 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			"",
 			col.ColumnName,
 		))
-	case "geometry", "geography", "box2d", "box3d", "topogeometry":
-		*issues = append(*issues, NewPostGisDatatypeIssue(
+	case "geometry":
+		*issues = append(*issues, NewGeometryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
+			col.ColumnName,
+		))
+	case "geography":
+		*issues = append(*issues, NewGeographyDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "box2d":
+		*issues = append(*issues, NewBox2DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "box3d":
+		*issues = append(*issues, NewBox3DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "topogeometry":
+		*issues = append(*issues, NewTopogeometryDatatypeIssue(
+			objType,
+			objName,
+			"",
 			col.ColumnName,
 		))
 	case "lo":
@@ -253,22 +280,74 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			"",
 			col.ColumnName,
 		))
-	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
-		*issues = append(*issues, NewMultiRangeDatatypeIssue(
+	case "int8multirange":
+		*issues = append(*issues, NewInt8MultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
 			col.ColumnName,
 		))
+	case "int4multirange":
+		*issues = append(*issues, NewInt4MultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "datemultirange":
+		*issues = append(*issues, NewDateMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "nummultirange":
+		*issues = append(*issues, NewNumMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "tsmultirange":
+		*issues = append(*issues, NewTSMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "tstzmultirange":
+		*issues = append(*issues, NewTSTZMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "raster":
+		*issues = append(*issues, NewRasterDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "pg_lsn":
+		*issues = append(*issues, NewPgLsnDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+	case "txid_snapshot":
+		*issues = append(*issues, NewTxidSnapshotDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.ColumnName,
+		))
+
 	default:
-		*issues = append(*issues, NewUnsupportedDatatypeIssue(
-			objType,
-			objName,
-			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
 	}
 }
 
