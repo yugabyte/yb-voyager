@@ -65,11 +65,16 @@ def normalize_table_names(values):
         """Extract and normalize the table names from <td> and <th> and sort them."""
         table_names = []
         for v in values:
-            names = [normalize_text(name).strip() for name in v.get_text(separator="\n").split("\n") if name.strip()]
-            table_names.extend(names)
+            #Get the text and split it into lines
+            text_lines = v.get_text(separator="\n").split("\n")
+
+            #Filter out empty lines and normalize each line
+            normalized_names = [normalize_text(line).strip() for line in text_lines if line.strip()]
+
+            table_names.extend(normalized_names)
         return sorted(table_names)
 
-def sort_table_data(tables):
+def extract_table_data(tables):
     """Sort tables by rows and their contents, including headers."""
     sorted_tables = []
     for table in tables:
@@ -89,7 +94,6 @@ def sort_table_data(tables):
             sorted_tables.append(table_headers)
     return sorted_tables
 
-
 def extract_html_data(html_content):
     """Main function to extract structured data from HTML content."""
     soup = BeautifulSoup(html_content, 'html.parser')
@@ -98,7 +102,7 @@ def extract_html_data(html_content):
         "title": normalize_text(soup.title.string) if soup.title and soup.title.string else "No Title",
         "headings": extract_and_normalize_texts(soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])),
         "paragraphs": extract_paragraphs(soup),
-        "tables": sort_table_data(soup.find_all("table")),
+        "tables": extract_table_data(soup.find_all("table")),
         "links": {
             k: v for k, v in sorted(
                 {normalize_text(a.get("href") or ""): normalize_text(a.text) for a in soup.find_all("a")}.items()
@@ -129,39 +133,80 @@ def generate_diff_list(list1, list2, section_name, file1_path, file2_path):
 def dict_to_list(dict_data):
     """Convert dictionary to list of formatted strings."""
     return [f"{k} -> {v}" for k, v in dict_data.items()]
+    
+def compare_html_tags(html_data1, html_data2):
+    """Compare the unique tags in the two HTML reports."""
 
-def compare_html_reports(file1, file2):
-    """Compares two HTML reports and prints structured differences."""
-    with open(file1, "r", encoding="utf-8") as f1, open(file2, "r", encoding="utf-8") as f2:
-        html_data1 = extract_html_data(f1.read())
-        html_data2 = extract_html_data(f2.read())
+    def get_unique_tags(html_content):
+        """Extracts all unique tag names from the given HTML content."""
+        soup = BeautifulSoup(html_content, 'html.parser')
+        return {tag.name for tag in soup.find_all()}
+    
+    tags1 = get_unique_tags(html_data1)
+    tags2 = get_unique_tags(html_data2)
+    
+    missing_tags_in_file1 = tags2 - tags1  # Tags in file2 but missing in file1
+    missing_tags_in_file2 = tags1 - tags2  # Tags in file1 but missing in file2
 
     differences = {}
 
-    for key in html_data1.keys():
-        if html_data1[key] != html_data2[key]:
-            if isinstance(html_data1[key], list):  # For headings, paragraphs, spans, divs
-                diff = generate_diff_list(html_data1[key], html_data2[key], key, file1, file2)
-            elif isinstance(html_data1[key], dict):  # For links dictionary
+    if missing_tags_in_file1:
+        differences["missing_tags_in_file1"] = "\n".join(missing_tags_in_file1)
+    if missing_tags_in_file2:
+        differences["missing_tags_in_file2"] = "\n".join(missing_tags_in_file2)
+
+    return differences
+
+def compare_html_data(html_data1, html_data2, file1, file2):
+
+    differences = {}
+
+    for section in html_data1.keys():
+        if html_data1[section] != html_data2[section]:
+            if isinstance(html_data1[section], list):  # For headings, paragraphs, spans, divs
+                diff = generate_diff_list(html_data1[section], html_data2[section], section, file1, file2)
+            elif isinstance(html_data1[section], dict):  # For links dictionary
                 diff = generate_diff_list(
-                    dict_to_list(html_data1[key]),
-                    dict_to_list(html_data2[key]),
-                    key, file1, file2
+                    dict_to_list(html_data1[section]),
+                    dict_to_list(html_data2[section]),
+                    section, file1, file2
                 )
             else:  # Title (single string)
-                diff = generate_diff_list([html_data1[key]], [html_data2[key]], key, file1, file2)
+                diff = generate_diff_list([html_data1[section]], [html_data2[section]], section, file1, file2)
 
             if diff:  # Only store sections that have differences
-                differences[key] = diff
+                differences[section] = diff
+    
+    return differences
 
-    if not differences:
+def read_and_compare_html_files(file1, file2):
+    """Read and extract structured data from HTML files."""
+    with open(file1, "r", encoding="utf-8") as f1, open(file2, "r", encoding="utf-8") as f2:
+        html_data1 = f1.read()
+        html_data2 = f2.read()
+    
+    tags_differences = compare_html_tags(html_data1, html_data2)
+    data_differences = compare_html_data(extract_html_data(html_data1), extract_html_data(html_data2), file1, file2)
+
+    # Print differences here
+    if not tags_differences and not data_differences:
         print("The reports are matching.")
     else:
         print("The reports are not matching:")
-        for section, diff_text in differences.items():
-            print(f"\n=== {section.upper()} DIFFERENCES ===")
-            print(diff_text)
+        
+        if tags_differences:
+            print("\n=== TAG DIFFERENCES ===")
+            for section, diff_text in tags_differences.items():
+                print(f"\n=== {section.replace('_', ' ').upper()} ===")
+                print(diff_text)
+        
+        if data_differences:
+            for section, diff_text in data_differences.items():
+                print(f"\n=== {section.upper()} DIFFERENCES ===")
+                print(diff_text)
+        
         sys.exit(1)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Compare two HTML reports.")
@@ -169,4 +214,4 @@ if __name__ == "__main__":
     parser.add_argument("report2", help="Path to the second HTML report")
     
     args = parser.parse_args()
-    compare_html_reports(args.report1, args.report2)
+    read_and_compare_html_files(args.report1, args.report2)
