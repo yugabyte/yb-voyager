@@ -232,7 +232,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "INDEX",
             "ObjectName": "idx_1 ON composite_type_examples.ordinary_table",
-            "Reason": "Indexes on columns with complex data types like 'user_defined_type' are not yet supported in YugabyteDB.",
+            "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Refer to the docs link for the workaround",
