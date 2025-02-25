@@ -896,6 +896,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	includeTableList := finalTableList
 	if source.TableList != "" {
 		includeTableList = extractTableListFromString(registeredList, source.TableList, "include")
+		//Get the partition to root map for all the partitioned tables in table-list flag
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, true)
 		if err != nil {
 			utils.ErrExit("adding leaf partititons to include table list: %s", err)
@@ -904,20 +905,64 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	filteredTableListFromFlags := sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
-	rootTables := make(map[string]bool)
+	rootTables := make([]sqlname.NameTuple, 0)
 	for _, v := range partitionsToRootTableMap {
-		rootTables[v] = true
+		tuple, err := namereg.NameReg.LookupTableName(v)
+		if err != nil {
+			utils.ErrExit("look up failed for the table name: %s: %v", v, err)
+		}
+		rootTables = append(rootTables, tuple)
 	}
 
+
 	filteredListWithoutRootTable := lo.Filter(filteredTableListFromFlags, func(t sqlname.NameTuple, _ int) bool {
-		return !rootTables[t.AsQualifiedCatalogName()]
-	})
-	finalTableListWithoutRootTable := lo.Filter(finalTableList, func(t sqlname.NameTuple, _ int) bool {
-		return !rootTables[t.AsQualifiedCatalogName()]
+		return !lo.ContainsBy(rootTables, func(root sqlname.NameTuple) bool {
+			return t.Equals(root)
+		})
 	})
 
-	missingTablesInFilteredList := sqlname.SetDifferenceNameTuples(finalTableListWithoutRootTable, filteredListWithoutRootTable)
-	missingTablesInPreviousList := sqlname.SetDifferenceNameTuples(filteredListWithoutRootTable, finalTableListWithoutRootTable)
+	// Finding all the partitions of all root tables part of table-list, and report if there any new partitions added
+	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
+	if err != nil {
+		utils.ErrExit("getting updated partitions to root table mapping: %s", err)
+	}
+
+	newLeafTables := make(map[string][]string)
+	for leaf, value := range updatedPartitionsToRootTableMap {
+		if !lo.ContainsBy(registeredList, func(tbl sqlname.NameTuple) bool {
+			return tbl.AsQualifiedCatalogName() == leaf
+		}) {
+			//If this leaf table is not registered in name register then it is a newly added leaf tables
+			newLeafTables[value] = append(newLeafTables[value], leaf)
+		}
+	}
+
+	if len(lo.Keys(newLeafTables)) > 0 {
+		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
+		listToPrint := ""
+		for k, leafs := range newLeafTables {
+			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
+		}
+		utils.PrintAndLog(listToPrint)
+	}
+
+	//Filtering the new leaf tables if present in filteredListWithoutRootTable as we have reported above
+	filteredListWithoutNewLeafTable := lo.Filter(filteredListWithoutRootTable, func(t sqlname.NameTuple, _ int) bool {
+		for _, leafs := range newLeafTables {
+			for _, l := range leafs {
+				return t.AsQualifiedCatalogName() != l
+			}
+		}
+		return true
+	})
+	finalTableListWithoutRootTable := lo.Filter(finalTableList, func(t sqlname.NameTuple, _ int) bool {
+		return !lo.ContainsBy(rootTables, func(root sqlname.NameTuple) bool {
+			return t.Equals(root)
+		})
+	})
+
+	missingTablesInFilteredList := sqlname.SetDifferenceNameTuples(finalTableListWithoutRootTable, filteredListWithoutNewLeafTable)
+	missingTablesInPreviousList := sqlname.SetDifferenceNameTuples(filteredListWithoutNewLeafTable, finalTableListWithoutRootTable)
 
 	if len(missingTablesInFilteredList) > 0 || len(missingTablesInPreviousList) > 0 {
 		utils.PrintAndLog("Changing the table list during live-migration is not allowed.")
