@@ -623,7 +623,15 @@ var MigrationCaveatsIssues = []string{
 	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	queryissue.FOREIGN_TABLE,
 	queryissue.POLICY_WITH_ROLES,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+	// Datatypes not supported in YB in live migration
+	queryissue.POINT_DATATYPE,
+	queryissue.LINE_DATATYPE,
+	queryissue.LSEG_DATATYPE,
+	queryissue.BOX_DATATYPE,
+	queryissue.PATH_DATATYPE,
+	queryissue.POLYGON_DATATYPE,
+	queryissue.CIRCLE_DATATYPE,
+	// Datatypes not supported in YB in live migration with FF and FB
 	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
 }
 

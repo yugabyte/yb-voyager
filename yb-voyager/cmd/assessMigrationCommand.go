@@ -1528,7 +1528,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(AssessmentIssue{
 					Category:            MIGRATION_CAVEATS_CATEGORY,
 					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
+					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
 					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
 					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
 					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,

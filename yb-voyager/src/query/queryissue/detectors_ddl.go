@@ -142,13 +142,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, NewUnsupportedDatatypeForLMIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				col.TypeName,
-				col.ColumnName,
-			))
+			reportUnsupoortedDatatypesInLive(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
@@ -229,6 +223,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "xid":
@@ -236,6 +231,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "geometry":
@@ -243,6 +239,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "geography":
@@ -250,6 +247,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "box2d":
@@ -257,6 +255,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "box3d":
@@ -264,6 +263,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "topogeometry":
@@ -271,6 +271,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "lo":
@@ -278,6 +279,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			"LARGE OBJECT",
 			col.ColumnName,
 		))
 	case "int8multirange":
@@ -285,6 +287,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "int4multirange":
@@ -292,6 +295,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "datemultirange":
@@ -299,6 +303,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "nummultirange":
@@ -306,6 +311,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "tsmultirange":
@@ -313,6 +319,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "tstzmultirange":
@@ -320,6 +327,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "raster":
@@ -327,6 +335,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "pg_lsn":
@@ -334,6 +343,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "txid_snapshot":
@@ -341,9 +351,75 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "point":
+		*issues = append(*issues, NewPointDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "line":
+		*issues = append(*issues, NewLineDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "lseg":
+		*issues = append(*issues, NewLsegDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box":
+		*issues = append(*issues, NewBoxDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "path":
+		*issues = append(*issues, NewPathDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "polygon":
+		*issues = append(*issues, NewPolygonDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "circle":
+		*issues = append(*issues, NewCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
 	default:
 		// Unrecognized types
 		// Throwing error for now
