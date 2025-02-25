@@ -236,17 +236,17 @@ CREATE TABLE users (
     name TEXT
 );
 
-ALTER TABLE ONLY users ALTER COLUMN user_code SET DEFAULT nextval('public.user_code_seq'::regclass);
+ALTER TABLE ONLY users ALTER COLUMN user_code SET DEFAULT generate_user_code()
 
 ALTER SEQUENCE public.user_code_seq OWNED BY public.users.user_code;
 
-INSERT INTO users (user_code, name) 
-VALUES (generate_user_code(), 'John Doe');
+INSERT INTO users (name) 
+VALUES ('John Doe');
 
-INSERT INTO users (user_code, name) 
-VALUES (generate_user_code(), 'ABC');
+INSERT INTO users (name) 
+VALUES ('ABC');
 
-INSERT INTO users (user_code, name) 
-VALUES (generate_user_code(), 'XYZ');
+INSERT INTO users (name) 
+VALUES ('XYZ');
 
 SELECT * FROM users;
