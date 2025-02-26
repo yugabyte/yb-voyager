@@ -646,7 +646,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.Contains(issueInstance.Type, i)
+		return strings.EqualFold(issueInstance.Type, i)
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
