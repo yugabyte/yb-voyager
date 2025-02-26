@@ -135,8 +135,14 @@ public class SequenceObjectUpdater {
                     columnValue = Long.valueOf(value);
                     sequenceMax.put(seqName, Math.max(sequenceMax.get(seqName), columnValue));
                 } catch (NumberFormatException e) {
-                    //Skipping the sequences that are not on Integer columns
-                    LOGGER.info("Skipping unsupported sequence with non-interger value: '{}'", seqName);
+                    /*
+                    Skipping the sequences that are on non-Integer columns
+                    the case where Table has a text column and its default is generating a string which include the sequence nextval
+                    e.g. CREATE TABLE test(user_id text DEFAULT 'USR' || LPAD(nextval('user_code_seq')::TEXT, 4, '0'), user_name text);  
+                    For the above table the row will have USR0001 column value for user_id column 
+                    and while converting this USR0001 to Long will error out with NumberFormatException as its not a number
+                    */
+                    LOGGER.debug("Skipping unsupported sequence with non-interger value: '{}'", seqName);
                 }
             }
         }
