@@ -103,6 +103,7 @@ type IntermediateRecommendation struct {
 	EstimatedTimeInMinForImport     float64
 	ParallelVoyagerJobs             float64
 	FailureReasoning                string
+	CoresNeeded                     float64
 }
 
 const (
@@ -301,13 +302,11 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 		if rec.FailureReasoning == "" {
 			foundRecommendation = true
 			// Update finalRecommendation if the current recommendation has fewer cores.
-			// Buffer to choose setup with higher vCPU if difference between required cores between two setup is less
-			// than higher vCPU count.
-			if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance &&
-				(minCores-int(rec.NumNodes)*rec.VCPUsPerInstance) > finalRecommendation.VCPUsPerInstance {
+			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
+			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
-				minCores = int(rec.NumNodes) * rec.VCPUsPerInstance
-			} else if minCores == int(rec.NumNodes)*rec.VCPUsPerInstance {
+				minCores = int(rec.CoresNeeded)
+			} else if minCores == int(rec.CoresNeeded) {
 				// If the number of cores is the same across machines, recommend the machine with higher core count
 				if rec.VCPUsPerInstance > finalRecommendation.VCPUsPerInstance {
 					finalRecommendation = rec
@@ -383,6 +382,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 			ShardedSize:                     previousRecommendation.ShardedSize,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
 			FailureReasoning:                previousRecommendation.FailureReasoning,
+			CoresNeeded:                     neededCores,
 		}
 	}
 	// Return updated recommendation map
@@ -431,7 +431,9 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 					// update recommendation to use the maximum of the existing recommended nodes and nodes calculated based on tablets
 					// Caveat: if new nodes required is more than the existing recommended nodes, we would need to
 					// re-evaluate tablets required. Although, in this iteration we've skipping re-evaluation.
-					rec.NumNodes = math.Max(rec.NumNodes, nodesRequired)
+					currentMaxRequiredNodes := math.Max(nodesRequired, rec.NumNodes)
+					rec.CoresNeeded = lo.Ternary(nodesRequired <= rec.NumNodes, rec.CoresNeeded, currentMaxRequiredNodes*float64(rec.VCPUsPerInstance))
+					rec.NumNodes = currentMaxRequiredNodes
 					recommendation[i] = rec
 				}
 			}
