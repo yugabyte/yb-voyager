@@ -229,43 +229,53 @@ func testLoDatatypeIssue(t *testing.T) {
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", loDatatypeIssue)
 }
 
-// func testMultiRangeDatatypeIssue(t *testing.T) {
-// 	ctx := context.Background()
-// 	conn, err := getConn()
-// 	assert.NoError(t, err)
+func testMultiRangeDatatypeIssue(t *testing.T) {
+	ctx := context.Background()
+	conn, err := getConn()
+	assert.NoError(t, err)
 
-// 	queries := []string{
-// 		`CREATE TABLE int_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			value_ranges int4multirange
-// 		);`,
-// 		`CREATE TABLE bigint_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			value_ranges int8multirange
-// 		);`,
-// 		`CREATE TABLE numeric_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			price_ranges nummultirange
-// 		);`,
-// 		`CREATE TABLE timestamp_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			event_times tsmultirange
-// 		);`,
-// 		`CREATE TABLE timestamptz_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			global_event_times tstzmultirange
-// 		);`,
-// 		`CREATE TABLE date_multirange_table (
-// 			id SERIAL PRIMARY KEY,
-// 			project_dates datemultirange
-// 		);`,
-// 	}
+	query := `CREATE TABLE int_multirange_table (
+			id SERIAL PRIMARY KEY,
+			value_ranges int4multirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", int4MultirangeDatatypeIssue)
 
-// 	for _, query := range queries {
-// 		_, err = conn.Exec(ctx, query)
-// 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", multiRangeDatatypeIssue)
-// 	}
-// }
+	query = `CREATE TABLE bigint_multirange_table (
+			id SERIAL PRIMARY KEY,
+			value_ranges int8multirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", int8MultirangeDatatypeIssue)
+
+	query = `CREATE TABLE numeric_multirange_table (
+			id SERIAL PRIMARY KEY,
+			price_ranges nummultirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", numMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE timestamp_multirange_table (
+			id SERIAL PRIMARY KEY,
+			event_times tsmultirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", tsMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE timestamptz_multirange_table (
+			id SERIAL PRIMARY KEY,
+			global_event_times tstzmultirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", tstzMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE date_multirange_table (
+			id SERIAL PRIMARY KEY,
+			project_dates datemultirange
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", dateMultirangeDatatypeIssue)
+}
 
 func testSecurityInvokerView(t *testing.T) {
 	ctx := context.Background()
@@ -870,8 +880,8 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "lo datatype", ybVersion), testLoDatatypeIssue)
 	assert.True(t, success)
 
-	// success = t.Run(fmt.Sprintf("%s-%s", "multi range datatype", ybVersion), testMultiRangeDatatypeIssue)
-	// assert.True(t, success)
+	success = t.Run(fmt.Sprintf("%s-%s", "multi range datatype", ybVersion), testMultiRangeDatatypeIssue)
+	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "security invoker view", ybVersion), testSecurityInvokerView)
 	assert.True(t, success)
