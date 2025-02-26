@@ -5,6 +5,7 @@ import re
 from bs4 import BeautifulSoup
 import difflib
 import sys
+from collections import Counter
 
 def normalize_text(text):
     """Normalize and clean up text content."""
@@ -133,27 +134,42 @@ def generate_diff_list(list1, list2, section_name, file1_path, file2_path):
 def dict_to_list(dict_data):
     """Convert dictionary to list of formatted strings."""
     return [f"{k} -> {v}" for k, v in dict_data.items()]
-    
-def compare_html_tags(html_data1, html_data2):
-    """Compare the unique tags in the two HTML reports."""
 
-    def get_unique_tags(html_content):
-        """Extracts all unique tag names from the given HTML content."""
+def compare_html_tags(html_data1, html_data2):
+    """Compare the unique tags and their counts in the two HTML reports."""
+
+    def get_tag_counts(html_content):
+        """Extracts all tag names and their counts from the given HTML content."""
         soup = BeautifulSoup(html_content, 'html.parser')
-        return {tag.name for tag in soup.find_all()}
-    
-    tags1 = get_unique_tags(html_data1)
-    tags2 = get_unique_tags(html_data2)
-    
+        return Counter(tag.name for tag in soup.find_all())
+
+    tags_count1 = get_tag_counts(html_data1)
+    tags_count2 = get_tag_counts(html_data2)
+
+    tags1 = set(tags_count1.keys())
+    tags2 = set(tags_count2.keys())
+
     missing_tags_in_file1 = tags2 - tags1  # Tags in file2 but missing in file1
     missing_tags_in_file2 = tags1 - tags2  # Tags in file1 but missing in file2
 
     differences = {}
 
     if missing_tags_in_file1:
-        differences["missing_tags_in_file1"] = "\n".join(missing_tags_in_file1)
+        differences["extra_tags_in_the_actual_report"] = "\n".join(missing_tags_in_file1)
     if missing_tags_in_file2:
-        differences["missing_tags_in_file2"] = "\n".join(missing_tags_in_file2)
+        differences["missing_tags_in_the_actual_report"] = "\n".join(missing_tags_in_file2)
+
+    # Check for tag count mismatches
+    tag_count_mismatches = {
+        tag: f"Expected: {tags_count1[tag]}, Found: {tags_count2[tag]}"
+        for tag in (tags1 & tags2)  # Tags present in both files
+        if tags_count1[tag] != tags_count2[tag]
+    }
+
+    if tag_count_mismatches:
+        differences["tag_count_mismatches"] = "\n".join(
+            f"{tag}: {count}" for tag, count in tag_count_mismatches.items()
+        )
 
     return differences
 
