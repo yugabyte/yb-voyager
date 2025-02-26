@@ -160,10 +160,10 @@ def migration_completed_checks(tgt):
 			assert extension in extensions, f"expected extension is not reported: {extension}"
 		
 		# Check for extra/unexpected extensions
-    	extra_extensions = set(extensions) - set(expectedExtensions)
-    	if extra_extensions:
-    	    print(f"ERROR: Unexpected extensions found: {extra_extensions}")
-    	    sys.exit(1)  # Exit with error status
+		extra_extensions = set(extensions) - set(expectedExtensions)
+		if extra_extensions:
+			print(f"ERROR: Unexpected extensions found: {extra_extensions}")
+			sys.exit(1)  # Exit with error status
 	
 def change_expected_values_for_live_migration():
 	del EXPECTED_ROW_COUNT["Mixed_Case_Table_Name_Test"]
