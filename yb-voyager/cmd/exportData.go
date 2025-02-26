@@ -257,7 +257,10 @@ func exportData() bool {
 	defer cancel()
 	var partitionsToRootTableMap map[string]string
 	// get initial table list
-	partitionsToRootTableMap, finalTableList := getInitialTableList()
+	partitionsToRootTableMap, finalTableList, err := getInitialTableList()
+	if err != nil {
+		utils.ErrExit("error getting initial table list: %v", err)
+	}
 
 	// Check if source DB has required permissions for export data
 	if source.RunGuardrailsChecks {
@@ -739,55 +742,99 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	}
 }
 
-func getNameTupleFromObjectName(obj *sqlname.ObjectName) sqlname.NameTuple {
+// Return the nameTuple of the qualfieidObj string
+func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectName *sqlname.ObjectName) (sqlname.NameTuple, error) {
+	sourceTypeHandlesPartitionAsSeparateTable := func(dbType string) bool {
+		return dbType == POSTGRESQL || dbType == YUGABYTEDB
+	}
+	if !sourceTypeHandlesPartitionAsSeparateTable(source.DBType) {
+		//ORACLE and MySQL no need to care about leaf partitions
+		tuple, err := namereg.NameReg.LookupTableName(qualifiedObjectStr)
+		if err != nil {
+			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %v", qualifiedObjectStr, err)
+		}
+		return tuple, nil
+	}
+	//Now for PG/YB create a ObjectName and a NameTuple by hand and then check if that is a partition table or not
+	var obj *sqlname.ObjectName
+	if qualifiedObjectName != nil {
+		//if passed in parameter then take it else create one
+		obj = qualifiedObjectName
+	} else {
+		//create the ObjectName by hand
+		defaultSchemaName, _ := getDefaultSourceSchemaName()
+		obj = sqlname.NewObjectNameWithQualifiedName(source.DBType, defaultSchemaName, qualifiedObjectStr)
+	}
+	//get the name tupe case its leaf partition return a handcrafted NameTuple else return  from nameReg lookup
 	var err error
 	tuple := sqlname.NameTuple{
 		SourceName:  obj,
 		CurrentName: obj,
 	}
-	parent := ""
-	if source.DBType == POSTGRESQL || source.DBType == YUGABYTEDB {
-		parent = source.DB().ParentTableOfPartition(tuple)
-	}
+	parent := source.DB().ParentTableOfPartition(tuple)
+
 	if parent == "" {
 		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName, obj.Unqualified.Unquoted))
 		if err != nil {
-			utils.ErrExit("lookup for table name failed err: %s: %v", obj.Unqualified, err)
+			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %v", obj.Unqualified, err)
 		}
 	}
-	return tuple
+	return tuple, nil
 }
 
-func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlname.NameTuple) {
-	var includeTableList []sqlname.NameTuple
-	var finalTableList []sqlname.NameTuple
-	var fullTableList []sqlname.NameTuple
+func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.NameTuple, tableListViaFlag string, excludeTableListViaFlag string) ([]sqlname.NameTuple, error) {
+	var err error
+	var includeTableList, excludeTableList []sqlname.NameTuple
+
+	applyFilterAndLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
+		flagTableList := extractTableListFromString(fullTableList, flagList, flagName)
+		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
+		if err != nil {
+			return nil, fmt.Errorf("failed to add the leaf partitions in %s table list: %w", flagName, err)
+		}
+		return flagTableList, nil
+	}
+
+	if excludeTableListViaFlag != "" {
+		//Apply exclude table list filter if present
+		excludeTableList, err = applyFilterAndLeafTable(excludeTableListViaFlag, "exclude")
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	includeTableList = fullTableList
+	if tableListViaFlag != "" {
+		//Apply include table list filter if present
+		includeTableList, err = applyFilterAndLeafTable(tableListViaFlag, "include")
+		if err != nil {
+			return nil, err
+		}
+	}
+	//return the final table list generated from the command flags  table-list (include list) / exclude-table-list in this run
+	return sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList), nil
+}
+
+func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlname.NameTuple, error) {
+	var tableListInFirstRun []sqlname.NameTuple
+	var nameTupleTableListFromDB []sqlname.NameTuple
 	var err error
 	tableListFromDB := source.DB().GetAllTableNames()
 	for _, t := range tableListFromDB {
-		schema, table := t.SchemaName.Unquoted, t.ObjectName.Unquoted
-		defaultSchemaName, _ := getDefaultSourceSchemaName()
-		//For partitions case there is no defined mapping and
-		//hence lookup will fail, need to create nametuple for non-root table by hand
-		obj := sqlname.NewObjectName(source.DBType, defaultSchemaName, schema, table)
-		tuple := getNameTupleFromObjectName(obj)
-		fullTableList = append(fullTableList, tuple)
-	}
-	excludeTableList := extractTableListFromString(fullTableList, source.ExcludeTableList, "exclude")
-	if len(excludeTableList) > 0 {
-		//TODO: avoid duplicate call to this function and optimize this function later
-		_, excludeTableList, err = addLeafPartitionsInTableList(excludeTableList, true)
+		tuple, err := getNameTupleFromQualifiedObject(t.Qualified.Quoted, nil)
 		if err != nil {
-			utils.ErrExit("adding leaf partititons to exclude table list: %s", err)
+			return nil, nil, fmt.Errorf("error getting name tuple for the object: %s: %v", t.Qualified.Quoted, err)
 		}
+		nameTupleTableListFromDB = append(nameTupleTableListFromDB, tuple)
 	}
-	if source.TableList != "" {
-		includeTableList = extractTableListFromString(fullTableList, source.TableList, "include")
-	} else {
-		includeTableList = fullTableList
+
+	//apply table list flags filter on the nameTupleTableListFromDB
+	tableListInFirstRun, err = applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %v", err)
 	}
-	finalTableList = sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
-	isTableListModified := len(sqlname.SetDifferenceNameTuples(fullTableList, finalTableList)) != 0
+
+	isTableListModified := len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if isTableListModified {
@@ -797,95 +844,84 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 			}
 		})
 	}
-	var partitionsToRootTableMap map[string]string
-	isTableListSet := source.TableList != ""
-	partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(finalTableList, isTableListSet)
-	if err != nil {
-		utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
-	}
 
-	return partitionsToRootTableMap, finalTableList
+	var partitionsToRootTableMap map[string]string
+	//Just populating the partitionsToRootTableMap from the finalTableList which is filtered from flags if required and has leaf and roots both
+	partitionsToRootTableMap, tableListInFirstRun, err = addLeafPartitionsInTableList(tableListInFirstRun, false)
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
+	}
+	return partitionsToRootTableMap, tableListInFirstRun, nil
 }
 
-func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
+func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord) ([]sqlname.NameTuple, map[string]string, error) {
+	var firstRunTableWithLeafsAndRoots []sqlname.NameTuple
+	var partitionsToRootTableMap map[string]string
+	var err error
+	storedTableList := make([]string, 0)
+	switch source.DBType {
+	case ORACLE, MYSQL:
+		storedTableList = msr.TableListExportedFromSource
+	case POSTGRESQL:
+		storedTableList = msr.SourceExportedTableListWithLeafPartitions
+		partitionsToRootTableMap = msr.SourceRenameTablesMap
+	case YUGABYTEDB:
+		//For the first run of export data from target we use the TableListExportedFromSource (which has only root tables)
+		storedTableList = msr.TableListExportedFromSource
+
+		// On subsequent run after the first we will use the stored table with leaf partitions
+		if len(msr.TargetExportedTableListWithLeafPartitions) > 0 && msr.TargetRenameTablesMap != nil {
+			storedTableList = msr.TargetExportedTableListWithLeafPartitions
+			partitionsToRootTableMap = msr.TargetRenameTablesMap
+		}
+	}
+
+	for _, table := range storedTableList {
+		tuple, err := getNameTupleFromQualifiedObject(table, nil)
+		if err != nil {
+			return nil, nil, fmt.Errorf("error getting name  tuple for the string oject name: %v", err)
+		}
+		firstRunTableWithLeafsAndRoots = append(firstRunTableWithLeafsAndRoots, tuple)
+	}
+
+	if source.DBType == YUGABYTEDB {
+		//For the first run of export data from target we will fetch the leaf partitions from target and store them
+		if len(msr.TargetExportedTableListWithLeafPartitions) == 0 || msr.TargetRenameTablesMap == nil {
+			//Now add the leaf partitions to the stored table-list for the first run of export data from target
+			// as it will only have root table names and get the partitionsToRootTableMap
+			partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, err = addLeafPartitionsInTableList(firstRunTableWithLeafsAndRoots, true)
+			if err != nil {
+				return nil, nil, fmt.Errorf("failed to add the leaf partitions in table list: %w", err)
+			}
+		}
+	}
+	return firstRunTableWithLeafsAndRoots, partitionsToRootTableMap, nil
+}
+
+func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	// store table list after filtering unsupported or unnecessary tables
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("error fetching migration status record: %v", err)
 	}
+	storedTableListNotAvailable := func() bool {
+		//if any of the list in DB is empty
+		return len(msr.TableListExportedFromSource) == 0 || len(msr.SourceExportedTableListWithLeafPartitions) == 0
+	}
 
-	if startClean || len(msr.TableListExportedFromSource) == 0 {
+	if bool(startClean) || storedTableListNotAvailable() {
 		// fresh start case or the first run where we don't have a table list stored in msr
 		return fetchTablesNamesFromSourceAndFilterTableList()
 
 	}
 
-	//resumption case where we will use a table-list stored in
-	var fullTableList []sqlname.NameTuple
-	var finalTableList []sqlname.NameTuple
-	storedTableList := msr.TableListExportedFromSource
-	if source.DBType == POSTGRESQL && msr.SourceExportedTableListWithLeafPartitions != nil {
-		//list with partitioned root table and all leafs
-		storedTableList = msr.SourceExportedTableListWithLeafPartitions
-	}
-	for _, t := range storedTableList {
-		var tuple sqlname.NameTuple
-		var err error
-		switch source.DBType {
-		case POSTGRESQL:
-			defaultSchemaName, _ := getDefaultSourceSchemaName()
-			obj := sqlname.NewObjectNameWithQualifiedName(source.DBType, defaultSchemaName, t)
-			//get the name tupe via `getNAmeFromObj` function in case its leaf partition
-			tuple = getNameTupleFromObjectName(obj)
-		default:
-			tuple, err = namereg.NameReg.LookupTableName(t)
-			if err != nil {
-				utils.ErrExit("lookup for table name failed: %s: %v", t, err)
-			}
-		}
-		fullTableList = append(fullTableList, tuple)
-	}
-	finalTableList = fullTableList
-
+	//sunsequent run case where we will use a table-list stored in msr
+	var firstRunTableWithLeafsAndRoots []sqlname.NameTuple
 	var partitionsToRootTableMap map[string]string
-	switch source.DBType {
-	case POSTGRESQL:
-		partitionsToRootTableMap = msr.SourceRenameTablesMap
-		if msr.SourceExportedTableListWithLeafPartitions == nil {
-			// In case of resumption this SourceExportedTableListWithLeafPartitions is not available (most likely in upgrade scenario)
-			//add the leafs in the finalTableList from the partitionsToRootTableMap
-			for leaf, root := range partitionsToRootTableMap {
-				if lo.ContainsBy(finalTableList, func(t sqlname.NameTuple) bool {
-					return t.AsQualifiedCatalogName() == root
-				}) {
-					defaultSchemaName, _ := getDefaultSourceSchemaName()
-					obj := sqlname.NewObjectNameWithQualifiedName(source.DBType, defaultSchemaName, leaf)
-					//get the name tupe via `getNAmeFromObj` function in case its leaf partition
-					leafTuple := getNameTupleFromObjectName(obj)
-					finalTableList = append(finalTableList, leafTuple)
-				}
-			}
-		}
-	case YUGABYTEDB:
-		//For the first run of export data from target we will fetch the leaf partitions from target and store them
-		if msr.TargetExportedTableListWithLeafPartitions == nil || msr.TargetRenameTablesMap == nil {
-			//Now add the leaf partitions to the stored table-list for the first run of export data from target
-			// as it will only have root table names and get the partitionsToRootTableMap
-			partitionsToRootTableMap, finalTableList, err = addLeafPartitionsInTableList(fullTableList, true)
-			if err != nil {
-				utils.ErrExit("failed to add the leaf partitions in table list: %w", err)
-			}
-		} else {
-			// On re-run we can re-use the stored one
-			finalTableList = lo.Map(msr.TargetExportedTableListWithLeafPartitions, func(t string, _ int) sqlname.NameTuple {
-				defaultSchemaName, _ := getDefaultSourceSchemaName()
-				obj := sqlname.NewObjectNameWithQualifiedName(source.DBType, defaultSchemaName, t)
-				//get the name tupe via `getNAmeFromObj` function in case its leaf partition
-				return getNameTupleFromObjectName(obj)
-			})
-			partitionsToRootTableMap = msr.TargetRenameTablesMap
-		}
 
+	firstRunTableWithLeafsAndRoots, partitionsToRootTableMap, err = retrieveFirstRunListAndPartitionsRootMap(msr)
+	if err != nil {
+		return nil, nil, fmt.Errorf("getting the first run table list and partition to root mapping: %v", err)
 	}
 
 	//guardrails around the table-list in case of re-run
@@ -897,28 +933,15 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		utils.ErrExit("error getting registered list in name registry: %v", err)
 	}
 
-	registeredList := lo.Map(registeredListObjNames, func(obj *sqlname.ObjectName, _ int) sqlname.NameTuple {
-		return getNameTupleFromObjectName(obj)
-	})
-
-	excludeTableList := extractTableListFromString(registeredList, source.ExcludeTableList, "exclude")
-	if len(excludeTableList) > 0 {
-		_, excludeTableList, err = addLeafPartitionsInTableList(excludeTableList, true)
+	registeredList := make([]sqlname.NameTuple, 0)
+	for _, obj := range registeredListObjNames {
+		tuple, err := getNameTupleFromQualifiedObject(obj.Qualified.Quoted, obj)
 		if err != nil {
-			utils.ErrExit("adding leaf partititons to exclude table list: %s", err)
+			return nil, nil, fmt.Errorf("error in getting the name tuple for the qualified object: %s: %v", obj.Qualified.Quoted, obj)
 		}
+		registeredList = append(registeredList, tuple)
 	}
-	includeTableList := finalTableList
-	if source.TableList != "" {
-		includeTableList = extractTableListFromString(registeredList, source.TableList, "include")
-		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, true)
-		if err != nil {
-			utils.ErrExit("adding leaf partititons to include table list: %s", err)
-		}
-	}
-	filteredTableListFromFlags := sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 
-	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
 	rootTables := make([]sqlname.NameTuple, 0)
 	for _, v := range partitionsToRootTableMap {
 		tuple, err := namereg.NameReg.LookupTableName(v)
@@ -928,68 +951,83 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		rootTables = append(rootTables, tuple)
 	}
 
-	filteredListWithoutRootTable := lo.Filter(filteredTableListFromFlags, func(t sqlname.NameTuple, _ int) bool {
-		return !lo.ContainsBy(rootTables, func(root sqlname.NameTuple) bool {
-			return t.Equals(root)
-		})
-	})
-
-	// Finding all the partitions of all root tables part of table-list, and report if there any new partitions added
-	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
+	// Finding all the partitions of all root tables part of migration, and report if there any new partitions added
+	rootToNewLeafTablesMap, err := detectReportNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
 	if err != nil {
-		utils.ErrExit("getting updated partitions to root table mapping: %s", err)
+		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %v", err)
 	}
 
-	newLeafTables := make(map[string][]string)
-	for leaf, value := range updatedPartitionsToRootTableMap {
-		if !lo.ContainsBy(registeredList, func(tbl sqlname.NameTuple) bool {
-			return tbl.AsQualifiedCatalogName() == leaf
-		}) {
-			//If this leaf table is not registered in name registry then it is a newly added leaf tables
-			newLeafTables[value] = append(newLeafTables[value], leaf)
-		}
+	if source.TableList == "" && source.ExcludeTableList == "" {
+		//which mean no table-lists are passed in subsequent runs
+		// so no need to do the guardrails check and all
+		return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
 	}
 
-	if len(lo.Keys(newLeafTables)) > 0 {
-		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
-		listToPrint := ""
-		for k, leafs := range newLeafTables {
-			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
-		}
-		utils.PrintAndLog(listToPrint)
+	//apply include/exclude flags and if a new table is passed (which is not present in name registry), then error out Unknown table
+	currentRunTableListFilteredViaFlags, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, source.TableList, source.ExcludeTableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %v", err)
 	}
-
-	//Filtering the new leaf tables if present in filteredListWithoutRootTable as we have reported above
-	filteredListWithoutNewLeafTable := lo.Filter(filteredListWithoutRootTable, func(t sqlname.NameTuple, _ int) bool {
-		for _, leafs := range newLeafTables {
-			for _, l := range leafs {
-				return t.AsQualifiedCatalogName() != l
+	//checks if a given table is new leaf table or not
+	isNewLeafTable := func(t sqlname.NameTuple) bool {
+		for _, leafs := range rootToNewLeafTablesMap {
+			if slices.Contains(leafs, t.AsQualifiedCatalogName()) {
+				return true
 			}
 		}
-		return true
-	})
-	finalTableListWithoutRootTable := lo.Filter(finalTableList, func(t sqlname.NameTuple, _ int) bool {
+		return false
+	}
+
+	var currentRunTableListWithLeafPartitions []sqlname.NameTuple
+	for _, t := range currentRunTableListFilteredViaFlags {
+		if lo.ContainsBy(rootTables, func(r sqlname.NameTuple) bool {
+			return t.Equals(r)
+		}) {
+
+			//Remove root table
+			continue
+		}
+
+		//Filtering the new leaf tables if present in filteredListWithoutRootTable as we have reported above
+		if isNewLeafTable(t) {
+			//remove the new leaf table as reported above already
+			continue
+		}
+
+		//Add the tuple if its not root table or new Leaf Table
+		currentRunTableListWithLeafPartitions = append(currentRunTableListWithLeafPartitions, t)
+	}
+
+	firstRunTableWithLeafParititons := lo.Filter(firstRunTableWithLeafsAndRoots, func(t sqlname.NameTuple, _ int) bool {
 		return !lo.ContainsBy(rootTables, func(root sqlname.NameTuple) bool {
 			return t.Equals(root)
 		})
 	})
 
-	missingTablesInFilteredList := sqlname.SetDifferenceNameTuples(finalTableListWithoutRootTable, filteredListWithoutNewLeafTable)
-	missingTablesInPreviousList := sqlname.SetDifferenceNameTuples(filteredListWithoutNewLeafTable, finalTableListWithoutRootTable)
+	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
+	guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
 
-	if len(missingTablesInFilteredList) > 0 || len(missingTablesInPreviousList) > 0 {
+	return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
+
+}
+
+func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions []sqlname.NameTuple) {
+	missingTables := sqlname.SetDifferenceNameTuples(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions)
+	extraTables := sqlname.SetDifferenceNameTuples(currentRunTableListWithLeafPartitions, firstRunTableListWithLeafPartitions)
+
+	if len(missingTables) > 0 || len(extraTables) > 0 {
 		utils.PrintAndLog("Changing the table list during live-migration is not allowed.")
-		if len(missingTablesInFilteredList) > 0 {
-			utils.PrintAndLog("Missing tables in the current run compared to the initial list: %v", strings.Join(lo.Map(missingTablesInFilteredList, func(t sqlname.NameTuple, _ int) string {
+		if len(missingTables) > 0 {
+			utils.PrintAndLog("Missing tables in the current run compared to the initial list: %v", strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
-		if len(missingTablesInPreviousList) > 0 {
-			utils.PrintAndLog("Extra tables in the current run compared to the initial list: %v", strings.Join(lo.Map(missingTablesInPreviousList, func(t sqlname.NameTuple, _ int) string {
+		if len(extraTables) > 0 {
+			utils.PrintAndLog("Extra tables in the current run compared to the initial list: %v", strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
-		msg := fmt.Sprintf("Using the table list passed in the initial phase of migration - %v. \nDo you want continue?", lo.Map(finalTableListWithoutRootTable, func(t sqlname.NameTuple, _ int) string {
+		msg := fmt.Sprintf("Using the table list passed in the initial phase of migration - %v. \nDo you want continue?", lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
 			return t.ForMinOutput()
 		}))
 		if !utils.AskPrompt(msg) {
@@ -997,8 +1035,33 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		}
 	}
 
-	return partitionsToRootTableMap, finalTableList
+}
 
+func detectReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
+	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
+	if err != nil {
+		return nil, fmt.Errorf("getting updated partitions to root table mapping: %s", err)
+	}
+
+	rootToNewLeafTablesMap := make(map[string][]string)
+	for leaf, rootTable := range updatedPartitionsToRootTableMap {
+		if !lo.ContainsBy(registeredList, func(tbl sqlname.NameTuple) bool { //see if
+			return tbl.AsQualifiedCatalogName() == leaf
+		}) {
+			//If this leaf table is not registered in name registry then it is a newly added leaf tables
+			rootToNewLeafTablesMap[rootTable] = append(rootToNewLeafTablesMap[rootTable], leaf)
+		}
+	}
+
+	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
+		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
+		listToPrint := ""
+		for k, leafs := range rootToNewLeafTablesMap {
+			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
+		}
+		utils.PrintAndLog(listToPrint)
+	}
+	return rootToNewLeafTablesMap, nil
 }
 
 func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.NameTuple, *utils.StructMap[sqlname.NameTuple, []string]) {
