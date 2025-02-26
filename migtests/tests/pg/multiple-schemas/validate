@@ -153,6 +153,8 @@ def migration_completed_checks(tgt):
 		print(f"target version: {tgtVersion}")
 		if "2.16" in tgtVersion:
 			expectedExtensions.remove("hll")
+		if "2.25" in tgtVersion:
+			expectedExtensions.remove("timetravel")
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
 	
