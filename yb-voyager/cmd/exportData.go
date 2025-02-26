@@ -824,8 +824,8 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 	var fullTableList []sqlname.NameTuple
 	var finalTableList []sqlname.NameTuple
 	storedTableList := msr.TableListExportedFromSource
-	if source.DBType == POSTGRESQL {
-		//list with partitioned Root table and all leafs
+	if source.DBType == POSTGRESQL && msr.SourceExportedTableListWithLeafPartitions != nil {
+		//list with partitioned root table and all leafs
 		storedTableList = msr.SourceExportedTableListWithLeafPartitions
 	}
 	for _, t := range storedTableList {
@@ -845,12 +845,27 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple) {
 		}
 		fullTableList = append(fullTableList, tuple)
 	}
+	finalTableList = fullTableList
 
 	var partitionsToRootTableMap map[string]string
 	switch source.DBType {
 	case POSTGRESQL:
-		finalTableList = fullTableList
 		partitionsToRootTableMap = msr.SourceRenameTablesMap
+		if msr.SourceExportedTableListWithLeafPartitions == nil {
+			// In case of resumption this SourceExportedTableListWithLeafPartitions is not available (most likely in upgrade scenario)
+			//add the leafs in the finalTableList from the partitionsToRootTableMap
+			for leaf, root := range partitionsToRootTableMap {
+				if lo.ContainsBy(finalTableList, func(t sqlname.NameTuple) bool {
+					return t.AsQualifiedCatalogName() == root
+				}) {
+					defaultSchemaName, _ := getDefaultSourceSchemaName()
+					obj := sqlname.NewObjectNameWithQualifiedName(source.DBType, defaultSchemaName, leaf)
+					//get the name tupe via `getNAmeFromObj` function in case its leaf partition
+					leafTuple := getNameTupleFromObjectName(obj)
+					finalTableList = append(finalTableList, leafTuple)
+				}
+			}
+		}
 	case YUGABYTEDB:
 		//For the first run of export data from target we will fetch the leaf partitions from target and store them
 		if msr.TargetExportedTableListWithLeafPartitions == nil || msr.TargetRenameTablesMap == nil {
