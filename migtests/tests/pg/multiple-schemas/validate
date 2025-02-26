@@ -157,6 +157,8 @@ def migration_completed_checks(tgt):
 		if "2.25" in tgtVersion:
 			expectedExtensions.remove("timetravel")
 			expectedExtensions.extend(["pg_partman", "vector", "pg_walinspect", "old_snapshot", "pgtap", "yb_ycql_utils", "pg_surgery", "yb_xcluster_ddl_replication"])
+		if "2024.2" in tgtVersion:
+			expectedExtensions.extend(["pg_partman", "vector", "pgtap", "yb_ycql_utils", "yb_xcluster_ddl_replication"])
 		for extension in expectedExtensions:
 			assert extension in extensions, f"expected extension is not reported: {extension}"
 		
