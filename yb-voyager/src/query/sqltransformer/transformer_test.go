@@ -328,18 +328,30 @@ func TestConvertToShardedTables(t *testing.T) {
 			id INT PRIMARY KEY,
 			name VARCHAR(255),
 			email VARCHAR(255)
-		);
+		) WITH (fillfactor=100);
+
+		CREATE TABLE test_table4 (
+			id INT PRIMARY KEY,
+			name VARCHAR(255),
+			email VARCHAR(255)
+		) WITH (fillfactor=101);
 
 		CREATE MATERIALIZED VIEW test_mview1 AS SELECT * FROM test_table1;
 		CREATE MATERIALIZED VIEW test_mview2 AS SELECT * FROM test_table2;
+		CREATE MATERIALIZED VIEW test_mview3 WITH (fillfactor=70) AS SELECT * FROM test_table3 WHERE a = 3 with no data;
+
+		ALTER TABLE test_table1 ADD COLUMN col text; -- this should be ignored
 	`
 
 	expectedSqls := []string{
 		`CREATE TABLE test_table1 (id int PRIMARY KEY, name varchar(255)) WITH (colocation=false);`,
 		`CREATE TABLE test_table2 (id int PRIMARY KEY, name varchar(255), email varchar(255));`,
-		`CREATE TABLE test_table3 (id int PRIMARY KEY, name varchar(255), email varchar(255)) WITH (colocation=false);`,
+		`CREATE TABLE test_table3 (id int PRIMARY KEY, name varchar(255), email varchar(255)) WITH (fillfactor=100, colocation=false);`,
+		`CREATE TABLE test_table4 (id int PRIMARY KEY, name varchar(255), email varchar(255)) WITH (fillfactor=101);`,
 		`CREATE MATERIALIZED VIEW test_mview1 WITH (colocation=false) AS SELECT * FROM test_table1;`,
 		`CREATE MATERIALIZED VIEW test_mview2 AS SELECT * FROM test_table2;`,
+		`CREATE MATERIALIZED VIEW test_mview3 WITH (fillfactor=70, colocation=false) AS SELECT * FROM test_table3 WHERE a = 3 WITH NO DATA;`,
+		`ALTER TABLE test_table1 ADD COLUMN col text;`,
 	}
 
 	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
@@ -350,7 +362,7 @@ func TestConvertToShardedTables(t *testing.T) {
 
 	transformer := NewTransformer()
 	transformedStmts, err := transformer.ConvertToShardedTables(stmts, func(objectName string) bool {
-		return objectName == "test_table1" || objectName == "test_table3" || objectName == "test_mview1"
+		return objectName == "test_table1" || objectName == "test_table3" || objectName == "test_mview1" || objectName == "test_mview3"
 	})
 	testutils.FatalIfError(t, err)
 
