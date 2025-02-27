@@ -137,6 +137,10 @@ func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
 		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls([]string{
+		`DROP SCHEMA public CASCADE;`,
+		`DROP SCHEMA p1 CASCADE;`,
+	}...)
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -177,6 +181,10 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls([]string{
+		`DROP SCHEMA public CASCADE;`,
+		`DROP SCHEMA p1 CASCADE;`,
+	}...)
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
