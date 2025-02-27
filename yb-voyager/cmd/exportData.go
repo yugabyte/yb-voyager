@@ -786,7 +786,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 	var err error
 	var includeTableList, excludeTableList []sqlname.NameTuple
 
-	applyFilterAndLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
+	applyFilterAndAddLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
 		flagTableList := extractTableListFromString(fullTableList, flagList, flagName)
 		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
 		if err != nil {
@@ -797,7 +797,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 
 	if excludeTableListViaFlag != "" {
 		//Apply exclude table list filter if present
-		excludeTableList, err = applyFilterAndLeafTable(excludeTableListViaFlag, "exclude")
+		excludeTableList, err = applyFilterAndAddLeafTable(excludeTableListViaFlag, "exclude")
 		if err != nil {
 			return nil, err
 		}
@@ -806,7 +806,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 	includeTableList = fullTableList
 	if tableListViaFlag != "" {
 		//Apply include table list filter if present
-		includeTableList, err = applyFilterAndLeafTable(tableListViaFlag, "include")
+		includeTableList, err = applyFilterAndAddLeafTable(tableListViaFlag, "include")
 		if err != nil {
 			return nil, err
 		}
