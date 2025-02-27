@@ -1,4 +1,4 @@
-//go:build issues_integration
+//go:build integration
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -33,18 +33,6 @@ import (
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
-/*
-Tests:
-
-
-applyTableListFlagsOnFullListAndAddLeafPartitions
-	have sourceDB interface for functions like addLeafPartitions
-		GetRootTableOfPartiiton
-		GetAllLeafPartitions
-
-
-
-*/
 
 type TestDB struct {
 	testcontainers.TestContainer
