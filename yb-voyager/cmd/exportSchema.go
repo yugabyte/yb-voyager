@@ -55,6 +55,8 @@ var exportSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating export schema flags: %s", err.Error())
 		}
+
+		validateAssessmentReportPathFlag()
 		markFlagsRequired(cmd)
 	},
 
