@@ -20,6 +20,7 @@ import (
 	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
@@ -170,6 +171,7 @@ func (t *Transformer) ConvertToShardedTables(stmts []*pg_query.RawStmt, isObject
 		case queryparser.PG_QUERY_CREATE_STMT: // CREATE TABLE case
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateStmt().Relation)
 			if isObjectSharded(objectName) {
+				log.Infof("adding colocation option to CREATE TABLE for object %v", objectName)
 				addColocationOptionToCreateTable(stmt.Stmt.GetCreateStmt())
 			}
 
@@ -177,6 +179,7 @@ func (t *Transformer) ConvertToShardedTables(stmts []*pg_query.RawStmt, isObject
 		case queryparser.PG_QUERY_CREATE_TABLE_AS_STMT: // CREATE MATERIALIZED VIEW case
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateTableAsStmt().Into.Rel)
 			if isObjectSharded(objectName) {
+				log.Infof("adding colocation option to CREATE MATERIALIZED VIEW for object %v", objectName)
 				addColocationOptionToCreateMaterializedView(stmt.Stmt.GetCreateTableAsStmt())
 			}
 

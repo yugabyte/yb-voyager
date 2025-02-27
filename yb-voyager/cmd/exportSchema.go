@@ -349,30 +349,38 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 		return fmt.Errorf("failed to parse sql statements from %s object type in schema file %q: %w", objectType, filePath, err)
 	}
 
-	originalStmts := rawStmts
-	transformedStmts := rawStmts
+	beforeSqlStmts, err := queryparser.DeparseRawStmts(rawStmts)
+	if err != nil {
+		return fmt.Errorf("failed to deparse raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
+	}
 
+	transformedStmts := rawStmts
 	// Apply transformations in order
 	for _, transformFn := range transformations {
 		newStmts, err := transformFn(transformedStmts)
 		if err != nil {
-			// Log and continue using the unmodified statements for subsequent transformations in case of error
+			// Log and continue using the unmodified statements slice for subsequent transformations in case of error
 			log.Warnf("failed to apply transformation function %T in schema file %q: %v", transformFn, filePath, err)
 			continue
 		}
 		transformedStmts = newStmts
 	}
 
-	// Check if transformations changed anything
-	if slices.Equal(originalStmts, transformedStmts) {
-		log.Infof("no change in the schema for object type %s after applying transformations", objectType)
-		return nil
-	}
-
 	// Deparse
 	sqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
 	if err != nil {
 		return fmt.Errorf("failed to deparse transformed raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
+	}
+
+	// Below Check for if transformations changed anything is WRONG
+	// here we are dealing with pointers - *pg_query.RawStmt so underlying elements of slices point to same memory
+	// if slices.Equal(originalStmts, transformedStmts) {
+	// 	log.Infof("no change in the schema for object type %s after applying all transformations", objectType)
+	// 	return nil
+	// }
+	if slices.Equal(beforeSqlStmts, sqlStmts) {
+		log.Infof("no change in the schema for object type %s after applying all transformations", objectType)
+		return nil
 	}
 
 	// Backup original
@@ -393,6 +401,7 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 }
 
 func applyShardedTableTransformation(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+	log.Info("applying sharded tables transformation to the exported schema")
 	assessmentReportPath = lo.Ternary(assessmentReportPath != "", assessmentReportPath,
 		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
 	assessmentReport, err := ParseJSONToAssessmentReport(assessmentReportPath)
@@ -424,7 +433,12 @@ func applyShardedTableTransformation(stmts []*pg_query.RawStmt) ([]*pg_query.Raw
 	}
 
 	transformer := sqltransformer.NewTransformer()
-	return transformer.ConvertToShardedTables(stmts, isObjectSharded)
+	transformedRawStmts, err := transformer.ConvertToShardedTables(stmts, isObjectSharded)
+	if err != nil {
+		return stmts, fmt.Errorf("failed to convert to sharded tables: %w", err)
+	}
+
+	return transformedRawStmts, nil
 }
 
 func applyMergeConstraintsTransformation(rawStmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
@@ -433,7 +447,7 @@ func applyMergeConstraintsTransformation(rawStmts []*pg_query.RawStmt) ([]*pg_qu
 		return rawStmts, nil
 	}
 
-	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
+	log.Info("applying merge constraints transformation to the exported schema")
 	transformer := sqltransformer.NewTransformer()
 	transformedRawStmts, err := transformer.MergeConstraints(rawStmts)
 	if err != nil {
