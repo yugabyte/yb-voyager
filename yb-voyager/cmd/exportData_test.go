@@ -19,7 +19,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"testing"
 
@@ -27,12 +26,12 @@ import (
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
-
 
 type TestDB struct {
 	testcontainers.TestContainer
@@ -120,13 +119,22 @@ func fetchTableListAndAssertResult(t *testing.T, expectedPartitionsToRootMap map
 		assert.Equal(t, ok, true)
 		assert.Equal(t, actualRoot, expectedRoot)
 	}
-	fmt.Printf("actual - %v", tableList)
-	fmt.Printf("expected - %v", expectedTableList)
 	assert.Equal(t, len(tableList), len(expectedTableList))
 	assert.Equal(t, len(lo.Keys(partitionsToRootMap)), len(lo.Keys(expectedPartitionsToRootMap)))
 	diff := sqlname.SetDifferenceNameTuples(expectedTableList, tableList)
 	assert.Equal(t, len(diff), 0)
 }
+
+var (
+	cleanUpSqls = []string{
+		`DROP TABLE public.test_partitions_sequences ;`,
+		`DROP SCHEMA p1 CASCADE;`,
+		`DROP TABLE public.sales_region;`,
+		`DROP table datatypes1 CASCADE;`,
+		`DROP TYPE week;`,
+		`drop table foreign_test ;`,
+	}
+)
 
 func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
 
@@ -137,10 +145,7 @@ func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
 		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
-	defer testPostgresSource.ExecuteSqls([]string{
-		`DROP SCHEMA public CASCADE;`,
-		`DROP SCHEMA p1 CASCADE;`,
-	}...)
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -181,10 +186,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 		utils.ErrExit("Failed to connect to postgres database: %w", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
-	defer testPostgresSource.ExecuteSqls([]string{
-		`DROP SCHEMA public CASCADE;`,
-		`DROP SCHEMA p1 CASCADE;`,
-	}...)
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -255,4 +257,84 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 		getNameTuple("public.datatypes1"),
 	}
 	fetchTableListAndAssertResult(t, expectedPartitionsToRootMap3, expectedTableList3)
+}
+
+func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
+	testExportDir := setupPostgreDBAndExportDependencies(t)
+
+	err := testPostgresSource.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to postgres database: %w", err)
+	}
+	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+
+	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
+	if err != nil {
+		t.Errorf("error initialising name reg for the source: %v", err)
+	}
+
+	metaDB = initMetaDB(testExportDir)
+
+	//Running the command level functions
+	source = *testPostgresSource.Source
+
+	//Fetch table list and partitions to root mapping in the first run
+	expectedPartitionsToRootMap := map[string]string{
+		"public.test_partitions_sequences_l": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_s": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_b": "public.test_partitions_sequences",
+		"p1.london":                          "public.sales_region",
+		"p1.sydney":                          "public.sales_region",
+		"p1.boston":                          "public.sales_region",
+	}
+	expectedTableList := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTuple("public.sales_region"),
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+	fetchTableListAndAssertResult(t, expectedPartitionsToRootMap, expectedTableList)
+
+	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.sales_region"),
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+
+	//Create msr with required details for subsequent run
+	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
+		msr.SourceDBConf = testPostgresSource.Source
+		msr.TableListExportedFromSource = lo.Map(expectedTableListWithOnlyRootTable, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceExportedTableListWithLeafPartitions = lo.Map(expectedTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceRenameTablesMap = expectedPartitionsToRootMap
+	})
+	if err != nil {
+		t.Fatalf("error updating msr: %v", err)
+	}
+
+	//Now getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails 
+	startClean = false
+	retrievedPartitionsToRootTableMap, retrievedTableListFromFirstRun, err := getInitialTableList()
+	if err != nil {
+		t.Fatalf("retrieving first run table list from msr: %v", err)
+	}
+
+	assert.Equal(t, len(expectedTableList), len(retrievedTableListFromFirstRun))
+	diff := sqlname.SetDifferenceNameTuples(expectedTableList, retrievedTableListFromFirstRun)
+	assert.Equal(t, len(diff), 0)
+
+	assert.Equal(t, len(lo.Keys(expectedPartitionsToRootMap)), len(lo.Keys(retrievedPartitionsToRootTableMap)))
+
 }
