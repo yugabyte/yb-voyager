@@ -94,6 +94,8 @@ const (
 	PG_QUERY_UNLISTEN_STMT_NODE              = "pg_query.UnlistenStmt"
 	PG_QUERY_TRANSACTION_STMT_NODE           = "pg_query.TransactionStmt"
 
+	PG_QUERY_VARIABLE_SET_STMT_NODE = "pg_query.VariableSetStmt"
+
 	LIMIT_OPTION_WITH_TIES         = pg_query.LimitOption_LIMIT_OPTION_WITH_TIES
 	CTE_MATERIALIZED_DEFAULT       = pg_query.CTEMaterialize_CTEMaterializeDefault
 	ADD_CONSTRAINT                 = pg_query.AlterTableType_AT_AddConstraint
