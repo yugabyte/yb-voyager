@@ -662,13 +662,13 @@ CREATE TABLE rnacen.xref_p9_not_deleted (dbid smallint, created int, last int, u
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
@@ -680,13 +680,13 @@ ALTER TABLE ONLY rnacen.xref_p10_deleted ALTER COLUMN id SET DEFAULT nextval('rn
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
@@ -698,13 +698,13 @@ ALTER TABLE ONLY rnacen.xref_p10_not_deleted ALTER COLUMN id SET DEFAULT nextval
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
@@ -716,13 +716,13 @@ ALTER TABLE ONLY rnacen.xref_p13_deleted ALTER COLUMN id SET DEFAULT nextval('rn
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
@@ -734,13 +734,13 @@ ALTER TABLE ONLY rnacen.xref_p13_not_deleted ALTER COLUMN id SET DEFAULT nextval
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
@@ -752,13 +752,13 @@ ALTER TABLE ONLY rnacen.xref_p19_deleted ALTER COLUMN id SET DEFAULT nextval('rn
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
@@ -770,13 +770,13 @@ ALTER TABLE ONLY rnacen.xref_p19_not_deleted ALTER COLUMN id SET DEFAULT nextval
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
@@ -788,13 +788,13 @@ ALTER TABLE ONLY rnacen.xref_p21_deleted ALTER COLUMN id SET DEFAULT nextval('rn
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
@@ -806,13 +806,13 @@ ALTER TABLE ONLY rnacen.xref_p21_not_deleted ALTER COLUMN id SET DEFAULT nextval
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
@@ -824,13 +824,13 @@ ALTER TABLE ONLY rnacen.xref_p22_deleted ALTER COLUMN id SET DEFAULT nextval('rn
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
@@ -854,13 +854,13 @@ ALTER TABLE ONLY rnacen.xref_p54_not_deleted ALTER COLUMN id SET DEFAULT nextval
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
@@ -872,13 +872,13 @@ ALTER TABLE ONLY rnacen.xref_p5_deleted ALTER COLUMN id SET DEFAULT nextval('rna
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted ALTER COLUMN "timestamp" SET DEFAULT ('now'::text)::timestamp without time zone;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ALTER COLUMN "timestamp" SET DEFAULT 'now'::text::timestamp;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::character varying;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ALTER COLUMN userstamp SET DEFAULT 'USER'::varchar;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
@@ -5618,3079 +5618,2639 @@ ALTER SEQUENCE rnacen.xref_p54_not_deleted_id_seq OWNED BY rnacen.xref_p54_not_d
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted
-    ADD CONSTRAINT xref_p10_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ADD CONSTRAINT xref_p10_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted
-    ADD CONSTRAINT xref_p10_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ADD CONSTRAINT xref_p10_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted
-    ADD CONSTRAINT xref_p10_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ADD CONSTRAINT xref_p10_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_deleted
-    ADD CONSTRAINT xref_p10_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_deleted ADD CONSTRAINT xref_p10_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted
-    ADD CONSTRAINT xref_p10_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ADD CONSTRAINT xref_p10_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted
-    ADD CONSTRAINT xref_p10_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ADD CONSTRAINT xref_p10_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted
-    ADD CONSTRAINT xref_p10_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ADD CONSTRAINT xref_p10_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p10_not_deleted
-    ADD CONSTRAINT xref_p10_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p10_not_deleted ADD CONSTRAINT xref_p10_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p11_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_deleted
-    ADD CONSTRAINT xref_p11_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p11_deleted ADD CONSTRAINT xref_p11_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_deleted
-    ADD CONSTRAINT xref_p11_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p11_deleted ADD CONSTRAINT xref_p11_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_deleted
-    ADD CONSTRAINT xref_p11_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p11_deleted ADD CONSTRAINT xref_p11_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_deleted
-    ADD CONSTRAINT xref_p11_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p11_deleted ADD CONSTRAINT xref_p11_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p11_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_not_deleted
-    ADD CONSTRAINT xref_p11_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p11_not_deleted ADD CONSTRAINT xref_p11_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_not_deleted
-    ADD CONSTRAINT xref_p11_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p11_not_deleted ADD CONSTRAINT xref_p11_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_not_deleted
-    ADD CONSTRAINT xref_p11_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p11_not_deleted ADD CONSTRAINT xref_p11_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p11_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p11_not_deleted
-    ADD CONSTRAINT xref_p11_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p11_not_deleted ADD CONSTRAINT xref_p11_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p12_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_deleted
-    ADD CONSTRAINT xref_p12_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p12_deleted ADD CONSTRAINT xref_p12_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_deleted
-    ADD CONSTRAINT xref_p12_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p12_deleted ADD CONSTRAINT xref_p12_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_deleted
-    ADD CONSTRAINT xref_p12_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p12_deleted ADD CONSTRAINT xref_p12_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_deleted
-    ADD CONSTRAINT xref_p12_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p12_deleted ADD CONSTRAINT xref_p12_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p12_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_not_deleted
-    ADD CONSTRAINT xref_p12_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p12_not_deleted ADD CONSTRAINT xref_p12_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_not_deleted
-    ADD CONSTRAINT xref_p12_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p12_not_deleted ADD CONSTRAINT xref_p12_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_not_deleted
-    ADD CONSTRAINT xref_p12_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p12_not_deleted ADD CONSTRAINT xref_p12_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p12_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p12_not_deleted
-    ADD CONSTRAINT xref_p12_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p12_not_deleted ADD CONSTRAINT xref_p12_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted
-    ADD CONSTRAINT xref_p13_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ADD CONSTRAINT xref_p13_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted
-    ADD CONSTRAINT xref_p13_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ADD CONSTRAINT xref_p13_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted
-    ADD CONSTRAINT xref_p13_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ADD CONSTRAINT xref_p13_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_deleted
-    ADD CONSTRAINT xref_p13_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_deleted ADD CONSTRAINT xref_p13_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted
-    ADD CONSTRAINT xref_p13_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ADD CONSTRAINT xref_p13_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted
-    ADD CONSTRAINT xref_p13_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ADD CONSTRAINT xref_p13_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted
-    ADD CONSTRAINT xref_p13_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ADD CONSTRAINT xref_p13_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p13_not_deleted
-    ADD CONSTRAINT xref_p13_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p13_not_deleted ADD CONSTRAINT xref_p13_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p14_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_deleted
-    ADD CONSTRAINT xref_p14_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p14_deleted ADD CONSTRAINT xref_p14_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_deleted
-    ADD CONSTRAINT xref_p14_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p14_deleted ADD CONSTRAINT xref_p14_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_deleted
-    ADD CONSTRAINT xref_p14_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p14_deleted ADD CONSTRAINT xref_p14_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_deleted
-    ADD CONSTRAINT xref_p14_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p14_deleted ADD CONSTRAINT xref_p14_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p14_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_not_deleted
-    ADD CONSTRAINT xref_p14_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p14_not_deleted ADD CONSTRAINT xref_p14_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_not_deleted
-    ADD CONSTRAINT xref_p14_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p14_not_deleted ADD CONSTRAINT xref_p14_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_not_deleted
-    ADD CONSTRAINT xref_p14_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p14_not_deleted ADD CONSTRAINT xref_p14_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p14_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p14_not_deleted
-    ADD CONSTRAINT xref_p14_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p14_not_deleted ADD CONSTRAINT xref_p14_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p15_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_deleted
-    ADD CONSTRAINT xref_p15_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p15_deleted ADD CONSTRAINT xref_p15_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_deleted
-    ADD CONSTRAINT xref_p15_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p15_deleted ADD CONSTRAINT xref_p15_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_deleted
-    ADD CONSTRAINT xref_p15_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p15_deleted ADD CONSTRAINT xref_p15_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_deleted
-    ADD CONSTRAINT xref_p15_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p15_deleted ADD CONSTRAINT xref_p15_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p15_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_not_deleted
-    ADD CONSTRAINT xref_p15_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p15_not_deleted ADD CONSTRAINT xref_p15_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_not_deleted
-    ADD CONSTRAINT xref_p15_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p15_not_deleted ADD CONSTRAINT xref_p15_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_not_deleted
-    ADD CONSTRAINT xref_p15_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p15_not_deleted ADD CONSTRAINT xref_p15_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p15_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p15_not_deleted
-    ADD CONSTRAINT xref_p15_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p15_not_deleted ADD CONSTRAINT xref_p15_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p16_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_deleted
-    ADD CONSTRAINT xref_p16_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p16_deleted ADD CONSTRAINT xref_p16_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_deleted
-    ADD CONSTRAINT xref_p16_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p16_deleted ADD CONSTRAINT xref_p16_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_deleted
-    ADD CONSTRAINT xref_p16_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p16_deleted ADD CONSTRAINT xref_p16_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_deleted
-    ADD CONSTRAINT xref_p16_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p16_deleted ADD CONSTRAINT xref_p16_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p16_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_not_deleted
-    ADD CONSTRAINT xref_p16_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p16_not_deleted ADD CONSTRAINT xref_p16_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_not_deleted
-    ADD CONSTRAINT xref_p16_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p16_not_deleted ADD CONSTRAINT xref_p16_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_not_deleted
-    ADD CONSTRAINT xref_p16_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p16_not_deleted ADD CONSTRAINT xref_p16_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p16_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p16_not_deleted
-    ADD CONSTRAINT xref_p16_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p16_not_deleted ADD CONSTRAINT xref_p16_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p17_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_deleted
-    ADD CONSTRAINT xref_p17_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p17_deleted ADD CONSTRAINT xref_p17_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_deleted
-    ADD CONSTRAINT xref_p17_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p17_deleted ADD CONSTRAINT xref_p17_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_deleted
-    ADD CONSTRAINT xref_p17_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p17_deleted ADD CONSTRAINT xref_p17_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_deleted
-    ADD CONSTRAINT xref_p17_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p17_deleted ADD CONSTRAINT xref_p17_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p17_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_not_deleted
-    ADD CONSTRAINT xref_p17_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p17_not_deleted ADD CONSTRAINT xref_p17_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_not_deleted
-    ADD CONSTRAINT xref_p17_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p17_not_deleted ADD CONSTRAINT xref_p17_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_not_deleted
-    ADD CONSTRAINT xref_p17_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p17_not_deleted ADD CONSTRAINT xref_p17_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p17_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p17_not_deleted
-    ADD CONSTRAINT xref_p17_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p17_not_deleted ADD CONSTRAINT xref_p17_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p18_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_deleted
-    ADD CONSTRAINT xref_p18_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p18_deleted ADD CONSTRAINT xref_p18_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_deleted
-    ADD CONSTRAINT xref_p18_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p18_deleted ADD CONSTRAINT xref_p18_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_deleted
-    ADD CONSTRAINT xref_p18_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p18_deleted ADD CONSTRAINT xref_p18_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_deleted
-    ADD CONSTRAINT xref_p18_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p18_deleted ADD CONSTRAINT xref_p18_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p18_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_not_deleted
-    ADD CONSTRAINT xref_p18_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p18_not_deleted ADD CONSTRAINT xref_p18_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_not_deleted
-    ADD CONSTRAINT xref_p18_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p18_not_deleted ADD CONSTRAINT xref_p18_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_not_deleted
-    ADD CONSTRAINT xref_p18_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p18_not_deleted ADD CONSTRAINT xref_p18_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p18_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p18_not_deleted
-    ADD CONSTRAINT xref_p18_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p18_not_deleted ADD CONSTRAINT xref_p18_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted
-    ADD CONSTRAINT xref_p19_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ADD CONSTRAINT xref_p19_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted
-    ADD CONSTRAINT xref_p19_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ADD CONSTRAINT xref_p19_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted
-    ADD CONSTRAINT xref_p19_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ADD CONSTRAINT xref_p19_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_deleted
-    ADD CONSTRAINT xref_p19_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_deleted ADD CONSTRAINT xref_p19_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted
-    ADD CONSTRAINT xref_p19_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ADD CONSTRAINT xref_p19_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted
-    ADD CONSTRAINT xref_p19_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ADD CONSTRAINT xref_p19_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted
-    ADD CONSTRAINT xref_p19_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ADD CONSTRAINT xref_p19_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p19_not_deleted
-    ADD CONSTRAINT xref_p19_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p19_not_deleted ADD CONSTRAINT xref_p19_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p1_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_deleted
-    ADD CONSTRAINT xref_p1_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p1_deleted ADD CONSTRAINT xref_p1_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_deleted
-    ADD CONSTRAINT xref_p1_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p1_deleted ADD CONSTRAINT xref_p1_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_deleted
-    ADD CONSTRAINT xref_p1_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p1_deleted ADD CONSTRAINT xref_p1_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_deleted
-    ADD CONSTRAINT xref_p1_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p1_deleted ADD CONSTRAINT xref_p1_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p1_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_not_deleted
-    ADD CONSTRAINT xref_p1_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p1_not_deleted ADD CONSTRAINT xref_p1_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_not_deleted
-    ADD CONSTRAINT xref_p1_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p1_not_deleted ADD CONSTRAINT xref_p1_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_not_deleted
-    ADD CONSTRAINT xref_p1_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p1_not_deleted ADD CONSTRAINT xref_p1_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p1_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p1_not_deleted
-    ADD CONSTRAINT xref_p1_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p1_not_deleted ADD CONSTRAINT xref_p1_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p20_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_deleted
-    ADD CONSTRAINT xref_p20_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p20_deleted ADD CONSTRAINT xref_p20_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_deleted
-    ADD CONSTRAINT xref_p20_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p20_deleted ADD CONSTRAINT xref_p20_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_deleted
-    ADD CONSTRAINT xref_p20_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p20_deleted ADD CONSTRAINT xref_p20_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_deleted
-    ADD CONSTRAINT xref_p20_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p20_deleted ADD CONSTRAINT xref_p20_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p20_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_not_deleted
-    ADD CONSTRAINT xref_p20_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p20_not_deleted ADD CONSTRAINT xref_p20_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_not_deleted
-    ADD CONSTRAINT xref_p20_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p20_not_deleted ADD CONSTRAINT xref_p20_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_not_deleted
-    ADD CONSTRAINT xref_p20_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p20_not_deleted ADD CONSTRAINT xref_p20_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p20_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p20_not_deleted
-    ADD CONSTRAINT xref_p20_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p20_not_deleted ADD CONSTRAINT xref_p20_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted
-    ADD CONSTRAINT xref_p21_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ADD CONSTRAINT xref_p21_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted
-    ADD CONSTRAINT xref_p21_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ADD CONSTRAINT xref_p21_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted
-    ADD CONSTRAINT xref_p21_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ADD CONSTRAINT xref_p21_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_deleted
-    ADD CONSTRAINT xref_p21_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_deleted ADD CONSTRAINT xref_p21_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted
-    ADD CONSTRAINT xref_p21_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ADD CONSTRAINT xref_p21_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted
-    ADD CONSTRAINT xref_p21_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ADD CONSTRAINT xref_p21_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted
-    ADD CONSTRAINT xref_p21_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ADD CONSTRAINT xref_p21_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p21_not_deleted
-    ADD CONSTRAINT xref_p21_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p21_not_deleted ADD CONSTRAINT xref_p21_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted
-    ADD CONSTRAINT xref_p22_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ADD CONSTRAINT xref_p22_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted
-    ADD CONSTRAINT xref_p22_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ADD CONSTRAINT xref_p22_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted
-    ADD CONSTRAINT xref_p22_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ADD CONSTRAINT xref_p22_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_deleted
-    ADD CONSTRAINT xref_p22_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_deleted ADD CONSTRAINT xref_p22_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted
-    ADD CONSTRAINT xref_p22_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ADD CONSTRAINT xref_p22_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted
-    ADD CONSTRAINT xref_p22_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ADD CONSTRAINT xref_p22_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted
-    ADD CONSTRAINT xref_p22_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ADD CONSTRAINT xref_p22_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p22_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p22_not_deleted
-    ADD CONSTRAINT xref_p22_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p22_not_deleted ADD CONSTRAINT xref_p22_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p23_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_deleted
-    ADD CONSTRAINT xref_p23_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p23_deleted ADD CONSTRAINT xref_p23_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_deleted
-    ADD CONSTRAINT xref_p23_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p23_deleted ADD CONSTRAINT xref_p23_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_deleted
-    ADD CONSTRAINT xref_p23_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p23_deleted ADD CONSTRAINT xref_p23_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_deleted
-    ADD CONSTRAINT xref_p23_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p23_deleted ADD CONSTRAINT xref_p23_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p23_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_not_deleted
-    ADD CONSTRAINT xref_p23_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p23_not_deleted ADD CONSTRAINT xref_p23_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_not_deleted
-    ADD CONSTRAINT xref_p23_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p23_not_deleted ADD CONSTRAINT xref_p23_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_not_deleted
-    ADD CONSTRAINT xref_p23_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p23_not_deleted ADD CONSTRAINT xref_p23_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p23_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p23_not_deleted
-    ADD CONSTRAINT xref_p23_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p23_not_deleted ADD CONSTRAINT xref_p23_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p24_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_deleted
-    ADD CONSTRAINT xref_p24_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p24_deleted ADD CONSTRAINT xref_p24_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_deleted
-    ADD CONSTRAINT xref_p24_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p24_deleted ADD CONSTRAINT xref_p24_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_deleted
-    ADD CONSTRAINT xref_p24_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p24_deleted ADD CONSTRAINT xref_p24_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_deleted
-    ADD CONSTRAINT xref_p24_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p24_deleted ADD CONSTRAINT xref_p24_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p24_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_not_deleted
-    ADD CONSTRAINT xref_p24_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p24_not_deleted ADD CONSTRAINT xref_p24_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_not_deleted
-    ADD CONSTRAINT xref_p24_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p24_not_deleted ADD CONSTRAINT xref_p24_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_not_deleted
-    ADD CONSTRAINT xref_p24_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p24_not_deleted ADD CONSTRAINT xref_p24_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p24_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p24_not_deleted
-    ADD CONSTRAINT xref_p24_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p24_not_deleted ADD CONSTRAINT xref_p24_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p25_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_deleted
-    ADD CONSTRAINT xref_p25_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p25_deleted ADD CONSTRAINT xref_p25_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_deleted
-    ADD CONSTRAINT xref_p25_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p25_deleted ADD CONSTRAINT xref_p25_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_deleted
-    ADD CONSTRAINT xref_p25_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p25_deleted ADD CONSTRAINT xref_p25_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_deleted
-    ADD CONSTRAINT xref_p25_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p25_deleted ADD CONSTRAINT xref_p25_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p25_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_not_deleted
-    ADD CONSTRAINT xref_p25_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p25_not_deleted ADD CONSTRAINT xref_p25_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_not_deleted
-    ADD CONSTRAINT xref_p25_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p25_not_deleted ADD CONSTRAINT xref_p25_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_not_deleted
-    ADD CONSTRAINT xref_p25_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p25_not_deleted ADD CONSTRAINT xref_p25_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p25_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p25_not_deleted
-    ADD CONSTRAINT xref_p25_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p25_not_deleted ADD CONSTRAINT xref_p25_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p26_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_deleted
-    ADD CONSTRAINT xref_p26_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p26_deleted ADD CONSTRAINT xref_p26_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_deleted
-    ADD CONSTRAINT xref_p26_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p26_deleted ADD CONSTRAINT xref_p26_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_deleted
-    ADD CONSTRAINT xref_p26_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p26_deleted ADD CONSTRAINT xref_p26_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_deleted
-    ADD CONSTRAINT xref_p26_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p26_deleted ADD CONSTRAINT xref_p26_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p26_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_not_deleted
-    ADD CONSTRAINT xref_p26_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p26_not_deleted ADD CONSTRAINT xref_p26_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_not_deleted
-    ADD CONSTRAINT xref_p26_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p26_not_deleted ADD CONSTRAINT xref_p26_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_not_deleted
-    ADD CONSTRAINT xref_p26_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p26_not_deleted ADD CONSTRAINT xref_p26_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p26_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p26_not_deleted
-    ADD CONSTRAINT xref_p26_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p26_not_deleted ADD CONSTRAINT xref_p26_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_deleted
-    ADD CONSTRAINT xref_p27_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p27_deleted ADD CONSTRAINT xref_p27_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_deleted
-    ADD CONSTRAINT xref_p27_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p27_deleted ADD CONSTRAINT xref_p27_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_deleted
-    ADD CONSTRAINT xref_p27_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p27_deleted ADD CONSTRAINT xref_p27_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_deleted
-    ADD CONSTRAINT xref_p27_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p27_deleted ADD CONSTRAINT xref_p27_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p27_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_not_deleted
-    ADD CONSTRAINT xref_p27_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p27_not_deleted ADD CONSTRAINT xref_p27_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_not_deleted
-    ADD CONSTRAINT xref_p27_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p27_not_deleted ADD CONSTRAINT xref_p27_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_not_deleted
-    ADD CONSTRAINT xref_p27_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p27_not_deleted ADD CONSTRAINT xref_p27_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p27_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p27_not_deleted
-    ADD CONSTRAINT xref_p27_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p27_not_deleted ADD CONSTRAINT xref_p27_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p28_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_deleted
-    ADD CONSTRAINT xref_p28_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p28_deleted ADD CONSTRAINT xref_p28_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_deleted
-    ADD CONSTRAINT xref_p28_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p28_deleted ADD CONSTRAINT xref_p28_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_deleted
-    ADD CONSTRAINT xref_p28_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p28_deleted ADD CONSTRAINT xref_p28_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_deleted
-    ADD CONSTRAINT xref_p28_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p28_deleted ADD CONSTRAINT xref_p28_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p28_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_not_deleted
-    ADD CONSTRAINT xref_p28_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p28_not_deleted ADD CONSTRAINT xref_p28_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_not_deleted
-    ADD CONSTRAINT xref_p28_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p28_not_deleted ADD CONSTRAINT xref_p28_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_not_deleted
-    ADD CONSTRAINT xref_p28_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p28_not_deleted ADD CONSTRAINT xref_p28_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p28_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p28_not_deleted
-    ADD CONSTRAINT xref_p28_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p28_not_deleted ADD CONSTRAINT xref_p28_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p29_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_deleted
-    ADD CONSTRAINT xref_p29_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p29_deleted ADD CONSTRAINT xref_p29_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_deleted
-    ADD CONSTRAINT xref_p29_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p29_deleted ADD CONSTRAINT xref_p29_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_deleted
-    ADD CONSTRAINT xref_p29_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p29_deleted ADD CONSTRAINT xref_p29_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_deleted
-    ADD CONSTRAINT xref_p29_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p29_deleted ADD CONSTRAINT xref_p29_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p29_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_not_deleted
-    ADD CONSTRAINT xref_p29_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p29_not_deleted ADD CONSTRAINT xref_p29_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_not_deleted
-    ADD CONSTRAINT xref_p29_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p29_not_deleted ADD CONSTRAINT xref_p29_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_not_deleted
-    ADD CONSTRAINT xref_p29_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p29_not_deleted ADD CONSTRAINT xref_p29_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p29_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p29_not_deleted
-    ADD CONSTRAINT xref_p29_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p29_not_deleted ADD CONSTRAINT xref_p29_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p2_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_deleted
-    ADD CONSTRAINT xref_p2_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p2_deleted ADD CONSTRAINT xref_p2_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_deleted
-    ADD CONSTRAINT xref_p2_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p2_deleted ADD CONSTRAINT xref_p2_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_deleted
-    ADD CONSTRAINT xref_p2_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p2_deleted ADD CONSTRAINT xref_p2_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_deleted
-    ADD CONSTRAINT xref_p2_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p2_deleted ADD CONSTRAINT xref_p2_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p2_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_not_deleted
-    ADD CONSTRAINT xref_p2_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p2_not_deleted ADD CONSTRAINT xref_p2_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_not_deleted
-    ADD CONSTRAINT xref_p2_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p2_not_deleted ADD CONSTRAINT xref_p2_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_not_deleted
-    ADD CONSTRAINT xref_p2_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p2_not_deleted ADD CONSTRAINT xref_p2_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p2_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p2_not_deleted
-    ADD CONSTRAINT xref_p2_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p2_not_deleted ADD CONSTRAINT xref_p2_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p30_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_deleted
-    ADD CONSTRAINT xref_p30_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p30_deleted ADD CONSTRAINT xref_p30_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_deleted
-    ADD CONSTRAINT xref_p30_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p30_deleted ADD CONSTRAINT xref_p30_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_deleted
-    ADD CONSTRAINT xref_p30_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p30_deleted ADD CONSTRAINT xref_p30_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_deleted
-    ADD CONSTRAINT xref_p30_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p30_deleted ADD CONSTRAINT xref_p30_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p30_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_not_deleted
-    ADD CONSTRAINT xref_p30_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p30_not_deleted ADD CONSTRAINT xref_p30_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_not_deleted
-    ADD CONSTRAINT xref_p30_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p30_not_deleted ADD CONSTRAINT xref_p30_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_not_deleted
-    ADD CONSTRAINT xref_p30_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p30_not_deleted ADD CONSTRAINT xref_p30_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p30_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p30_not_deleted
-    ADD CONSTRAINT xref_p30_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p30_not_deleted ADD CONSTRAINT xref_p30_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p31_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_deleted
-    ADD CONSTRAINT xref_p31_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p31_deleted ADD CONSTRAINT xref_p31_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_deleted
-    ADD CONSTRAINT xref_p31_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p31_deleted ADD CONSTRAINT xref_p31_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_deleted
-    ADD CONSTRAINT xref_p31_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p31_deleted ADD CONSTRAINT xref_p31_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_deleted
-    ADD CONSTRAINT xref_p31_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p31_deleted ADD CONSTRAINT xref_p31_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p31_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_not_deleted
-    ADD CONSTRAINT xref_p31_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p31_not_deleted ADD CONSTRAINT xref_p31_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_not_deleted
-    ADD CONSTRAINT xref_p31_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p31_not_deleted ADD CONSTRAINT xref_p31_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_not_deleted
-    ADD CONSTRAINT xref_p31_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p31_not_deleted ADD CONSTRAINT xref_p31_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p31_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p31_not_deleted
-    ADD CONSTRAINT xref_p31_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p31_not_deleted ADD CONSTRAINT xref_p31_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p32_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_deleted
-    ADD CONSTRAINT xref_p32_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p32_deleted ADD CONSTRAINT xref_p32_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_deleted
-    ADD CONSTRAINT xref_p32_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p32_deleted ADD CONSTRAINT xref_p32_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_deleted
-    ADD CONSTRAINT xref_p32_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p32_deleted ADD CONSTRAINT xref_p32_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_deleted
-    ADD CONSTRAINT xref_p32_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p32_deleted ADD CONSTRAINT xref_p32_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p32_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_not_deleted
-    ADD CONSTRAINT xref_p32_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p32_not_deleted ADD CONSTRAINT xref_p32_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_not_deleted
-    ADD CONSTRAINT xref_p32_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p32_not_deleted ADD CONSTRAINT xref_p32_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_not_deleted
-    ADD CONSTRAINT xref_p32_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p32_not_deleted ADD CONSTRAINT xref_p32_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p32_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p32_not_deleted
-    ADD CONSTRAINT xref_p32_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p32_not_deleted ADD CONSTRAINT xref_p32_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p33_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_deleted
-    ADD CONSTRAINT xref_p33_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p33_deleted ADD CONSTRAINT xref_p33_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_deleted
-    ADD CONSTRAINT xref_p33_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p33_deleted ADD CONSTRAINT xref_p33_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_deleted
-    ADD CONSTRAINT xref_p33_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p33_deleted ADD CONSTRAINT xref_p33_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_deleted
-    ADD CONSTRAINT xref_p33_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p33_deleted ADD CONSTRAINT xref_p33_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p33_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_not_deleted
-    ADD CONSTRAINT xref_p33_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p33_not_deleted ADD CONSTRAINT xref_p33_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_not_deleted
-    ADD CONSTRAINT xref_p33_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p33_not_deleted ADD CONSTRAINT xref_p33_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_not_deleted
-    ADD CONSTRAINT xref_p33_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p33_not_deleted ADD CONSTRAINT xref_p33_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p33_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p33_not_deleted
-    ADD CONSTRAINT xref_p33_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p33_not_deleted ADD CONSTRAINT xref_p33_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p34_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_deleted
-    ADD CONSTRAINT xref_p34_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p34_deleted ADD CONSTRAINT xref_p34_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_deleted
-    ADD CONSTRAINT xref_p34_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p34_deleted ADD CONSTRAINT xref_p34_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_deleted
-    ADD CONSTRAINT xref_p34_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p34_deleted ADD CONSTRAINT xref_p34_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_deleted
-    ADD CONSTRAINT xref_p34_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p34_deleted ADD CONSTRAINT xref_p34_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p34_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_not_deleted
-    ADD CONSTRAINT xref_p34_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p34_not_deleted ADD CONSTRAINT xref_p34_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_not_deleted
-    ADD CONSTRAINT xref_p34_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p34_not_deleted ADD CONSTRAINT xref_p34_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_not_deleted
-    ADD CONSTRAINT xref_p34_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p34_not_deleted ADD CONSTRAINT xref_p34_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p34_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p34_not_deleted
-    ADD CONSTRAINT xref_p34_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p34_not_deleted ADD CONSTRAINT xref_p34_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p35_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_deleted
-    ADD CONSTRAINT xref_p35_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p35_deleted ADD CONSTRAINT xref_p35_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_deleted
-    ADD CONSTRAINT xref_p35_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p35_deleted ADD CONSTRAINT xref_p35_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_deleted
-    ADD CONSTRAINT xref_p35_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p35_deleted ADD CONSTRAINT xref_p35_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_deleted
-    ADD CONSTRAINT xref_p35_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p35_deleted ADD CONSTRAINT xref_p35_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p35_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_not_deleted
-    ADD CONSTRAINT xref_p35_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p35_not_deleted ADD CONSTRAINT xref_p35_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_not_deleted
-    ADD CONSTRAINT xref_p35_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p35_not_deleted ADD CONSTRAINT xref_p35_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_not_deleted
-    ADD CONSTRAINT xref_p35_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p35_not_deleted ADD CONSTRAINT xref_p35_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p35_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p35_not_deleted
-    ADD CONSTRAINT xref_p35_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p35_not_deleted ADD CONSTRAINT xref_p35_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p36_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_deleted
-    ADD CONSTRAINT xref_p36_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p36_deleted ADD CONSTRAINT xref_p36_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_deleted
-    ADD CONSTRAINT xref_p36_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p36_deleted ADD CONSTRAINT xref_p36_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_deleted
-    ADD CONSTRAINT xref_p36_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p36_deleted ADD CONSTRAINT xref_p36_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_deleted
-    ADD CONSTRAINT xref_p36_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p36_deleted ADD CONSTRAINT xref_p36_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p36_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_not_deleted
-    ADD CONSTRAINT xref_p36_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p36_not_deleted ADD CONSTRAINT xref_p36_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_not_deleted
-    ADD CONSTRAINT xref_p36_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p36_not_deleted ADD CONSTRAINT xref_p36_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_not_deleted
-    ADD CONSTRAINT xref_p36_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p36_not_deleted ADD CONSTRAINT xref_p36_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p36_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p36_not_deleted
-    ADD CONSTRAINT xref_p36_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p36_not_deleted ADD CONSTRAINT xref_p36_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p37_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_deleted
-    ADD CONSTRAINT xref_p37_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p37_deleted ADD CONSTRAINT xref_p37_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_deleted
-    ADD CONSTRAINT xref_p37_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p37_deleted ADD CONSTRAINT xref_p37_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_deleted
-    ADD CONSTRAINT xref_p37_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p37_deleted ADD CONSTRAINT xref_p37_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_deleted
-    ADD CONSTRAINT xref_p37_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p37_deleted ADD CONSTRAINT xref_p37_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p37_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_not_deleted
-    ADD CONSTRAINT xref_p37_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p37_not_deleted ADD CONSTRAINT xref_p37_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_not_deleted
-    ADD CONSTRAINT xref_p37_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p37_not_deleted ADD CONSTRAINT xref_p37_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_not_deleted
-    ADD CONSTRAINT xref_p37_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p37_not_deleted ADD CONSTRAINT xref_p37_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p37_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p37_not_deleted
-    ADD CONSTRAINT xref_p37_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p37_not_deleted ADD CONSTRAINT xref_p37_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p38_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_deleted
-    ADD CONSTRAINT xref_p38_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p38_deleted ADD CONSTRAINT xref_p38_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_deleted
-    ADD CONSTRAINT xref_p38_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p38_deleted ADD CONSTRAINT xref_p38_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_deleted
-    ADD CONSTRAINT xref_p38_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p38_deleted ADD CONSTRAINT xref_p38_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_deleted
-    ADD CONSTRAINT xref_p38_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p38_deleted ADD CONSTRAINT xref_p38_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p38_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_not_deleted
-    ADD CONSTRAINT xref_p38_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p38_not_deleted ADD CONSTRAINT xref_p38_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_not_deleted
-    ADD CONSTRAINT xref_p38_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p38_not_deleted ADD CONSTRAINT xref_p38_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_not_deleted
-    ADD CONSTRAINT xref_p38_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p38_not_deleted ADD CONSTRAINT xref_p38_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p38_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p38_not_deleted
-    ADD CONSTRAINT xref_p38_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p38_not_deleted ADD CONSTRAINT xref_p38_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p39_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_deleted
-    ADD CONSTRAINT xref_p39_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p39_deleted ADD CONSTRAINT xref_p39_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_deleted
-    ADD CONSTRAINT xref_p39_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p39_deleted ADD CONSTRAINT xref_p39_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_deleted
-    ADD CONSTRAINT xref_p39_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p39_deleted ADD CONSTRAINT xref_p39_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_deleted
-    ADD CONSTRAINT xref_p39_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p39_deleted ADD CONSTRAINT xref_p39_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p39_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_not_deleted
-    ADD CONSTRAINT xref_p39_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p39_not_deleted ADD CONSTRAINT xref_p39_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_not_deleted
-    ADD CONSTRAINT xref_p39_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p39_not_deleted ADD CONSTRAINT xref_p39_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_not_deleted
-    ADD CONSTRAINT xref_p39_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p39_not_deleted ADD CONSTRAINT xref_p39_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p39_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p39_not_deleted
-    ADD CONSTRAINT xref_p39_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p39_not_deleted ADD CONSTRAINT xref_p39_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p3_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_deleted
-    ADD CONSTRAINT xref_p3_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p3_deleted ADD CONSTRAINT xref_p3_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_deleted
-    ADD CONSTRAINT xref_p3_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p3_deleted ADD CONSTRAINT xref_p3_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_deleted
-    ADD CONSTRAINT xref_p3_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p3_deleted ADD CONSTRAINT xref_p3_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_deleted
-    ADD CONSTRAINT xref_p3_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p3_deleted ADD CONSTRAINT xref_p3_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p3_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_not_deleted
-    ADD CONSTRAINT xref_p3_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p3_not_deleted ADD CONSTRAINT xref_p3_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_not_deleted
-    ADD CONSTRAINT xref_p3_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p3_not_deleted ADD CONSTRAINT xref_p3_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_not_deleted
-    ADD CONSTRAINT xref_p3_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p3_not_deleted ADD CONSTRAINT xref_p3_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p3_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p3_not_deleted
-    ADD CONSTRAINT xref_p3_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p3_not_deleted ADD CONSTRAINT xref_p3_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p40_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_deleted
-    ADD CONSTRAINT xref_p40_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p40_deleted ADD CONSTRAINT xref_p40_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_deleted
-    ADD CONSTRAINT xref_p40_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p40_deleted ADD CONSTRAINT xref_p40_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_deleted
-    ADD CONSTRAINT xref_p40_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p40_deleted ADD CONSTRAINT xref_p40_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_deleted
-    ADD CONSTRAINT xref_p40_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p40_deleted ADD CONSTRAINT xref_p40_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p40_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_not_deleted
-    ADD CONSTRAINT xref_p40_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p40_not_deleted ADD CONSTRAINT xref_p40_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_not_deleted
-    ADD CONSTRAINT xref_p40_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p40_not_deleted ADD CONSTRAINT xref_p40_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_not_deleted
-    ADD CONSTRAINT xref_p40_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p40_not_deleted ADD CONSTRAINT xref_p40_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p40_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p40_not_deleted
-    ADD CONSTRAINT xref_p40_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p40_not_deleted ADD CONSTRAINT xref_p40_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p41_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_deleted
-    ADD CONSTRAINT xref_p41_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p41_deleted ADD CONSTRAINT xref_p41_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_deleted
-    ADD CONSTRAINT xref_p41_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p41_deleted ADD CONSTRAINT xref_p41_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_deleted
-    ADD CONSTRAINT xref_p41_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p41_deleted ADD CONSTRAINT xref_p41_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_deleted
-    ADD CONSTRAINT xref_p41_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p41_deleted ADD CONSTRAINT xref_p41_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p41_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_not_deleted
-    ADD CONSTRAINT xref_p41_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p41_not_deleted ADD CONSTRAINT xref_p41_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_not_deleted
-    ADD CONSTRAINT xref_p41_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p41_not_deleted ADD CONSTRAINT xref_p41_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_not_deleted
-    ADD CONSTRAINT xref_p41_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p41_not_deleted ADD CONSTRAINT xref_p41_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p41_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p41_not_deleted
-    ADD CONSTRAINT xref_p41_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p41_not_deleted ADD CONSTRAINT xref_p41_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p42_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_deleted
-    ADD CONSTRAINT xref_p42_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p42_deleted ADD CONSTRAINT xref_p42_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_deleted
-    ADD CONSTRAINT xref_p42_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p42_deleted ADD CONSTRAINT xref_p42_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_deleted
-    ADD CONSTRAINT xref_p42_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p42_deleted ADD CONSTRAINT xref_p42_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_deleted
-    ADD CONSTRAINT xref_p42_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p42_deleted ADD CONSTRAINT xref_p42_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p42_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_not_deleted
-    ADD CONSTRAINT xref_p42_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p42_not_deleted ADD CONSTRAINT xref_p42_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_not_deleted
-    ADD CONSTRAINT xref_p42_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p42_not_deleted ADD CONSTRAINT xref_p42_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_not_deleted
-    ADD CONSTRAINT xref_p42_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p42_not_deleted ADD CONSTRAINT xref_p42_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p42_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p42_not_deleted
-    ADD CONSTRAINT xref_p42_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p42_not_deleted ADD CONSTRAINT xref_p42_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p43_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_deleted
-    ADD CONSTRAINT xref_p43_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p43_deleted ADD CONSTRAINT xref_p43_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_deleted
-    ADD CONSTRAINT xref_p43_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p43_deleted ADD CONSTRAINT xref_p43_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_deleted
-    ADD CONSTRAINT xref_p43_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p43_deleted ADD CONSTRAINT xref_p43_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_deleted
-    ADD CONSTRAINT xref_p43_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p43_deleted ADD CONSTRAINT xref_p43_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p43_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_not_deleted
-    ADD CONSTRAINT xref_p43_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p43_not_deleted ADD CONSTRAINT xref_p43_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_not_deleted
-    ADD CONSTRAINT xref_p43_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p43_not_deleted ADD CONSTRAINT xref_p43_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_not_deleted
-    ADD CONSTRAINT xref_p43_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p43_not_deleted ADD CONSTRAINT xref_p43_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p43_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p43_not_deleted
-    ADD CONSTRAINT xref_p43_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p43_not_deleted ADD CONSTRAINT xref_p43_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p44_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_deleted
-    ADD CONSTRAINT xref_p44_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p44_deleted ADD CONSTRAINT xref_p44_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_deleted
-    ADD CONSTRAINT xref_p44_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p44_deleted ADD CONSTRAINT xref_p44_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_deleted
-    ADD CONSTRAINT xref_p44_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p44_deleted ADD CONSTRAINT xref_p44_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_deleted
-    ADD CONSTRAINT xref_p44_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p44_deleted ADD CONSTRAINT xref_p44_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p44_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_not_deleted
-    ADD CONSTRAINT xref_p44_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p44_not_deleted ADD CONSTRAINT xref_p44_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_not_deleted
-    ADD CONSTRAINT xref_p44_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p44_not_deleted ADD CONSTRAINT xref_p44_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_not_deleted
-    ADD CONSTRAINT xref_p44_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p44_not_deleted ADD CONSTRAINT xref_p44_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p44_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p44_not_deleted
-    ADD CONSTRAINT xref_p44_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p44_not_deleted ADD CONSTRAINT xref_p44_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p45_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_deleted
-    ADD CONSTRAINT xref_p45_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p45_deleted ADD CONSTRAINT xref_p45_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_deleted
-    ADD CONSTRAINT xref_p45_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p45_deleted ADD CONSTRAINT xref_p45_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_deleted
-    ADD CONSTRAINT xref_p45_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p45_deleted ADD CONSTRAINT xref_p45_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_deleted
-    ADD CONSTRAINT xref_p45_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p45_deleted ADD CONSTRAINT xref_p45_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p45_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_not_deleted
-    ADD CONSTRAINT xref_p45_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p45_not_deleted ADD CONSTRAINT xref_p45_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_not_deleted
-    ADD CONSTRAINT xref_p45_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p45_not_deleted ADD CONSTRAINT xref_p45_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_not_deleted
-    ADD CONSTRAINT xref_p45_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p45_not_deleted ADD CONSTRAINT xref_p45_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p45_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p45_not_deleted
-    ADD CONSTRAINT xref_p45_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p45_not_deleted ADD CONSTRAINT xref_p45_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p46_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_deleted
-    ADD CONSTRAINT xref_p46_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p46_deleted ADD CONSTRAINT xref_p46_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_deleted
-    ADD CONSTRAINT xref_p46_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p46_deleted ADD CONSTRAINT xref_p46_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_deleted
-    ADD CONSTRAINT xref_p46_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p46_deleted ADD CONSTRAINT xref_p46_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_deleted
-    ADD CONSTRAINT xref_p46_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p46_deleted ADD CONSTRAINT xref_p46_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p46_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_not_deleted
-    ADD CONSTRAINT xref_p46_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p46_not_deleted ADD CONSTRAINT xref_p46_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_not_deleted
-    ADD CONSTRAINT xref_p46_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p46_not_deleted ADD CONSTRAINT xref_p46_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_not_deleted
-    ADD CONSTRAINT xref_p46_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p46_not_deleted ADD CONSTRAINT xref_p46_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p46_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p46_not_deleted
-    ADD CONSTRAINT xref_p46_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p46_not_deleted ADD CONSTRAINT xref_p46_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p47_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_deleted
-    ADD CONSTRAINT xref_p47_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p47_deleted ADD CONSTRAINT xref_p47_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_deleted
-    ADD CONSTRAINT xref_p47_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p47_deleted ADD CONSTRAINT xref_p47_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_deleted
-    ADD CONSTRAINT xref_p47_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p47_deleted ADD CONSTRAINT xref_p47_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_deleted
-    ADD CONSTRAINT xref_p47_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p47_deleted ADD CONSTRAINT xref_p47_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p47_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_not_deleted
-    ADD CONSTRAINT xref_p47_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p47_not_deleted ADD CONSTRAINT xref_p47_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_not_deleted
-    ADD CONSTRAINT xref_p47_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p47_not_deleted ADD CONSTRAINT xref_p47_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_not_deleted
-    ADD CONSTRAINT xref_p47_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p47_not_deleted ADD CONSTRAINT xref_p47_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p47_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p47_not_deleted
-    ADD CONSTRAINT xref_p47_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p47_not_deleted ADD CONSTRAINT xref_p47_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p48_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_deleted
-    ADD CONSTRAINT xref_p48_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p48_deleted ADD CONSTRAINT xref_p48_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_deleted
-    ADD CONSTRAINT xref_p48_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p48_deleted ADD CONSTRAINT xref_p48_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_deleted
-    ADD CONSTRAINT xref_p48_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p48_deleted ADD CONSTRAINT xref_p48_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_deleted
-    ADD CONSTRAINT xref_p48_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p48_deleted ADD CONSTRAINT xref_p48_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p48_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_not_deleted
-    ADD CONSTRAINT xref_p48_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p48_not_deleted ADD CONSTRAINT xref_p48_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_not_deleted
-    ADD CONSTRAINT xref_p48_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p48_not_deleted ADD CONSTRAINT xref_p48_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_not_deleted
-    ADD CONSTRAINT xref_p48_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p48_not_deleted ADD CONSTRAINT xref_p48_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p48_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p48_not_deleted
-    ADD CONSTRAINT xref_p48_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p48_not_deleted ADD CONSTRAINT xref_p48_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p49_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_deleted
-    ADD CONSTRAINT xref_p49_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p49_deleted ADD CONSTRAINT xref_p49_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_deleted
-    ADD CONSTRAINT xref_p49_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p49_deleted ADD CONSTRAINT xref_p49_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_deleted
-    ADD CONSTRAINT xref_p49_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p49_deleted ADD CONSTRAINT xref_p49_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_deleted
-    ADD CONSTRAINT xref_p49_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p49_deleted ADD CONSTRAINT xref_p49_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p49_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_not_deleted
-    ADD CONSTRAINT xref_p49_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p49_not_deleted ADD CONSTRAINT xref_p49_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_not_deleted
-    ADD CONSTRAINT xref_p49_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p49_not_deleted ADD CONSTRAINT xref_p49_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_not_deleted
-    ADD CONSTRAINT xref_p49_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p49_not_deleted ADD CONSTRAINT xref_p49_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p49_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p49_not_deleted
-    ADD CONSTRAINT xref_p49_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p49_not_deleted ADD CONSTRAINT xref_p49_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p4_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_deleted
-    ADD CONSTRAINT xref_p4_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p4_deleted ADD CONSTRAINT xref_p4_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_deleted
-    ADD CONSTRAINT xref_p4_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p4_deleted ADD CONSTRAINT xref_p4_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_deleted
-    ADD CONSTRAINT xref_p4_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p4_deleted ADD CONSTRAINT xref_p4_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_deleted
-    ADD CONSTRAINT xref_p4_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p4_deleted ADD CONSTRAINT xref_p4_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p4_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_not_deleted
-    ADD CONSTRAINT xref_p4_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p4_not_deleted ADD CONSTRAINT xref_p4_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_not_deleted
-    ADD CONSTRAINT xref_p4_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p4_not_deleted ADD CONSTRAINT xref_p4_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_not_deleted
-    ADD CONSTRAINT xref_p4_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p4_not_deleted ADD CONSTRAINT xref_p4_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p4_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p4_not_deleted
-    ADD CONSTRAINT xref_p4_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p4_not_deleted ADD CONSTRAINT xref_p4_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p50_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_deleted
-    ADD CONSTRAINT xref_p50_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p50_deleted ADD CONSTRAINT xref_p50_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_deleted
-    ADD CONSTRAINT xref_p50_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p50_deleted ADD CONSTRAINT xref_p50_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_deleted
-    ADD CONSTRAINT xref_p50_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p50_deleted ADD CONSTRAINT xref_p50_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_deleted
-    ADD CONSTRAINT xref_p50_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p50_deleted ADD CONSTRAINT xref_p50_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p50_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_not_deleted
-    ADD CONSTRAINT xref_p50_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p50_not_deleted ADD CONSTRAINT xref_p50_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_not_deleted
-    ADD CONSTRAINT xref_p50_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p50_not_deleted ADD CONSTRAINT xref_p50_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_not_deleted
-    ADD CONSTRAINT xref_p50_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p50_not_deleted ADD CONSTRAINT xref_p50_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p50_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p50_not_deleted
-    ADD CONSTRAINT xref_p50_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p50_not_deleted ADD CONSTRAINT xref_p50_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p51_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_deleted
-    ADD CONSTRAINT xref_p51_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p51_deleted ADD CONSTRAINT xref_p51_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_deleted
-    ADD CONSTRAINT xref_p51_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p51_deleted ADD CONSTRAINT xref_p51_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_deleted
-    ADD CONSTRAINT xref_p51_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p51_deleted ADD CONSTRAINT xref_p51_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_deleted
-    ADD CONSTRAINT xref_p51_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p51_deleted ADD CONSTRAINT xref_p51_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p51_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_not_deleted
-    ADD CONSTRAINT xref_p51_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p51_not_deleted ADD CONSTRAINT xref_p51_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_not_deleted
-    ADD CONSTRAINT xref_p51_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p51_not_deleted ADD CONSTRAINT xref_p51_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_not_deleted
-    ADD CONSTRAINT xref_p51_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p51_not_deleted ADD CONSTRAINT xref_p51_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p51_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p51_not_deleted
-    ADD CONSTRAINT xref_p51_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p51_not_deleted ADD CONSTRAINT xref_p51_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p52_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_deleted
-    ADD CONSTRAINT xref_p52_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p52_deleted ADD CONSTRAINT xref_p52_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_deleted
-    ADD CONSTRAINT xref_p52_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p52_deleted ADD CONSTRAINT xref_p52_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_deleted
-    ADD CONSTRAINT xref_p52_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p52_deleted ADD CONSTRAINT xref_p52_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_deleted
-    ADD CONSTRAINT xref_p52_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p52_deleted ADD CONSTRAINT xref_p52_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p52_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_not_deleted
-    ADD CONSTRAINT xref_p52_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p52_not_deleted ADD CONSTRAINT xref_p52_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_not_deleted
-    ADD CONSTRAINT xref_p52_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p52_not_deleted ADD CONSTRAINT xref_p52_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_not_deleted
-    ADD CONSTRAINT xref_p52_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p52_not_deleted ADD CONSTRAINT xref_p52_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p52_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p52_not_deleted
-    ADD CONSTRAINT xref_p52_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p52_not_deleted ADD CONSTRAINT xref_p52_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p53_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_deleted
-    ADD CONSTRAINT xref_p53_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p53_deleted ADD CONSTRAINT xref_p53_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_deleted
-    ADD CONSTRAINT xref_p53_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p53_deleted ADD CONSTRAINT xref_p53_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_deleted
-    ADD CONSTRAINT xref_p53_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p53_deleted ADD CONSTRAINT xref_p53_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_deleted
-    ADD CONSTRAINT xref_p53_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p53_deleted ADD CONSTRAINT xref_p53_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p53_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_not_deleted
-    ADD CONSTRAINT xref_p53_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p53_not_deleted ADD CONSTRAINT xref_p53_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_not_deleted
-    ADD CONSTRAINT xref_p53_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p53_not_deleted ADD CONSTRAINT xref_p53_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_not_deleted
-    ADD CONSTRAINT xref_p53_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p53_not_deleted ADD CONSTRAINT xref_p53_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p53_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p53_not_deleted
-    ADD CONSTRAINT xref_p53_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p53_not_deleted ADD CONSTRAINT xref_p53_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p54_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_deleted
-    ADD CONSTRAINT xref_p54_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p54_deleted ADD CONSTRAINT xref_p54_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_deleted
-    ADD CONSTRAINT xref_p54_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p54_deleted ADD CONSTRAINT xref_p54_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_deleted
-    ADD CONSTRAINT xref_p54_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p54_deleted ADD CONSTRAINT xref_p54_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_deleted
-    ADD CONSTRAINT xref_p54_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p54_deleted ADD CONSTRAINT xref_p54_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p54_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_not_deleted
-    ADD CONSTRAINT xref_p54_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p54_not_deleted ADD CONSTRAINT xref_p54_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_not_deleted
-    ADD CONSTRAINT xref_p54_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p54_not_deleted ADD CONSTRAINT xref_p54_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_not_deleted
-    ADD CONSTRAINT xref_p54_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p54_not_deleted ADD CONSTRAINT xref_p54_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p54_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p54_not_deleted
-    ADD CONSTRAINT xref_p54_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p54_not_deleted ADD CONSTRAINT xref_p54_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p55_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_deleted
-    ADD CONSTRAINT xref_p55_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p55_deleted ADD CONSTRAINT xref_p55_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_deleted
-    ADD CONSTRAINT xref_p55_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p55_deleted ADD CONSTRAINT xref_p55_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_deleted
-    ADD CONSTRAINT xref_p55_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p55_deleted ADD CONSTRAINT xref_p55_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_deleted
-    ADD CONSTRAINT xref_p55_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p55_deleted ADD CONSTRAINT xref_p55_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p55_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_not_deleted
-    ADD CONSTRAINT xref_p55_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p55_not_deleted ADD CONSTRAINT xref_p55_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_not_deleted
-    ADD CONSTRAINT xref_p55_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p55_not_deleted ADD CONSTRAINT xref_p55_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_not_deleted
-    ADD CONSTRAINT xref_p55_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p55_not_deleted ADD CONSTRAINT xref_p55_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p55_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p55_not_deleted
-    ADD CONSTRAINT xref_p55_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p55_not_deleted ADD CONSTRAINT xref_p55_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted
-    ADD CONSTRAINT xref_p5_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ADD CONSTRAINT xref_p5_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted
-    ADD CONSTRAINT xref_p5_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ADD CONSTRAINT xref_p5_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted
-    ADD CONSTRAINT xref_p5_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ADD CONSTRAINT xref_p5_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_deleted
-    ADD CONSTRAINT xref_p5_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_deleted ADD CONSTRAINT xref_p5_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted
-    ADD CONSTRAINT xref_p5_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ADD CONSTRAINT xref_p5_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted
-    ADD CONSTRAINT xref_p5_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ADD CONSTRAINT xref_p5_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted
-    ADD CONSTRAINT xref_p5_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ADD CONSTRAINT xref_p5_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p5_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p5_not_deleted
-    ADD CONSTRAINT xref_p5_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi) DEFERRABLE;
+ALTER TABLE ONLY rnacen.xref_p5_not_deleted ADD CONSTRAINT xref_p5_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi) DEFERRABLE;
 
 /*
 ERROR: relation "rnacen.xref_p6_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_deleted
-    ADD CONSTRAINT xref_p6_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p6_deleted ADD CONSTRAINT xref_p6_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_deleted
-    ADD CONSTRAINT xref_p6_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p6_deleted ADD CONSTRAINT xref_p6_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_deleted
-    ADD CONSTRAINT xref_p6_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p6_deleted ADD CONSTRAINT xref_p6_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_deleted
-    ADD CONSTRAINT xref_p6_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p6_deleted ADD CONSTRAINT xref_p6_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p6_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_not_deleted
-    ADD CONSTRAINT xref_p6_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p6_not_deleted ADD CONSTRAINT xref_p6_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_not_deleted
-    ADD CONSTRAINT xref_p6_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p6_not_deleted ADD CONSTRAINT xref_p6_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_not_deleted
-    ADD CONSTRAINT xref_p6_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p6_not_deleted ADD CONSTRAINT xref_p6_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p6_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p6_not_deleted
-    ADD CONSTRAINT xref_p6_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p6_not_deleted ADD CONSTRAINT xref_p6_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p7_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_deleted
-    ADD CONSTRAINT xref_p7_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p7_deleted ADD CONSTRAINT xref_p7_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_deleted
-    ADD CONSTRAINT xref_p7_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p7_deleted ADD CONSTRAINT xref_p7_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_deleted
-    ADD CONSTRAINT xref_p7_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p7_deleted ADD CONSTRAINT xref_p7_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_deleted
-    ADD CONSTRAINT xref_p7_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p7_deleted ADD CONSTRAINT xref_p7_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p7_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_not_deleted
-    ADD CONSTRAINT xref_p7_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p7_not_deleted ADD CONSTRAINT xref_p7_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_not_deleted
-    ADD CONSTRAINT xref_p7_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p7_not_deleted ADD CONSTRAINT xref_p7_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_not_deleted
-    ADD CONSTRAINT xref_p7_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p7_not_deleted ADD CONSTRAINT xref_p7_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p7_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p7_not_deleted
-    ADD CONSTRAINT xref_p7_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p7_not_deleted ADD CONSTRAINT xref_p7_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p8_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_deleted
-    ADD CONSTRAINT xref_p8_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p8_deleted ADD CONSTRAINT xref_p8_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_deleted
-    ADD CONSTRAINT xref_p8_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p8_deleted ADD CONSTRAINT xref_p8_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_deleted
-    ADD CONSTRAINT xref_p8_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p8_deleted ADD CONSTRAINT xref_p8_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_deleted
-    ADD CONSTRAINT xref_p8_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p8_deleted ADD CONSTRAINT xref_p8_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p8_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_not_deleted
-    ADD CONSTRAINT xref_p8_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p8_not_deleted ADD CONSTRAINT xref_p8_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_not_deleted
-    ADD CONSTRAINT xref_p8_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p8_not_deleted ADD CONSTRAINT xref_p8_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_not_deleted
-    ADD CONSTRAINT xref_p8_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p8_not_deleted ADD CONSTRAINT xref_p8_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p8_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p8_not_deleted
-    ADD CONSTRAINT xref_p8_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p8_not_deleted ADD CONSTRAINT xref_p8_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p9_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_deleted
-    ADD CONSTRAINT xref_p9_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p9_deleted ADD CONSTRAINT xref_p9_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_deleted
-    ADD CONSTRAINT xref_p9_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p9_deleted ADD CONSTRAINT xref_p9_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_deleted
-    ADD CONSTRAINT xref_p9_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p9_deleted ADD CONSTRAINT xref_p9_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_deleted
-    ADD CONSTRAINT xref_p9_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p9_deleted ADD CONSTRAINT xref_p9_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
 /*
 ERROR: relation "rnacen.xref_p9_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_not_deleted
-    ADD CONSTRAINT xref_p9_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p9_not_deleted ADD CONSTRAINT xref_p9_not_deleted_fk1 FOREIGN KEY (created) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_not_deleted
-    ADD CONSTRAINT xref_p9_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database(id);
+ALTER TABLE ONLY rnacen.xref_p9_not_deleted ADD CONSTRAINT xref_p9_not_deleted_fk2 FOREIGN KEY (dbid) REFERENCES rnacen.rnc_database (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_not_deleted
-    ADD CONSTRAINT xref_p9_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release(id);
+ALTER TABLE ONLY rnacen.xref_p9_not_deleted ADD CONSTRAINT xref_p9_not_deleted_fk3 FOREIGN KEY (last) REFERENCES rnacen.rnc_release (id);
 
 /*
 ERROR: relation "rnacen.xref_p9_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/table.sql
 */
-ALTER TABLE ONLY rnacen.xref_p9_not_deleted
-    ADD CONSTRAINT xref_p9_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna(upi);
+ALTER TABLE ONLY rnacen.xref_p9_not_deleted ADD CONSTRAINT xref_p9_not_deleted_fk4 FOREIGN KEY (upi) REFERENCES rnacen.rna (upi);
 
