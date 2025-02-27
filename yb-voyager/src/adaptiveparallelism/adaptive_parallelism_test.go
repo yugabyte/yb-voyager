@@ -22,7 +22,7 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/containerd/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
