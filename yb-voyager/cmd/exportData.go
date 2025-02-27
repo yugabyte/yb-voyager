@@ -743,11 +743,11 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 }
 
 // Return the nameTuple of the qualfieidObj string
-func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectName *sqlname.ObjectName) (sqlname.NameTuple, error) {
+func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectName *sqlname.ObjectName, goToNameRegDirectly bool) (sqlname.NameTuple, error) {
 	sourceTypeHandlesPartitionAsSeparateTable := func(dbType string) bool {
 		return dbType == POSTGRESQL || dbType == YUGABYTEDB
 	}
-	if !sourceTypeHandlesPartitionAsSeparateTable(source.DBType) {
+	if !sourceTypeHandlesPartitionAsSeparateTable(source.DBType) || goToNameRegDirectly {
 		//ORACLE and MySQL no need to care about leaf partitions
 		tuple, err := namereg.NameReg.LookupTableName(qualifiedObjectStr)
 		if err != nil {
@@ -821,7 +821,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	var err error
 	tableListFromDB := source.DB().GetAllTableNames()
 	for _, t := range tableListFromDB {
-		tuple, err := getNameTupleFromQualifiedObject(t.Qualified.Quoted, nil)
+		tuple, err := getNameTupleFromQualifiedObject(t.Qualified.Quoted, nil, false)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error getting name tuple for the object: %s: %v", t.Qualified.Quoted, err)
 		}
@@ -859,25 +859,39 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 	var partitionsToRootTableMap map[string]string
 	var err error
 	storedTableList := make([]string, 0)
+	fetchNameTupleFromNameRegDirectly := true
 	switch source.DBType {
 	case ORACLE, MYSQL:
 		storedTableList = msr.TableListExportedFromSource
 	case POSTGRESQL:
 		storedTableList = msr.SourceExportedTableListWithLeafPartitions
 		partitionsToRootTableMap = msr.SourceRenameTablesMap
+		//In case of PG we need to check the leaf condititon for the tables in table list first and then return the nametuple
+		//via namereg or handcrafted one
+		fetchNameTupleFromNameRegDirectly = false
 	case YUGABYTEDB:
-		//For the first run of export data from target we use the TableListExportedFromSource (which has only root tables)
-		storedTableList = msr.TableListExportedFromSource
 
+		//In case of YB we need to check the leaf condititon for the tables in table list first and then return the nametuple
+		//via namereg or handcrafted one
+		fetchNameTupleFromNameRegDirectly = false
 		// On subsequent run after the first we will use the stored table with leaf partitions
-		if len(msr.TargetExportedTableListWithLeafPartitions) > 0 && msr.TargetRenameTablesMap != nil {
-			storedTableList = msr.TargetExportedTableListWithLeafPartitions
-			partitionsToRootTableMap = msr.TargetRenameTablesMap
+		storedTableList = msr.TargetExportedTableListWithLeafPartitions
+		partitionsToRootTableMap = msr.TargetRenameTablesMap
+
+		//For the first run of export data from target we use the TableListExportedFromSource (which has only root tables)
+		if len(msr.TargetExportedTableListWithLeafPartitions) == 0 || msr.TargetRenameTablesMap == nil {
+			storedTableList = msr.TableListExportedFromSource
+			if msr.SourceDBConf.DBType != POSTGRESQL {
+				//but in case we are using this source list and its source is not PG then we can directly use the namereg
+				fetchNameTupleFromNameRegDirectly = true
+			}
+
 		}
+
 	}
 
 	for _, table := range storedTableList {
-		tuple, err := getNameTupleFromQualifiedObject(table, nil)
+		tuple, err := getNameTupleFromQualifiedObject(table, nil, fetchNameTupleFromNameRegDirectly)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error getting name  tuple for the string oject name: %v", err)
 		}
@@ -935,7 +949,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 
 	registeredList := make([]sqlname.NameTuple, 0)
 	for _, obj := range registeredListObjNames {
-		tuple, err := getNameTupleFromQualifiedObject(obj.Qualified.Quoted, obj)
+		tuple, err := getNameTupleFromQualifiedObject(obj.Qualified.Quoted, obj, false)
 		if err != nil {
 			return nil, nil, fmt.Errorf("error in getting the name tuple for the qualified object: %s: %v", obj.Qualified.Quoted, obj)
 		}
