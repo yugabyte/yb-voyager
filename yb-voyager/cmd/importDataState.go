@@ -57,7 +57,7 @@ metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 type ImportDataState struct {
 	exportDir               string
 	stateDir                string
-	inProgressTaskImporters map[int]fileTaskImportStatusChecker
+	inProgressTaskImporters map[int]fileTaskImportStatusChecker // used to fetch in-memory status from FileTaskImporter
 }
 
 func NewImportDataState(exportDir string) *ImportDataState {
