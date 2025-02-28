@@ -38,7 +38,7 @@ type FileTaskPicker interface {
 	Pick() (*ImportFileTask, error)
 	MarkTaskAsDone(task *ImportFileTask) error
 	HasMoreTasks() bool
-	WaitForTasksBatchesTobeImported()
+	WaitForTasksBatchesTobeImported() error
 }
 
 /*
@@ -90,6 +90,7 @@ func (s *SequentialTaskPicker) Pick() (*ImportFileTask, error) {
 		s.inProgressTask = s.pendingTasks[0]
 		s.pendingTasks = s.pendingTasks[1:]
 	}
+
 	return s.inProgressTask, nil
 }
 
@@ -114,11 +115,12 @@ func (s *SequentialTaskPicker) HasMoreTasks() bool {
 	return len(s.pendingTasks) > 0
 }
 
-func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() {
+func (s *SequentialTaskPicker) WaitForTasksBatchesTobeImported() error {
 	// Consider the scenario where we have a single task in progress and all batches are submitted, but not yet ingested.
 	// In this case as per SequentialTaskPicker's implementation, it will wait for the task to be marked as done.
 	// Instead of having a busy-loop where we keep checking if the task is done, we can wait for a second and then check again.
 	time.Sleep(time.Second * 1)
+	return nil
 }
 
 /*
@@ -155,6 +157,7 @@ type ColocatedAwareRandomTaskPicker struct {
 
 	tableTypes *utils.StructMap[sqlname.NameTuple, string] //colocated or sharded
 
+	state *ImportDataState
 }
 
 type YbTargetDBColocatedChecker interface {
@@ -230,6 +233,7 @@ func NewColocatedAwareRandomTaskPicker(maxTasksInProgress int, tasks []*ImportFi
 		maxTasksInProgress:    maxTasksInProgress,
 		tableWisePendingTasks: tableWisePendingTasks,
 		tableTypes:            tableTypes,
+		state:                 state,
 	}
 	if len(picker.tableWisePendingTasks.Keys()) > 0 {
 		err = picker.initializeChooser()
@@ -384,7 +388,24 @@ func (c *ColocatedAwareRandomTaskPicker) HasMoreTasks() bool {
 	return pendingTasks
 }
 
-func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() {
-	// no wait
-	return
+func (c *ColocatedAwareRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
+	// if for all in-progress tasks, all batches are submitted, then sleep for a bit
+	allTasksAllBatchesSubmitted := true
+
+	for _, task := range c.inProgressTasks {
+		taskAllBatchesSubmitted, err := c.state.AllBatchesSubmittedForTask(task.ID)
+		if err != nil {
+			return fmt.Errorf("checking if all batches are submitted for task: %v: %w", task, err)
+		}
+		if !taskAllBatchesSubmitted {
+			allTasksAllBatchesSubmitted = false
+			break
+		}
+	}
+
+	if allTasksAllBatchesSubmitted {
+		log.Infof("All batches submitted for all in-progress tasks. Sleeping")
+		time.Sleep(time.Millisecond * 100)
+	}
+	return nil
 }
