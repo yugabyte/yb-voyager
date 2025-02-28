@@ -19,11 +19,13 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
 
 	"github.com/samber/lo"
+	"golang.org/x/exp/slices"
 	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -43,15 +45,10 @@ var (
 	testPostgresSource *TestDB
 )
 
-func setupPostgreDBAndExportDependencies(t *testing.T) string {
+func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	config := &testcontainers.ContainerConfig{
-		DBName: "table_list_tests",
-	}
-
-	postgresContainer := testcontainers.NewTestContainer("postgresql", config)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -67,13 +64,21 @@ func setupPostgreDBAndExportDependencies(t *testing.T) string {
 			DBVersion: postgresContainer.GetConfig().DBVersion,
 			User:      postgresContainer.GetConfig().User,
 			Password:  postgresContainer.GetConfig().Password,
-			Schema:    "public|p1",
+			Schema:    postgresContainer.GetConfig().Schema,
 			DBName:    postgresContainer.GetConfig().DBName,
 			Host:      host,
 			Port:      port,
 			SSLMode:   "disable",
 		},
 	}
+	exitCode := m.Run()
+
+	testPostgresSource.Terminate(ctx)
+
+	os.Exit(exitCode)
+}
+func setupPostgreDBAndExportDependencies(t *testing.T) string {
+
 	testExportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
 		t.Errorf("error initialising name reg for the source: %v", err)
@@ -98,6 +103,7 @@ func setupPostgreDBAndExportDependencies(t *testing.T) string {
 		`create table datatypes1(id serial primary key, bool_type boolean,char_type1 CHAR (1),varchar_type VARCHAR(100),byte_type bytea, enum_type week);`,
 		`CREATE TABLE foreign_test ( ID int NOT NULL, ONumber int NOT NULL, PID int, PRIMARY KEY (ID), FOREIGN KEY (PID) REFERENCES datatypes1(ID));`,
 	}
+	testPostgresSource.Schema = "public|p1"
 	testPostgresSource.ExecuteSqls(schemaSqls...)
 	return testExportDir
 }
@@ -131,12 +137,66 @@ func getInitialTableistAndAssertExpectedResult(t *testing.T, expectedTableList [
 	if err != nil {
 		t.Fatalf("retrieving first run table list from msr: %v", err)
 	}
+	for expectedLeaf, expectedRoot := range expectedPartitionsToRootMap {
+		actualRoot, ok := retrievedPartitionsToRootTableMap[expectedLeaf]
+		assert.Equal(t, ok, true)
+		assert.Equal(t, actualRoot, expectedRoot)
+	}
 
 	assert.Equal(t, len(expectedTableList), len(retrievedTableListFromFirstRun))
 	diff := sqlname.SetDifferenceNameTuples(expectedTableList, retrievedTableListFromFirstRun)
 	assert.Equal(t, len(diff), 0)
 
 	assert.Equal(t, len(lo.Keys(expectedPartitionsToRootMap)), len(lo.Keys(retrievedPartitionsToRootTableMap)))
+}
+
+func assertDetectAndReportNewLeafAddedOnSource(t *testing.T, rootTables []sqlname.NameTuple, expectedRootToNewLeafTablesMap map[string][]string) {
+	nameRegistryList, err := getRegisteredNameRegList()
+	if err != nil {
+		t.Fatalf("error getting registered list: %v", err)
+	}
+
+	rootToNewLeafTablesMap, err := detectReportNewLeafPartitionsOnPartitionedTables(rootTables, nameRegistryList)
+	if err != nil {
+		t.Fatalf("error detecting new leafs on root tables: %v", err)
+	}
+	assert.Equal(t, len(lo.Keys(rootToNewLeafTablesMap)), len(lo.Keys(expectedRootToNewLeafTablesMap)))
+	for root, expectedLeafs := range expectedRootToNewLeafTablesMap {
+		actualLeafs, ok := rootToNewLeafTablesMap[root]
+		assert.Equal(t, ok, true)
+		assert.Equal(t, len(expectedLeafs), len(actualLeafs))
+		for _, l := range expectedLeafs {
+			assert.Equal(t, slices.Contains(actualLeafs, l), true)
+		}
+	}
+}
+
+// Asserting guardrails checks for missing and extra tables
+func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T, expectedMissingTables []sqlname.NameTuple, expectedExtraTables []sqlname.NameTuple, firstRunTableList []sqlname.NameTuple, rootTables []sqlname.NameTuple) {
+	nameRegistryList, err := getRegisteredNameRegList()
+	if err != nil {
+		t.Fatalf("error getting registered list: %v", err)
+	}
+	firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions, err := applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(nameRegistryList, source.TableList, source.ExcludeTableList, nil, rootTables, firstRunTableList)
+	if err != nil {
+		t.Fatalf("error getting first run and current run list: %v", err)
+	}
+	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
+	missingTables, extraTables := guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
+	assert.Equal(t, len(missingTables), len(expectedMissingTables))
+	assert.Equal(t, len(extraTables), len(expectedExtraTables))
+
+	for _, l := range expectedMissingTables {
+		assert.Equal(t, lo.ContainsBy(missingTables, func(t sqlname.NameTuple) bool {
+			return t.Equals(l)
+		}), true)
+	}
+	for _, l := range expectedExtraTables {
+		assert.Equal(t, lo.ContainsBy(extraTables, func(t sqlname.NameTuple) bool {
+			return t.Equals(l)
+		}), true)
+	}
+
 }
 
 var (
@@ -160,6 +220,7 @@ func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -201,6 +262,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -274,13 +336,12 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 }
 
 /*
- TODO: 
- added test assertions for below cases
-  1. validate guardrails check prompts
-  2. validate new leaf additions
-  3. Unknown table in table-list error exit
- */
-func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
+TODO:
+need to add test assertions for below cases
+ 3. Unknown table in table-list error exit
+*/
+
+func TestTableListInSubsequentRunOfExportDataBasic(t *testing.T) {
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
 	err := testPostgresSource.DB().Connect()
@@ -289,6 +350,7 @@ func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -350,6 +412,7 @@ func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
 	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
 
 	//Case: DDL Changes on the Source and then get initial table on re-run
+	//Adding new table on the source and asserting that its not coming up in the list in resumption case
 	ddlChanges := []string{
 		`CREATE TABLE public.test_ddl_change(id int, val text);`,                                                                 // Adding normal table
 		`CREATE TABLE public.test_partitions_sequences_p PARTITION OF public.test_partitions_sequences FOR VALUES IN ('Paris');`, // Adding a new leaf on the test_partititons_sequences table (included in table-list)
@@ -359,6 +422,19 @@ func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
 
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
 	startClean = false
+
+	//validate detectAndReportNewLeafPartitionsForRootTables  for the new leaf table added above
+
+	rootTables := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+	}
+
+	assertDetectAndReportNewLeafAddedOnSource(t, rootTables, map[string][]string{
+		rootTables[0].AsQualifiedCatalogName(): []string{
+			getNameTuple("public.test_partitions_sequences_p").AsQualifiedCatalogName(),
+		},
+	})
+
 	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
 
 	//Case --start-clean true
@@ -385,7 +461,7 @@ func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
 	}...)
 
 	newExpectedParititonsToRootTable := expectedPartitionsToRootMap
-	newExpectedParititonsToRootTable["public.test_partitions_sequences"] = "public.test_partitions_sequences_p"
+	newExpectedParititonsToRootTable["public.test_partitions_sequences_p"] = "public.test_partitions_sequences"
 
 	getInitialTableistAndAssertExpectedResult(t, newExpectedTableList, newExpectedParititonsToRootTable)
 
@@ -396,7 +472,7 @@ func TestTableListInSubsequenceRunOfExportDataBasic(t *testing.T) {
 
 }
 
-func TestTableListInSubsequenceRunOfExportDatWithTableListFlags(t *testing.T) {
+func TestTableListInSubsequentRunOfExportDatWithTableListFlags(t *testing.T) {
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
 	err := testPostgresSource.DB().Connect()
@@ -405,6 +481,7 @@ func TestTableListInSubsequenceRunOfExportDatWithTableListFlags(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -464,50 +541,102 @@ func TestTableListInSubsequenceRunOfExportDatWithTableListFlags(t *testing.T) {
 		t.Fatalf("error updating msr: %v", err)
 	}
 
+	testCasesWithDifferentTableListFlagValues(t, expectedTableList, expectedPartitionsToRootMap)
+
+}
+
+func testCasesWithDifferentTableListFlagValues(t *testing.T, firstRunTableList []sqlname.NameTuple, firstRunPartitionsToRootMap map[string]string) {
 	//case1: getInitialTableList for subsequent run with  start-clean false and basic with same table-list flags so no guardrails
 	startClean = false
 
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so no guardrails
 	startClean = false
 	source.TableList = ""
 	source.ExcludeTableList = ""
 
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
-
-	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so no guardrails
-	startClean = false
-	source.TableList = ""
-	source.ExcludeTableList = ""
-
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case3: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag
 	startClean = false
-	//--table-list
+	//--table-list test_partitions_sequences,sales_region
 	source.TableList = "test_partitions_sequences,sales_region"
 	utils.DoNotPrompt = true
-	//TODO: See how to validate guardrails checks
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
 
-	//case4: getInitialTableList for subsequent run with  start-clean false and basic with exclude-table-list flag
+	rootTables := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.sales_region"),
+	}
+
+	expectedMissingTables := []sqlname.NameTuple{
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+
+	expectedExtraTables := []sqlname.NameTuple{
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+	}
+
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables, expectedExtraTables, firstRunTableList, rootTables)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+
+	//case4: getInitialTableList for subsequent run with  start-clean false and basic with only exclude-table-list flag
 	startClean = false
-	//--table-list
+	//--exclude-table-list sales_region,foreign_test
+	source.TableList = ""
 	source.ExcludeTableList = "sales_region,foreign_test"
 	utils.DoNotPrompt = true
 
-	//TODO: See how to validate guardrails checks
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+	expectedMissingTables2 := []sqlname.NameTuple{
+		getNameTuple("p1.boston"),
+		getNameTuple("public.foreign_test"),
+	}
+
+	//TODO this needs to be fixed where we are reporting the sequences in extra tables in case
+	//there is no include table list via command line as we use nameregistry list in that case
+	expectedExtraTables2 := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences_id_seq"),
+		getNameTuple("public.datatypes1_id_seq"),
+	}
+
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables2, expectedExtraTables2, firstRunTableList, rootTables)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case5: getInitialTableList for subsequent run with  start-clean false and basic with table-list and exclude-table-list flags
 	startClean = false
-	//--table-list
+	//--table-list test_partitions_sequences,foreign_test,p1.london --exclude-table-list sales_region
 	source.TableList = "test_partitions_sequences,foreign_test,p1.london"
 	source.ExcludeTableList = "sales_region"
 	utils.DoNotPrompt = true
 
-	//TODO: See how to validate guardrails checks
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+	expectedMissingTables3 := []sqlname.NameTuple{
+		getNameTuple("p1.boston"),
+		getNameTuple("public.datatypes1"),
+	}
 
+	expectedExtraTables3 := []sqlname.NameTuple{}
+
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables3, expectedExtraTables3, firstRunTableList, rootTables)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+
+	//case6: getInitialTableList for subsequent run with  start-clean false and basic with different set of table-list and exclude-table-list flags
+	startClean = false
+	//--table-list test_partitions_sequences,p1.boston,foreign_test,p1.london,datatypes1 --exclude-table-list datatypes1,test_partitions_sequences_s
+	source.TableList = "test_partitions_sequences,p1.boston,foreign_test,p1.london,datatypes1"
+	source.ExcludeTableList = "datatypes1,test_partitions_sequences_s"
+	utils.DoNotPrompt = true
+
+	expectedMissingTables4 := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.datatypes1"),
+	}
+
+	expectedExtraTables4 := []sqlname.NameTuple{
+		getNameTuple("p1.london"),
+	}
+
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables4, expectedExtraTables4, firstRunTableList, rootTables)
+	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
 }
