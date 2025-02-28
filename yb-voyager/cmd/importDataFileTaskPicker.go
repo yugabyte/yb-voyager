@@ -552,6 +552,7 @@ func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	}
 
 	// if we can push a new colocated task into the queue, pick a colocated task.
+	log.Infof("colocatedBatchTaskQueue: %v, cap: %v", len(c.colocatedBatchTaskQueue), cap(c.colocatedBatchTaskQueue))
 	if len(c.colocatedBatchTaskQueue) < cap(c.colocatedBatchTaskQueue) {
 		log.Info("picking colocated task")
 		return c.pickColocatedTask()
