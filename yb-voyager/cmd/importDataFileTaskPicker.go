@@ -407,7 +407,7 @@ type ColocatedCappedRandomTaskPicker struct {
 	colocatedBatchTaskQueue chan func()
 }
 
-func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker) (*ColocatedCappedRandomTaskPicker, error) {
+func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker, colocatedBatchTaskQueue chan func()) (*ColocatedCappedRandomTaskPicker, error) {
 	// var doneTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 
@@ -500,7 +500,8 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		pendingColocatedTasks: pendingColcatedTasks,
 		pendingShardedTasks:   pendingShardedTasks,
 
-		tableTypes: tableTypes,
+		tableTypes:              tableTypes,
+		colocatedBatchTaskQueue: colocatedBatchTaskQueue,
 	}
 
 	log.Infof("ColocatedCappedRandomTaskPicker initialized with params:%v", spew.Sdump(picker))
