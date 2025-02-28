@@ -552,18 +552,53 @@ func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 		return c.pickShardedTask()
 	}
 
+	// we have a combination of tasks left.
+	// first fill up in-progress tasks from pending tasks if possible.
+	task, err := c.tryPickPendingColocatedTask()
+	if err != nil {
+		return nil, fmt.Errorf("picking pending colocated task: %w", err)
+	}
+	if task != nil {
+		return task, nil
+	}
+	task, err = c.tryPickPendingShardedTask()
+	if err != nil {
+		return nil, fmt.Errorf("picking pending sharded task: %w", err)
+	}
+	if task != nil {
+		return task, nil
+	}
+
+	// pick from the combination of in-progress tasks.
 	// if we can push a new colocated task into the queue, pick a colocated task.
 	log.Infof("colocatedBatchTaskQueue: %v, cap: %v", len(c.colocatedBatchTaskQueue), cap(c.colocatedBatchTaskQueue))
 	if len(c.colocatedBatchTaskQueue) < cap(c.colocatedBatchTaskQueue) {
 		log.Info("picking colocated task")
-		return c.pickColocatedTask()
+		return c.pickInProgressColocatedTask()
 	}
 	log.Info("picking sharded task")
-	return c.pickShardedTask()
+	return c.pickInProgressShardedTask()
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pickColocatedTask() (*ImportFileTask, error) {
+	if !c.HasMoreColocatedTasks() {
+		return nil, fmt.Errorf("no more colocated tasks")
+	}
+
 	// try to pick a colocated pending task.
+	task, err := c.tryPickPendingColocatedTask()
+	if err != nil {
+		return nil, fmt.Errorf("picking pending colocated task: %w", err)
+	}
+	if task != nil {
+		return task, nil
+	}
+
+	// pick a colocated in-progress task.
+	return c.pickInProgressColocatedTask()
+}
+
+func (c *ColocatedCappedRandomTaskPicker) tryPickPendingColocatedTask() (*ImportFileTask, error) {
 	if len(c.inProgressColocatedTasks) < c.maxColocatedTasksInProgress {
 		if len(c.pendingColocatedTasks) > 0 {
 			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingColocatedTasks)
@@ -572,17 +607,36 @@ func (c *ColocatedCappedRandomTaskPicker) pickColocatedTask() (*ImportFileTask, 
 			return pickedTask, nil
 		}
 	}
-	// try to pick a colocated in-progress task.
+	return nil, nil
+}
+
+func (c *ColocatedCappedRandomTaskPicker) pickInProgressColocatedTask() (*ImportFileTask, error) {
 	if len(c.inProgressColocatedTasks) > 0 {
 		_, pickedTask := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
 		return pickedTask, nil
 	}
-	return nil, fmt.Errorf("no colocated tasks to pick from")
+	return nil, fmt.Errorf("no in-progress colocated tasks to pick from")
 }
 
 func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, error) {
+	if !c.HasMoreShardedTasks() {
+		return nil, fmt.Errorf("no more sharded tasks")
+	}
 
 	// try to pick a sharded pending task.
+	task, err := c.tryPickPendingShardedTask()
+	if err != nil {
+		return nil, fmt.Errorf("picking pending sharded task: %w", err)
+	}
+	if task != nil {
+		return task, nil
+	}
+
+	// try to pick a sharded in-progress task.
+	return c.pickInProgressShardedTask()
+}
+
+func (c *ColocatedCappedRandomTaskPicker) tryPickPendingShardedTask() (*ImportFileTask, error) {
 	if len(c.inProgressShardedTasks) < c.maxShardedTasksInProgress {
 		if len(c.pendingShardedTasks) > 0 {
 			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingShardedTasks)
@@ -591,12 +645,15 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 			return pickedTask, nil
 		}
 	}
-	// try to pick a sharded in-progress task.
+	return nil, nil
+}
+
+func (c *ColocatedCappedRandomTaskPicker) pickInProgressShardedTask() (*ImportFileTask, error) {
 	if len(c.inProgressShardedTasks) > 0 {
 		_, pickedTask := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
 		return pickedTask, nil
 	}
-	return nil, fmt.Errorf("no sharded tasks to pick from")
+	return nil, fmt.Errorf("no in-progress sharded tasks to pick from")
 }
 
 func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) error {
