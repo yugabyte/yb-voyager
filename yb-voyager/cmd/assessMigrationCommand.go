@@ -93,7 +93,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateOracleParams()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("%v", err)
+			utils.ErrExit("failed to validate target db version: %v", err)
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
@@ -113,8 +113,7 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			packAndSendAssessMigrationPayload(ERROR, err.Error())
-			utils.ErrExit("failed to assess migration: %s", err)
+			utils.ErrExit("%s", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, "")
 	},
@@ -314,14 +313,14 @@ func assessMigration() (err error) {
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			return fmt.Errorf("failed to get source DB password: %w", err)
+			return fmt.Errorf("failed to get source DB password for assessing migration: %w", err)
 		}
 	}
 
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
-			utils.ErrExit("error connecting source db: %v", err)
+			return fmt.Errorf("failed to connect source db for assessing migration: %v", err)
 		}
 
 		// We will require source db connection for the below checks
@@ -331,7 +330,7 @@ func assessMigration() (err error) {
 			log.Info("checking source DB version")
 			err = source.DB().CheckSourceDBVersion(exportType)
 			if err != nil {
-				return fmt.Errorf("source DB version check failed: %w", err)
+				return fmt.Errorf("failed to check source DB version for assess migration: %w", err)
 			}
 
 			// Check if required binaries are installed.
@@ -345,7 +344,7 @@ func assessMigration() (err error) {
 
 		res := source.DB().CheckSchemaExists()
 		if !res {
-			return fmt.Errorf("schema %q does not exist", source.Schema)
+			return fmt.Errorf("failed to check if source schema exist: %q", source.Schema)
 		}
 
 		// Check if source db has permissions to assess migration
@@ -588,7 +587,7 @@ func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
 			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 			err := ClearMigrationAssessmentDone()
 			if err != nil {
-				utils.ErrExit("failed to start clean: %v", err)
+				utils.ErrExit("failed to clear migration assessment completed flag in msr during start clean: %v", err)
 			}
 		} else {
 			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
@@ -942,7 +941,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", featureName, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", analyzeIssue.Name, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
 			}
 
 			objectInfo := ObjectInfo{
@@ -1002,7 +1001,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, "", queryissue.EXCLUSION_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, "", queryissue.DEFERRABLE_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, "", VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes)...)
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, "", queryissue.PK_UK_ON_COMPLEX_DATATYPE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, "", queryissue.UNLOGGED_TABLES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, "", queryissue.REFERENCING_CLAUSE_IN_TRIGGER, schemaAnalysisReport, false))
@@ -1034,27 +1033,43 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	}), nil
 }
 
-func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) UnsupportedFeature {
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) []UnsupportedFeature {
 	// TODO: include MinimumVersionsFixedIn
-	indexesOnComplexTypesFeature := UnsupportedFeature{
-		FeatureName: "Index on complex datatypes",
-		DisplayDDL:  false,
-		Objects:     []ObjectInfo{},
-	}
-	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "array")             // adding it here only as we know issue form analyze will come with type
-	unsupportedIndexDatatypes = append(unsupportedIndexDatatypes, "user_defined_type") // adding it here as we UDTs will come with this type.
-	for _, unsupportedType := range unsupportedIndexDatatypes {
-		indexes := getUnsupportedFeaturesFromSchemaAnalysisReport(fmt.Sprintf("%s indexes", unsupportedType), fmt.Sprintf(queryissue.INDEX_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION, unsupportedType), "", schemaAnalysisReport, false)
-		for _, object := range indexes.Objects {
-			formattedObject := object
-			formattedObject.ObjectName = fmt.Sprintf("%s: %s", strings.ToUpper(unsupportedType), object.ObjectName)
-			indexesOnComplexTypesFeature.Objects = append(indexesOnComplexTypesFeature.Objects, formattedObject)
-			if indexesOnComplexTypesFeature.DocsLink == "" {
-				indexesOnComplexTypesFeature.DocsLink = indexes.DocsLink
-			}
-		}
-	}
-	return indexesOnComplexTypesFeature
+	log.Infof("fetching unsupported features for Index on complex datatypes...")
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CITEXT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CITEXT_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSVECTOR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSVECTOR_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSQUERY_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSQUERY_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_JSONB_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_JSONB_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INET_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INET_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_JSON_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_JSON_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_MACADDR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_MACADDR_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_MACADDR8_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_MACADDR8_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CIDR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CIDR_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_BIT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_BIT_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_VARBIT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_VARBIT_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_DATERANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_DATERANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSRANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSTZRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSTZRANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_NUMRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_NUMRANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INT4RANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INT4RANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INT8RANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INT8RANGE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INTERVAL_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INTERVAL_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CIRCLE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CIRCLE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_BOX_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_BOX_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_LINE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_LINE_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_LSEG_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_LSEG_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_POINT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_POINT_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_PG_LSN_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_PG_LSN_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_PATH_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_PATH_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_POLYGON_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_POLYGON_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TXID_SNAPSHOT_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_ARRAY_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_USER_DEFINED_DATATYPE, schemaAnalysisReport, false))
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	})
 }
 
 func fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport utils.SchemaReport) ([]UnsupportedFeature, error) {
@@ -1697,12 +1712,12 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 
 func validateSourceDBTypeForAssessMigration() {
 	if source.DBType == "" {
-		utils.ErrExit("Error: required flag \"source-db-type\" not set")
+		utils.ErrExit("Error required flag \"source-db-type\" not set")
 	}
 
 	source.DBType = strings.ToLower(source.DBType)
 	if !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
-		utils.ErrExit("Error: Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
+		utils.ErrExit("Error Invalid source-db-type: %q. Supported source db types for assess-migration are: [%v]",
 			source.DBType, strings.Join(assessMigrationSupportedDBTypes, ", "))
 	}
 }
@@ -1710,7 +1725,7 @@ func validateSourceDBTypeForAssessMigration() {
 func validateAssessmentMetadataDirFlag() {
 	if assessmentMetadataDirFlag != "" {
 		if !utils.FileOrFolderExists(assessmentMetadataDirFlag) {
-			utils.ErrExit("assessment metadata directory: %q provided with `--assessment-metadata-dir` flag does not exist", assessmentMetadataDirFlag)
+			utils.ErrExit("provided with `--assessment-metadata-dir` flag does not exist: %q ", assessmentMetadataDirFlag)
 		} else {
 			log.Infof("using provided assessment metadata directory: %s", assessmentMetadataDirFlag)
 		}

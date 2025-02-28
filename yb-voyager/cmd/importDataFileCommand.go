@@ -184,10 +184,10 @@ func getImportFileTasks(currFileTableMapping string) []*ImportFileTask {
 		globPattern, table := strings.Split(kv, ":")[0], strings.Split(kv, ":")[1]
 		filePaths, err := dataStore.Glob(globPattern)
 		if err != nil {
-			utils.ErrExit("find files matching pattern %q: %v", globPattern, err)
+			utils.ErrExit("failed to find files matching pattern: %q: %v", globPattern, err)
 		}
 		if len(filePaths) == 0 {
-			utils.ErrExit("no files found for matching pattern %q", globPattern)
+			utils.ErrExit("no files found for matching pattern: %q", globPattern)
 		}
 		tableNameTuple, err := namereg.NameReg.LookupTableName(table)
 		if err != nil {
@@ -242,7 +242,7 @@ func checkFileFormat() {
 
 func checkDataDirFlag() {
 	if dataDir == "" {
-		utils.ErrExit(`Error: required flag "data-dir" not set`)
+		utils.ErrExit(`Error required flag "data-dir" not set`)
 	}
 	if strings.HasPrefix(dataDir, "s3://") {
 		s3.ValidateObjectURL(dataDir)
@@ -255,7 +255,7 @@ func checkDataDirFlag() {
 		return
 	}
 	if !utils.FileOrFolderExists(dataDir) {
-		utils.ErrExit("data-dir: %s doesn't exists!!", dataDir)
+		utils.ErrExit("data-dir doesn't exists: %s", dataDir)
 	}
 	dataDirAbs, err := filepath.Abs(dataDir)
 	if err != nil {
@@ -268,7 +268,7 @@ func checkDataDirFlag() {
 	}
 
 	if strings.HasPrefix(dataDirAbs, exportDirAbs) {
-		utils.ErrExit("ERROR: data-dir must be outside the export-dir")
+		utils.ErrExit("ERROR data-dir must be outside the export-dir")
 	}
 	if dataDir == "." {
 		fmt.Println("Note: Using current working directory as data directory")
@@ -279,7 +279,7 @@ func checkDelimiterFlag() {
 	var ok bool
 	delimiter, ok = interpreteEscapeSequences(delimiter)
 	if !ok {
-		utils.ErrExit("ERROR: invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
+		utils.ErrExit("ERROR invalid syntax of flag value in --delimiter %s. It should be a valid single-byte value.", delimiter)
 	}
 	log.Infof("resolved delimiter value: %q", delimiter)
 }
@@ -321,20 +321,20 @@ func checkAndParseEscapeAndQuoteChar() {
 
 		escapeChar, ok = interpreteEscapeSequences(escapeChar)
 		if !ok {
-			utils.ErrExit("ERROR: invalid syntax of --escape-char=%s flag. It should be a valid single-byte value.", escapeChar)
+			utils.ErrExit("ERROR invalid syntax of --escape-char=%s flag. It should be a valid single-byte value.", escapeChar)
 		}
 
 		quoteChar, ok = interpreteEscapeSequences(quoteChar)
 		if !ok {
-			utils.ErrExit("ERROR: invalid syntax of --quote-char=%s flag. It should be a valid single-byte value.", quoteChar)
+			utils.ErrExit("ERROR invalid syntax of --quote-char=%s flag. It should be a valid single-byte value.", quoteChar)
 		}
 
 	default:
 		if escapeChar != "" {
-			utils.ErrExit("ERROR: --escape-char flag is invalid for %q format", fileFormat)
+			utils.ErrExit("ERROR --escape-char flag is invalid for %q format", fileFormat)
 		}
 		if quoteChar != "" {
-			utils.ErrExit("ERROR: --quote-char flag is invalid for %q format", fileFormat)
+			utils.ErrExit("ERROR --quote-char flag is invalid for %q format", fileFormat)
 		}
 	}
 

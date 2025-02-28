@@ -25,6 +25,7 @@ import (
 
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -77,7 +78,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		defer wg.Done()
 		err := copier.Run()
 		if err != nil {
-			utils.ErrExit("copying segments: %v", err)
+			utils.ErrExit("failed to copy segments: %v", err)
 		}
 	}()
 
@@ -86,7 +87,7 @@ func archiveChangesCommandFn(cmd *cobra.Command, args []string) {
 		defer wg.Done()
 		err := deleter.Run()
 		if err != nil {
-			utils.ErrExit("deleting segments: %v", err)
+			utils.ErrExit("failed to delete segments: %v", err)
 		}
 	}()
 
@@ -133,7 +134,7 @@ func (d *EventSegmentDeleter) isFSUtilisationExceeded() bool {
 	}
 	fsUtilization, err := utils.GetFSUtilizationPercentage(exportDir)
 	if err != nil {
-		utils.ErrExit("get fs utilization: %v", err)
+		utils.ErrExit("failed to get fs utilization: %v", err)
 	}
 
 	return fsUtilization > d.FSUtilisationThreshold

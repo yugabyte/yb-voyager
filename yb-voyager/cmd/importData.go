@@ -86,7 +86,7 @@ var importDataCmd = &cobra.Command{
 		sourceDBType = GetSourceDBTypeFromMSR()
 		err = validateImportFlags(cmd, importerRole)
 		if err != nil {
-			utils.ErrExit("Error: %s", err.Error())
+			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 	},
 	Run: importDataCommandFn,
@@ -298,7 +298,7 @@ func startExportDataFromTargetIfRequired() {
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
-		utils.ErrExit("could not find yb-voyager - %w", lookErr)
+		utils.ErrExit("could not find yb-voyager: %w", lookErr)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "TARGET_DB_PASSWORD="+tconf.Password)
@@ -396,7 +396,7 @@ func applyTableListFilter(importFileTasks []*ImportFileTask) []*ImportFileTask {
 		result := lo.Filter(allTables, func(tableNameTup sqlname.NameTuple, _ int) bool {
 			matched, err := tableNameTup.MatchesPattern(pattern)
 			if err != nil {
-				utils.ErrExit("Invalid table name pattern %q: %s", pattern, err)
+				utils.ErrExit("Invalid table name pattern: %q: %s", pattern, err)
 			}
 			return matched
 		})
@@ -714,6 +714,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 	// `parallelism` number of batches at a time.
 	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 	log.Infof("created batch import pool of size: %d", poolSize)
+	taskImporters := map[int]*FileTaskImporter{}
 
 	var taskPicker FileTaskPicker
 	var err error
@@ -732,8 +733,6 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			return fmt.Errorf("create sequential task picker: %w", err)
 		}
 	}
-
-	taskImporters := map[int]*FileTaskImporter{}
 
 	for taskPicker.HasMoreTasks() {
 		task, err := taskPicker.Pick()
@@ -758,7 +757,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			// task could have been completed (all batches imported) OR still in progress
 			// in case task is done, we should inform task picker so that we stop picking that task.
 			log.Infof("All batches submitted for task: %s", task)
-			taskDone, err := taskImporter.AllBatchesImported()
+			taskDone, err := state.AllBatchesImported(task.FilePath, task.TableNameTup)
 			if err != nil {
 				return fmt.Errorf("check if all batches are imported: task: %v err :%w", task, err)
 			}
@@ -768,12 +767,16 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 				if err != nil {
 					return fmt.Errorf("mark task as done: task: %v, err: %w", task, err)
 				}
+				state.UnregisterFileTaskImporter(taskImporter)
 				log.Infof("Import of task done: %s", task)
 				continue
 			} else {
 				// some batches are still in progress, wait for them to complete as decided by the picker.
 				// don't want to busy-wait, so in case of sequentialTaskPicker, we sleep.
-				taskPicker.WaitForTasksBatchesTobeImported()
+				err := taskPicker.WaitForTasksBatchesTobeImported()
+				if err != nil {
+					return fmt.Errorf("wait for tasks batches to be imported: %w", err)
+				}
 				continue
 			}
 

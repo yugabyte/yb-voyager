@@ -141,7 +141,7 @@ func getMappingForTableNameVsTableFileName(dataDirPath string, noWait bool) map[
 	log.Infof("cmd: %s", pgRestoreCmd.String())
 	log.Infof("output: %s", string(stdOut))
 	if err != nil {
-		utils.ErrExit("ERROR: couldn't parse the TOC file to collect the tablenames for data files: %v", err)
+		utils.ErrExit("couldn't parse the TOC file to collect the tablenames for data files: %v", err)
 	}
 
 	tableNameVsFileNameMap := make(map[string]string)
@@ -755,7 +755,7 @@ func GetSourceDBTypeFromMSR() string {
 
 func validateMetaDBCreated() {
 	if !metaDBIsCreated(exportDir) {
-		utils.ErrExit("ERROR: no metadb found in export-dir")
+		utils.ErrExit("ERROR no metadb found in export-dir")
 	}
 }
 
@@ -1086,7 +1086,7 @@ type AssessmentIssue struct {
 	ObjectName             string                          `json:"ObjectName"`
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
-	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 }
 
 type UnsupportedFeature struct {
