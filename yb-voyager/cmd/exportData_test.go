@@ -26,6 +26,7 @@ import (
 	"testing"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 	"gotest.tools/assert"
 
@@ -72,6 +73,8 @@ func TestMain(m *testing.M) {
 			SSLMode:   "disable",
 		},
 	}
+	// to avoid info level logs flooding the test output
+	log.SetLevel(log.WarnLevel)
 	exitCode := m.Run()
 
 	testPostgresSource.Terminate(ctx)
@@ -88,8 +91,6 @@ func setupPostgreDBAndExportDependencies(t *testing.T) string {
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	//2 partitions table - 1 pure on public schema, 2nd parent on public and leafs on p1
-	//2 normal table with FK
 	testPostgresSource.Schema = "public|p1"
 	testPostgresSource.ExecuteSqls(pgSchemaSqls...)
 	return testExportDir
@@ -210,6 +211,8 @@ var (
 		`DROP TYPE week;`,
 		`drop table foreign_test ;`,
 	}
+	//2 partitions table - 1 pure on public schema, 2nd parent on public and leafs on p1
+	//2 normal table with FK
 	pgSchemaSqls = []string{
 		`CREATE TABLE public.test_partitions_sequences (id serial, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
 		`CREATE TABLE public.test_partitions_sequences_l PARTITION OF public.test_partitions_sequences FOR VALUES IN ('London');`,
