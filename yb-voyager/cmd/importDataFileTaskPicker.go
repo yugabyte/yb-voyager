@@ -543,16 +543,20 @@ func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 
 	// if only one type of tasks are left, pick from that type.
 	if !c.HasMoreShardedTasks() {
+		log.Info("picking colocated task")
 		return c.pickColocatedTask()
 	}
 	if !c.HasMoreColocatedTasks() {
+		log.Info("picking sharded task")
 		return c.pickShardedTask()
 	}
 
 	// if we can push a new colocated task into the queue, pick a colocated task.
 	if len(c.colocatedBatchTaskQueue) < cap(c.colocatedBatchTaskQueue) {
+		log.Info("picking colocated task")
 		return c.pickColocatedTask()
 	}
+	log.Info("picking sharded task")
 	return c.pickShardedTask()
 }
 
@@ -586,8 +590,8 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 		}
 	}
 	// try to pick a sharded in-progress task.
-	if len(c.inProgressColocatedTasks) > 0 {
-		_, pickedTask := c.pickRandomFromListOfTasks(c.inProgressColocatedTasks)
+	if len(c.inProgressShardedTasks) > 0 {
+		_, pickedTask := c.pickRandomFromListOfTasks(c.inProgressShardedTasks)
 		return pickedTask, nil
 	}
 	return nil, fmt.Errorf("no sharded tasks to pick from")
