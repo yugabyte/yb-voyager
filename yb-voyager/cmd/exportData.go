@@ -969,7 +969,7 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	})
 
 	// Finding all the partitions of all root tables part of migration, and report if there any new partitions added
-	rootToNewLeafTablesMap, err := detectReportNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
+	rootToNewLeafTablesMap, err := detectNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
 	if err != nil {
 		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %v", err)
 	}
@@ -984,6 +984,17 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("error applying table list flags for current list and remove roots: %v", err)
 	}
+	
+
+	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
+		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
+		listToPrint := ""
+		for k, leafs := range rootToNewLeafTablesMap {
+			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
+		}
+		utils.PrintAndLog(listToPrint)
+	}
+
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
 	guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
 
@@ -1084,7 +1095,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 
 }
 
-func detectReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
+func detectNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
 	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
 	if err != nil {
 		return nil, fmt.Errorf("getting updated partitions to root table mapping: %s", err)
@@ -1098,15 +1109,6 @@ func detectReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameT
 			//If this leaf table is not registered in name registry then it is a newly added leaf tables
 			rootToNewLeafTablesMap[rootTable] = append(rootToNewLeafTablesMap[rootTable], leaf)
 		}
-	}
-
-	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
-		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
-		listToPrint := ""
-		for k, leafs := range rootToNewLeafTablesMap {
-			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
-		}
-		utils.PrintAndLog(listToPrint)
 	}
 	return rootToNewLeafTablesMap, nil
 }
@@ -1376,8 +1378,8 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result = append(result, tables...)
 	}
 	if len(unknownTableNames) > 0 {
-		utils.PrintAndLog("Unknown table names %v in the %s list", unknownTableNames, listName)
-		utils.ErrExit("Valid table names are: %v", lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+		unknownTableMsg := fmt.Sprintf("Unknown table names in the %s list: %v", listName, unknownTableNames)
+		utils.ErrExit("%s\nValid table names are: %v", unknownTableMsg, lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
 			return tableName.ForOutput()
 		}))
 	}

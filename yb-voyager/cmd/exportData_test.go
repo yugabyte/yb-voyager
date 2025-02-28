@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -89,22 +90,8 @@ func setupPostgreDBAndExportDependencies(t *testing.T) string {
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
 	//2 partitions table - 1 pure on public schema, 2nd parent on public and leafs on p1
 	//2 normal table with FK
-	schemaSqls := []string{
-		`CREATE TABLE public.test_partitions_sequences (id serial, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
-		`CREATE TABLE public.test_partitions_sequences_l PARTITION OF public.test_partitions_sequences FOR VALUES IN ('London');`,
-		`CREATE TABLE public.test_partitions_sequences_s PARTITION OF public.test_partitions_sequences FOR VALUES IN ('Sydney');`,
-		`CREATE TABLE public.test_partitions_sequences_b PARTITION OF public.test_partitions_sequences FOR VALUES IN ('Boston');`,
-		`CREATE SCHEMA p1;`,
-		`CREATE TABLE public.sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
-		`CREATE TABLE p1.London PARTITION OF public.sales_region FOR VALUES IN ('London');`,
-		`CREATE TABLE p1.Sydney PARTITION OF public.sales_region FOR VALUES IN ('Sydney');`,
-		`CREATE TABLE p1.Boston PARTITION OF public.sales_region FOR VALUES IN ('Boston');`,
-		`CREATE TYPE week AS ENUM ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun');`,
-		`create table datatypes1(id serial primary key, bool_type boolean,char_type1 CHAR (1),varchar_type VARCHAR(100),byte_type bytea, enum_type week);`,
-		`CREATE TABLE foreign_test ( ID int NOT NULL, ONumber int NOT NULL, PID int, PRIMARY KEY (ID), FOREIGN KEY (PID) REFERENCES datatypes1(ID));`,
-	}
 	testPostgresSource.Schema = "public|p1"
-	testPostgresSource.ExecuteSqls(schemaSqls...)
+	testPostgresSource.ExecuteSqls(pgSchemaSqls...)
 	return testExportDir
 }
 
@@ -156,7 +143,7 @@ func assertDetectAndReportNewLeafAddedOnSource(t *testing.T, rootTables []sqlnam
 		t.Fatalf("error getting registered list: %v", err)
 	}
 
-	rootToNewLeafTablesMap, err := detectReportNewLeafPartitionsOnPartitionedTables(rootTables, nameRegistryList)
+	rootToNewLeafTablesMap, err := detectNewLeafPartitionsOnPartitionedTables(rootTables, nameRegistryList)
 	if err != nil {
 		t.Fatalf("error detecting new leafs on root tables: %v", err)
 	}
@@ -199,6 +186,21 @@ func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T,
 
 }
 
+// Tests the unknown table case by over ridding the utils.ErrExit function to assert the error msg
+func testUnknownTableCaseForTableListFlags(t *testing.T, expectedUnknownErrorMsg string) {
+	previousFunction := utils.ErrExit
+	//changing the error exit function to test the unknown table scenario
+	utils.ErrExit = func(formatString string, args ...interface{}) {
+		errMSg := fmt.Sprintf(formatString, args...)
+		assert.Equal(t, strings.Contains(errMSg, expectedUnknownErrorMsg), true)
+	}
+
+	//Run the function assert the error exit scenario
+	getInitialTableList()
+
+	utils.ErrExit = previousFunction
+}
+
 var (
 	cleanUpSqls = []string{
 		`DROP TABLE public.test_partitions_sequences ;`,
@@ -208,9 +210,23 @@ var (
 		`DROP TYPE week;`,
 		`drop table foreign_test ;`,
 	}
+	pgSchemaSqls = []string{
+		`CREATE TABLE public.test_partitions_sequences (id serial, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
+		`CREATE TABLE public.test_partitions_sequences_l PARTITION OF public.test_partitions_sequences FOR VALUES IN ('London');`,
+		`CREATE TABLE public.test_partitions_sequences_s PARTITION OF public.test_partitions_sequences FOR VALUES IN ('Sydney');`,
+		`CREATE TABLE public.test_partitions_sequences_b PARTITION OF public.test_partitions_sequences FOR VALUES IN ('Boston');`,
+		`CREATE SCHEMA p1;`,
+		`CREATE TABLE public.sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
+		`CREATE TABLE p1.London PARTITION OF public.sales_region FOR VALUES IN ('London');`,
+		`CREATE TABLE p1.Sydney PARTITION OF public.sales_region FOR VALUES IN ('Sydney');`,
+		`CREATE TABLE p1.Boston PARTITION OF public.sales_region FOR VALUES IN ('Boston');`,
+		`CREATE TYPE week AS ENUM ('Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun');`,
+		`create table datatypes1(id serial primary key, bool_type boolean,char_type1 CHAR (1),varchar_type VARCHAR(100),byte_type bytea, enum_type week);`,
+		`CREATE TABLE foreign_test ( ID int NOT NULL, ONumber int NOT NULL, PID int, PRIMARY KEY (ID), FOREIGN KEY (PID) REFERENCES datatypes1(ID));`,
+	}
 )
 
-func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
+func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
@@ -252,7 +268,7 @@ func TestTableListInFreshRunOfExportDataBasic(t *testing.T) {
 	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap, expectedTableList)
 
 }
-func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
+func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
@@ -335,13 +351,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlags(t *testing.T) {
 	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap3, expectedTableList3)
 }
 
-/*
-TODO:
-need to add test assertions for below cases
- 3. Unknown table in table-list error exit
-*/
-
-func TestTableListInSubsequentRunOfExportDataBasic(t *testing.T) {
+func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
 	err := testPostgresSource.DB().Connect()
@@ -437,9 +447,18 @@ func TestTableListInSubsequentRunOfExportDataBasic(t *testing.T) {
 
 	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
 
+	//Case Unknown table name case for the new leaf or any dummy table name
+	// getInitialTableList for subsequent run with  start-clean false and basic with table-list flag with unknown table so no guardrails
+	startClean = false
+	utils.DoNotPrompt = true
+	source.TableList = "test_partitions_sequences_p,fake_table_name"
+	expectedUnknownErrorMsg := `Unknown table names in the include list: [test_partitions_sequences_p fake_table_name]`
+	testUnknownTableCaseForTableListFlags(t, expectedUnknownErrorMsg)
+
 	//Case --start-clean true
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
 	startClean = true
+	source.TableList = ""
 
 	//Cleaning up nameregistry in start-clean true case as it is required to get new table list
 	nameregFile := filepath.Join(testExportDir, "metainfo", "name_registry.json")
@@ -472,7 +491,7 @@ func TestTableListInSubsequentRunOfExportDataBasic(t *testing.T) {
 
 }
 
-func TestTableListInSubsequentRunOfExportDatWithTableListFlags(t *testing.T) {
+func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 	testExportDir := setupPostgreDBAndExportDependencies(t)
 
 	err := testPostgresSource.DB().Connect()
