@@ -81,7 +81,7 @@ func TestMain(m *testing.M) {
 
 	os.Exit(exitCode)
 }
-func setupPostgreDBAndExportDependencies(t *testing.T) string {
+func setupPostgreDBAndExportDependencies(t *testing.T, sqls []string, schemas string) string {
 
 	testExportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
@@ -91,8 +91,8 @@ func setupPostgreDBAndExportDependencies(t *testing.T) string {
 	sqlname.SourceDBType = testPostgresSource.DBType
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, testExportDir)
-	testPostgresSource.Schema = "public|p1"
-	testPostgresSource.ExecuteSqls(pgSchemaSqls...)
+	testPostgresSource.Schema = schemas
+	testPostgresSource.ExecuteSqls(sqls...)
 	return testExportDir
 }
 
@@ -227,11 +227,12 @@ var (
 		`create table datatypes1(id serial primary key, bool_type boolean,char_type1 CHAR (1),varchar_type VARCHAR(100),byte_type bytea, enum_type week);`,
 		`CREATE TABLE foreign_test ( ID int NOT NULL, ONumber int NOT NULL, PID int, PRIMARY KEY (ID), FOREIGN KEY (PID) REFERENCES datatypes1(ID));`,
 	}
+	pgSchemasTest1 = "public|p1"
 )
 
 func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 
-	testExportDir := setupPostgreDBAndExportDependencies(t)
+	testExportDir := setupPostgreDBAndExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
 
 	err := testPostgresSource.DB().Connect()
 	if err != nil {
@@ -273,7 +274,7 @@ func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 }
 func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 
-	testExportDir := setupPostgreDBAndExportDependencies(t)
+	testExportDir := setupPostgreDBAndExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
 
 	err := testPostgresSource.DB().Connect()
 	if err != nil {
@@ -355,7 +356,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 }
 
 func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
-	testExportDir := setupPostgreDBAndExportDependencies(t)
+	testExportDir := setupPostgreDBAndExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
 
 	err := testPostgresSource.DB().Connect()
 	if err != nil {
@@ -495,7 +496,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 }
 
 func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
-	testExportDir := setupPostgreDBAndExportDependencies(t)
+	testExportDir := setupPostgreDBAndExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
 
 	err := testPostgresSource.DB().Connect()
 	if err != nil {
@@ -563,11 +564,11 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 		t.Fatalf("error updating msr: %v", err)
 	}
 
-	testCasesWithDifferentTableListFlagValues(t, expectedTableList, expectedPartitionsToRootMap)
+	testCasesWithDifferentTableListFlagValuesTest1(t, expectedTableList, expectedPartitionsToRootMap)
 
 }
 
-func testCasesWithDifferentTableListFlagValues(t *testing.T, firstRunTableList []sqlname.NameTuple, firstRunPartitionsToRootMap map[string]string) {
+func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableList []sqlname.NameTuple, firstRunPartitionsToRootMap map[string]string) {
 	//case1: getInitialTableList for subsequent run with  start-clean false and basic with same table-list flags so no guardrails
 	startClean = false
 
