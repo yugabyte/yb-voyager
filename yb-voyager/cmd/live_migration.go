@@ -62,6 +62,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return err
 	}
 	if cutoverInitiated {
+		utils.PrintAndLog("cutover initiated already...")
 		return nil
 	}
 

@@ -356,6 +356,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 		return err
 	}
 	if cutoverInitiated {
+		utils.PrintAndLog("cutover initiated already...")
 		return nil
 	}
 
