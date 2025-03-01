@@ -350,6 +350,15 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 // ---------------------------------------------- Export Data ---------------------------------------//
 
 func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+
+	cutoverInitiated, err := cutoverInitiatedAlready(exporterRole)
+	if err != nil {
+		return err
+	}
+	if cutoverInitiated {
+		return nil
+	}
+
 	if config.SnapshotMode != "never" {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SnapshotMechanism = "debezium"
@@ -361,7 +370,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 	debezium := dbzm.NewDebezium(config)
-	err := debezium.Start()
+	err = debezium.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
