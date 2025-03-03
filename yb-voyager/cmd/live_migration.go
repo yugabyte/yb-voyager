@@ -55,17 +55,41 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
+func cutoverInitiatedAndEventProcessed() (bool, error) {
+	cutoverInitiated, err := cutoverInitiatedAlready(importerRole)
+	if err != nil {
+		return false, err
+	}
+	if !cutoverInitiated {
+		return false, nil
+	}
+
+	eventQueue = NewEventQueue(exportDir)
+
+	//Get the last Segement processed - lastSeg
+	// check  the last event of the lastSeg file
+	// if its a cutover event then return true
+	lastSegProcessed, err := eventQueue.GetLastSegment()
+	if err != nil {
+		return false, fmt.Errorf("error getting last segment proccessed: %v", err)
+	}
+
+	lastSegProcessed.Open()
+
+
+
+	return false, nil
+
+}
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
-	cutoverInitiated, err := cutoverInitiatedAlready(importerRole) 
+	ok, err := cutoverInitiatedAndEventProcessed()
 	if err != nil {
 		return err
 	}
-	if cutoverInitiated {
-		utils.PrintAndLog("cutover initiated already...")
+	if ok {
 		return nil
 	}
-
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica

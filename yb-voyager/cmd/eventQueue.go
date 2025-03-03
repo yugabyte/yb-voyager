@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/goccy/go-json"
-
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -52,6 +52,29 @@ func NewEventQueue(exportDir string) *EventQueue {
 		SegmentNumToStream: -1,
 		EndOfQueue:         false,
 	}
+}
+
+// GetNextSegment returns the next segment to process
+func (eq *EventQueue) GetLastSegment() (*EventQueueSegment, error) {
+	var err error
+	if eq.SegmentNumToStream == -1 {
+		// called for the first time
+
+		err = eq.resolveSegmentToResumeFrom()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get segment num to resume: %w", err)
+		}
+		log.Info("segment num to resume: ", eq.SegmentNumToStream)
+	}
+	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
+	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
+	_, err = os.Stat(segmentFilePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
+	}
+
+	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
+	return segment, nil
 }
 
 // GetNextSegment returns the next segment to process
