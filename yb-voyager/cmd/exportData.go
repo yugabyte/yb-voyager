@@ -527,7 +527,7 @@ func updateCallhomeExportPhase() {
 }
 
 // required only for postgresql/yugabytedb since GetAllTables() returns all tables and partitions
-// addAllLeafPartitions - this flag helps this function understand if add leaf partitions which will depend on the caller's tableList how what all table names that list consist
+// addAllLeafPartitions - this flag helps this function understand if it needs add leaf partitions or the list already consist it
 func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafPartitions bool) (map[string]string, []sqlname.NameTuple, error) {
 	requiredForSource := source.DBType == "postgresql" || source.DBType == "yugabytedb"
 	if !requiredForSource {
@@ -816,7 +816,9 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 			return nil, err
 		}
 	} else {
-		//this is only for filtering the non-leaf and non-root tables - the mid level partitioned table from fullTableList
+		//this is only for removing  the mid level partitioned table from fullTableList
+		//by passing false in `addAllLeafPartitions` boolean flag which  means this function won't the leaf parittions again it will just filter the list based on type
+		//i.e. only add if its a normal, root, or leaf table.
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
 		if err != nil {
 			return nil, fmt.Errorf("error keeping only leaf and root tables: %v", err)
@@ -870,6 +872,7 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 	var partitionsToRootTableMap map[string]string
 	var err error
 	storedTableList := make([]string, 0)
+	isFirstRunOfTargetExporter := false
 	fetchNameTupleFromNameRegDirectly := true
 	switch source.DBType {
 	case ORACLE, MYSQL:
@@ -888,9 +891,9 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 		// On subsequent run after the first we will use the stored table with leaf partitions
 		storedTableList = msr.TargetExportedTableListWithLeafPartitions
 		partitionsToRootTableMap = msr.TargetRenameTablesMap
-
+		isFirstRunOfTargetExporter = len(msr.TargetExportedTableListWithLeafPartitions) == 0 || msr.TargetRenameTablesMap == nil
 		//For the first run of export data from target we use the TableListExportedFromSource (which has only root tables)
-		if len(msr.TargetExportedTableListWithLeafPartitions) == 0 || msr.TargetRenameTablesMap == nil {
+		if isFirstRunOfTargetExporter {
 			storedTableList = msr.TableListExportedFromSource
 			if msr.SourceDBConf.DBType != POSTGRESQL {
 				//but in case we are using this source list and its source is not PG then we can directly use the namereg
@@ -911,7 +914,7 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 
 	if source.DBType == YUGABYTEDB {
 		//For the first run of export data from target we will fetch the leaf partitions from target and store them
-		if len(msr.TargetExportedTableListWithLeafPartitions) == 0 || msr.TargetRenameTablesMap == nil {
+		if isFirstRunOfTargetExporter {
 			//Now add the leaf partitions to the stored table-list for the first run of export data from target
 			// as it will only have root table names and get the partitionsToRootTableMap
 			partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, err = addLeafPartitionsInTableList(firstRunTableWithLeafsAndRoots, true)
@@ -969,29 +972,14 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	})
 
 	// Finding all the partitions of all root tables part of migration, and report if there any new partitions added
-	rootToNewLeafTablesMap, err := detectNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
+	rootToNewLeafTablesMap, err := detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
 	if err != nil {
 		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %v", err)
-	}
-
-	if source.TableList == "" && source.ExcludeTableList == "" {
-		//which mean no table-lists are passed in subsequent runs
-		// so no need to do the guardrails check and all
-		return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
 	}
 
 	firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions, err := applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList, source.TableList, source.ExcludeTableList, rootToNewLeafTablesMap, rootTables, firstRunTableWithLeafsAndRoots)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error applying table list flags for current list and remove roots: %v", err)
-	}
-
-	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
-		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
-		listToPrint := ""
-		for k, leafs := range rootToNewLeafTablesMap {
-			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
-		}
-		utils.PrintAndLog(listToPrint)
 	}
 
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
@@ -1001,7 +989,14 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 
 }
 
-func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList []sqlname.NameTuple, tableListViaFlag string, excludeTableListViaFlag string, rootToNewLeafTablesMap map[string][]string, rootTables []sqlname.NameTuple, firstRunTableWithLeafsAndRoots []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
+func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
+	registeredList []sqlname.NameTuple,
+	tableListViaFlag string,
+	excludeTableListViaFlag string,
+	rootToNewLeafTablesMap map[string][]string,
+	rootTables []sqlname.NameTuple,
+	firstRunTableWithLeafsAndRoots []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
+
 	//apply include/exclude flags and if a new table is passed (which is not present in name registry), then error out Unknown table
 	currentRunTableListFilteredViaFlags, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, tableListViaFlag, excludeTableListViaFlag)
 	if err != nil {
@@ -1070,18 +1065,20 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 	if len(missingTables) > 0 || len(extraTables) > 0 {
 		utils.PrintAndLog("Changing the table list during live-migration is not allowed.")
 		if len(missingTables) > 0 {
-			utils.PrintAndLog("Missing tables in the current run compared to the initial list: %v", strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
+			utils.PrintAndLog("Missing tables in the current run compared to the initial list: [%v]", strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
 		if len(extraTables) > 0 {
-			utils.PrintAndLog("Extra tables in the current run compared to the initial list: %v", strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
+			utils.PrintAndLog("Extra tables in the current run compared to the initial list: [%v]", strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
-		msg := fmt.Sprintf("Using the table list passed in the initial phase of migration - %v. \nDo you want continue?", strings.Join(lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
+		//TODO: confirm if error out in this scenario
+		utils.PrintAndLog("Table list passed in the initial run of migration - [%v]", strings.Join(lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
 			return t.ForMinOutput()
 		}), ","))
+		msg := "Do you want to continue with the table list passed in initial run?"
 		if !utils.AskPrompt(msg) {
 			utils.ErrExit("Aborting, Start a fresh migration...")
 		}
@@ -1091,7 +1088,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 
 }
 
-func detectNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
+func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
 	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
 	if err != nil {
 		return nil, fmt.Errorf("getting updated partitions to root table mapping: %s", err)
@@ -1105,6 +1102,15 @@ func detectNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, 
 			//If this leaf table is not registered in name registry then it is a newly added leaf tables
 			rootToNewLeafTablesMap[rootTable] = append(rootToNewLeafTablesMap[rootTable], leaf)
 		}
+	}
+	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
+		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
+		listToPrint := ""
+		for k, leafs := range rootToNewLeafTablesMap {
+			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
+		}
+		//TODO: confirm if we need to add a prompt/ error out in this scenario
+		utils.PrintAndLog(listToPrint)
 	}
 	return rootToNewLeafTablesMap, nil
 }

@@ -171,9 +171,12 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	return true, nil
 }
 
+// this function returns the tables names in the namereg which is required by the export data
+// table-list code path for getting a full list of tables from first run i.e. registered table list
+// returning the objectNames from here as we need to get nameTuple based on type of tables either leaf partition or normal..
 func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error) {
 	var res []*sqlname.ObjectName
-	var m map[string][]string // Complete list of tables and sequences
+	var m map[string][]string            // Complete list of tables and sequences
 	var sequencesMap map[string][]string // only sequence list
 	var dbType string
 	var defaultSchemaName string

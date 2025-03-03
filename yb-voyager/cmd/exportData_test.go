@@ -104,7 +104,7 @@ func getNameTuple(s string) sqlname.NameTuple {
 	}
 }
 
-func fetchTableListFromSourceAndAssertResult(t *testing.T, expectedPartitionsToRootMap map[string]string, expectedTableList []sqlname.NameTuple) {
+func assertTableListFilteringInTheFirstRun(t *testing.T, expectedPartitionsToRootMap map[string]string, expectedTableList []sqlname.NameTuple) {
 	partitionsToRootMap, tableList, err := fetchTablesNamesFromSourceAndFilterTableList()
 	if err != nil {
 		t.Errorf("error fetching the table list from DB: %v", err)
@@ -120,7 +120,8 @@ func fetchTableListFromSourceAndAssertResult(t *testing.T, expectedPartitionsToR
 	assert.Equal(t, len(diff), 0)
 }
 
-func getInitialTableistAndAssertExpectedResult(t *testing.T, expectedTableList []sqlname.NameTuple, expectedPartitionsToRootMap map[string]string) {
+func assertInitialTableListOnSubsequentRun(t *testing.T, withStartClean bool, expectedTableList []sqlname.NameTuple, expectedPartitionsToRootMap map[string]string) {
+	startClean = utils.BoolStr(withStartClean)
 	retrievedPartitionsToRootTableMap, retrievedTableListFromFirstRun, err := getInitialTableList()
 	if err != nil {
 		t.Fatalf("retrieving first run table list from msr: %v", err)
@@ -144,7 +145,7 @@ func assertDetectAndReportNewLeafAddedOnSource(t *testing.T, rootTables []sqlnam
 		t.Fatalf("error getting registered list: %v", err)
 	}
 
-	rootToNewLeafTablesMap, err := detectNewLeafPartitionsOnPartitionedTables(rootTables, nameRegistryList)
+	rootToNewLeafTablesMap, err := detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables, nameRegistryList)
 	if err != nil {
 		t.Fatalf("error detecting new leafs on root tables: %v", err)
 	}
@@ -188,7 +189,7 @@ func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T,
 }
 
 // Tests the unknown table case by over ridding the utils.ErrExit function to assert the error msg
-func testUnknownTableCaseForTableListFlags(t *testing.T, expectedUnknownErrorMsg string) {
+func testUnknownTableCaseForTableListFlags(t *testing.T, withStartClean bool, expectedUnknownErrorMsg string) {
 	previousFunction := utils.ErrExit
 	//changing the error exit function to test the unknown table scenario
 	utils.ErrExit = func(formatString string, args ...interface{}) {
@@ -197,6 +198,7 @@ func testUnknownTableCaseForTableListFlags(t *testing.T, expectedUnknownErrorMsg
 	}
 
 	//Run the function assert the error exit scenario
+	startClean = utils.BoolStr(withStartClean)
 	getInitialTableList()
 
 	utils.ErrExit = previousFunction
@@ -240,7 +242,9 @@ func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
-	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -269,7 +273,7 @@ func TestTableListInFreshRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap, expectedTableList)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 }
 func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
@@ -282,7 +286,9 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
-	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -310,7 +316,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 		getNameTuple("public.datatypes1"),
 	}
 
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap1, expectedTableList1)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap1, expectedTableList1)
 
 	//case2: TableList And exclude table with filtering some leaf partitions
 	//--table-list test_partitions_sequences,datatypes1,foreign_test,public.sales_region --exclude-table-list p1.london,p1.sydney
@@ -335,7 +341,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 		getNameTuple("public.foreign_test"),
 	}
 
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap2, expectedTableList2)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap2, expectedTableList2)
 
 	//case3: exclude tableList
 	// --exclude-table-list public.test_partitions_sequences,foreign_test,p1.sydney
@@ -352,7 +358,7 @@ func TestTableListInFreshRunOfExportDataFilterViaFlagsPG(t *testing.T) {
 		getNameTuple("p1.Boston"),
 		getNameTuple("public.datatypes1"),
 	}
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap3, expectedTableList3)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap3, expectedTableList3)
 }
 
 func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
@@ -364,7 +370,9 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
-	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -397,7 +405,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 		getNameTuple("public.datatypes1"),
 		getNameTuple("public.foreign_test"),
 	}
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap, expectedTableList)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
 		getNameTuple("public.test_partitions_sequences"),
@@ -422,8 +430,8 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	}
 
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
-	startClean = false
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+
+	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
 
 	//Case: DDL Changes on the Source and then get initial table on re-run
 	//Adding new table on the source and asserting that its not coming up in the list in resumption case
@@ -449,19 +457,17 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 		},
 	})
 
-	getInitialTableistAndAssertExpectedResult(t, expectedTableList, expectedPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
 
 	//Case Unknown table name case for the new leaf or any dummy table name
 	// getInitialTableList for subsequent run with  start-clean false and basic with table-list flag with unknown table so no guardrails
-	startClean = false
 	utils.DoNotPrompt = true
 	source.TableList = "test_partitions_sequences_p,fake_table_name"
 	expectedUnknownErrorMsg := `Unknown table names in the include list: [test_partitions_sequences_p fake_table_name]`
-	testUnknownTableCaseForTableListFlags(t, expectedUnknownErrorMsg)
+	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg)
 
 	//Case --start-clean true
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
-	startClean = true
 	source.TableList = ""
 
 	//Cleaning up nameregistry in start-clean true case as it is required to get new table list
@@ -486,7 +492,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	newExpectedParititonsToRootTable := expectedPartitionsToRootMap
 	newExpectedParititonsToRootTable["public.test_partitions_sequences_p"] = "public.test_partitions_sequences"
 
-	getInitialTableistAndAssertExpectedResult(t, newExpectedTableList, newExpectedParititonsToRootTable)
+	assertInitialTableListOnSubsequentRun(t, true, newExpectedTableList, newExpectedParititonsToRootTable)
 
 	testPostgresSource.ExecuteSqls([]string{
 		`DROP TABLE public.test_ddl_change;`,
@@ -504,7 +510,9 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
-	defer os.RemoveAll(fmt.Sprintf("%s/", testExportDir))
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
 
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
 	if err != nil {
@@ -540,7 +548,7 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 		getNameTuple("public.foreign_test"),
 	}
 
-	fetchTableListFromSourceAndAssertResult(t, expectedPartitionsToRootMap, expectedTableList)
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
 
 	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
 		getNameTuple("public.test_partitions_sequences"),
@@ -570,19 +578,15 @@ func TestTableListInSubsequentRunOfExportDatWithTableListFlagsPG(t *testing.T) {
 
 func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableList []sqlname.NameTuple, firstRunPartitionsToRootMap map[string]string) {
 	//case1: getInitialTableList for subsequent run with  start-clean false and basic with same table-list flags so no guardrails
-	startClean = false
-
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so no guardrails
-	startClean = false
 	source.TableList = ""
 	source.ExcludeTableList = ""
 
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case3: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag
-	startClean = false
 	//--table-list test_partitions_sequences,sales_region
 	source.TableList = "test_partitions_sequences,sales_region"
 	utils.DoNotPrompt = true
@@ -603,7 +607,7 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables, expectedExtraTables, firstRunTableList, rootTables)
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case4: getInitialTableList for subsequent run with  start-clean false and basic with only exclude-table-list flag
 	startClean = false
@@ -620,10 +624,9 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	expectedExtraTables2 := []sqlname.NameTuple{}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables2, expectedExtraTables2, firstRunTableList, rootTables)
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case5: getInitialTableList for subsequent run with  start-clean false and basic with table-list and exclude-table-list flags
-	startClean = false
 	//--table-list test_partitions_sequences,foreign_test,p1.london --exclude-table-list sales_region
 	source.TableList = "test_partitions_sequences,foreign_test,p1.london"
 	source.ExcludeTableList = "sales_region"
@@ -637,10 +640,9 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	expectedExtraTables3 := []sqlname.NameTuple{}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables3, expectedExtraTables3, firstRunTableList, rootTables)
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case6: getInitialTableList for subsequent run with  start-clean false and basic with different set of table-list and exclude-table-list flags
-	startClean = false
 	//--table-list test_partitions_sequences,p1.boston,foreign_test,p1.london,datatypes1 --exclude-table-list datatypes1,test_partitions_sequences_s
 	source.TableList = "test_partitions_sequences,p1.boston,foreign_test,p1.london,datatypes1"
 	source.ExcludeTableList = "datatypes1,test_partitions_sequences_s"
@@ -656,5 +658,5 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables4, expectedExtraTables4, firstRunTableList, rootTables)
-	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 }
