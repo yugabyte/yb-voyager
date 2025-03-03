@@ -145,8 +145,8 @@ def migration_completed_checks(tgt):
 		assert row_count == got_row_count[table_name]
 	
 	tgtVersion = tgt.get_target_version()
-	
-	if "2.25" in tgtVersion:
+
+	if "2.25" in tgtVersion and os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 		EXPECTED_SUM_OF_COLUMN['floating_point_types']['float_type'] = '123582.61200000001'
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
