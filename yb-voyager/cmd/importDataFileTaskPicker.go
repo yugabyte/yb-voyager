@@ -696,7 +696,7 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 	return fmt.Errorf("task [%v] not found in inProgressTasks: %v", task, c.inProgressTasks())
 }
 
-func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() {
+func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
 	// no wait
 	return
 }
