@@ -63,7 +63,7 @@ func (eq *EventQueue) GetLastProcessedSegment() (*EventQueueSegment, error) {
 		segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
 
 	}
-	eq.SegmentNumToStream, err = metaDB.GetMaxSegmentExportedByAndNotImportedBy(importerRole, segmentsExporterRole)
+	eq.SegmentNumToStream, err = metaDB.GetMaxSegmentExportedByAndImportedBy(importerRole, segmentsExporterRole)
 	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
 	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
 	_, err = os.Stat(segmentFilePath)

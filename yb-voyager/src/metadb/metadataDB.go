@@ -392,7 +392,8 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 	return segmentNum.Int64, nil
 }
 
-func (m *MetaDB) GetMaxSegmentExportedByAndNotImportedBy(importerRole string, exporterRole string) (int64, error) {
+//returning the max segment number that is processed by importer 
+func (m *MetaDB) GetMaxSegmentExportedByAndImportedBy(importerRole string, exporterRole string) (int64, error) {
 	query := fmt.Sprintf(`SELECT MAX(segment_no) FROM %s WHERE`, QUEUE_SEGMENT_META_TABLE_NAME)
 	query = fmt.Sprintf("%s imported_by_%s = 1", query, importerRole)
 	if exporterRole != "" {
