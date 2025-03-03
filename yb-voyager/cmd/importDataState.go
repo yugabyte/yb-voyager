@@ -55,15 +55,22 @@ metainfo/import_data_state/table::<table_name>/file::<base_name>:<path_hash>/
 	batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
 */
 type ImportDataState struct {
-	exportDir string
-	stateDir  string
+	exportDir               string
+	stateDir                string
+	inProgressTaskImporters map[int]fileTaskImportStatusChecker // used to fetch in-memory status from FileTaskImporter
 }
 
 func NewImportDataState(exportDir string) *ImportDataState {
 	return &ImportDataState{
-		exportDir: exportDir,
-		stateDir:  filepath.Join(exportDir, "metainfo", "import_data_state", importerRole),
+		exportDir:               exportDir,
+		stateDir:                filepath.Join(exportDir, "metainfo", "import_data_state", importerRole),
+		inProgressTaskImporters: make(map[int]fileTaskImportStatusChecker),
 	}
+}
+
+type fileTaskImportStatusChecker interface {
+	GetTaskID() int
+	AllBatchesSubmitted() bool
 }
 
 func (s *ImportDataState) PrepareForFileImport(filePath string, tableNameTup sqlname.NameTuple) error {
@@ -645,6 +652,30 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 	}
 
 	return tablesToEventCounter, nil
+}
+
+func (s *ImportDataState) RegisterFileTaskImporter(importer fileTaskImportStatusChecker) {
+	s.inProgressTaskImporters[importer.GetTaskID()] = importer
+}
+
+func (s *ImportDataState) UnregisterFileTaskImporter(importer fileTaskImportStatusChecker) {
+	delete(s.inProgressTaskImporters, importer.GetTaskID())
+}
+
+func (s *ImportDataState) AllBatchesSubmittedForTask(taskId int) (bool, error) {
+	taskImporter, ok := s.inProgressTaskImporters[taskId]
+	if !ok {
+		return false, fmt.Errorf("task importer with id %d not registered", taskId)
+	}
+	return taskImporter.AllBatchesSubmitted(), nil
+}
+
+func (s *ImportDataState) AllBatchesImported(filepath string, tableNameTup sqlname.NameTuple) (bool, error) {
+	taskStatus, err := s.GetFileImportState(filepath, tableNameTup)
+	if err != nil {
+		return false, fmt.Errorf("getting file import state: %s", err)
+	}
+	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
 //============================================================================

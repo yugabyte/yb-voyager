@@ -37,7 +37,6 @@ worker pool for processing. It also maintains and updates the progress of the ta
 */
 type FileTaskImporter struct {
 	task                 *ImportFileTask
-	state                *ImportDataState
 	batchProducer        *FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool
@@ -69,7 +68,6 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 
 	fti := &FileTaskImporter{
 		task:                         task,
-		state:                        state,
 		batchProducer:                batchProducer,
 		workerPool:                   workerPool,
 		colocatedImportBatchQueue:    colocatedImportBatchQueue,
@@ -80,7 +78,12 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		totalProgressAmount:          totalProgressAmount,
 		currentProgressAmount:        currentProgressAmount,
 	}
+	state.RegisterFileTaskImporter(fti)
 	return fti, nil
+}
+
+func (fti *FileTaskImporter) GetTaskID() int {
+	return fti.task.ID
 }
 
 // as of now, batch production and batch submission
@@ -90,14 +93,6 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 // if the batch producer is done.
 func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
-}
-
-func (fti *FileTaskImporter) AllBatchesImported() (bool, error) {
-	taskStatus, err := fti.state.GetFileImportState(fti.task.FilePath, fti.task.TableNameTup)
-	if err != nil {
-		return false, fmt.Errorf("getting file import state: %s", err)
-	}
-	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
