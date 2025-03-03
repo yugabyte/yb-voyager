@@ -984,7 +984,6 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("error applying table list flags for current list and remove roots: %v", err)
 	}
-	
 
 	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
 		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
@@ -1048,9 +1047,6 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList []sq
 }
 
 func getRegisteredNameRegList() ([]sqlname.NameTuple, error) {
-	//TODO: fix later this registered list also contains sequence names right now
-	//so in case some include/exclude table names are not proper we will display this registeredList as valid table names
-	//caveat for this is that in some cases while showing list on console we might list sequences as well, will fix this
 	registeredListObjNames, err := namereg.NameReg.GetRegisteredTableList()
 	if err != nil {
 		utils.ErrExit("error getting registered list in name registry: %v", err)

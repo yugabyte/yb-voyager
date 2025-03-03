@@ -32,6 +32,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -617,12 +618,7 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 		getNameTuple("public.foreign_test"),
 	}
 
-	//TODO this needs to be fixed where we are reporting the sequences in extra tables in case
-	//there is no include table list via command line as we use nameregistry list in that case
-	expectedExtraTables2 := []sqlname.NameTuple{
-		getNameTuple("public.test_partitions_sequences_id_seq"),
-		getNameTuple("public.datatypes1_id_seq"),
-	}
+	expectedExtraTables2 := []sqlname.NameTuple{}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables2, expectedExtraTables2, firstRunTableList, rootTables)
 	getInitialTableistAndAssertExpectedResult(t, firstRunTableList, firstRunPartitionsToRootMap)
