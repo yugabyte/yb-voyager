@@ -580,21 +580,27 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	//case1: getInitialTableList for subsequent run with  start-clean false and basic with same table-list flags so no guardrails
 	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
-	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so no guardrails
+	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so reporting extra tables found 
 	source.TableList = ""
 	source.ExcludeTableList = ""
-
-	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
-
-	//case3: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag
-	//--table-list test_partitions_sequences,sales_region
-	source.TableList = "test_partitions_sequences,sales_region"
 	utils.DoNotPrompt = true
 
 	rootTables := []sqlname.NameTuple{
 		getNameTuple("public.test_partitions_sequences"),
 		getNameTuple("public.sales_region"),
 	}
+
+	expectedExtraTables0 := []sqlname.NameTuple{
+		getNameTuple("p1.london"),
+		getNameTuple("p1.sydney"),
+	}
+
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, nil, expectedExtraTables0, firstRunTableList, rootTables)
+	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
+
+	//case3: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag
+	//--table-list test_partitions_sequences,sales_region
+	source.TableList = "test_partitions_sequences,sales_region"
 
 	expectedMissingTables := []sqlname.NameTuple{
 		getNameTuple("public.datatypes1"),

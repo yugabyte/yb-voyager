@@ -583,7 +583,8 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error) {
 	parentTable := source.DB().ParentTableOfPartition(table)
 	if parentTable == "" {
-		//now we know its a root table so return the tuple from the nameregistry
+		// The original tuples are hand-crafted ones without target names, so for the root,
+		//we shouldn't use these but instead get a proper one from the name registry.
 		tuple, err := namereg.NameReg.LookupTableName(table.ForKey())
 		if err != nil {
 			return sqlname.NameTuple{}, fmt.Errorf("lookup failed for the table: %v: %v", table.ForKey(), err)
