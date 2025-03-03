@@ -698,5 +698,5 @@ func (c *ColocatedCappedRandomTaskPicker) MarkTaskAsDone(task *ImportFileTask) e
 
 func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() error {
 	// no wait
-	return
+	return nil
 }
