@@ -143,6 +143,11 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
+	
+	tgtVersion = tgt.get_target_version()
+	
+	if "2.25" in tgtVersion:
+		EXPECTED_SUM_OF_COLUMN['floating_point_types']['float_type'] = '123582.61200000001'
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {table_name} ---- ")
