@@ -371,8 +371,6 @@ func TestAssessmentReportJson(t *testing.T) {
 			"ObjectName": "test_table",
 			"RowCount": 100,
 			"ColumnCount": 10,
-			"Reads": 100,
-			"Writes": 100,
 			"ReadsPerSecond": 10,
 			"WritesPerSecond": 10,
 			"IsIndex": true,
