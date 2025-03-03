@@ -55,7 +55,7 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
-func cutoverInitiatedAndEventProcessed() (bool, error) {
+func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
 	cutoverInitiated, err := cutoverInitiatedAlready(importerRole)
 	if err != nil {
 		return false, err
@@ -63,27 +63,43 @@ func cutoverInitiatedAndEventProcessed() (bool, error) {
 	if !cutoverInitiated {
 		return false, nil
 	}
-
 	eventQueue = NewEventQueue(exportDir)
 
 	//Get the last Segement processed - lastSeg
 	// check  the last event of the lastSeg file
 	// if its a cutover event then return true
-	lastSegProcessed, err := eventQueue.GetLastSegment()
+	lastProcessedSegment, err := eventQueue.GetLastProcessedSegment()
 	if err != nil {
 		return false, fmt.Errorf("error getting last segment proccessed: %v", err)
 	}
+	if lastProcessedSegment.SegmentNum == -1 {
+		//If there are no processed segment files - return false
+		return false, nil
+	}
 
-	lastSegProcessed.Open()
+	err = lastProcessedSegment.Open()
+	if err != nil {
+		return false, fmt.Errorf("error opening the last Processed segment: %v", err)
+	}
 
+	lastEvent, err := lastProcessedSegment.getLastEvent()
+	if err != nil {
+		return false, fmt.Errorf("error getting the lastEvent of segment: %v", err)
+	}
 
+	if lastEvent.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
+		lastEvent.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
+		lastEvent.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
+			//If the last event is cutover one then return true meaning no need to continue stream changes
+		return true, nil
+	}
 
 	return false, nil
 
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
-	ok, err := cutoverInitiatedAndEventProcessed()
+	ok, err := cutoverInitiatedAndCutoverEventProcessed()
 	if err != nil {
 		return err
 	}

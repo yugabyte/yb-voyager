@@ -362,7 +362,7 @@ func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApp
 
 	progressTracker := NewProgressTracker(tableNameToApproxRowCountMap)
 	debezium := dbzm.NewDebezium(config)
-	err = debezium.Start()
+	err := debezium.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start debezium: %w", err)
 	}
