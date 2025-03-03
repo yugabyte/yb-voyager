@@ -848,7 +848,10 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %v", err)
 	}
 
-	isTableListModified := len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
+	isTableListModified := false
+	if source.TableList != "" || source.ExcludeTableList != "" {
+		isTableListModified = len(sqlname.SetDifferenceNameTuples(nameTupleTableListFromDB, tableListInFirstRun)) != 0
+	}
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			if isTableListModified {
