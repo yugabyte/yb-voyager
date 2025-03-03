@@ -93,5 +93,10 @@
       "table_name": "sales_region",
       "status": "DONE",
       "exported_count": 1000
+    },
+    {
+      "exported_count": 3,
+      "status": "DONE",
+      "table_name": "users"
     }
 ]
