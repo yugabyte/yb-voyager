@@ -282,7 +282,7 @@ const (
 		SELECT 1
 		FROM read_write_rates
 		WHERE read_write_rates.schema_name = table_index_stats.schema_name
-		  AND read_write_rates.object_name = table_index_stats.object_name
+			AND read_write_rates.object_name = table_index_stats.object_name
 	);`
 )
 
