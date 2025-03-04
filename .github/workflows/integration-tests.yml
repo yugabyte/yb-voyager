@@ -17,6 +17,12 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
+    - uses: actions/setup-java@v3
+      # https://github.com/actions/setup-java
+      with:
+        distribution: "temurin"
+        java-version: "17"
+        check-latest: true
 
     - name: Set up Go
       uses: actions/setup-go@v3
