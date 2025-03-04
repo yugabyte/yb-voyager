@@ -69,11 +69,12 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 		}
 	}
 
+	// 1) Build the command to run.
 	cmdArgs = append(connectionArgs, cmdArgs...)
 	cmdStr := fmt.Sprintf("yb-voyager %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cmd := exec.Command("/bin/bash", "-c", cmdStr)
 
-	// 4) Get the stdout and stderr pipes.
+	// 2) Get the stdout and stderr pipes.
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
 		return fmt.Errorf("failed to get stdout pipe: %w", err)
@@ -83,12 +84,12 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 		return fmt.Errorf("failed to get stderr pipe: %w", err)
 	}
 
-	// 5) Start the voyager command asynchronously.
+	// 3) Start the voyager command asynchronously.
 	if err = cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start voyager command: %w", err)
 	}
 
-	// 6) Launch goroutines to stream output live to console.
+	// 4) Launch goroutines to stream output live to console.
 	var wg sync.WaitGroup
 	wg.Add(2)
 
@@ -108,19 +109,19 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 		}
 	}()
 
-	// 7) Execute the during-command function (if provided).
+	// 5) Execute the during-command function (if provided).
 	if doDuringCmd != nil {
-		// Optionally, you might want to delay briefly to ensure the command has started.
+		// delay for 2 seconds to ensure the command has started.
 		time.Sleep(2 * time.Second)
 		doDuringCmd()
 	}
 
-	// 8) Wait for the voyager command to finish.
+	// 6) Wait for the voyager command to finish.
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("voyager command exited with error: %w", err)
 	}
 
-	// 9) Wait for the output goroutines to complete.
+	// 7) Wait for the output goroutines to complete.
 	wg.Wait()
 
 	return nil
