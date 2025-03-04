@@ -54,7 +54,7 @@ func ParsePLPGSQLToJson(query string) (string, error) {
 	return jsonString, err
 }
 
-func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
+func ParseSqlFile(filePath string) ([]*pg_query.RawStmt, error) {
 	log.Debugf("parsing the file [%s]", filePath)
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
@@ -67,7 +67,7 @@ func ParseSqlFile(filePath string) (*pg_query.ParseResult, error) {
 	}
 	log.Debugf("sql file contents: %s\n", string(bytes))
 	log.Debugf("parse tree: %v\n", tree)
-	return tree, nil
+	return tree.Stmts, nil
 }
 
 func ProcessDDL(parseTree *pg_query.ParseResult) (DDLObject, error) {
