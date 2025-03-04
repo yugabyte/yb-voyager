@@ -21,7 +21,9 @@ the query and multiple detectors to figure out issues in the parseTree.
 */
 package queryissue
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+)
 
 type QueryIssue struct {
 	issue.Issue

@@ -683,6 +683,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		queryissue.PK_UK_ON_PATH_DATATYPE,
 		queryissue.PK_UK_ON_POLYGON_DATATYPE,
 		queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE,
+		queryissue.PK_UK_ON_PGLSN_DATATYPE,
 		queryissue.PK_UK_ON_ARRAY_DATATYPE,
 		queryissue.PK_UK_ON_USER_DEFINED_DATATYPE,
 		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
