@@ -213,7 +213,7 @@ func streamChangesFromSegment(
 				}
 			})
 			if err != nil {
-				return fmt.Errorf("error updating the migration status record for cutover detected case: %", err)
+				return fmt.Errorf("error updating the migration status record for cutover detected case: %v", err)
 			}
 			updateCallhomeImportPhase(event)
 
