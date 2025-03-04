@@ -24,17 +24,26 @@ type MigrationStatusRecord struct {
 	TableListExportedFromSource []string          `json:"TableListExportedFromSource"`
 	SourceDBConf                *srcdb.Source     `json:"SourceDBConf"`
 
-	CutoverToTargetRequested                        bool `json:"CutoverToTargetRequested"`
+	//All the cutover requested flags by initiate cutover command
+	CutoverToTargetRequested        bool `json:"CutoverToTargetRequested"`
+	CutoverToSourceRequested        bool `json:"CutoverToSourceRequested"`
+	CutoverToSourceReplicaRequested bool `json:"CutoverToSourceReplicaRequested"`
+
+	//All the cutover processed by importer/exporter flags
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
-	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
-	ExportFromTargetFallForwardStarted              bool `json:"ExportFromTargetFallForwardStarted"`
-	CutoverToSourceReplicaRequested                 bool `json:"CutoverToSourceReplicaRequested"`
-	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
-	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
-	ExportFromTargetFallBackStarted                 bool `json:"ExportFromTargetFallBackStarted"`
-	CutoverToSourceRequested                        bool `json:"CutoverToSourceRequested"`
 	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`
+	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
+	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
+	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
 	CutoverToSourceProcessedBySourceImporter        bool `json:"CutoverToSourceProcessedBySourceImporter"`
+
+	//All the cutover detectedc flags by importer when they processed the cutover event
+	CutoverDetectedByTargetImporter        bool `json:"CutoverDetectedByTargetImporter"`
+	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
+	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
+
+	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
+	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete

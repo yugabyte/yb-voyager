@@ -56,46 +56,20 @@ func init() {
 }
 
 func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
-	cutoverInitiated, err := cutoverInitiatedAlready(importerRole)
+	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return false, err
+		return false, fmt.Errorf("getting migration status record: %v", err)
 	}
-	if !cutoverInitiated {
-		return false, nil
-	}
-	eventQueue = NewEventQueue(exportDir)
-
-	//Get the last Segement processed - lastSeg
-	// check  the last event of the lastSeg file
-	// if its a cutover event then return true
-	lastProcessedSegment, err := eventQueue.GetLastProcessedSegment()
-	if err != nil {
-		return false, fmt.Errorf("error getting last segment proccessed: %v", err)
-	}
-	if lastProcessedSegment.SegmentNum == -1 {
-		//If there are no processed segment files - return false
-		return false, nil
-	}
-
-	err = lastProcessedSegment.Open()
-	if err != nil {
-		return false, fmt.Errorf("error opening the last Processed segment: %v", err)
-	}
-
-	lastEvent, err := lastProcessedSegment.getLastEvent()
-	if err != nil {
-		return false, fmt.Errorf("error getting the lastEvent of segment: %v", err)
-	}
-
-	if lastEvent.IsCutoverToTarget() && importerRole == TARGET_DB_IMPORTER_ROLE ||
-		lastEvent.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
-		lastEvent.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
-			//If the last event is cutover one then return true meaning no need to continue stream changes
-		return true, nil
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		return msr.CutoverToTargetRequested && msr.CutoverDetectedByTargetImporter, nil
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		return msr.CutoverToSourceReplicaRequested && msr.CutoverDetectedBySourceReplicaImporter, nil
+	case SOURCE_DB_IMPORTER_ROLE:
+		return msr.CutoverToSourceRequested && msr.CutoverDetectedBySourceImporter, nil
 	}
 
 	return false, nil
-
 }
 
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
@@ -228,6 +202,19 @@ func streamChangesFromSegment(
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 
+			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				switch importerRole {
+				case TARGET_DB_IMPORTER_ROLE:
+					record.CutoverDetectedByTargetImporter = true
+				case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+					record.CutoverDetectedBySourceReplicaImporter = true
+				case SOURCE_DB_IMPORTER_ROLE:
+					record.CutoverDetectedBySourceImporter = true
+				}
+			})
+			if err != nil {
+				return fmt.Errorf("error updating the migration status record for cutover detected case: %", err)
+			}
 			updateCallhomeImportPhase(event)
 
 			eventQueue.EndOfQueue = true

@@ -55,26 +55,6 @@ func NewEventQueue(exportDir string) *EventQueue {
 }
 
 // GetNextSegment returns the next segment to process
-func (eq *EventQueue) GetLastProcessedSegment() (*EventQueueSegment, error) {
-	var err error
-	segmentsExporterRole := ""
-	if importerRole == SOURCE_DB_IMPORTER_ROLE {
-		// in case of fall-back import, restrict to only segments exported from target db.
-		segmentsExporterRole = TARGET_DB_EXPORTER_FB_ROLE
-
-	}
-	eq.SegmentNumToStream, err = metaDB.GetMaxSegmentExportedByAndImportedBy(importerRole, segmentsExporterRole)
-	segmentFileName := fmt.Sprintf("%s.%d.%s", QUEUE_SEGMENT_FILE_NAME, eq.SegmentNumToStream, QUEUE_SEGMENT_FILE_EXTENSION)
-	segmentFilePath := filepath.Join(eq.QueueDirPath, segmentFileName)
-	_, err = os.Stat(segmentFilePath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get next segment file path: %w", err)
-	}
-	segment := NewEventQueueSegment(segmentFilePath, eq.SegmentNumToStream)
-	return segment, nil
-}
-
-// GetNextSegment returns the next segment to process
 func (eq *EventQueue) GetNextSegment() (*EventQueueSegment, error) {
 	var err error
 	if eq.SegmentNumToStream == -1 {
@@ -200,22 +180,4 @@ func (eqs *EventQueueSegment) IsProcessed() bool {
 
 func (eqs *EventQueueSegment) MarkProcessed() {
 	eqs.processed = true
-}
-
-func (eqs *EventQueueSegment) getLastEvent() (*tgtdb.Event, error) {
-	var lastEvent *tgtdb.Event
-	for {
-		event, err := eqs.NextEvent()
-		if err != nil {
-			return nil, fmt.Errorf("error getting next event of last processed segment: %v", err)
-		}
-		if event == nil {
-			break
-		}
-
-		lastEvent = event
-	}
-
-	return lastEvent, nil
-
 }

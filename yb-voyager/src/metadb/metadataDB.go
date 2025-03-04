@@ -392,27 +392,6 @@ func (m *MetaDB) GetMinSegmentExportedByAndNotImportedBy(importerRole string, ex
 	return segmentNum.Int64, nil
 }
 
-//returning the max segment number that is processed by importer 
-func (m *MetaDB) GetMaxSegmentExportedByAndImportedBy(importerRole string, exporterRole string) (int64, error) {
-	query := fmt.Sprintf(`SELECT MAX(segment_no) FROM %s WHERE`, QUEUE_SEGMENT_META_TABLE_NAME)
-	query = fmt.Sprintf("%s imported_by_%s = 1", query, importerRole)
-	if exporterRole != "" {
-		query = fmt.Sprintf("%s AND exporter_role = '%s'", query, exporterRole)
-	}
-	query = fmt.Sprintf("%s;", query)
-
-	row := m.db.QueryRow(query)
-	var segmentNum sql.NullInt64
-	err := row.Scan(&segmentNum)
-	if err != nil {
-		return -1, fmt.Errorf("run query on meta db - %s : %w", query, err)
-	}
-	if !segmentNum.Valid {
-		return -1, ErrNoQueueSegmentsFound
-	}
-	return segmentNum.Int64, nil
-}
-
 func (m *MetaDB) GetExportedEventsStatsForTable(schemaName string, tableName string) (*tgtdb.EventCounter, error) {
 	var totalCount int64
 	var inserts int64
