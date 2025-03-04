@@ -654,37 +654,6 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		issueType = UNSUPPORTED_DATATYPES_CATEGORY
 	}
 
-	// var UnsupportedIndexDatatypes = []string{
-	// "citext",
-	// "tsvector",
-	// "tsquery",
-	// "jsonb",
-	// "inet",
-	// "json",
-	// "macaddr",
-	// "macaddr8",
-	// "cidr",
-	// "bit",
-	// "varbit",
-	// "daterange",
-	// "tsrange",
-	// "tstzrange",
-	// "numrange",
-	// "int4range",
-	// "int8range",
-	// "interval",
-	// "circle",
-	// "box",
-	// "line",
-	// "lseg",
-	// "point",
-	// "pg_lsn",
-	// "path",
-	// "polygon",
-	// "txid_snapshot",
-	// "array" ,
-	// "user defined",
-	// }
 	var constraintIssues = []string{
 		queryissue.EXCLUSION_CONSTRAINTS,
 		queryissue.DEFERRABLE_CONSTRAINTS,

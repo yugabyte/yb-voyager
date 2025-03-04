@@ -326,8 +326,6 @@ func TestDDLIssues(t *testing.T) {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
-		// Print all the actual issues for debugging
-		fmt.Printf("Issues for statement %s: %v\n", stmt, issues)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {

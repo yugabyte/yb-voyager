@@ -632,58 +632,6 @@ func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-// var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
-// 	Type:        PK_UK_ON_COMPLEX_DATATYPE,
-// 	Name:        PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME,
-// 	Impact:      constants.IMPACT_LEVEL_1,
-// 	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
-// 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-// 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-// 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
-// }
-
-// func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
-// 	details := map[string]interface{}{
-// 		CONSTRAINT_NAME: constraintName,
-// 	}
-// 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-// 	issue.Description = fmt.Sprintf(issue.Description, typeName)
-// 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
-// }
-
-// var UnsupportedIndexDatatypes = []string{
-// 	"citext",
-// 	"tsvector",
-// 	"tsquery",
-// 	"jsonb",
-// 	"inet",
-// 	"json",
-// 	"macaddr",
-// 	"macaddr8",
-// 	"cidr",
-// 	"bit",    // for BIT (n)
-// 	"varbit", // for BIT varying (n)
-// 	"daterange",
-// 	"tsrange",
-// 	"tstzrange",
-// 	"numrange",
-// 	"int4range",
-// 	"int8range",
-// 	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
-// 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
-// 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
-// 	"circle",
-// 	"box",
-// 	"line",
-// 	"lseg",
-// 	"point",
-// 	"pg_lsn",
-// 	"path",
-// 	"polygon",
-// 	"txid_snapshot",
-// 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
-// }
-
 var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Type:        PK_UK_ON_CITEXT_DATATYPE,
 	Name:        PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME,
