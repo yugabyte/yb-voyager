@@ -793,7 +793,10 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 	var includeTableList, excludeTableList []sqlname.NameTuple
 
 	applyFilterAndAddLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
-		flagTableList := extractTableListFromString(fullTableList, flagList, flagName)
+		flagTableList, err := extractTableListFromString(fullTableList, flagList, flagName)
+		if err != nil {
+			return nil, fmt.Errorf("error extracting the %s list: %v", flagName, err)
+		}
 		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
 		if err != nil {
 			return nil, fmt.Errorf("failed to add the leaf partitions in %s table list: %w", flagName, err)
@@ -983,11 +986,15 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 
 	firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions, err := applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList, source.TableList, source.ExcludeTableList, rootToNewLeafTablesMap, rootTables, firstRunTableWithLeafsAndRoots)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error applying table list flags for current list and remove roots: %v", err)
+		return nil, nil, fmt.Errorf("error applying table list flags for current list: %v", err)
 	}
 
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
-	guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
+	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
+	if err != nil {
+		//Directly erroring out here as we want to fail if guardrails checks fail
+		utils.ErrExit(err.Error())
+	}
 
 	return partitionsToRootTableMap, firstRunTableWithLeafsAndRoots, nil
 
@@ -1062,33 +1069,29 @@ func getRegisteredNameRegList() ([]sqlname.NameTuple, error) {
 	return registeredList, nil
 }
 
-func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple) {
+func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
 	missingTables := sqlname.SetDifferenceNameTuples(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions)
 	extraTables := sqlname.SetDifferenceNameTuples(currentRunTableListWithLeafPartitions, firstRunTableListWithLeafPartitions)
 
 	if len(missingTables) > 0 || len(extraTables) > 0 {
-		utils.PrintAndLog("Changing the table list during live-migration is not allowed.")
+		finalErrMsg := "Changing the table list during live-migration is not allowed."
 		if len(missingTables) > 0 {
-			utils.PrintAndLog("Missing tables in the current run compared to the initial list: [%v]", strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
+			finalErrMsg = fmt.Sprintf("%s\nMissing tables in the current run compared to the initial list: [%v]", finalErrMsg, strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
 		if len(extraTables) > 0 {
-			utils.PrintAndLog("Extra tables in the current run compared to the initial list: [%v]", strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
+			finalErrMsg = fmt.Sprintf("%s\nExtra tables in the current run compared to the initial list: [%v]", finalErrMsg, strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
 				return t.ForMinOutput()
 			}), ","))
 		}
-		//TODO: confirm if error out in this scenario
-		utils.PrintAndLog("Table list passed in the initial run of migration - [%v]", strings.Join(lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
+		finalErrMsg = fmt.Sprintf("%s\nTable list passed in the initial run of migration - [%v]\nRe-run the command with the table list passed in the initial run of migration.", finalErrMsg, strings.Join(lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
 			return t.ForMinOutput()
 		}), ","))
-		msg := "Do you want to continue with the table list passed in initial run?"
-		if !utils.AskPrompt(msg) {
-			utils.ErrExit("Aborting, Start a fresh migration...")
-		}
+		return missingTables, extraTables, fmt.Errorf(finalErrMsg)
 	}
 
-	return missingTables, extraTables
+	return nil, nil, nil
 
 }
 
@@ -1113,8 +1116,11 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 		for k, leafs := range rootToNewLeafTablesMap {
 			listToPrint += fmt.Sprintf("Root table: %s, new leaf partitions: %s\n", k, strings.Join(leafs, ", "))
 		}
-		//TODO: confirm if we need to add a prompt/ error out in this scenario
 		utils.PrintAndLog(listToPrint)
+		msg := "Do you want to continue?"
+		if !utils.AskPrompt(msg) {
+			utils.ErrExit("Aborting, Start a fresh migration...")
+		}
 	}
 	return rootToNewLeafTablesMap, nil
 }
@@ -1359,10 +1365,20 @@ func getDefaultSourceSchemaName() (string, bool) {
 	}
 }
 
-func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) []sqlname.NameTuple {
+type UnknownTableErr struct {
+	typeOfList      string
+	unknownTables   []string
+	validTableNames []string
+}
+
+func (e *UnknownTableErr) Error() string {
+	return fmt.Sprintf("\nUnknown table names in the %s list: %v\nValid table names are: %v", e.typeOfList, e.unknownTables, e.validTableNames)
+}
+
+func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList string, listName string) ([]sqlname.NameTuple, error) {
 	result := []sqlname.NameTuple{}
 	if flagTableList == "" {
-		return result
+		return result, nil
 	}
 	findPatternMatchingTables := func(pattern string) []sqlname.NameTuple {
 		result := lo.Filter(fullTableList, func(tableName sqlname.NameTuple, _ int) bool {
@@ -1384,14 +1400,17 @@ func extractTableListFromString(fullTableList []sqlname.NameTuple, flagTableList
 		result = append(result, tables...)
 	}
 	if len(unknownTableNames) > 0 {
-		unknownTableMsg := fmt.Sprintf("Unknown table names in the %s list: %v", listName, unknownTableNames)
-		utils.ErrExit("%s\nValid table names are: %v", unknownTableMsg, lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
-			return tableName.ForOutput()
-		}))
+		return nil, &UnknownTableErr{
+			typeOfList:    listName,
+			unknownTables: unknownTableNames,
+			validTableNames: lo.Map(fullTableList, func(tableName sqlname.NameTuple, _ int) string {
+				return tableName.ForOutput()
+			}),
+		}
 	}
 	return lo.UniqBy(result, func(tableName sqlname.NameTuple) string {
 		return tableName.ForKey()
-	})
+	}), nil
 }
 
 func checkSourceDBCharset() {

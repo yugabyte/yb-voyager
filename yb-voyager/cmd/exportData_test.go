@@ -19,10 +19,8 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/samber/lo"
@@ -171,7 +169,8 @@ func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T,
 		t.Fatalf("error getting first run and current run list: %v", err)
 	}
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
-	missingTables, extraTables := guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
+	missingTables, extraTables, err := guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
+	assert.ErrorContains(t, err, `Changing the table list during live-migration is not allowed.`)
 	assert.Equal(t, len(missingTables), len(expectedMissingTables))
 	assert.Equal(t, len(extraTables), len(expectedExtraTables))
 
@@ -190,18 +189,11 @@ func assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t *testing.T,
 
 // Tests the unknown table case by over ridding the utils.ErrExit function to assert the error msg
 func testUnknownTableCaseForTableListFlags(t *testing.T, withStartClean bool, expectedUnknownErrorMsg string) {
-	previousFunction := utils.ErrExit
-	//changing the error exit function to test the unknown table scenario
-	utils.ErrExit = func(formatString string, args ...interface{}) {
-		errMSg := fmt.Sprintf(formatString, args...)
-		assert.Equal(t, strings.Contains(errMSg, expectedUnknownErrorMsg), true)
-	}
 
 	//Run the function assert the error exit scenario
 	startClean = utils.BoolStr(withStartClean)
-	getInitialTableList()
-
-	utils.ErrExit = previousFunction
+	_, _, err := getInitialTableList()
+	assert.ErrorContains(t, err, expectedUnknownErrorMsg)
 }
 
 var (
@@ -443,7 +435,7 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 	testPostgresSource.ExecuteSqls(ddlChanges...)
 
 	// getInitialTableList for subsequent run with  start-clean false and basic without table-list flags so no guardrails
-	startClean = false
+	utils.DoNotPrompt = true
 
 	//validate detectAndReportNewLeafPartitionsForRootTables  for the new leaf table added above
 
@@ -461,7 +453,6 @@ func TestTableListInSubsequentRunOfExportDataBasicPG(t *testing.T) {
 
 	//Case Unknown table name case for the new leaf or any dummy table name
 	// getInitialTableList for subsequent run with  start-clean false and basic with table-list flag with unknown table so no guardrails
-	utils.DoNotPrompt = true
 	source.TableList = "test_partitions_sequences_p,fake_table_name"
 	expectedUnknownErrorMsg := `Unknown table names in the include list: [test_partitions_sequences_p fake_table_name]`
 	testUnknownTableCaseForTableListFlags(t, false, expectedUnknownErrorMsg)
@@ -580,7 +571,7 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	//case1: getInitialTableList for subsequent run with  start-clean false and basic with same table-list flags so no guardrails
 	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
-	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so reporting extra tables found 
+	//case2: getInitialTableList for subsequent run with  start-clean false and basic with no table-list flags so reporting extra tables found
 	source.TableList = ""
 	source.ExcludeTableList = ""
 	utils.DoNotPrompt = true
@@ -596,7 +587,6 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, nil, expectedExtraTables0, firstRunTableList, rootTables)
-	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case3: getInitialTableList for subsequent run with  start-clean false and basic with table-list flag
 	//--table-list test_partitions_sequences,sales_region
@@ -613,7 +603,6 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables, expectedExtraTables, firstRunTableList, rootTables)
-	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case4: getInitialTableList for subsequent run with  start-clean false and basic with only exclude-table-list flag
 	startClean = false
@@ -630,7 +619,6 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	expectedExtraTables2 := []sqlname.NameTuple{}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables2, expectedExtraTables2, firstRunTableList, rootTables)
-	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case5: getInitialTableList for subsequent run with  start-clean false and basic with table-list and exclude-table-list flags
 	//--table-list test_partitions_sequences,foreign_test,p1.london --exclude-table-list sales_region
@@ -646,7 +634,6 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	expectedExtraTables3 := []sqlname.NameTuple{}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables3, expectedExtraTables3, firstRunTableList, rootTables)
-	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
 
 	//case6: getInitialTableList for subsequent run with  start-clean false and basic with different set of table-list and exclude-table-list flags
 	//--table-list test_partitions_sequences,p1.boston,foreign_test,p1.london,datatypes1 --exclude-table-list datatypes1,test_partitions_sequences_s
@@ -664,5 +651,11 @@ func testCasesWithDifferentTableListFlagValuesTest1(t *testing.T, firstRunTableL
 	}
 
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables4, expectedExtraTables4, firstRunTableList, rootTables)
+
+	//Case when user fixes the table-list flags to have initial list, it should return the same list and partitions map
+	//--table-list test_partitions_sequences,datatypes1,foreign_test,public.sales_region --exclude-table-list p1.london,p1.sydney
+	source.TableList = "test_partitions_sequences,datatypes1,foreign_test,p1.boston"
+	source.ExcludeTableList = ""
 	assertInitialTableListOnSubsequentRun(t, false, firstRunTableList, firstRunPartitionsToRootMap)
+
 }
