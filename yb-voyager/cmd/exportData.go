@@ -1033,6 +1033,8 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 			continue
 		}
 
+		//TODO: Not go to db for leaf partitions in subsequent for applying table-list  re-use the PartitionsToRootMap (by populating it with exhaustive list)
+		//of either by handling it in with nameregistry or something.
 		//Filtering the new leaf tables if present in filteredListWithoutRootTable as we have reported above
 		if isNewLeafTable(t) {
 			//remove the new leaf table as reported above already
@@ -1110,6 +1112,8 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 			rootToNewLeafTablesMap[rootTable] = append(rootToNewLeafTablesMap[rootTable], leaf)
 		}
 	}
+
+	//TODO: also detect this during ongoing command as well - ticket to track https://github.com/yugabyte/yb-voyager/issues/2356
 	if len(lo.Keys(rootToNewLeafTablesMap)) > 0 {
 		utils.PrintAndLog("Detected new partition tables for the following partitioned tables. These will not be considered during migration:")
 		listToPrint := ""
