@@ -33,6 +33,7 @@ type TestContainer interface {
 }
 
 type ContainerConfig struct {
+	DBType    string
 	DBVersion string
 	User      string
 	Password  string
@@ -109,6 +110,7 @@ func TerminateAllContainers() {
 func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerConfig) {
 	// TODO: discuss and decide the default DBVersion values for each dbtype
 
+	config.DBType = dbType
 	switch dbType {
 	case POSTGRESQL:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)
