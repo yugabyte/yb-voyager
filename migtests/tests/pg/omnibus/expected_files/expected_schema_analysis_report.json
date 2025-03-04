@@ -304,7 +304,7 @@
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "composite_type_examples.ordinary_table",
-            "Reason": "User defined datatype COMPOSITE_TYPE_EXAMPLES.BASIC_COMP_TYPE not yet supported by voyager in live migration with fall-forward/fallback. Affected column: basic_. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Reason": "User defined datatype COMPOSITE_TYPE_EXAMPLES.NESTED not yet supported by voyager in live migration with fall-forward/fallback. Affected column: _nested. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (basic_ composite_type_examples.basic_comp_type, _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED, nested composite_type_examples.nested, _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED, CONSTRAINT check_f1_gt_1 CHECK ((basic_).f1 \u003e 1), CONSTRAINT check_f1_gt_1_again CHECK ((_basic).f1 \u003e 1), CONSTRAINT check_nested_f1_gt_1 CHECK ((nested).foo.f1 \u003e 1), CONSTRAINT check_nested_f1_gt_1_again CHECK ((_nested).foo.f1 \u003e 1));",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
             "Suggestion": "",

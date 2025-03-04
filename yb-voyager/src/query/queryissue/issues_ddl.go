@@ -632,22 +632,577 @@ func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
-	Type:        PK_UK_ON_COMPLEX_DATATYPE,
-	Name:        PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME,
+// var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
+// 	Type:        PK_UK_ON_COMPLEX_DATATYPE,
+// 	Name:        PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME,
+// 	Impact:      constants.IMPACT_LEVEL_1,
+// 	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+// 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+// 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+// 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+// }
+
+// func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+// 	details := map[string]interface{}{
+// 		CONSTRAINT_NAME: constraintName,
+// 	}
+// 	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
+// 	issue.Description = fmt.Sprintf(issue.Description, typeName)
+// 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+// }
+
+// var UnsupportedIndexDatatypes = []string{
+// 	"citext",
+// 	"tsvector",
+// 	"tsquery",
+// 	"jsonb",
+// 	"inet",
+// 	"json",
+// 	"macaddr",
+// 	"macaddr8",
+// 	"cidr",
+// 	"bit",    // for BIT (n)
+// 	"varbit", // for BIT varying (n)
+// 	"daterange",
+// 	"tsrange",
+// 	"tstzrange",
+// 	"numrange",
+// 	"int4range",
+// 	"int8range",
+// 	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
+// 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
+// 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
+// 	"circle",
+// 	"box",
+// 	"line",
+// 	"lseg",
+// 	"point",
+// 	"pg_lsn",
+// 	"path",
+// 	"polygon",
+// 	"txid_snapshot",
+// 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
+// }
+
+var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CITEXT_DATATYPE,
+	Name:        PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+	Description: PK_UK_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
-	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
+	issue := primaryOrUniqueConstraintOnCitextDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsVectorDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSVECTOR_DATATYPE,
+	Name:        PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsVectorDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsQueryDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSQUERY_DATATYPE,
+	Name:        PK_UK_ON_TSQUERY_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSQUERY_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsQueryDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnJsonbDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_JSONB_DATATYPE,
+	Name:        PK_UK_ON_JSONB_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_JSONB_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnJsonbDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInetDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INET_DATATYPE,
+	Name:        PK_UK_ON_INET_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INET_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInetDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnJsonDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_JSON_DATATYPE,
+	Name:        PK_UK_ON_JSON_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_JSON_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnJsonDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnMacaddrDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_MACADDR_DATATYPE,
+	Name:        PK_UK_ON_MACADDR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_MACADDR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnMacaddrDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnMacaddr8DatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_MACADDR8_DATATYPE,
+	Name:        PK_UK_ON_MACADDR8_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_MACADDR8_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnMacaddr8DatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnCidrDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CIDR_DATATYPE,
+	Name:        PK_UK_ON_CIDR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_CIDR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnCidrDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnBitDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_BIT_DATATYPE,
+	Name:        PK_UK_ON_BIT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_BIT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnBitDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnVarbitDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_VARBIT_DATATYPE,
+	Name:        PK_UK_ON_VARBIT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_VARBIT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnVarbitDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnDaterangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_DATERANGE_DATATYPE,
+	Name:        PK_UK_ON_DATERANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_DATERANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnDaterangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSRANGE_DATATYPE,
+	Name:        PK_UK_ON_TSRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTstzrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSTZRANGE_DATATYPE,
+	Name:        PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTstzrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnNumrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_NUMRANGE_DATATYPE,
+	Name:        PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnNumrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInt4rangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INT4RANGE_DATATYPE,
+	Name:        PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInt4rangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInt8rangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INT8RANGE_DATATYPE,
+	Name:        PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInt8rangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnIntervalDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INTERVAL_DATATYPE,
+	Name:        PK_UK_ON_INTERVAL_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INTERVAL_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnIntervalDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnCircleDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CIRCLE_DATATYPE,
+	Name:        PK_UK_ON_CIRCLE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_CIRCLE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnCircleDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnBoxDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_BOX_DATATYPE,
+	Name:        PK_UK_ON_BOX_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_BOX_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnBoxDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnLineDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_LINE_DATATYPE,
+	Name:        PK_UK_ON_LINE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_LINE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnLineDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnLsegDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_LSEG_DATATYPE,
+	Name:        PK_UK_ON_LSEG_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_LSEG_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnLsegDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPointDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_POINT_DATATYPE,
+	Name:        PK_UK_ON_POINT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_POINT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPointDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPgLsnDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_PGLSN_DATATYPE,
+	Name:        PK_UK_ON_PGLSN_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_PGLSN_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPgLsnDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPathDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_PATH_DATATYPE,
+	Name:        PK_UK_ON_PATH_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_PATH_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPathDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPolygonDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_POLYGON_DATATYPE,
+	Name:        PK_UK_ON_POLYGON_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_POLYGON_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPolygonDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TXID_SNAPSHOT_DATATYPE,
+	Name:        PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnArrayDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_ARRAY_DATATYPE,
+	Name:        PK_UK_ON_ARRAY_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnArrayDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnUserDefinedTypeIssue = issue.Issue{
+	Type:        PK_UK_ON_USER_DEFINED_DATATYPE,
+	Name:        PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnUserDefinedTypeIssue
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 

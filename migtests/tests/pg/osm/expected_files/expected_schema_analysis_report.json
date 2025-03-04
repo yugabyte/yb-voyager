@@ -58,7 +58,7 @@
             "IssueType": "unsupported_datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "public.osm_changeset",
-            "Reason": "PostGIS datatypes are not yet supported in YugabyteDB. Affected column: geom and type: geometry.",
+            "Reason": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
             "SqlStatement": "CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326), CONSTRAINT osm_changeset_pkey PRIMARY KEY (id)) WITH (colocation=false);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql",
             "Suggestion": "",
