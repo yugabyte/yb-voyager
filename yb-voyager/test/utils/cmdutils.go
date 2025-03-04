@@ -19,7 +19,7 @@ func CreateTempExportDir() string {
 	// Create a temporary directory for export inside /tmp
 	exportDir, err := os.MkdirTemp("", "yb-voyager-export")
 	if err != nil {
-		utils.ErrExit("failed to create temp export dir for testing", err)
+		utils.ErrExit("failed to create temp export dir for testing: %v", err)
 	}
 
 	return exportDir
@@ -29,7 +29,7 @@ func RemoveTempExportDir(exportDir string) {
 	// Remove the temporary directory
 	err := os.RemoveAll(exportDir)
 	if err != nil {
-		utils.ErrExit("failed to remove temp export dir", err)
+		utils.ErrExit("failed to remove temp export dir: %v", err)
 	}
 }
 
