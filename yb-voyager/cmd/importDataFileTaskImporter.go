@@ -41,13 +41,17 @@ type FileTaskImporter struct {
 	importBatchArgsProto *tgtdb.ImportBatchArgs
 	workerPool           *pool.Pool
 
+	isTableColocated             bool
+	colocatedImportBatchQueue    chan func()
+	useColocatedImportBatchQueue bool
+
 	totalProgressAmount   int64
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter) (*FileTaskImporter, error) {
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), useColocatedImportBatchQueue bool) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
@@ -56,15 +60,27 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
+	isTableColocated := false
+
+	if useColocatedImportBatchQueue {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return nil, fmt.Errorf("tdb is not of type TargetYugabyteDB. Cannot use colocated import batch queue")
+		}
+		isTableColocated, err = yb.IsTableColocated(task.TableNameTup)
+	}
 
 	fti := &FileTaskImporter{
-		task:                  task,
-		batchProducer:         batchProducer,
-		workerPool:            workerPool,
-		importBatchArgsProto:  getImportBatchArgsProto(task.TableNameTup, task.FilePath),
-		progressReporter:      progressReporter,
-		totalProgressAmount:   totalProgressAmount,
-		currentProgressAmount: currentProgressAmount,
+		task:                         task,
+		batchProducer:                batchProducer,
+		workerPool:                   workerPool,
+		colocatedImportBatchQueue:    colocatedImportBatchQueue,
+		isTableColocated:             isTableColocated,
+		useColocatedImportBatchQueue: useColocatedImportBatchQueue,
+		importBatchArgsProto:         getImportBatchArgsProto(task.TableNameTup, task.FilePath),
+		progressReporter:             progressReporter,
+		totalProgressAmount:          totalProgressAmount,
+		currentProgressAmount:        currentProgressAmount,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -133,7 +149,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 }
 
 func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
-	fti.workerPool.Go(func() {
+	importBatchFunc := func() {
 		// There are `poolSize` number of competing go-routines trying to invoke COPY.
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
@@ -143,7 +159,13 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		} else {
 			fti.updateProgress(batch.RecordCount)
 		}
-	})
+	}
+	if fti.useColocatedImportBatchQueue && fti.isTableColocated {
+		fti.colocatedImportBatchQueue <- importBatchFunc
+	} else {
+		fti.workerPool.Go(importBatchFunc)
+	}
+
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
 }
