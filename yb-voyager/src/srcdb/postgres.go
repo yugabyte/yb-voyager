@@ -113,7 +113,6 @@ func (pg *PostgreSQL) Connect() error {
 		err := pg.db.Ping()
 		if err == nil {
 			log.Infof("Already connected to the source database")
-			log.Infof("Already connected to the source database")
 			return nil
 		} else {
 			log.Infof("Failed to ping the source database: %s", err)

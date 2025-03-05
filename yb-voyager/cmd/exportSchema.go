@@ -314,11 +314,9 @@ func applySchemaTransformations() {
 		tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
 		var transformations []func([]*pg_query.RawStmt, string) ([]*pg_query.RawStmt, error)
 		if !skipRecommendations {
-			transformations = append(transformations, applyShardedTableTransformation)     // transform #1
-			transformations = append(transformations, applyMergeConstraintsTransformation) // transform #2
-		} else {
-			transformations = append(transformations, applyMergeConstraintsTransformation) // transform #1
+			transformations = append(transformations, applyShardedTableTransformation) // transform #1
 		}
+		transformations = append(transformations, applyMergeConstraintsTransformation) // transform #2
 
 		err := transformSchemaFile(tableFilePath, transformations, "table")
 		if err != nil {
