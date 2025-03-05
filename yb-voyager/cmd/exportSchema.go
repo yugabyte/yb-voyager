@@ -38,7 +38,8 @@ import (
 
 var skipRecommendations utils.BoolStr
 var assessmentReportPath string
-var assessmentRecommendationsApplied bool
+var assessmentRecommendationsApplied = false
+var errorApplyingAssessmentRecommendations = false
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -311,9 +312,12 @@ func applySchemaTransformations() {
 	// 1. Transform table.sql
 	{
 		tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
-		transformations := []func([]*pg_query.RawStmt) ([]*pg_query.RawStmt, error){
-			applyShardedTableTransformation,     // transform #1
-			applyMergeConstraintsTransformation, // transform #2
+		var transformations []func([]*pg_query.RawStmt, string) ([]*pg_query.RawStmt, error)
+		if !skipRecommendations {
+			transformations = append(transformations, applyShardedTableTransformation)     // transform #1
+			transformations = append(transformations, applyMergeConstraintsTransformation) // transform #2
+		} else {
+			transformations = append(transformations, applyMergeConstraintsTransformation) // transform #1
 		}
 
 		err := transformSchemaFile(tableFilePath, transformations, "table")
@@ -325,8 +329,9 @@ func applySchemaTransformations() {
 	// 2. Transform mview.sql
 	{
 		mviewFilePath := utils.GetObjectFilePath(schemaDir, MVIEW)
-		transformations := []func([]*pg_query.RawStmt) ([]*pg_query.RawStmt, error){
-			applyShardedTableTransformation, // only transformation for mview
+		var transformations []func([]*pg_query.RawStmt, string) ([]*pg_query.RawStmt, error)
+		if !skipRecommendations {
+			transformations = append(transformations, applyShardedTableTransformation) // only transformation for mview
 		}
 
 		err := transformSchemaFile(mviewFilePath, transformations, "mview")
@@ -334,22 +339,45 @@ func applySchemaTransformations() {
 			log.Warnf("Error transforming %q: %v", mviewFilePath, err)
 		}
 	}
+
+	// Check the flag to message the user about the recommendations applied and ask to apply manually
+	if errorApplyingAssessmentRecommendations {
+		utils.PrintAndLog("\nUnable to apply assessment recommendations(sharded/colocated tables) to the exported schema. Please check the logs for more details.")
+		utils.PrintAndLog("You can apply the recommendations manually by referring to the assessment report.")
+	} else if assessmentRecommendationsApplied {
+		SetAssessmentRecommendationsApplied()
+	}
+	// else case will be whether neither applied nor errored, but rather schema file was not present.
+
+	// There is corner case: when recommmendations applied on table.sql but not on mview.sql or vice versa
+	// In this case, there is no definite answer whether assessmentRecommendationsApplied should be true or false; Assuming false.
 }
 
 // transformSchemaFile applies a sequence of transformations to the given schema file
 // and writes the transformed result back. If the file doesn't exist, logs a message and returns nil.
-func transformSchemaFile(filePath string, transformations []func(raw []*pg_query.RawStmt) ([]*pg_query.RawStmt, error), objectType string) error {
-	if !utils.FileOrFolderExists(filePath) {
-		log.Infof("%q file doesn't exist, skipping transformations for %s object type", filePath, objectType)
+func transformSchemaFile(filePath string, transformations []func(raw []*pg_query.RawStmt, filePath string) ([]*pg_query.RawStmt, error), objectType string) error {
+	if !utils.FileOrFolderExists(filePath) || len(transformations) == 0 {
+		log.Infof("schema file %q for object type %s doesn't exist or no transformations to apply", filePath, objectType)
 		return nil
 	}
 
-	rawStmts, err := queryparser.ParseSqlFile(filePath)
+	var rawStmts []*pg_query.RawStmt
+	var err error
+	defer func() {
+		if err != nil {
+			errorApplyingAssessmentRecommendations = true
+			utils.PrintAndLog("Failed to apply any transformation to the exported schema file %q: %v\n", filePath, err)
+		}
+	}()
+
+	log.Infof("applying transformations to the schema file %q for object type %s", filePath, objectType)
+	rawStmts, err = queryparser.ParseSqlFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to parse sql statements from %s object type in schema file %q: %w", objectType, filePath, err)
 	}
 
-	beforeSqlStmts, err := queryparser.DeparseRawStmts(rawStmts)
+	var beforeSqlStmts []string
+	beforeSqlStmts, err = queryparser.DeparseRawStmts(rawStmts)
 	if err != nil {
 		return fmt.Errorf("failed to deparse raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
 	}
@@ -357,17 +385,21 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 	transformedStmts := rawStmts
 	// Apply transformations in order
 	for _, transformFn := range transformations {
-		newStmts, err := transformFn(transformedStmts)
-		if err != nil {
+		transformFuncName := utils.GetFuncName(transformFn)
+		log.Infof("applying transformation: %s on %s", filepath.Base(transformFuncName), filePath)
+
+		newStmts, err2 := transformFn(transformedStmts, filePath)
+		if err2 != nil {
 			// Log and continue using the unmodified statements slice for subsequent transformations in case of error
-			log.Warnf("failed to apply transformation function %T in schema file %q: %v", transformFn, filePath, err)
+			log.Warnf("failed to apply transformation %s on the exported schema file %q: %v",
+				filepath.Base(transformFuncName), filePath, err)
 			continue
 		}
 		transformedStmts = newStmts
 	}
 
-	// Deparse
-	sqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+	var sqlStmts []string
+	sqlStmts, err = queryparser.DeparseRawStmts(transformedStmts)
 	if err != nil {
 		return fmt.Errorf("failed to deparse transformed raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
 	}
@@ -389,6 +421,7 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 	if err != nil {
 		return fmt.Errorf("failed to rename %s file to %s: %w", filePath, backupFile, err)
 	}
+	utils.PrintAndLog("The original DDLs(without transformation) for %q object type are backed up at %s\n", strings.ToUpper(objectType), backupFile)
 
 	// Write updated file
 	fileContent := strings.Join(sqlStmts, "\n\n")
@@ -400,16 +433,38 @@ func transformSchemaFile(filePath string, transformations []func(raw []*pg_query
 	return nil
 }
 
-func applyShardedTableTransformation(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	log.Info("applying sharded tables transformation to the exported schema")
+func applyShardedTableTransformation(stmts []*pg_query.RawStmt, filePath string) ([]*pg_query.RawStmt, error) {
+	log.Infof("applying sharded tables transformation to the exported schema file %q", filePath)
+	if bool(skipRecommendations) || !slices.Contains(assessMigrationSupportedDBTypes, source.DBType) {
+		log.Info("skipping applying sharded tables transformation due to --skip-recommendations flag or assessment unsupported source db type")
+		return stmts, nil
+	}
+
+	var transformedRawStmts []*pg_query.RawStmt
+	var err error
+	// defer func to inspect err and set global flag for recommendations application
+	defer func() {
+		if err != nil {
+			errorApplyingAssessmentRecommendations = true
+			assessmentRecommendationsApplied = false
+			utils.PrintAndLog("Failed to apply assessment recommendations to the exported schema file %q: %v\n", filepath.Base(filePath), err)
+		} else {
+			utils.PrintAndLog("Applied assessment recommendations to %s schema\n", filepath.Base(filePath))
+			assessmentRecommendationsApplied = true
+		}
+	}()
+
 	assessmentReportPath = lo.Ternary(assessmentReportPath != "", assessmentReportPath,
 		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
-	assessmentReport, err := ParseJSONToAssessmentReport(assessmentReportPath)
+
+	var assessmentReport *AssessmentReport
+	assessmentReport, err = ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
 		return stmts, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	shardedObjects, err := assessmentReport.GetShardedTablesRecommendation()
+	var shardedObjects []string
+	shardedObjects, err = assessmentReport.GetShardedTablesRecommendation()
 	if err != nil {
 		return stmts, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	}
@@ -433,21 +488,22 @@ func applyShardedTableTransformation(stmts []*pg_query.RawStmt) ([]*pg_query.Raw
 	}
 
 	transformer := sqltransformer.NewTransformer()
-	transformedRawStmts, err := transformer.ConvertToShardedTables(stmts, isObjectSharded)
+	transformedRawStmts, err = transformer.ConvertToShardedTables(stmts, isObjectSharded)
 	if err != nil {
 		return stmts, fmt.Errorf("failed to convert to sharded tables: %w", err)
 	}
 
+	assessmentRecommendationsApplied = true
 	return transformedRawStmts, nil
 }
 
-func applyMergeConstraintsTransformation(rawStmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+func applyMergeConstraintsTransformation(rawStmts []*pg_query.RawStmt, filePath string) ([]*pg_query.RawStmt, error) {
 	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
 		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
 		return rawStmts, nil
 	}
 
-	log.Info("applying merge constraints transformation to the exported schema")
+	log.Infof("applying merge constraints transformation to the exported schema file %q", filePath)
 	transformer := sqltransformer.NewTransformer()
 	transformedRawStmts, err := transformer.MergeConstraints(rawStmts)
 	if err != nil {

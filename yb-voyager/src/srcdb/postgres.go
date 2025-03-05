@@ -113,8 +113,8 @@ func (pg *PostgreSQL) Connect() error {
 		err := pg.db.Ping()
 		if err == nil {
 			log.Infof("Already connected to the source database")
-				log.Infof("Already connected to the source database")
-				return nil
+			log.Infof("Already connected to the source database")
+			return nil
 		} else {
 			log.Infof("Failed to ping the source database: %s", err)
 			pg.Disconnect()
@@ -366,6 +366,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		log.Info("Export of schema completed.")
 		utils.WaitChannel <- returnCode
 		<-utils.WaitChannel
+		fmt.Println()
 	}
 }
 
