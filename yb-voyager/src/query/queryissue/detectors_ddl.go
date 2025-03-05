@@ -115,13 +115,12 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					if !ok {
 						continue
 					}
-					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+					reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(
 						obj.GetObjectType(),
 						table.GetObjectName(),
-						"",
 						typeName,
 						c.ConstraintName,
-					))
+						&issues)
 				}
 			}
 		}
@@ -142,26 +141,30 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, NewUnsupportedDatatypeForLMIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				col.TypeName,
-				col.ColumnName,
-			))
+			reportUnsupoortedDatatypesInLive(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
-			if col.IsArrayType { // For Array cases to make it clear in issue
+			if isArrayOfEnumsDatatype {
 				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+				issues = append(issues, NewArrayOfEnumDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else if isUDTDatatype {
+				issues = append(issues, NewUserDefinedDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else {
+				reportUnsupportedDatatypesInLiveWithFFOrFB(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 			}
-			issues = append(issues, NewUnsupportedDatatypesForLMWithFFOrFBIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				reportTypeName,
-				col.ColumnName,
-			))
 		}
 
 		if col.Compression != "" {
@@ -222,6 +225,247 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
+func reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(objType string, objName string, typeName string, constraintName string, issues *[]QueryIssue) {
+	switch typeName {
+	case "citext":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "tsvector":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "tsquery":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "jsonb":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "inet":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "json":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "macaddr":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "macaddr8":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "cidr":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "bit":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "varbit":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "daterange":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "tsrange":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "tstzrange":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "numrange":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "int4range":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "int8range":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "interval":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "circle":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "box":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "line":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "lseg":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "point":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "pg_lsn":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "path":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "polygon":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "txid_snapshot":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "array":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	case "user_defined_type":
+		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(
+			objType,
+			objName,
+			"",
+			typeName,
+			constraintName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+	}
+}
+
 func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
 	switch col.TypeName {
 	case "xml":
@@ -229,6 +473,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "xid":
@@ -236,10 +481,43 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
-	case "geometry", "geography", "box2d", "box3d", "topogeometry":
-		*issues = append(*issues, NewPostGisDatatypeIssue(
+	case "geometry":
+		*issues = append(*issues, NewGeometryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "geography":
+		*issues = append(*issues, NewGeographyDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box2d":
+		*issues = append(*issues, NewBox2DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box3d":
+		*issues = append(*issues, NewBox3DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "topogeometry":
+		*issues = append(*issues, NewTopogeometryDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -251,10 +529,75 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			"LARGE OBJECT",
 			col.ColumnName,
 		))
-	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
-		*issues = append(*issues, NewMultiRangeDatatypeIssue(
+	case "int8multirange":
+		*issues = append(*issues, NewInt8MultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "int4multirange":
+		*issues = append(*issues, NewInt4MultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "datemultirange":
+		*issues = append(*issues, NewDateMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "nummultirange":
+		*issues = append(*issues, NewNumMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tsmultirange":
+		*issues = append(*issues, NewTSMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tstzmultirange":
+		*issues = append(*issues, NewTSTZMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "raster":
+		*issues = append(*issues, NewRasterDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "pg_lsn":
+		*issues = append(*issues, NewPgLsnDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "txid_snapshot":
+		*issues = append(*issues, NewTxidSnapshotDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -262,13 +605,107 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.ColumnName,
 		))
 	default:
-		*issues = append(*issues, NewUnsupportedDatatypeIssue(
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "point":
+		*issues = append(*issues, NewPointDatatypeIssue(
 			objType,
 			objName,
 			"",
 			col.TypeName,
 			col.ColumnName,
 		))
+	case "line":
+		*issues = append(*issues, NewLineDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "lseg":
+		*issues = append(*issues, NewLsegDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box":
+		*issues = append(*issues, NewBoxDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "path":
+		*issues = append(*issues, NewPathDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "polygon":
+		*issues = append(*issues, NewPolygonDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "circle":
+		*issues = append(*issues, NewCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupportedDatatypesInLiveWithFFOrFB(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "tsquery":
+		*issues = append(*issues, NewTsQueryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tsvector":
+		*issues = append(*issues, NewTsVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "hstore":
+		*issues = append(*issues, NewHstoreDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
 	}
 }
 
@@ -675,13 +1112,12 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				if !ok {
 					continue
 				}
-				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+				reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(
 					obj.GetObjectType(),
 					alter.GetObjectName(),
-					"",
 					typeName,
 					alter.ConstraintName,
-				))
+					&issues)
 			}
 
 		}

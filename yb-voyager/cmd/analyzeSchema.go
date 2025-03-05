@@ -623,8 +623,20 @@ var MigrationCaveatsIssues = []string{
 	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	queryissue.FOREIGN_TABLE,
 	queryissue.POLICY_WITH_ROLES,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
+	// Datatypes not supported in YB in live migration
+	queryissue.POINT_DATATYPE,
+	queryissue.LINE_DATATYPE,
+	queryissue.LSEG_DATATYPE,
+	queryissue.BOX_DATATYPE,
+	queryissue.PATH_DATATYPE,
+	queryissue.POLYGON_DATATYPE,
+	queryissue.CIRCLE_DATATYPE,
+	// Datatypes not supported in YB in live migration with FF and FB
+	queryissue.ARRAY_OF_ENUM_DATATYPE,
+	queryissue.USER_DEFINED_DATATYPE,
+	queryissue.TSQUERY_DATATYPE,
+	queryissue.TSVECTOR_DATATYPE,
+	queryissue.HSTORE_DATATYPE,
 }
 
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
@@ -634,7 +646,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.Contains(issueInstance.Type, i)
+		return strings.EqualFold(issueInstance.Type, i)
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
@@ -645,7 +657,35 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	var constraintIssues = []string{
 		queryissue.EXCLUSION_CONSTRAINTS,
 		queryissue.DEFERRABLE_CONSTRAINTS,
-		queryissue.PK_UK_ON_COMPLEX_DATATYPE,
+		queryissue.PK_UK_ON_CITEXT_DATATYPE,
+		queryissue.PK_UK_ON_TSVECTOR_DATATYPE,
+		queryissue.PK_UK_ON_TSQUERY_DATATYPE,
+		queryissue.PK_UK_ON_JSONB_DATATYPE,
+		queryissue.PK_UK_ON_INET_DATATYPE,
+		queryissue.PK_UK_ON_JSON_DATATYPE,
+		queryissue.PK_UK_ON_MACADDR_DATATYPE,
+		queryissue.PK_UK_ON_MACADDR8_DATATYPE,
+		queryissue.PK_UK_ON_CIDR_DATATYPE,
+		queryissue.PK_UK_ON_BIT_DATATYPE,
+		queryissue.PK_UK_ON_VARBIT_DATATYPE,
+		queryissue.PK_UK_ON_DATERANGE_DATATYPE,
+		queryissue.PK_UK_ON_TSRANGE_DATATYPE,
+		queryissue.PK_UK_ON_TSTZRANGE_DATATYPE,
+		queryissue.PK_UK_ON_NUMRANGE_DATATYPE,
+		queryissue.PK_UK_ON_INT4RANGE_DATATYPE,
+		queryissue.PK_UK_ON_INT8RANGE_DATATYPE,
+		queryissue.PK_UK_ON_INTERVAL_DATATYPE,
+		queryissue.PK_UK_ON_CIRCLE_DATATYPE,
+		queryissue.PK_UK_ON_BOX_DATATYPE,
+		queryissue.PK_UK_ON_LINE_DATATYPE,
+		queryissue.PK_UK_ON_LSEG_DATATYPE,
+		queryissue.PK_UK_ON_POINT_DATATYPE,
+		queryissue.PK_UK_ON_PATH_DATATYPE,
+		queryissue.PK_UK_ON_POLYGON_DATATYPE,
+		queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE,
+		queryissue.PK_UK_ON_PGLSN_DATATYPE,
+		queryissue.PK_UK_ON_ARRAY_DATATYPE,
+		queryissue.PK_UK_ON_USER_DEFINED_DATATYPE,
 		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	}
 	/*

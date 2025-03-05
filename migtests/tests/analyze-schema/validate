@@ -76,6 +76,8 @@ def validate_report_issues(report, expected_issues):
 	for expected_issue in expected_issues:
 		assert expected_issue in report["Issues"], f"expected issue is not reported: {expected_issue}"
 
+	print ("Length of expected issues:", len(expected_issues))
+	print ("Length of reported issues:", len(report["Issues"]))
 	assert len(expected_issues) == len(report["Issues"])
 	print("Success!")
 
