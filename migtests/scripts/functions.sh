@@ -31,7 +31,7 @@ run_psql() {
 	db_name=$1
 	sql=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -c "${sql}"
+	psql -P pager=off "${conn_string}" -c "${sql}"
 }
 
 psql_import_file() {

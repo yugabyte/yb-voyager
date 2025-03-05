@@ -17,37 +17,40 @@ jobs:
     runs-on: ubuntu-22.04
     steps:
     - uses: actions/checkout@v3
+    - uses: actions/setup-java@v3
+      # https://github.com/actions/setup-java
+      with:
+        distribution: "temurin"
+        java-version: "17"
+        check-latest: true
 
     - name: Set up Go
       uses: actions/setup-go@v3
       with:
         go-version: "1.23.1"
 
-    - name: Build
+    - name: Run installer script to setup voyager and dependencies for running integration tests
       run: |
-        cd yb-voyager
-        go build -v ./...
-
-    # required by godror driver used in the tests
-    - name: Install Oracle Instant Clients
-      run: |
-        # Download and install the YB APT repository package
-        wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-        sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb
-        sudo apt-get update -y
-
-        # Install Oracle Instant Client packages using the defined version
-        sudo apt-get install -y oracle-instantclient-tools=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-        sudo apt-get install -y oracle-instantclient-basic=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-        sudo apt-get install -y oracle-instantclient-devel=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-        sudo apt-get install -y oracle-instantclient-jdbc=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-        sudo apt-get install -y oracle-instantclient-sqlplus=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-
-        # Clean up the YB APT repository package
-        sudo apt-get remove -y yb-apt-repo
-        rm -f yb-apt-repo_1.0.0_all.deb
+        cd installer_scripts
+        yes | ./install-yb-voyager --install-from-local-source
+        sudo rm /usr/bin/pg_dump
+        sudo ln -s /usr/lib/postgresql/17/bin/pg_dump /usr/bin/pg_dump
+        sudo rm /usr/bin/pg_restore
+        sudo ln -s /usr/lib/postgresql/17/bin/pg_restore /usr/bin/pg_restore
+        pg_dump --version
+        pg_restore --version
+        psql --version
+      env:
+        ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
     - name: Run Integration Tests
       run: |
         cd yb-voyager
         go test -v ./... -tags 'integration'
+
+    # Note: Below go tests use a voyager binary to call voyager commands
+    # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
+    - name: Run Integration Tests (executing voyager commands)
+      run: |
+        cd yb-voyager
+        go test -v ./... -tags 'integration_voyager_command'
