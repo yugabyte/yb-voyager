@@ -1,1 +1,2 @@
 export SOURCE_DB_TYPE="oracle"
+export SOURCE_DB_SCHEMA=${SOURCE_DB_SCHEMA:-"TEST_SCHEMA"}
