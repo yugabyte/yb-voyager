@@ -55,11 +55,36 @@ func init() {
 	MAX_INTERVAL_BETWEEN_BATCHES = utils.GetEnvAsInt("MAX_INTERVAL_BETWEEN_BATCHES", 2000)
 }
 
+func cutoverInitiatedAndCutoverEventProcessed() (bool, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("getting migration status record: %v", err)
+	}
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		return msr.CutoverToTargetRequested && msr.CutoverDetectedByTargetImporter, nil
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		return msr.CutoverToSourceReplicaRequested && msr.CutoverDetectedBySourceReplicaImporter, nil
+	case SOURCE_DB_IMPORTER_ROLE:
+		return msr.CutoverToSourceRequested && msr.CutoverDetectedBySourceImporter, nil
+	}
+
+	return false, nil
+}
+
 func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error {
+	ok, err := cutoverInitiatedAndCutoverEventProcessed()
+	if err != nil {
+		return err
+	}
+	if ok {
+		log.Info("cutover is initiated and the event is detected..")
+		return nil
+	}
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",
 		NUM_EVENT_CHANNELS, EVENT_CHANNEL_SIZE, MAX_EVENTS_PER_BATCH, MAX_INTERVAL_BETWEEN_BATCHES)
 	// re-initilizing name registry in case it hadn't picked up the names registered on source/target/source-replica
-	err := namereg.NameReg.Init()
+	err = namereg.NameReg.Init()
 	if err != nil {
 		return fmt.Errorf("init name registry again: %v", err)
 	}
@@ -178,6 +203,19 @@ func streamChangesFromSegment(
 			event.IsCutoverToSourceReplica() && importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE ||
 			event.IsCutoverToSource() && importerRole == SOURCE_DB_IMPORTER_ROLE { // cutover or fall-forward command
 
+			err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				switch importerRole {
+				case TARGET_DB_IMPORTER_ROLE:
+					record.CutoverDetectedByTargetImporter = true
+				case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+					record.CutoverDetectedBySourceReplicaImporter = true
+				case SOURCE_DB_IMPORTER_ROLE:
+					record.CutoverDetectedBySourceImporter = true
+				}
+			})
+			if err != nil {
+				return fmt.Errorf("error updating the migration status record for cutover detected case: %v", err)
+			}
 			updateCallhomeImportPhase(event)
 
 			eventQueue.EndOfQueue = true
