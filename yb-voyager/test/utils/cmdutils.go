@@ -2,13 +2,10 @@ package testutils
 
 import (
 	"fmt"
-	"io"
-	"log"
 	"os"
 	"os/exec"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -69,62 +66,32 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 		}
 	}
 
-	// 1) Build the command to run.
+	// Build the command to run.
 	cmdArgs = append(connectionArgs, cmdArgs...)
 	cmdStr := fmt.Sprintf("yb-voyager %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cmd := exec.Command("/bin/bash", "-c", cmdStr)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
 	// don't send to callhome for tests
 	cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
 
-	// 2) Get the stdout and stderr pipes.
-	stdoutPipe, err := cmd.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("failed to get stdout pipe: %w", err)
-	}
-	stderrPipe, err := cmd.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("failed to get stderr pipe: %w", err)
-	}
-
-	// 3) Start the voyager command asynchronously.
+	// Start the voyager command asynchronously.
 	if err = cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start voyager command: %w", err)
 	}
 
-	// 4) Launch goroutines to stream output live to console.
-	var wg sync.WaitGroup
-	wg.Add(2)
-
-	go func() {
-		defer wg.Done()
-		// Copy stdout to os.Stdout.
-		if _, err := io.Copy(os.Stdout, stdoutPipe); err != nil {
-			log.Printf("Error copying stdout: %v", err)
-		}
-	}()
-
-	go func() {
-		defer wg.Done()
-		// Copy stderr to os.Stderr.
-		if _, err := io.Copy(os.Stderr, stderrPipe); err != nil {
-			log.Printf("Error copying stderr: %v", err)
-		}
-	}()
-
-	// 5) Execute the during-command function (if provided).
+	// Execute the during command function (if provided).
 	if doDuringCmd != nil {
 		// delay for 2 seconds to ensure the command has started.
 		time.Sleep(2 * time.Second)
 		doDuringCmd()
 	}
 
-	// 6) Wait for the voyager command to finish.
+	// Wait for the voyager command to finish.
 	if err := cmd.Wait(); err != nil {
 		return fmt.Errorf("voyager command exited with error: %w", err)
 	}
-
-	// 7) Wait for the output goroutines to complete.
-	wg.Wait()
 
 	return nil
 }

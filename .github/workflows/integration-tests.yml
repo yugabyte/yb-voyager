@@ -29,30 +29,6 @@ jobs:
       with:
         go-version: "1.23.1"
 
-    # - name: Build
-    #   run: |
-    #     cd yb-voyager
-    #     go build -v ./...
-
-    # # required by godror driver used in the tests
-    # - name: Install Oracle Instant Clients
-    #   run: |
-    #     # Download and install the YB APT repository package
-    #     wget https://s3.us-west-2.amazonaws.com/downloads.yugabyte.com/repos/reporpms/yb-apt-repo_1.0.0_all.deb
-    #     sudo apt-get install -y ./yb-apt-repo_1.0.0_all.deb
-    #     sudo apt-get update -y
-
-    #     # Install Oracle Instant Client packages using the defined version
-    #     sudo apt-get install -y oracle-instantclient-tools=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-    #     sudo apt-get install -y oracle-instantclient-basic=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-    #     sudo apt-get install -y oracle-instantclient-devel=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-    #     sudo apt-get install -y oracle-instantclient-jdbc=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-    #     sudo apt-get install -y oracle-instantclient-sqlplus=${{ env.ORACLE_INSTANT_CLIENT_VERSION }}
-
-    #     # Clean up the YB APT repository package
-    #     sudo apt-get remove -y yb-apt-repo
-    #     rm -f yb-apt-repo_1.0.0_all.deb
-
     - name: Run installer script to setup voyager and dependencies for running integration tests
       run: |
         cd installer_scripts
