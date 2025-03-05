@@ -347,16 +347,16 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 		fmt.Sprintf(`CREATE SCHEMA IF NOT EXISTS %s;`, BATCH_METADATA_TABLE_SCHEMA),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
-			data_file_name VARCHAR(250),
+			data_file_name TEXT,
 			batch_number INT,
-			schema_name VARCHAR(250),
-			table_name VARCHAR(250),
+			schema_name TEXT,
+			table_name TEXT,
 			rows_imported BIGINT,
 			PRIMARY KEY (migration_uuid, data_file_name, batch_number, schema_name, table_name)
 		);`, BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN data_file_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		// fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN data_file_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		// fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
+		// fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, BATCH_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
 			channel_no INT,
@@ -367,14 +367,14 @@ func (yb *TargetYugabyteDB) CreateVoyagerSchema() error {
 			PRIMARY KEY (migration_uuid, channel_no));`, EVENT_CHANNELS_METADATA_TABLE_NAME),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			migration_uuid uuid,
-			table_name VARCHAR(250), 
+			table_name TEXT, 
 			channel_no INT,
 			total_events BIGINT,
 			num_inserts BIGINT,
 			num_deletes BIGINT,
 			num_updates BIGINT,
 			PRIMARY KEY (migration_uuid, table_name, channel_no));`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
-		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
+		// fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN table_name TYPE TEXT;`, EVENTS_PER_TABLE_METADATA_TABLE_NAME),
 	}
 
 	maxAttempts := 12
