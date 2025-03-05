@@ -100,9 +100,11 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    tconf.TargetDBType,
-		DBVersion: targetDBDetails.DBVersion,
-		Role:      "replica",
+		DBType: tconf.TargetDBType,
+		Role:   "replica",
+	}
+	if targetDBDetails != nil {
+		sourceDBDetails.DBVersion = targetDBDetails.DBVersion
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
@@ -128,7 +130,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 
 	importDataPayload.Phase = importPhase
 
-	if importPhase != dbzm.MODE_SNAPSHOT {
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
 		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
 		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
 	}

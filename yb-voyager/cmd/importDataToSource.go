@@ -98,7 +98,9 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 
 	sourceDBDetails := callhome.SourceDBDetails{
 		DBType:    tconf.TargetDBType,
-		DBVersion: targetDBDetails.DBVersion,
+	}
+	if targetDBDetails != nil {
+		sourceDBDetails.DBVersion = targetDBDetails.DBVersion
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
@@ -112,7 +114,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 
 	importDataPayload.Phase = importPhase
 
-	if importPhase != dbzm.MODE_SNAPSHOT {
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
 		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
 		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
 	}
