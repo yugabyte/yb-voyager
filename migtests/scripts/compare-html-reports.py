@@ -55,9 +55,11 @@ def extract_paragraphs(soup):
             if not skip_first_paragraph:
                 skip_first_paragraph = True
                 continue
-        # Skip paragraph that starts with "Database Version:" as it vary according to the environment
-        if p.find("strong") and "Database Version:" in p.get_text():
+        
+        # Skip paragraphs that contain "Database Version:" or "Voyager Version:" as it vary according to the environment
+        if p.find("strong") and any(skip_text in p.get_text() for skip_text in ["Database Version:", "Voyager Version:"]):
             continue
+        
         filtered_paragraphs.append(p)
 
     return extract_and_normalize_texts(filtered_paragraphs)
