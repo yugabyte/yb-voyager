@@ -61,8 +61,12 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	currentProgressAmount := getImportedProgressAmount(task, state)
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 	isTableColocated := false
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if ok {
+
+	if useColocatedImportBatchQueue {
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return nil, fmt.Errorf("tdb is not of type TargetYugabyteDB. Cannot use colocated import batch queue")
+		}
 		isTableColocated, err = yb.IsTableColocated(task.TableNameTup)
 	}
 

@@ -429,7 +429,6 @@ type ColocatedCappedRandomTaskPicker struct {
 }
 
 func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker, colocatedBatchTaskQueue chan func()) (*ColocatedCappedRandomTaskPicker, error) {
-	// var doneTasks []*ImportFileTask
 	var doneTasks []*ImportFileTask
 
 	var inProgressColocatedTasks []*ImportFileTask
