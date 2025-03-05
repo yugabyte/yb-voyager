@@ -24,6 +24,7 @@ import (
 	"strings"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -81,7 +82,7 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 	args := fmt.Sprintf("-create -master_addresses %s -table_name %s -db_name %s ", ybc.ybMasterNodes, ybc.tableName, ybc.dbName)
 
 	if ybc.sslRootCert != "" {
-		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
+		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
 	}
 
 	stdout, err := ybc.runCommand(args)
@@ -120,7 +121,7 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 	args := fmt.Sprintf("-delete_stream %s -master_addresses %s ", streamID, ybc.ybMasterNodes)
 
 	if ybc.sslRootCert != "" {
-		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
+		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
 	}
 
 	_, err = ybc.runCommand(args)
@@ -145,7 +146,7 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 	args := fmt.Sprintf("-list_masters -master_addresses %s -tserver_port %s", ybc.ybServers, tserverPort)
 
 	if ybc.sslRootCert != "" {
-		args += fmt.Sprintf(" -ssl_cert_file %s", ybc.sslRootCert)
+		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
 	}
 
 	stdout, err := ybc.runCommand(args)
