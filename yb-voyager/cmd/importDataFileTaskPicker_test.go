@@ -1224,24 +1224,6 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	assert.Equal(t, 2, len(picker.inProgressTasks))
 }
 
-/*
-singletask-sharded
-singletask-colocated
-multipletasks-sharded
-	-adheres to max tasks in progress
-	- less than max tasks in progress
-	- more than max tasks in progress
-multipletasks-colocated
-	- adheres to max tasks in progress
-multipletasks-colcated+sharded
-    - adheres to max tasks in progress
-	- colocatedqueuefull should pick sharded task
--multipletaskssametable
-	- adheres to max tasks in progress
--resumable
-	- change in max tasks in progress
-*/
-
 func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1, 1024)
 	testutils.FatalIfError(t, err)
@@ -1984,4 +1966,105 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 	assert.False(t, picker.HasMoreTasks())
 	_, err = picker.Pick()
 	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 4)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 5)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 6)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+
+	// 5 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// pick 4 tasks and start the process.
+	task1, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp1, err := NewFileBatchProducer(task1, state)
+	batch1, err := fbp1.NextBatch()
+	assert.NoError(t, err)
+	batch1.MarkInProgress()
+
+	task2, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp2, err := NewFileBatchProducer(task2, state)
+	batch2, err := fbp2.NextBatch()
+	assert.NoError(t, err)
+	batch2.MarkInProgress()
+
+	task3, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp3, err := NewFileBatchProducer(task3, state)
+	batch3, err := fbp3.NextBatch()
+	assert.NoError(t, err)
+	batch3.MarkInProgress()
+
+	task4, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp4, err := NewFileBatchProducer(task4, state)
+	batch4, err := fbp4.NextBatch()
+	assert.NoError(t, err)
+	batch4.MarkInProgress()
+
+	// simulate restart. now, those 4 tasks should be in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	assert.Equal(t, 4, len(picker.inProgressTasks()))
+
+	// simulate restart with  a larger no. of max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	assert.Equal(t, 4, len(picker.inProgressTasks()))
+
+	// simulate restart with a smaller no. of max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	// only two shoudl be inprogress even though previously 4 were in progress.
+	assert.Equal(t, 2, len(picker.inProgressTasks()))
+	assert.Equal(t, 1, len(picker.inProgressColocatedTasks))
+	assert.Equal(t, 1, len(picker.inProgressShardedTasks))
 }
