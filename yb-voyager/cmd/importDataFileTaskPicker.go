@@ -473,8 +473,9 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 		tableName := task.TableNameTup
 		var isColocated bool
 		var tableType string
+		var ok bool
 		// set tableType if not already set
-		if _, ok := tableTypes.Get(tableName); !ok {
+		if tableType, ok = tableTypes.Get(tableName); !ok {
 
 			if !isDBColocated {
 				tableType = SHARDED

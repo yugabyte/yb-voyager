@@ -1756,5 +1756,232 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 	assert.False(t, picker.HasMoreTasks())
 	_, err = picker.Pick()
 	assert.Error(t, err)
+}
 
+func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated1", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated1", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+	}
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(colocatedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either colocatedTask2 or colocatedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask2 || task == colocatedTask3, "task: %v, colocatedTask2: %v, colocatedTask3: %v", task, colocatedTask2, colocatedTask3)
+	}
+
+	// mark colocatedTask2, colocatedTask3 as done
+	err = picker.MarkTaskAsDone(colocatedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(colocatedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 1; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded1", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded1", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(shardedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either shardedTask2 or shardedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask2 || task == shardedTask3, "task: %v, shardedTask2: %v, shardedTask3: %v", task, shardedTask2, shardedTask3)
+	}
+
+	// mark shardedTask2, shardedTask3 as done
+	err = picker.MarkTaskAsDone(shardedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(shardedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 1; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
 }
