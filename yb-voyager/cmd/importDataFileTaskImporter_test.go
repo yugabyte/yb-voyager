@@ -109,7 +109,7 @@ func TestImportAllBatchesAndResume(t *testing.T) {
 	// simulate restart
 	progressReporter = NewImportDataProgressReporter(true)
 	workerPool = pool.New().WithMaxGoroutines(2)
-	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter)
+	taskImporter, err = NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false)
 	testutils.FatalIfError(t, err)
 
 	assert.Equal(t, true, taskImporter.AllBatchesSubmitted())
