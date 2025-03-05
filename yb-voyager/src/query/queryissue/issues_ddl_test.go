@@ -829,9 +829,10 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	// }
 
 	type testPKandUKOnComplexDataTypeTests struct {
-		sql        string
-		errMsgBase string
-		Issue      issue.Issue
+		sql             string
+		errMsgBase      string
+		errMsgv2_25_0_0 string
+		Issue           issue.Issue
 	}
 
 	testCases := []testPKandUKOnComplexDataTypeTests{
@@ -891,24 +892,28 @@ func testPKandUKONComplexDataType(t *testing.T) {
 			Issue:      primaryOrUniqueConstraintOnVarbitDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE daterange_table_pk (id int, name DATERANGE, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
+			sql:             `CREATE TABLE daterange_table_pk (id int, name DATERANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE tsrange_table_pk (id int, name TSRANGE, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
+			sql:             `CREATE TABLE tsrange_table_pk (id int, name TSRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE tstzrange_table_pk (id int, name TSTZRANGE, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
+			sql:             `CREATE TABLE tstzrange_table_pk (id int, name TSTZRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE numrange_table_pk (id int, name NUMRANGE, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
+			sql:             `CREATE TABLE numrange_table_pk (id int, name NUMRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
 		},
 		{
 			sql:        `CREATE TABLE int4range_table_pk (id int, name INT4RANGE, PRIMARY KEY (name));`,
@@ -916,9 +921,10 @@ func testPKandUKONComplexDataType(t *testing.T) {
 			Issue:      primaryOrUniqueConstraintOnInt4rangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE int8range_table_pk (id int, name INT8RANGE, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
+			sql:             `CREATE TABLE int8range_table_pk (id int, name INT8RANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
 		},
 		{
 			sql:        `CREATE TABLE interval_table_pk (id int, name INTERVAL, PRIMARY KEY (name));`,
@@ -961,9 +967,10 @@ func testPKandUKONComplexDataType(t *testing.T) {
 			Issue:      primaryOrUniqueConstraintOnPolygonDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE txid_snapshot_table_pk (id int, name TXID_SNAPSHOT, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'TXID_SNAPSHOT' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue,
+			sql:             `CREATE TABLE txid_snapshot_table_pk (id int, name TXID_SNAPSHOT, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TXID_SNAPSHOT' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue,
 		},
 		{
 			sql: `CREATE TYPE my_udt_pk AS (a int, b text);
@@ -1040,24 +1047,28 @@ func testPKandUKONComplexDataType(t *testing.T) {
 			Issue:      primaryOrUniqueConstraintOnVarbitDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE daterange_table_uk (id int, name DATERANGE, UNIQUE (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
+			sql:             `CREATE TABLE daterange_table_uk (id int, name DATERANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE tsrange_table_uk (id int, name TSRANGE, UNIQUE (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
+			sql:             `CREATE TABLE tsrange_table_uk (id int, name TSRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE tstzrange_table_uk (id int, name TSTZRANGE, UNIQUE (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
+			sql:             `CREATE TABLE tstzrange_table_uk (id int, name TSTZRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE numrange_table_uk (id int, name NUMRANGE, UNIQUE (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
+			sql:             `CREATE TABLE numrange_table_uk (id int, name NUMRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
 		},
 		{
 			sql:        `CREATE TABLE int4range_table_uk (id int, name INT4RANGE, UNIQUE (name));`,
@@ -1065,9 +1076,10 @@ func testPKandUKONComplexDataType(t *testing.T) {
 			Issue:      primaryOrUniqueConstraintOnInt4rangeDatatypeIssue,
 		},
 		{
-			sql:        `CREATE TABLE int8range_table_uk (id int, name INT8RANGE, UNIQUE (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
-			Issue:      primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
+			sql:             `CREATE TABLE int8range_table_uk (id int, name INT8RANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
 		},
 		{
 			sql:        `CREATE TABLE interval_table_uk (id int, name INTERVAL, UNIQUE (name));`,
@@ -1138,7 +1150,13 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		conn, err := getConn()
 		assert.NoError(t, err)
 
-		var errMsg = testCase.errMsgBase
+		var errMsg string
+		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+			errMsg = testCase.errMsgv2_25_0_0
+		} else {
+			errMsg = testCase.errMsgBase
+		}
+
 		_, err = conn.Exec(ctx, testCase.sql)
 		if errMsg == "" { // For the pg_lsn datatype, we are not throwing any error but the operations on it throw error
 			assert.NoError(t, err)
