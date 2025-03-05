@@ -73,6 +73,8 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 	cmdArgs = append(connectionArgs, cmdArgs...)
 	cmdStr := fmt.Sprintf("yb-voyager %s %s", cmdName, strings.Join(cmdArgs, " "))
 	cmd := exec.Command("/bin/bash", "-c", cmdStr)
+	// don't send to callhome for tests
+	cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
 
 	// 2) Get the stdout and stderr pipes.
 	stdoutPipe, err := cmd.StdoutPipe()
