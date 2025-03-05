@@ -1228,24 +1228,3 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 
 	return result
 }
-
-//
-// colocatedBatchesInProgress =  singlePool.getColocatedBatchesInProgress()
-// if colocatedBatchesInProgress <  (3)
-// 	- pick a colocated task
-// else
-//  - sleep (because on sharded tasks)
-
-// importer
-// - picker.getnexttask()
-// - produce batch for colocated
-//	- read file further and write to batch
-//  - submit batch to single pool
-
-// single queue
-// filetaskimporter puts it onto a single queue
-// - colocatedqueue
-// - shardedqueue
-// - t1queue
-// - t2queue
-// - node1queue
