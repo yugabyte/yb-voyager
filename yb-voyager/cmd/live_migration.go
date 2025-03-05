@@ -78,6 +78,7 @@ func streamChanges(state *ImportDataState, tableNames []sqlname.NameTuple) error
 		return err
 	}
 	if ok {
+		log.Info("cutover is initiated and the event is detected..")
 		return nil
 	}
 	log.Infof("NUM_EVENT_CHANNELS: %d, EVENT_CHANNEL_SIZE: %d, MAX_EVENTS_PER_BATCH: %d, MAX_INTERVAL_BETWEEN_BATCHES: %d",

@@ -29,18 +29,18 @@ type MigrationStatusRecord struct {
 	CutoverToSourceRequested        bool `json:"CutoverToSourceRequested"`
 	CutoverToSourceReplicaRequested bool `json:"CutoverToSourceReplicaRequested"`
 
-	//All the cutover processed by importer/exporter flags
+	//All the cutover detected by importer flags (marked when the cutover event is recieved by the importer)
+	CutoverDetectedByTargetImporter        bool `json:"CutoverDetectedByTargetImporter"`
+	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
+	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
+
+	//All the cutover processed by importer/exporter flags - indicating that the cutover is completed by that command.
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
 	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`
 	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
 	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
 	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
 	CutoverToSourceProcessedBySourceImporter        bool `json:"CutoverToSourceProcessedBySourceImporter"`
-
-	//All the cutover detectedc flags by importer when they processed the cutover event
-	CutoverDetectedByTargetImporter        bool `json:"CutoverDetectedByTargetImporter"`
-	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
-	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
 
 	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
 	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
