@@ -27,6 +27,8 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -38,6 +40,10 @@ func TestMain(m *testing.M) {
 	log.SetLevel(log.WarnLevel)
 
 	exitCode := m.Run()
+
+	// cleanig up all the running containers
+	testcontainers.TerminateAllContainers()
+
 	os.Exit(exitCode)
 }
 
@@ -52,7 +58,6 @@ func Test_AssessMigration(t *testing.T) {
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
 	}
-	defer postgresContainer.Terminate(context.Background())
 
 	// create table and initial data in it
 	postgresContainer.ExecuteSqls(`
@@ -82,6 +87,49 @@ END $$;`)
 		}
 	}
 
+	expectedColocatedTables := []string{"public.test_data"}
+	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
+		SizingRecommendation: migassessment.SizingRecommendation{
+			ColocatedTables:                 []string{"public.test_data"},
+			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			ShardedTables:                   nil,
+			NumNodes:                        3,
+			VCPUsPerInstance:                4,
+			MemoryPerInstance:               16,
+			OptimalSelectConnectionsPerNode: 8,
+			OptimalInsertConnectionsPerNode: 12,
+			EstimatedTimeInMinForImport:     1,
+			ParallelVoyagerJobs:             1,
+		},
+		FailureReasoning: "",
+	}
+	expectedTableIndexStats := []migassessment.TableIndexStats{
+		{
+			SchemaName:      "public",
+			ObjectName:      "test_data",
+			RowCount:        int64Ptr(100000),
+			ColumnCount:     int64Ptr(2),
+			ReadsPerSecond:  int64Ptr(10),
+			WritesPerSecond: int64Ptr(0),
+			IsIndex:         false,
+			ObjectType:      "table",
+			ParentTableName: nil,
+			SizeInBytes:     int64Ptr(6832128),
+		},
+		{
+			SchemaName:      "public",
+			ObjectName:      "test_data_pkey",
+			RowCount:        nil,
+			ColumnCount:     int64Ptr(1),
+			ReadsPerSecond:  int64Ptr(0),
+			WritesPerSecond: int64Ptr(0),
+			IsIndex:         true,
+			ObjectType:      "primary key",
+			ParentTableName: stringPtr("public.test_data"),
+			SizeInBytes:     int64Ptr(2260992),
+		},
+	}
+
 	// running the command
 	err = testutils.RunVoyagerCommmand(postgresContainer, "assess-migration", []string{
 		"--iops-capture-interval", "10",
@@ -103,8 +151,20 @@ END $$;`)
 		t.Errorf("failed to get colocated tables recommendation: %v", err)
 	}
 
-	fmt.Printf("Colocated tables: %v\n", colocatedTables)
+	log.Infof("Colocated tables: %v\n", colocatedTables)
+	log.Infof("Sizing recommendations: %+v\n", report.Sizing)
+	log.Infof("TableIndexStats: %s\n", spew.Sdump(report.TableIndexStats))
 
-	fmt.Printf("Sizing recommendations: %+v\n", report.Sizing)
-	fmt.Printf("TableIndexStats: %s\n", spew.Sdump(report.TableIndexStats))
+	// assert all these three info
+	testutils.AssertEqualStringSlices(t, expectedColocatedTables, colocatedTables)
+	assert.Equal(t, expectedSizingAssessmentReport, *report.Sizing)
+	assert.Equal(t, expectedTableIndexStats, *report.TableIndexStats)
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
+}
+
+func stringPtr(s string) *string {
+	return &s
 }
