@@ -371,7 +371,6 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		neededCores :=
 			math.Ceil(float64(cumulativeSelectOpsPerSec)/shardedThroughput.maxSupportedSelectsPerCore.Float64 +
 				float64(cumulativeInsertOpsPerSec)/shardedThroughput.maxSupportedInsertsPerCore.Float64)
-
 		nodesNeeded := math.Ceil(neededCores / shardedThroughput.numCores.Float64)
 		// Assumption: If there are any colocated objects - one node will be utilized as colocated tablet leader.
 		// Add it explicitly.
@@ -382,6 +381,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
 		// Choose max of nodes needed and 3
 		nodesNeeded = math.Max(nodesNeeded, 3)
+		neededCores = lo.Ternary(neededCores == 0, float64(previousRecommendation.VCPUsPerInstance*3), neededCores)
 
 		// Update recommendation with the number of nodes needed
 		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
