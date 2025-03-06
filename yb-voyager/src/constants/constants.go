@@ -49,6 +49,5 @@ const (
 )
 
 const (
-	OBFUSCATE_STRING  = "XXXXX"
-	COLOCATION_CLAUSE = "colocation"
+	OBFUSCATE_STRING = "XXXXX"
 )

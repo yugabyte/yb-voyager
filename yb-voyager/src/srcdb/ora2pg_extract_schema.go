@@ -103,7 +103,6 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 			}
 		}
 	}
-	fmt.Println()
 	if source.DBType == "oracle" {
 		if err := ora2pgAssessmentReport(source, configFilePath, schemaDir); err != nil {
 			utils.ErrExit("failed to save ora2pg oracle assessment report during export schema: %v", err.Error())
