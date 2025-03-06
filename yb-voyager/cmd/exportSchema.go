@@ -55,8 +55,6 @@ var exportSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating export schema flags: %s", err.Error())
 		}
-
-		validateAssessmentReportPathFlag()
 		markFlagsRequired(cmd)
 	},
 
@@ -172,7 +170,16 @@ func exportSchema() error {
 		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
 
-	applySchemaTransformations()
+	err = applyMigrationAssessmentRecommendations()
+	if err != nil {
+		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
+	}
+
+	// continue after logging the error; since this transformation is only for performance improvement
+	err = applyMergeConstraintsTransformations()
+	if err != nil {
+		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
+	}
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
@@ -239,19 +246,6 @@ func init() {
 		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
 }
 
-func validateAssessmentReportPathFlag() {
-	if assessmentReportPath == "" {
-		return
-	}
-
-	if !utils.FileOrFolderExists(assessmentReportPath) {
-		utils.ErrExit("assessment report file doesn't exists at path provided in --assessment-report-path flag: %q", assessmentReportPath)
-	}
-	if !strings.HasSuffix(assessmentReportPath, ".json") {
-		utils.ErrExit("assessment report file should be in JSON format, path provided in --assessment-report-path flag: %q", assessmentReportPath)
-	}
-}
-
 func schemaIsExported() bool {
 	if !metaDBIsCreated(exportDir) {
 		return false
@@ -301,160 +295,305 @@ func updateIndexesInfoInMetaDB() error {
 	return nil
 }
 
-/*
-applySchemaTransformations applies the following transformations to the exported schema one by one
-and saves the transformed schema in the same file.
+func applyMigrationAssessmentRecommendations() error {
+	if skipRecommendations {
+		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
+		return nil
+	} else if source.DBType == MYSQL {
+		return nil
+	}
 
-In case of any failure in applying any transformation, it logs the error, keep the original file and continues with the next transformation.
-*/
-func applySchemaTransformations() {
-	// 1. Transform table.sql
-	{
-		tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
-		transformations := []func([]*pg_query.RawStmt) ([]*pg_query.RawStmt, error){
-			applyShardedTableTransformation,     // transform #1
-			applyMergeConstraintsTransformation, // transform #2
-		}
+	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
+	assessmentReportPath := lo.Ternary(assessmentReportPath != "", assessmentReportPath,
+		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
+	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
+	if !utils.FileOrFolderExists(assessmentReportPath) {
+		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
+		return nil
+	}
 
-		err := transformSchemaFile(tableFilePath, transformations, "table")
+	log.Infof("parsing assessment report json file for applying recommendations")
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+	}
+
+	shardedTables, err := report.GetShardedTablesRecommendation()
+	if err != nil {
+		return fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
+	} else {
+		err := applyShardedTablesRecommendation(shardedTables, TABLE)
 		if err != nil {
-			log.Warnf("Error transforming %q: %v", tableFilePath, err)
+			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+		}
+		err = applyShardedTablesRecommendation(shardedTables, MVIEW)
+		if err != nil {
+			return fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
 
-	// 2. Transform mview.sql
-	{
-		mviewFilePath := utils.GetObjectFilePath(schemaDir, MVIEW)
-		transformations := []func([]*pg_query.RawStmt) ([]*pg_query.RawStmt, error){
-			applyShardedTableTransformation, // only transformation for mview
-		}
+	assessmentRecommendationsApplied = true
+	SetAssessmentRecommendationsApplied()
 
-		err := transformSchemaFile(mviewFilePath, transformations, "mview")
-		if err != nil {
-			log.Warnf("Error transforming %q: %v", mviewFilePath, err)
-		}
-	}
+	utils.PrintAndLog("Applied assessment recommendations.")
+	return nil
 }
 
-// transformSchemaFile applies a sequence of transformations to the given schema file
-// and writes the transformed result back. If the file doesn't exist, logs a message and returns nil.
-func transformSchemaFile(filePath string, transformations []func(raw []*pg_query.RawStmt) ([]*pg_query.RawStmt, error), objectType string) error {
-	if !utils.FileOrFolderExists(filePath) {
-		log.Infof("%q file doesn't exist, skipping transformations for %s object type", filePath, objectType)
+// TODO: merge this function with applying sharded/colocated recommendation
+func applyMergeConstraintsTransformations() error {
+	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
+		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
 		return nil
 	}
 
-	rawStmts, err := queryparser.ParseSqlFile(filePath)
-	if err != nil {
-		return fmt.Errorf("failed to parse sql statements from %s object type in schema file %q: %w", objectType, filePath, err)
-	}
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
+	transformer := sqltransformer.NewTransformer()
 
-	beforeSqlStmts, err := queryparser.DeparseRawStmts(rawStmts)
-	if err != nil {
-		return fmt.Errorf("failed to deparse raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
-	}
-
-	transformedStmts := rawStmts
-	// Apply transformations in order
-	for _, transformFn := range transformations {
-		newStmts, err := transformFn(transformedStmts)
-		if err != nil {
-			// Log and continue using the unmodified statements slice for subsequent transformations in case of error
-			log.Warnf("failed to apply transformation function %T in schema file %q: %v", transformFn, filePath, err)
-			continue
-		}
-		transformedStmts = newStmts
-	}
-
-	// Deparse
-	sqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
-	if err != nil {
-		return fmt.Errorf("failed to deparse transformed raw stmts for %s object type in schema file %q: %w", objectType, filePath, err)
-	}
-
-	// Below Check for if transformations changed anything is WRONG
-	// here we are dealing with pointers - *pg_query.RawStmt so underlying elements of slices point to same memory
-	// if slices.Equal(originalStmts, transformedStmts) {
-	// 	log.Infof("no change in the schema for object type %s after applying all transformations", objectType)
-	// 	return nil
-	// }
-	if slices.Equal(beforeSqlStmts, sqlStmts) {
-		log.Infof("no change in the schema for object type %s after applying all transformations", objectType)
+	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
+		log.Infof("table.sql file doesn't exists, skipping applying merge constraints transformation")
 		return nil
 	}
 
-	// Backup original
-	backupFile := filePath + ".orig"
-	err = os.Rename(filePath, backupFile)
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
 	if err != nil {
-		return fmt.Errorf("failed to rename %s file to %s: %w", filePath, backupFile, err)
+		return fmt.Errorf("failed to parse table.sql file: %w", err)
 	}
 
-	// Write updated file
+	transformedRawStmts, err := transformer.MergeConstraints(rawStmts.Stmts)
+	if err != nil {
+		return fmt.Errorf("failed to merge constraints: %w", err)
+	}
+
+	sqlStmts, err := queryparser.DeparseRawStmts(transformedRawStmts)
+	if err != nil {
+		return fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
+	}
+
 	fileContent := strings.Join(sqlStmts, "\n\n")
-	err = os.WriteFile(filePath, []byte(fileContent), 0644)
+
+	// rename the old file to table_before_merge_constraints.sql
+	// replace filepath base with new name
+	renamedFileName := filepath.Join(filepath.Dir(fileName), "table_before_merge_constraints.sql")
+	err = os.Rename(fileName, renamedFileName)
 	if err != nil {
-		return fmt.Errorf("failed to write transformed schema file %q: %w", filePath, err)
+		return fmt.Errorf("failed to rename table.sql file to table_before_merge_constraints.sql: %w", err)
+	}
+
+	err = os.WriteFile(fileName, []byte(fileContent), 0644)
+	if err != nil {
+		return fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
 
 	return nil
 }
 
-func applyShardedTableTransformation(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	log.Info("applying sharded tables transformation to the exported schema")
-	assessmentReportPath = lo.Ternary(assessmentReportPath != "", assessmentReportPath,
-		filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME)))
-	assessmentReport, err := ParseJSONToAssessmentReport(assessmentReportPath)
-	if err != nil {
-		return stmts, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+func applyShardedTablesRecommendation(shardedTables []string, objType string) error {
+	if shardedTables == nil {
+		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
+		return nil
 	}
 
-	shardedObjects, err := assessmentReport.GetShardedTablesRecommendation()
-	if err != nil {
-		return stmts, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
-	}
-
-	isObjectSharded := func(objectName string) bool {
-		switch source.DBType {
-		case POSTGRESQL:
-			return slices.Contains(shardedObjects, objectName)
-		case ORACLE:
-			// TODO: handle case-sensitivity properly
-			for _, shardedObject := range shardedObjects {
-				// in case of oracle, shardedTable is unqualified.
-				if strings.ToLower(shardedObject) == objectName {
-					return true
-				}
-			}
-		default:
-			panic(fmt.Sprintf("unsupported source db type %s for applying sharded table transformation", source.DBType))
+	filePath := utils.GetObjectFilePath(schemaDir, objType)
+	if !utils.FileOrFolderExists(filePath) {
+		// Report if the file does not exist for tables. No need to report it for mviews
+		if objType == TABLE {
+			utils.PrintAndLog("Required schema file %s does not exists, "+
+				"returning without applying colocated/sharded tables recommendation", filePath)
 		}
-		return false
+		return nil
 	}
 
-	transformer := sqltransformer.NewTransformer()
-	transformedRawStmts, err := transformer.ConvertToShardedTables(stmts, isObjectSharded)
+	log.Infof("applying colocated vs sharded tables recommendation")
+	var newSQLFileContent strings.Builder
+	sqlInfoArr := parseSqlFileForObjectType(filePath, objType)
+
+	for _, sqlInfo := range sqlInfoArr {
+		/*
+			We can rely on pg_query to detect if it is CreateTable and also table name
+			but due to time constraint this module can't be tested thoroughly so relying on the existing as much as possible
+
+			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
+			But avoiding that also specially for cases where the SQL syntax can be invalid
+		*/
+		modifiedSqlStmt, match, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
+		if err != nil {
+			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
+			if match {
+				utils.PrintAndLog("Unable to apply sharding recommendation for table=%q, continuing without applying...\n", sqlInfo.objName)
+				utils.PrintAndLog("Please manually add the clause \"WITH (colocation = false)\" to the CREATE TABLE DDL of the '%s' table.\n", sqlInfo.objName)
+			}
+		} else {
+			if match {
+				log.Infof("original ddl - %s", sqlInfo.stmt)
+				log.Infof("modified ddl - %s", modifiedSqlStmt)
+			}
+		}
+
+		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
+		if err != nil {
+			return fmt.Errorf("write SQL string to string builder: %w", err)
+		}
+	}
+
+	// rename existing table.sql file to table.sql.orig
+	backupPath := filePath + ".orig"
+	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
+	err := os.Rename(filePath, filePath+".orig")
 	if err != nil {
-		return stmts, fmt.Errorf("failed to convert to sharded tables: %w", err)
+		return fmt.Errorf("error renaming file %s: %w", filePath, err)
 	}
 
-	return transformedRawStmts, nil
+	// create new table.sql file for modified schema
+	log.Infof("creating file %q to store the modified recommended schema", filePath)
+	file, err := os.Create(filePath)
+	if err != nil {
+		return fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
+		return fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	if err = file.Close(); err != nil {
+		return fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+	}
+	var objTypeName = ""
+	switch objType {
+	case MVIEW:
+		objTypeName = "MATERIALIZED VIEW"
+	case TABLE:
+		objTypeName = "TABLE"
+	default:
+		panic(fmt.Sprintf("Object type not supported %s", objType))
+	}
+
+	utils.PrintAndLog("Modified CREATE %s statements in %q according to the colocation and sharding recommendations of the assessment report.",
+		objTypeName,
+		utils.GetRelativePathFromCwd(filePath))
+	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
+	return nil
 }
 
-func applyMergeConstraintsTransformation(rawStmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	if utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false) {
-		log.Infof("skipping applying merge constraints transformation due to env var YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS=true")
-		return rawStmts, nil
-	}
+/*
+applyShardingRecommendationIfMatching uses pg_query module to parse the given SQL stmt
+In case of any errors or unexpected behaviour it return the original DDL
+so in worse case, only recommendation of that table won't be followed.
 
-	log.Info("applying merge constraints transformation to the exported schema")
-	transformer := sqltransformer.NewTransformer()
-	transformedRawStmts, err := transformer.MergeConstraints(rawStmts)
+# It can handle cases like multiple options in WITH clause
+
+returns:
+modifiedSqlStmt: original stmt if not sharded else modified stmt with colocation clause
+match: true if its a sharded table and should be modified
+error: nil/non-nil
+
+Drawback: pg_query module doesn't have functionality to format the query after parsing
+so the CREATE TABLE for sharding recommended tables will be one-liner
+*/
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, error) {
+
+	stmt := sqlInfo.stmt
+	formattedStmt := sqlInfo.formattedStmt
+	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return rawStmts, fmt.Errorf("failed to merge constraints: %w", err)
+		return formattedStmt, false, fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
 
-	return transformedRawStmts, nil
+	if len(parseTree.Stmts) == 0 {
+		log.Warnf("parse tree is empty for stmt=%s for table '%s'", stmt, sqlInfo.objName)
+		return formattedStmt, false, nil
+	}
+
+	relation := &pg_query.RangeVar{}
+	switch objType {
+	case MVIEW:
+		createMViewNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+		if !ok || createMViewNode.CreateTableAsStmt.Objtype != pg_query.ObjectType_OBJECT_MATVIEW {
+			// return the original sql if it's not a Create Materialized view statement
+			log.Infof("stmt=%s is not create materialized view as per the parse tree,"+
+				" expected tablename=%s", stmt, sqlInfo.objName)
+			return formattedStmt, false, nil
+		}
+		relation = createMViewNode.CreateTableAsStmt.Into.Rel
+	case TABLE:
+		createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		if !ok { // return the original sql if it's not a CreateStmt
+			log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
+			return formattedStmt, false, nil
+		}
+		relation = createStmtNode.CreateStmt.Relation
+	default:
+		panic(fmt.Sprintf("Object type not supported %s", objType))
+	}
+
+	// true -> oracle, false -> PG
+	parsedObjectName := utils.BuildObjectName(relation.Schemaname, relation.Relname)
+
+	match := false
+	switch source.DBType {
+	case POSTGRESQL:
+		match = slices.Contains(shardedTables, parsedObjectName)
+	case ORACLE:
+		// TODO: handle case-sensitivity properly
+		for _, shardedTable := range shardedTables {
+			// in case of oracle, shardedTable is unqualified.
+			if strings.ToLower(shardedTable) == parsedObjectName {
+				match = true
+				break
+			}
+		}
+	default:
+		panic(fmt.Sprintf("unsupported source db type %s for applying sharding recommendations", source.DBType))
+	}
+	if !match {
+		log.Infof("%q not present in the sharded table list", parsedObjectName)
+		return formattedStmt, false, nil
+	} else {
+		log.Infof("%q present in the sharded table list", parsedObjectName)
+	}
+
+	colocationOption := &pg_query.DefElem{
+		Defname: COLOCATION_CLAUSE,
+		Arg:     pg_query.MakeStrNode("false"),
+	}
+
+	nodeForColocationOption := &pg_query.Node_DefElem{
+		DefElem: colocationOption,
+	}
+
+	log.Infof("adding colocation option in the parse tree for table %s", sqlInfo.objName)
+	switch objType {
+	case MVIEW:
+		createMViewNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
+
+		if createMViewNode.CreateTableAsStmt.Into.Options == nil {
+			createMViewNode.CreateTableAsStmt.Into.Options =
+				[]*pg_query.Node{{Node: nodeForColocationOption}}
+		} else {
+			createMViewNode.CreateTableAsStmt.Into.Options = append(
+				createMViewNode.CreateTableAsStmt.Into.Options,
+				&pg_query.Node{Node: nodeForColocationOption})
+		}
+	case TABLE:
+		createStmtNode, _ := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
+		if createStmtNode.CreateStmt.Options == nil {
+			createStmtNode.CreateStmt.Options =
+				[]*pg_query.Node{{Node: nodeForColocationOption}}
+		} else {
+			createStmtNode.CreateStmt.Options = append(
+				createStmtNode.CreateStmt.Options,
+				&pg_query.Node{Node: nodeForColocationOption})
+		}
+	default:
+		panic(fmt.Sprintf("Object type not supported %s", objType))
+	}
+
+	log.Infof("deparsing the updated parse tre into a stmt for table '%s'", parsedObjectName)
+	modifiedQuery, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return formattedStmt, true, fmt.Errorf("error deparsing the parseTree into the query: %w", err)
+	}
+
+	// adding semi-colon at the end
+	return fmt.Sprintf("%s;", modifiedQuery), true, nil
 }
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
