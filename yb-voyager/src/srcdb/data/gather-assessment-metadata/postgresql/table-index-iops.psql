@@ -12,12 +12,12 @@ SELECT
         ELSE 'unknown'
     END AS object_type,
     CASE 
-        WHEN c.relkind IN ('r', 'm') THEN psut.seq_tup_read
-        WHEN c.relkind = 'i' THEN psi.idx_scan
+        WHEN c.relkind IN ('r', 'm') THEN COALESCE(psut.seq_scan + psut.idx_scan, 0)
+        WHEN c.relkind = 'i' THEN 0::bigint -- just a placeholder so that sizing algorithm doesn't fail
     END AS seq_reads,
     CASE
         WHEN c.relkind IN ('r', 'm') THEN psut.n_tup_ins + psut.n_tup_upd + psut.n_tup_del
-        WHEN c.relkind = 'i' THEN psi.idx_tup_read
+        WHEN c.relkind = 'i' THEN 0::bigint
     END AS row_writes,
     :'measurement_type' AS measurement_type
 FROM
