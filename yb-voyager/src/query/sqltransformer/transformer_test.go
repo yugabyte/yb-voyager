@@ -18,10 +18,8 @@ limitations under the License.
 package sqltransformer
 
 import (
-	"os"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -39,14 +37,6 @@ import (
 	9. [Extra] Exclude constraint (omission of USING btree by parser)
 */
 
-func TestMain(m *testing.M) {
-	// set log level to warn
-	log.SetLevel(log.WarnLevel)
-
-	exitCode := m.Run()
-	os.Exit(exitCode)
-}
-
 func TestMergeConstraints_Basic(t *testing.T) {
 	sqlFileContent := `
 	CREATE TABLE test_table1 (
@@ -61,18 +51,14 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	);
 
 	ALTER TABLE test_table1 ADD CONSTRAINT test_table_pk PRIMARY KEY (id);
-	-- Skip NOT VALID merging constraint
-	ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;
-
-	ALTER TABLE test_table2 ADD CONSTRAINT test_table2_fk FOREIGN KEY (id) REFERENCES test_table1 (id);
-	ALTER TABLE test_table2 ADD CONSTRAINT test_table2_uk UNIQUE (email);
+	ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);
+	ALTER TABLE test_table2 ADD CONSTRAINT test_table_uk UNIQUE (email);
 	`
 
 	expectedSqls := []string{
 		`CREATE TABLE test_table1 (id int, name varchar(255), CONSTRAINT test_table_pk PRIMARY KEY (id));`,
-		`ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;`,
-		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255), CONSTRAINT test_table2_uk UNIQUE (email));`,
-		`ALTER TABLE test_table2 ADD CONSTRAINT test_table2_fk FOREIGN KEY (id) REFERENCES test_table1 (id);`,
+		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255), CONSTRAINT test_table_uk UNIQUE (email));`,
+		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);`,
 	}
 
 	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
@@ -82,7 +68,7 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -151,7 +137,7 @@ func TestMergeConstraints_AllSupportedConstraintTypes(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -181,7 +167,7 @@ func TestMergeConstraints_DifferentCasing(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -215,7 +201,7 @@ func TestMergeConstraints_MultipleConstraintsInSingleStmt(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -257,7 +243,7 @@ func TestMergeConstraints_CircularDependencyWithSeparateFK(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -288,7 +274,7 @@ func TestMergeConstraints_QuotedColumnNames(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -315,7 +301,7 @@ func TestMergeConstraints_AlterWithoutCreateTableError(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	_, transformErr := transformer.MergeConstraints(stmts)
+	_, transformErr := transformer.MergeConstraints(stmts.Stmts)
 	if transformErr == nil {
 		t.Fatalf("expected an error because CREATE TABLE is missing, but got no error")
 	}
@@ -325,67 +311,6 @@ func TestMergeConstraints_AlterWithoutCreateTableError(t *testing.T) {
 	if transformErr.Error() != expectedErrMsg {
 		t.Fatalf("expected error: %v, got: %v", expectedErrMsg, transformErr.Error())
 	}
-}
-
-func TestConvertToShardedTables(t *testing.T) {
-	sqlFileContent := `
-		CREATE TABLE test_table1 (
-			id INT PRIMARY KEY,
-			name VARCHAR(255)
-		);
-
-		CREATE TABLE test_table2 (
-			id INT PRIMARY KEY,
-			name VARCHAR(255),
-			email VARCHAR(255)
-		);
-
-		CREATE TABLE test_table3 (
-			id INT PRIMARY KEY,
-			name VARCHAR(255),
-			email VARCHAR(255)
-		) WITH (fillfactor=100);
-
-		CREATE TABLE test_table4 (
-			id INT PRIMARY KEY,
-			name VARCHAR(255),
-			email VARCHAR(255)
-		) WITH (fillfactor=101);
-
-		CREATE MATERIALIZED VIEW test_mview1 AS SELECT * FROM test_table1;
-		CREATE MATERIALIZED VIEW test_mview2 AS SELECT * FROM test_table2;
-		CREATE MATERIALIZED VIEW test_mview3 WITH (fillfactor=70) AS SELECT * FROM test_table3 WHERE a = 3 with no data;
-
-		ALTER TABLE test_table1 ADD COLUMN col text; -- this should be ignored
-	`
-
-	expectedSqls := []string{
-		`CREATE TABLE test_table1 (id int PRIMARY KEY, name varchar(255)) WITH (colocation=false);`,
-		`CREATE TABLE test_table2 (id int PRIMARY KEY, name varchar(255), email varchar(255));`,
-		`CREATE TABLE test_table3 (id int PRIMARY KEY, name varchar(255), email varchar(255)) WITH (fillfactor=100, colocation=false);`,
-		`CREATE TABLE test_table4 (id int PRIMARY KEY, name varchar(255), email varchar(255)) WITH (fillfactor=101);`,
-		`CREATE MATERIALIZED VIEW test_mview1 WITH (colocation=false) AS SELECT * FROM test_table1;`,
-		`CREATE MATERIALIZED VIEW test_mview2 AS SELECT * FROM test_table2;`,
-		`CREATE MATERIALIZED VIEW test_mview3 WITH (fillfactor=70, colocation=false) AS SELECT * FROM test_table3 WHERE a = 3 WITH NO DATA;`,
-		`ALTER TABLE test_table1 ADD COLUMN col text;`,
-	}
-
-	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
-	testutils.FatalIfError(t, err)
-
-	stmts, err := queryparser.ParseSqlFile(tempFilePath)
-	testutils.FatalIfError(t, err)
-
-	transformer := NewTransformer()
-	transformedStmts, err := transformer.ConvertToShardedTables(stmts, func(objectName string) bool {
-		return objectName == "test_table1" || objectName == "test_table3" || objectName == "test_mview1" || objectName == "test_mview3"
-	})
-	testutils.FatalIfError(t, err)
-
-	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
-	testutils.FatalIfError(t, err)
-
-	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
 }
 
 /*
@@ -424,7 +349,7 @@ func TestMergeConstraints_ExcludeConstraintType(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
@@ -466,34 +391,10 @@ func Test_RemovalOfDefaultValuesByParser(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	transformer := NewTransformer()
-	transformedStmts, err := transformer.MergeConstraints(stmts)
+	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
-	testutils.FatalIfError(t, err)
-
-	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
-}
-
-// Tests cases where deparse() API deviates from expected SQL or a corner cases which is good to test.
-func Test_DeparsingAPI(t *testing.T) {
-	sqlFileContent := `
-		CREATE TABLE my_table (created_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'));
-	`
-
-	expectedSqls := []string{
-		// expected: CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');
-		// but below is what parser actual returns due to Parser bug: https://github.com/pganalyze/pg_query_go/issues/126
-		`CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');`,
-	}
-
-	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
-	testutils.FatalIfError(t, err)
-
-	stmts, err := queryparser.ParseSqlFile(tempFilePath)
-	testutils.FatalIfError(t, err)
-
-	finalSqlStmts, err := queryparser.DeparseRawStmts(stmts)
 	testutils.FatalIfError(t, err)
 
 	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)

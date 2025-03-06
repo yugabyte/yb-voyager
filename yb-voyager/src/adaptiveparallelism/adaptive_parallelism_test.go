@@ -18,11 +18,9 @@ limitations under the License.
 package adaptiveparallelism
 
 import (
-	"os"
 	"strconv"
 	"testing"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 )
@@ -112,14 +110,6 @@ func (d *dummyTargetYugabyteDB) GetNumMaxConnectionsInPool() int {
 func (d *dummyTargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
 	d.size += delta
 	return nil
-}
-
-func TestMain(m *testing.M) {
-	// to avoid info level logs flooding the unit test output
-	log.SetLevel(log.WarnLevel)
-
-	exitCode := m.Run()
-	os.Exit(exitCode)
 }
 
 func TestMaxCpuUsage(t *testing.T) {
