@@ -365,8 +365,9 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
-		// Choose max of nodes needed and 3
+		// Choose max of nodes needed and 3 and same for neededCores.
 		nodesNeeded = math.Max(nodesNeeded, 3)
+		neededCores = math.Max(neededCores, float64(previousRecommendation.VCPUsPerInstance*3))
 
 		// Update recommendation with the number of nodes needed
 		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
