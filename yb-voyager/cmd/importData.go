@@ -596,7 +596,8 @@ func importData(importFileTasks []*ImportFileTask) {
 
 			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
-				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxTasksInProgress, 3)
+				maxColocatedBatchesInProgress := utils.GetEnvAsInt("MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxTasksInProgress, maxColocatedBatchesInProgress)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker: %s", err)
 				}
