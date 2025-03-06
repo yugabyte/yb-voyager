@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -283,12 +284,21 @@ func SizingAssessment(assessmentDir string) error {
 pickBestRecommendation selects the best recommendation from a map of recommendations by optimizing for the cores. Hence,
 we chose the setup where the number of cores is less.
 Parameters:
-  - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
+  - recommendations: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - The best IntermediateRecommendation based on the defined criteria.
 */
-func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) IntermediateRecommendation {
+func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) IntermediateRecommendation {
+	var recs []IntermediateRecommendation
+	for _, v := range recommendations {
+		recs = append(recs, v)
+	}
+	// descending order sort
+	sort.Slice(recs, func(i, j int) bool {
+		return recs[i].VCPUsPerInstance > recs[j].VCPUsPerInstance
+	})
+
 	// find the one with the least number of nodes
 	var minCores int = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
@@ -296,7 +306,7 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 	var maxCores int = math.MinInt32
 
 	// Iterate over each recommendation
-	for _, rec := range recommendation {
+	for _, rec := range recs {
 		// Update maxCores with the maximum number of vCPUs per instance across recommendations. If none of the cores
 		// abe to satisfy the criteria, recommendation with maxCores will be used as final recommendation
 		if maxCores < rec.VCPUsPerInstance {
@@ -307,6 +317,7 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 			foundRecommendation = true
 			// Update finalRecommendation if the current recommendation has fewer cores.
 			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
+			fmt.Printf(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
 			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
 				minCores = int(rec.CoresNeeded)
@@ -320,7 +331,7 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 	}
 	// If no valid recommendation was found, select the recommendation with the maximum number of cores
 	if !foundRecommendation {
-		finalRecommendation = recommendation[maxCores]
+		finalRecommendation = recs[maxCores]
 		// notify customers to reach out to the Yugabyte customer support team for further assistance
 		finalRecommendation.FailureReasoning = "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
 	}
