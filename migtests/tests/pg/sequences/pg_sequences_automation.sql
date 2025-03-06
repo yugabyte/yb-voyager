@@ -215,3 +215,38 @@ WITH region_list AS (
                 'Branch ' || n as branch, 
                 region[1 + mod(n, array_length(region, 1))] 
                     FROM amount_list, region_list, generate_series(1,1000) as n;
+
+CREATE SEQUENCE user_code_seq
+START WITH 1
+INCREMENT BY 1;
+
+CREATE OR REPLACE FUNCTION generate_user_code() RETURNS TEXT AS $$
+DECLARE
+    new_code TEXT;
+BEGIN
+    SELECT 'USR' || LPAD(nextval('user_code_seq')::TEXT, 4, '0') 
+    INTO new_code;
+    RETURN new_code;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TABLE users (
+    user_id SERIAL PRIMARY KEY,
+    user_code TEXT UNIQUE,
+    name TEXT
+);
+
+ALTER TABLE ONLY users ALTER COLUMN user_code SET DEFAULT generate_user_code()
+
+ALTER SEQUENCE public.user_code_seq OWNED BY public.users.user_code;
+
+INSERT INTO users (name) 
+VALUES ('John Doe');
+
+INSERT INTO users (name) 
+VALUES ('ABC');
+
+INSERT INTO users (name) 
+VALUES ('XYZ');
+
+SELECT * FROM users;

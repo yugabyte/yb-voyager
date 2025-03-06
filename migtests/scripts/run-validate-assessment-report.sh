@@ -21,7 +21,6 @@ export REPO_ROOT="${PWD}"
 export SCRIPTS="${REPO_ROOT}/migtests/scripts"
 export TESTS_DIR="${REPO_ROOT}/migtests/tests"
 export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
-export EXPORT_DIR=${EXPORT_DIR:-"${TEST_DIR}/export-dir"}
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
@@ -41,6 +40,8 @@ source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
 
 source ${SCRIPTS}/functions.sh
 
+normalize_and_export_vars "assess"
+
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}	
@@ -55,6 +56,18 @@ main() {
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
+	if [[ "${SKIP_DB_CREATION}" != "true" ]]; then
+	    if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+	        create_source_db "${SOURCE_DB_NAME}"
+	    elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+	        create_source_db "${SOURCE_DB_SCHEMA}"
+	    else
+	        echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+	        exit 1
+	    fi
+	else
+	    echo "Skipping database creation as SKIP_DB_CREATION is set to true."
+	fi
 	./init-db
 
 	step "Grant source database user permissions"
@@ -64,18 +77,31 @@ main() {
 	yb-voyager version
 
 	step "Assess Migration"
-	assess_migration
+	assess_migration || {
+		cat_log_file "yb-voyager-assess-migration.log"
+		cat_file ${EXPORT_DIR}/assessment/metadata/yb-voyager-assessment.log
+	}
 	
 	step "Validate Assessment Reports"
 	# Checking if the assessment reports were created
 	if [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.html" ] && [ -f "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json" ]; then
 		echo "Assessment reports created successfully."
+		
 		echo "Checking for Failures"
 		validate_failure_reasoning "${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
+
 		echo "Comparing Report contents"
-        expected_file="${TEST_DIR}/expectedAssessmentReport.json"
-        actual_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
-	    compare_json_reports ${expected_file} ${actual_file}
+
+		echo "Comparing JSON report"
+        expected_json_file="${TEST_DIR}/expectedAssessmentReport.json"
+        actual_json_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
+	    compare_json_reports ${expected_json_file} ${actual_json_file}
+
+		echo "Comparing HTML report"
+		expected_html_file="${TEST_DIR}/expectedAssessmentReport.html"
+		actual_html_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.html"
+		${SCRIPTS}/compare-html-reports.py ${expected_html_file} ${actual_html_file}
+
 	else
 		echo "Error: Assessment reports were not created successfully."
 		cat_log_file "yb-voyager-assess-migration.log"

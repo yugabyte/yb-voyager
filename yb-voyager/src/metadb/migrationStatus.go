@@ -11,18 +11,21 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID               string            `json:"MigrationUUID"`
-	VoyagerVersion              string            `json:"VoyagerVersion"`
-	ExportType                  string            `json:"ExportType"`
-	ArchivingEnabled            bool              `json:"ArchivingEnabled"`
-	FallForwardEnabled          bool              `json:"FallForwardEnabled"`
-	FallbackEnabled             bool              `json:"FallbackEnabled"`
-	UseYBgRPCConnector          bool              `json:"UseYBgRPCConnector"`
-	TargetDBConf                *tgtdb.TargetConf `json:"TargetDBConf"`
-	SourceReplicaDBConf         *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
-	SourceDBAsTargetConf        *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
-	TableListExportedFromSource []string          `json:"TableListExportedFromSource"`
-	SourceDBConf                *srcdb.Source     `json:"SourceDBConf"`
+	MigrationUUID                             string            `json:"MigrationUUID"`
+	VoyagerVersion                            string            `json:"VoyagerVersion"`
+	ExportType                                string            `json:"ExportType"`
+	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
+	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
+	FallbackEnabled                           bool              `json:"FallbackEnabled"`
+	UseYBgRPCConnector                        bool              `json:"UseYBgRPCConnector"`
+	TargetDBConf                              *tgtdb.TargetConf `json:"TargetDBConf"`
+	SourceReplicaDBConf                       *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
+	SourceDBAsTargetConf                      *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
+	TableListExportedFromSource               []string          `json:"TableListExportedFromSource"`
+	SourceExportedTableListWithLeafPartitions []string          `json:"SourceExportedTableListWithLeafPartitions"` // will be same as `TableListExportedFromSource` for Oracle and MySQL but will have leaf partitions in case of PG
+	TargetExportedTableListWithLeafPartitions []string          `json:"TargetExportedTableListWithLeafPartitions"` // will be the table list for export data from target with leaf partitions
+
+	SourceDBConf *srcdb.Source `json:"SourceDBConf"`
 
 	CutoverToTargetRequested                        bool `json:"CutoverToTargetRequested"`
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`

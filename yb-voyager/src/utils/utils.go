@@ -26,7 +26,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -863,4 +865,9 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 
 	sb.WriteString(final[lastIndex:]) // Append the text after the last group.
 	return sb.String(), nil
+}
+
+// given a function return the function name
+func GetFuncName(fn interface{}) string {
+	return runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
 }

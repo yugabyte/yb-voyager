@@ -607,6 +607,8 @@ func TestNameRegistryStructs(t *testing.T) {
 				YBTableNames                     map[string][]string
 				DefaultSourceReplicaDBSchemaName string
 				params                           NameRegistryParams
+				SourceDBSequenceNames           map[string][]string
+				YBSequenceNames                 map[string][]string
 			}{},
 		},
 	}
@@ -692,7 +694,9 @@ func TestNameRegistryJson(t *testing.T) {
 		`      "lower_caps"`,
 		"    ]",
 		"  },",
-		`  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF"`,
+		`  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF",`,
+		`  "SourceDBSequenceNames": null,`,
+        `  "YBSequenceNames": null`,
 		"}",
 	}, "\n")
 
