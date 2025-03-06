@@ -55,7 +55,7 @@ func ParsePLPGSQLToJson(query string) (string, error) {
 }
 
 func ParseSqlFile(filePath string) ([]*pg_query.RawStmt, error) {
-	log.Infof("parsing the file %q", filePath)
+	log.Debugf("parsing the file [%s]", filePath)
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("reading file failed: %v", err)
