@@ -122,6 +122,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 					Otherwise, add it to the result slice
 				*/
 				alterTableCmdType := alterTableCmd.GetSubtype()
+				log.Infof("alterTableCmdType: %v", *alterTableCmdType.Enum())
 				if *alterTableCmdType.Enum() != pg_query.AlterTableType_AT_AddConstraint {
 					// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to append it to the result slice
 					result = append(result, stmt)
@@ -146,6 +147,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				if !ok {
 					return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
 				}
+				log.Infof("merging constraint %v into CREATE TABLE for object %v", constrType, objectName)
 				createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
 			}
 
