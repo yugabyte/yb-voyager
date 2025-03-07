@@ -93,8 +93,16 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 		return true, nil
 	})
-
-	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	var colToSeqMap map[string]string
+	if msr.ColumnToSequenceMapping == nil {
+		colToSeqMap = source.DB().GetColumnToSequenceMap(tableList)
+	} else {
+		colToSeqMap = msr.ColumnToSequenceMapping
+	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
@@ -108,11 +116,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
-	}
+	
 
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {

@@ -151,23 +151,22 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	}
 	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
-	m := make(map[string][]string)
-	m1 := make(map[string][]string)
+	tableMap := make(map[string][]string)
+	sequenceMap := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
 		tableNames, err := reg.params.SDB.GetAllTableNamesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
-		m[schemaName] = tableNames
+		tableMap[schemaName] = tableNames
 		seqNames, err := reg.params.SDB.GetAllSequencesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
-		m[schemaName] = append(m[schemaName], seqNames...)
-		m1[schemaName] = append(m1[schemaName], seqNames...)
+		sequenceMap[schemaName] = append(sequenceMap[schemaName], seqNames...)
 	}
-	reg.SourceDBTableNames = m
-	reg.SourceDBSequenceNames = m1
+	reg.SourceDBTableNames = tableMap
+	reg.SourceDBSequenceNames = sequenceMap
 	return true, nil
 }
 
@@ -233,8 +232,8 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	}
 	yb := reg.params.YBDB
 
-	m := make(map[string][]string)
-	m1 := make(map[string][]string)
+	tableMap := make(map[string][]string)
+	sequenceMap := make(map[string][]string)
 	reg.DefaultYBSchemaName = reg.params.TargetDBSchema
 	if reg.SourceDBTableNames != nil && reg.SourceDBType == constants.POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
@@ -250,16 +249,15 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 		if err != nil {
 			return false, fmt.Errorf("get all table names: %w", err)
 		}
-		m[schemaName] = tableNames
+		tableMap[schemaName] = tableNames
 		seqNames, err := yb.GetAllSequencesRaw(schemaName)
 		if err != nil {
 			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
-		m[schemaName] = append(m[schemaName], seqNames...)
-		m1[schemaName] = append(m1[schemaName], seqNames...)
+		sequenceMap[schemaName] = append(sequenceMap[schemaName], seqNames...)
 	}
-	reg.YBTableNames = m
-	reg.YBSequenceNames = m1
+	reg.YBTableNames = tableMap
+	reg.YBSequenceNames = sequenceMap
 	return true, nil
 }
 
@@ -290,6 +288,19 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
+
+	sourceObjectNameMap := reg.SourceDBTableNames
+	targetObjectNameMap := reg.YBTableNames
+	if len(lo.Keys(reg.SourceDBSequenceNames)) > 0 {
+		for s, objs := range reg.SourceDBSequenceNames {
+			sourceObjectNameMap[s] = append(sourceObjectNameMap[s], objs...)
+		}
+	}
+	if len(lo.Keys(reg.YBSequenceNames)) > 0 {
+		for s, objs := range reg.YBSequenceNames {
+			targetObjectNameMap[s] = append(targetObjectNameMap[s], objs...)
+		}
+	}
 	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
 	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
 	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
@@ -326,9 +337,9 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 
 	var sourceName *sqlname.ObjectName
 	var targetName *sqlname.ObjectName
-	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
+	if sourceObjectNameMap != nil { // nil for `import data file` mode.
 		sourceName, err = reg.lookup(
-			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
+			reg.SourceDBType, sourceObjectNameMap, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
@@ -341,7 +352,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 				}
 				if lo.Contains(errObj.Names, caseInsensitiveName) {
 					sourceName, err = reg.lookup(
-						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
+						reg.SourceDBType, sourceObjectNameMap, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
 				}
 			}
 			if err != nil {
@@ -350,16 +361,16 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 			}
 		}
 	}
-	if reg.YBTableNames != nil { // nil in `export` mode.
+	if targetObjectNameMap != nil { // nil in `export` mode.
 		targetName, err = reg.lookup(
-			constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
+			constants.YUGABYTEDB, targetObjectNameMap, reg.DefaultYBSchemaName, schemaName, tableName)
 		if err != nil {
 			errObj := &ErrMultipleMatchingNames{}
 			if errors.As(err, &errObj) {
 				// A special case.
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
 					targetName, err = reg.lookup(
-						constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
+						constants.YUGABYTEDB, sourceObjectNameMap, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
 				}
 			}
 			if err != nil {
