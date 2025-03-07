@@ -236,7 +236,7 @@ CREATE TABLE users (
     name TEXT
 );
 
-ALTER TABLE ONLY users ALTER COLUMN user_code SET DEFAULT generate_user_code()
+ALTER TABLE ONLY users ALTER COLUMN user_code SET DEFAULT generate_user_code();
 
 ALTER SEQUENCE public.user_code_seq OWNED BY public.users.user_code;
 
