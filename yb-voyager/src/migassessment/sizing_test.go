@@ -777,6 +777,7 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
+			CoresNeeded:      10,
 		},
 	}
 
@@ -786,6 +787,7 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_CanSupportTablets(t *testing.T
 
 	// check if the num nodes in updated recommendation is same as before(3) meaning no scaling is required
 	assert.Equal(t, float64(3), updatedRecommendation[4].NumNodes)
+	assert.Equal(t, float64(10), updatedRecommendation[4].CoresNeeded)
 }
 
 // validate that the tablets cannot be supported by existing nodes and scaling is needed
@@ -816,6 +818,7 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 			},
 			VCPUsPerInstance: 4,
 			NumNodes:         3,
+			CoresNeeded:      10,
 		},
 	}
 
@@ -823,8 +826,9 @@ func TestFindNumNodesNeededBasedOnTabletsRequired_NeedMoreNodes(t *testing.T) {
 	updatedRecommendation :=
 		findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata, shardedLimits, recommendation)
 
-	// check if the num nodes in updated recommendation has increased. Meaning scaling is required.
+	// check if the num nodes and cores in updated recommendation has increased. Meaning scaling is required.
 	assert.Equal(t, float64(6), updatedRecommendation[4].NumNodes)
+	assert.Equal(t, float64(24), updatedRecommendation[4].CoresNeeded)
 }
 
 /*
@@ -836,11 +840,13 @@ func TestPickBestRecommendation_PickOneWithOptimalNodesAndCores(t *testing.T) {
 		4: {
 			VCPUsPerInstance: 4,
 			NumNodes:         10,
+			CoresNeeded:      40,
 			FailureReasoning: "",
 		},
 		8: {
 			VCPUsPerInstance: 8,
 			NumNodes:         3,
+			CoresNeeded:      24,
 			FailureReasoning: "",
 		},
 	}
@@ -855,16 +861,19 @@ func TestPickBestRecommendation_PickOneWithOptimalNodesAndCoresWhenSomeHasFailur
 		4: {
 			VCPUsPerInstance: 4,
 			NumNodes:         10,
+			CoresNeeded:      40,
 			FailureReasoning: "has some failure",
 		},
 		8: {
 			VCPUsPerInstance: 8,
 			NumNodes:         3,
+			CoresNeeded:      24,
 			FailureReasoning: "has some failure as well",
 		},
 		16: {
 			VCPUsPerInstance: 16,
 			NumNodes:         3,
+			CoresNeeded:      48,
 			FailureReasoning: "",
 		},
 	}
@@ -879,17 +888,68 @@ func TestPickBestRecommendation_PickLastMaxCoreRecommendationWhenNoneCanSupport(
 		4: {
 			VCPUsPerInstance: 4,
 			NumNodes:         10,
+			CoresNeeded:      12,
 			FailureReasoning: "has some failure reasoning",
 		},
 		8: {
 			VCPUsPerInstance: 8,
 			NumNodes:         3,
+			CoresNeeded:      24,
 			FailureReasoning: "has some failure reasoning",
 		},
 		16: {
 			VCPUsPerInstance: 16,
 			NumNodes:         3,
+			CoresNeeded:      48,
 			FailureReasoning: "has some failure reasoning",
+		},
+	}
+	bestPick := pickBestRecommendation(recommendations)
+	// validate the best recommendation which is 16 vcpus per instance is picked up
+	assert.Equal(t, 16, bestPick.VCPUsPerInstance)
+}
+
+// validate if the recommendation with min required cores is used.
+func TestPickBestRecommendation_PickRecommendationWithMinCoresRequired(t *testing.T) {
+	recommendations := map[int]IntermediateRecommendation{
+		4: {
+			VCPUsPerInstance: 4,
+			NumNodes:         83,
+			CoresNeeded:      329,
+		},
+		8: {
+			VCPUsPerInstance: 8,
+			NumNodes:         37,
+			CoresNeeded:      296,
+		},
+		16: {
+			VCPUsPerInstance: 16,
+			NumNodes:         19,
+			CoresNeeded:      290,
+		},
+	}
+	bestPick := pickBestRecommendation(recommendations)
+	// validate the best recommendation which is 16 vcpus per instance is picked up
+	assert.Equal(t, 16, bestPick.VCPUsPerInstance)
+}
+
+// validate if the recommendation with higher vCPU is selected if required cores are same.
+func TestPickBestRecommendation_PickHigherVCPURecommendationWhenSameCoresRequired(t *testing.T) {
+	recommendations := map[int]IntermediateRecommendation{
+		4: {
+			VCPUsPerInstance: 4,
+			NumNodes:         12,
+			CoresNeeded:      48,
+		},
+		8: {
+			VCPUsPerInstance: 8,
+			NumNodes:         6,
+			CoresNeeded:      48,
+		},
+		16: {
+			VCPUsPerInstance: 16,
+			NumNodes:         3,
+			CoresNeeded:      48,
 		},
 	}
 	bestPick := pickBestRecommendation(recommendations)
