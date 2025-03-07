@@ -115,12 +115,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					if !ok {
 						continue
 					}
-					reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(
-						obj.GetObjectType(),
-						table.GetObjectName(),
-						typeName,
-						c.ConstraintName,
-						&issues)
+					issues = append(issues,
+						reportIndexOnComplexDatatypesIssue(
+							obj.GetObjectType(),
+							table.GetObjectName(),
+							typeName,
+							true,
+							c.ConstraintName,
+						))
 				}
 			}
 		}
@@ -223,247 +225,6 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	return issues, nil
-}
-
-func reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(objType string, objName string, typeName string, constraintName string, issues *[]QueryIssue) {
-	switch typeName {
-	case "citext":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "tsvector":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "tsquery":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "jsonb":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "inet":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "json":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "macaddr":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "macaddr8":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "cidr":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "bit":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "varbit":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "daterange":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "tsrange":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "tstzrange":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "numrange":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "int4range":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "int8range":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "interval":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "circle":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "box":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "line":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "lseg":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "point":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "pg_lsn":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "path":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "polygon":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "txid_snapshot":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "array":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	case "user_defined_type":
-		*issues = append(*issues, NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(
-			objType,
-			objName,
-			"",
-			typeName,
-			constraintName,
-		))
-	default:
-		// Unrecognized types
-		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
-	}
 }
 
 func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
@@ -827,6 +588,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						param.ExprCastTypeName,
+						false,
+						"",
 					))
 				}
 			} else {
@@ -839,6 +602,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					obj.GetObjectType(),
 					index.GetObjectName(),
 					typeName,
+					false,
+					"",
 				))
 			}
 		}
@@ -847,183 +612,473 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func reportIndexOnComplexDatatypesIssue(objType string, objName string, typeName string) QueryIssue {
+func reportIndexOnComplexDatatypesIssue(objType string, objName string, typeName string, isPkorUk bool, constraintName string) QueryIssue {
 	var queryIssue QueryIssue
 	switch typeName {
 	case "citext":
-		queryIssue = NewIndexOnCitextDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnCitextDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "tsvector":
-		queryIssue = NewIndexOnTsVectorDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnTsVectorDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "tsquery":
-		queryIssue = NewIndexOnTsQueryDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnTsQueryDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "jsonb":
-		queryIssue = NewIndexOnJsonbDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnJsonbDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "inet":
-		queryIssue = NewIndexOnInetDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnInetDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "json":
-		queryIssue = NewIndexOnJsonDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnJsonDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "macaddr":
-		queryIssue = NewIndexOnMacaddrDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnMacaddrDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "macaddr8":
-		queryIssue = NewIndexOnMacaddr8DatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnMacaddr8DatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "cidr":
-		queryIssue = NewIndexOnCidrDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnCidrDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "bit":
-		queryIssue = NewIndexOnBitDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnBitDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "varbit":
-		queryIssue = NewIndexOnVarbitDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnVarbitDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "daterange":
-		queryIssue = NewIndexOnDaterangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnDaterangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "tsrange":
-		queryIssue = NewIndexOnTsrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnTsrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "tstzrange":
-		queryIssue = NewIndexOnTstzrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnTstzrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "numrange":
-		queryIssue = NewIndexOnNumrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnNumrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "int4range":
-		queryIssue = NewIndexOnInt4rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnInt4rangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "int8range":
-		queryIssue = NewIndexOnInt8rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnInt8rangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "interval":
-		queryIssue = NewIndexOnIntervalDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnIntervalDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "circle":
-		queryIssue = NewIndexOnCircleDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnCircleDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "box":
-		queryIssue = NewIndexOnBoxDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnBoxDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "line":
-		queryIssue = NewIndexOnLineDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnLineDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "lseg":
-		queryIssue = NewIndexOnLsegDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnLsegDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "point":
-		queryIssue = NewIndexOnPointDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnPointDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "pg_lsn":
-		queryIssue = NewIndexOnPgLsnDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnPgLsnDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "path":
-		queryIssue = NewIndexOnPathDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnPathDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "polygon":
-		queryIssue = NewIndexOnPolygonDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnPolygonDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "txid_snapshot":
-		queryIssue = NewIndexOnTxidSnapshotDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnTxidSnapshotDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "array":
-		queryIssue = NewIndexOnArrayDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnArrayDatatypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	case "user_defined_type":
-		queryIssue = NewIndexOnUserDefinedTypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		if !isPkorUk {
+			queryIssue = NewIndexOnUserDefinedTypeIssue(
+				objType,
+				objName,
+				"",
+			)
+		} else {
+			queryIssue = NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(
+				objType,
+				objName,
+				"",
+				typeName,
+				constraintName,
+			)
+		}
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -1112,12 +1167,13 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				if !ok {
 					continue
 				}
-				reportPKOrUniqueConstraintOnUnsupportedDatatypesIssue(
+				issues = append(issues, reportIndexOnComplexDatatypesIssue(
 					obj.GetObjectType(),
 					alter.GetObjectName(),
 					typeName,
+					true,
 					alter.ConstraintName,
-					&issues)
+				))
 			}
 
 		}
