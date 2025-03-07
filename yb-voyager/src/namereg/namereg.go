@@ -370,7 +370,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 				// A special case.
 				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
 					targetName, err = reg.lookup(
-						constants.YUGABYTEDB, sourceObjectNameMap, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
+						constants.YUGABYTEDB, targetObjectNameMap, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
 				}
 			}
 			if err != nil {
