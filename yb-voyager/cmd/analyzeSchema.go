@@ -623,7 +623,9 @@ var MigrationCaveatsIssues = []string{
 	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	queryissue.FOREIGN_TABLE,
 	queryissue.POLICY_WITH_ROLES,
-	// Datatypes not supported in YB in live migration
+}
+
+var UnsupportedDatatypesInLiveMigrationIssues = []string{
 	queryissue.POINT_DATATYPE,
 	queryissue.LINE_DATATYPE,
 	queryissue.LSEG_DATATYPE,
@@ -631,7 +633,9 @@ var MigrationCaveatsIssues = []string{
 	queryissue.PATH_DATATYPE,
 	queryissue.POLYGON_DATATYPE,
 	queryissue.CIRCLE_DATATYPE,
-	// Datatypes not supported in YB in live migration with FF and FB
+}
+
+var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
 	queryissue.ARRAY_OF_ENUM_DATATYPE,
 	queryissue.USER_DEFINED_DATATYPE,
 	queryissue.TSQUERY_DATATYPE,
@@ -639,8 +643,45 @@ var MigrationCaveatsIssues = []string{
 	queryissue.HSTORE_DATATYPE,
 }
 
+var PkOrUkOnComplexDatatypesIssues = []IssueTypeAndName{
+	{queryissue.PK_UK_ON_CITEXT_DATATYPE, queryissue.PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_TSVECTOR_DATATYPE, queryissue.PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_TSQUERY_DATATYPE, queryissue.PK_UK_ON_TSQUERY_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_JSONB_DATATYPE, queryissue.PK_UK_ON_JSONB_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_INET_DATATYPE, queryissue.PK_UK_ON_INET_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_JSON_DATATYPE, queryissue.PK_UK_ON_JSON_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_MACADDR_DATATYPE, queryissue.PK_UK_ON_MACADDR_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_MACADDR8_DATATYPE, queryissue.PK_UK_ON_MACADDR8_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_CIDR_DATATYPE, queryissue.PK_UK_ON_CIDR_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_BIT_DATATYPE, queryissue.PK_UK_ON_BIT_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_VARBIT_DATATYPE, queryissue.PK_UK_ON_VARBIT_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_DATERANGE_DATATYPE, queryissue.PK_UK_ON_DATERANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_TSRANGE_DATATYPE, queryissue.PK_UK_ON_TSRANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_TSTZRANGE_DATATYPE, queryissue.PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_NUMRANGE_DATATYPE, queryissue.PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_INT4RANGE_DATATYPE, queryissue.PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_INT8RANGE_DATATYPE, queryissue.PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_INTERVAL_DATATYPE, queryissue.PK_UK_ON_INTERVAL_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_CIRCLE_DATATYPE, queryissue.PK_UK_ON_CIRCLE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_BOX_DATATYPE, queryissue.PK_UK_ON_BOX_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_LINE_DATATYPE, queryissue.PK_UK_ON_LINE_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_LSEG_DATATYPE, queryissue.PK_UK_ON_LSEG_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_POINT_DATATYPE, queryissue.PK_UK_ON_POINT_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_PGLSN_DATATYPE, queryissue.PK_UK_ON_PGLSN_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_PATH_DATATYPE, queryissue.PK_UK_ON_PATH_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_POLYGON_DATATYPE, queryissue.PK_UK_ON_POLYGON_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE, queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_ARRAY_DATATYPE, queryissue.PK_UK_ON_ARRAY_DATATYPE_ISSUE_NAME},
+	{queryissue.PK_UK_ON_USER_DEFINED_DATATYPE, queryissue.PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_NAME},
+}
+
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
+
+	// Adding the Unsupported datatypes issues to the MigrationCaveatsIssues
+	MigrationCaveatsIssues = append(MigrationCaveatsIssues, UnsupportedDatatypesInLiveMigrationIssues...)
+	MigrationCaveatsIssues = append(MigrationCaveatsIssues, UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues...)
+
 	switch true {
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
@@ -657,37 +698,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	var constraintIssues = []string{
 		queryissue.EXCLUSION_CONSTRAINTS,
 		queryissue.DEFERRABLE_CONSTRAINTS,
-		queryissue.PK_UK_ON_CITEXT_DATATYPE,
-		queryissue.PK_UK_ON_TSVECTOR_DATATYPE,
-		queryissue.PK_UK_ON_TSQUERY_DATATYPE,
-		queryissue.PK_UK_ON_JSONB_DATATYPE,
-		queryissue.PK_UK_ON_INET_DATATYPE,
-		queryissue.PK_UK_ON_JSON_DATATYPE,
-		queryissue.PK_UK_ON_MACADDR_DATATYPE,
-		queryissue.PK_UK_ON_MACADDR8_DATATYPE,
-		queryissue.PK_UK_ON_CIDR_DATATYPE,
-		queryissue.PK_UK_ON_BIT_DATATYPE,
-		queryissue.PK_UK_ON_VARBIT_DATATYPE,
-		queryissue.PK_UK_ON_DATERANGE_DATATYPE,
-		queryissue.PK_UK_ON_TSRANGE_DATATYPE,
-		queryissue.PK_UK_ON_TSTZRANGE_DATATYPE,
-		queryissue.PK_UK_ON_NUMRANGE_DATATYPE,
-		queryissue.PK_UK_ON_INT4RANGE_DATATYPE,
-		queryissue.PK_UK_ON_INT8RANGE_DATATYPE,
-		queryissue.PK_UK_ON_INTERVAL_DATATYPE,
-		queryissue.PK_UK_ON_CIRCLE_DATATYPE,
-		queryissue.PK_UK_ON_BOX_DATATYPE,
-		queryissue.PK_UK_ON_LINE_DATATYPE,
-		queryissue.PK_UK_ON_LSEG_DATATYPE,
-		queryissue.PK_UK_ON_POINT_DATATYPE,
-		queryissue.PK_UK_ON_PATH_DATATYPE,
-		queryissue.PK_UK_ON_POLYGON_DATATYPE,
-		queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE,
-		queryissue.PK_UK_ON_PGLSN_DATATYPE,
-		queryissue.PK_UK_ON_ARRAY_DATATYPE,
-		queryissue.PK_UK_ON_USER_DEFINED_DATATYPE,
 		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	}
+
 	/*
 		TODO:
 		// unsupportedIndexIssue
@@ -709,7 +722,13 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
 	*/
 	displayObjectName := issueInstance.ObjectName
-	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(constraintIssues, issueInstance.Type) && ok {
+	var pkOrUkOnComplexDatatypesIssueTypes []string
+	for _, pkOrUkOnComplexDatatypesIssue := range PkOrUkOnComplexDatatypesIssues {
+		pkOrUkOnComplexDatatypesIssueTypes = append(pkOrUkOnComplexDatatypesIssueTypes, pkOrUkOnComplexDatatypesIssue.issueType)
+	}
+
+	combinedIssues := append(constraintIssues, pkOrUkOnComplexDatatypesIssueTypes...)
+	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(combinedIssues, issueInstance.Type) && ok {
 		//In case of constraint issues we add constraint name to the object name to achieve the uniqueness
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}

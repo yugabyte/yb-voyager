@@ -1034,39 +1034,19 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	}), nil
 }
 
+type IssueTypeAndName struct {
+	issueType string
+	issueName string
+}
+
 func getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) []UnsupportedFeature {
 	log.Infof("fetching unsupported features for PK/UK on complex datatypes...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_CITEXT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_TSVECTOR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_TSQUERY_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_TSQUERY_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_JSONB_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_JSONB_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_INET_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_INET_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_JSON_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_JSON_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_MACADDR_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_MACADDR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_MACADDR8_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_MACADDR8_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_CIDR_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_CIDR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_BIT_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_BIT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_VARBIT_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_VARBIT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_DATERANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_DATERANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_TSRANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_TSRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_TSTZRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_NUMRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_INT4RANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_INT8RANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_INTERVAL_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_INTERVAL_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_CIRCLE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_CIRCLE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_BOX_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_BOX_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_LINE_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_LINE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_LSEG_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_LSEG_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_POINT_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_POINT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_PGLSN_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_PGLSN_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_PATH_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_PATH_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_POLYGON_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_POLYGON_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_TXID_SNAPSHOT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_ARRAY_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_ARRAY_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_NAME, "", queryissue.PK_UK_ON_USER_DEFINED_DATATYPE, schemaAnalysisReport, false))
+	for _, issueTypeAndName := range PkOrUkOnComplexDatatypesIssues {
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(issueTypeAndName.issueName, "", issueTypeAndName.issueType, schemaAnalysisReport, false))
+	}
+
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
 	})
