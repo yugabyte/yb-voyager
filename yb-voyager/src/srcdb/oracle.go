@@ -480,7 +480,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 	return columnToSequenceMap
 }
 
-func (ora *Oracle) GetAllSequences() []string {
+func (ora *Oracle) GetAllSequences(_ []sqlname.NameTuple) []string {
 	return nil
 }
 

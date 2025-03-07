@@ -1170,10 +1170,12 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		} else {
 			var importingDatabase string
-			if importerRole == TARGET_DB_IMPORTER_ROLE {
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 				importingDatabase = "target"
-			} else {
-				importingDatabase = "source/source-replica"
+			} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
+				importingDatabase = "source-replica"
+			} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				importingDatabase = "source"
 			}
 
 			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
@@ -1223,7 +1225,7 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := source.DB().GetAllSequences()
+		sequenceList := source.DB().GetAllSequences(finalTableList)
 		for _, seq := range sequenceList {
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {

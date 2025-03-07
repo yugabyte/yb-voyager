@@ -468,20 +468,22 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 		},
 	}
 
-	sourceNamesMap := make(map[string][]string)
+	sourceTableNamesMap := make(map[string][]string)
 	for k, v := range dummySdb.tableNames {
-		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
+		sourceTableNamesMap[k] = append(sourceTableNamesMap[k], v...)
 	}
+	sourceSequenceNamesMap := make(map[string][]string)
 	for k, v := range dummySdb.sequenceNames {
-		sourceNamesMap[k] = append(sourceNamesMap[k], v...)
+		sourceSequenceNamesMap[k] = append(sourceSequenceNamesMap[k], v...)
 	}
 
-	targetNamesMap := make(map[string][]string)
+	targetTableNamesMap := make(map[string][]string)
 	for k, v := range dummyTdb.tableNames {
-		targetNamesMap[k] = append(targetNamesMap[k], v...)
+		targetTableNamesMap[k] = append(targetTableNamesMap[k], v...)
 	}
+	targetSequenceNamesMap := make(map[string][]string)
 	for k, v := range dummyTdb.sequenceNames {
-		targetNamesMap[k] = append(targetNamesMap[k], v...)
+		targetSequenceNamesMap[k] = append(targetSequenceNamesMap[k], v...)
 	}
 
 	// Create a NameRegistry using the dummy DBs.
@@ -510,7 +512,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(constants.ORACLE, reg.SourceDBType)
 	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
-	assert.Equal(sourceNamesMap, reg.SourceDBTableNames)
+	assert.Equal(sourceTableNamesMap, reg.SourceDBTableNames)
+	assert.Equal(sourceSequenceNamesMap, reg.SourceDBSequenceNames)
 	table1 := buildNameTuple(reg, "SAKILA", "TABLE1", "", "")
 	ntup, err := reg.LookupTableName("TABLE1")
 	require.Nil(err)
@@ -526,7 +529,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(constants.ORACLE, reg.SourceDBType)
 	assert.Equal("SAKILA", reg.DefaultSourceDBSchemaName)
-	assert.Equal(sourceNamesMap, reg.SourceDBTableNames)
+	assert.Equal(sourceTableNamesMap, reg.SourceDBTableNames)
+	assert.Equal(sourceSequenceNamesMap, reg.SourceDBSequenceNames)
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
 	assert.Equal(table1, ntup)
@@ -539,7 +543,8 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(reg.YBSchemaNames, []string{"ybsakila"})
 	assert.Equal(reg.DefaultYBSchemaName, "ybsakila")
-	assert.Equal(targetNamesMap, reg.YBTableNames)
+	assert.Equal(targetTableNamesMap, reg.YBTableNames)
+	assert.Equal(targetSequenceNamesMap, reg.YBSequenceNames)
 	table1 = buildNameTuple(reg, "SAKILA", "TABLE1", "ybsakila", "table1")
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
@@ -555,7 +560,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	require.Nil(err)
 	assert.Equal(reg.YBSchemaNames, []string{"ybsakila"})
 	assert.Equal(reg.DefaultYBSchemaName, "ybsakila")
-	assert.Equal(targetNamesMap, reg.YBTableNames)
+	assert.Equal(targetTableNamesMap, reg.YBTableNames)
 
 	// Change the mode to IMPORT_TO_SOURCE_REPLICA_MODE.
 	currentMode = SOURCE_REPLICA_DB_IMPORTER_ROLE
@@ -563,7 +568,7 @@ func TestNameRegistryWithDummyDBs(t *testing.T) {
 	err = reg.Init()
 	require.Nil(err)
 	assert.Equal(reg.DefaultSourceReplicaDBSchemaName, "SAKILA_FF")
-	assert.Equal(reg.SourceDBTableNames["SAKILA_FF"], sourceNamesMap["SAKILA"])
+	assert.Equal(reg.SourceDBTableNames["SAKILA_FF"], sourceTableNamesMap["SAKILA"])
 	table1 = buildNameTuple(reg, "SAKILA_FF", "TABLE1", "ybsakila", "table1")
 	ntup, err = reg.LookupTableName("TABLE1")
 	require.Nil(err)
