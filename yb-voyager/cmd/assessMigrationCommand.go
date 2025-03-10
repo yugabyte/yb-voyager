@@ -1002,8 +1002,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, "", queryissue.EXCLUSION_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, "", queryissue.DEFERRABLE_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, "", VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes)...)
-	unsupportedFeatures = append(unsupportedFeatures, getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes)...)
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport)...)
+	unsupportedFeatures = append(unsupportedFeatures, getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport)...)
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, "", queryissue.UNLOGGED_TABLES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, "", queryissue.REFERENCING_CLAUSE_IN_TRIGGER, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, "", queryissue.BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE, schemaAnalysisReport, false))
@@ -1034,17 +1034,12 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	}), nil
 }
 
-type IssueTypeAndName struct {
-	issueType string
-	issueName string
-}
-
-func getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) []UnsupportedFeature {
+func getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
 	log.Infof("fetching unsupported features for PK/UK on complex datatypes...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 
-	for _, issueTypeAndName := range PkOrUkOnComplexDatatypesIssues {
-		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(issueTypeAndName.issueName, "", issueTypeAndName.issueType, schemaAnalysisReport, false))
+	for _, issueTypeAndName := range queryissue.PkOrUkOnComplexDatatypesIssues {
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(issueTypeAndName.IssueName, "", issueTypeAndName.IssueType, schemaAnalysisReport, false))
 	}
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
@@ -1052,7 +1047,7 @@ func getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.Schema
 	})
 }
 
-func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) []UnsupportedFeature {
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
 	// TODO: include MinimumVersionsFixedIn
 	log.Infof("fetching unsupported features for Index on complex datatypes...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
