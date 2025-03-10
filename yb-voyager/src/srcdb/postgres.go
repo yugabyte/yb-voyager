@@ -472,21 +472,27 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 }
 
 var FETCH_SEQUENCES_FOR_TABLE_LIST = `SELECT
-    seq_ns.nspname AS sequence_schema,
+    seq_ns.nspname AS schema_name,
     seq.relname AS sequence_name
-FROM pg_class AS seq
-JOIN pg_namespace AS seq_ns
-    ON seq.relnamespace = seq_ns.oid
-JOIN pg_depend AS dep
-    ON dep.objid = seq.oid
-   AND dep.classid = 'pg_class'::regclass
-JOIN pg_class AS tab
-    ON dep.refobjid = tab.oid
+FROM pg_class AS tab
 JOIN pg_namespace AS tab_ns
-    ON tab.relnamespace = tab_ns.oid
-WHERE seq.relkind = 'S'  -- Only sequences
+    ON tab_ns.oid = tab.relnamespace
+JOIN pg_attrdef AS ad
+    ON ad.adrelid = tab.oid
+JOIN pg_depend AS dep
+    ON dep.objid = ad.oid
+    AND dep.classid = 'pg_attrdef'::regclass
+JOIN pg_class AS seq
+    ON seq.oid = dep.refobjid
+JOIN pg_namespace AS seq_ns
+    ON seq_ns.oid = seq.relnamespace
+JOIN pg_attribute AS a
+    ON a.attrelid = tab.oid
+   AND a.attnum = ad.adnum
+WHERE 
+  seq.relkind = 'S'
   AND seq_ns.nspname IN (%s)
-  AND (tab_ns.nspname || '.' || tab.relname) IN (%s)`
+  AND (tab_ns.nspname || '.' || tab.relname) IN (%s);`
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (pg *PostgreSQL) GetAllSequences(tableList []sqlname.NameTuple) []string {
