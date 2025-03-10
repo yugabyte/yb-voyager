@@ -113,8 +113,8 @@ func (pg *PostgreSQL) Connect() error {
 		err := pg.db.Ping()
 		if err == nil {
 			log.Infof("Already connected to the source database")
-				log.Infof("Already connected to the source database")
-				return nil
+			log.Infof("Already connected to the source database")
+			return nil
 		} else {
 			log.Infof("Failed to ping the source database: %s", err)
 			pg.Disconnect()
@@ -471,12 +471,39 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 	return "", binaryCheckIssue, nil
 }
 
+var FETCH_SEQUENCES_FOR_TABLE_LIST = `SELECT
+    seq_ns.nspname AS schema_name,
+    seq.relname AS sequence_name
+FROM pg_class AS tab
+JOIN pg_namespace AS tab_ns
+    ON tab_ns.oid = tab.relnamespace
+JOIN pg_attrdef AS ad
+    ON ad.adrelid = tab.oid
+JOIN pg_depend AS dep
+    ON dep.objid = ad.oid
+    AND dep.classid = 'pg_attrdef'::regclass
+JOIN pg_class AS seq
+    ON seq.oid = dep.refobjid
+JOIN pg_namespace AS seq_ns
+    ON seq_ns.oid = seq.relnamespace
+JOIN pg_attribute AS a
+    ON a.attrelid = tab.oid
+   AND a.attnum = ad.adnum
+WHERE 
+  seq.relkind = 'S'
+  AND seq_ns.nspname IN (%s)
+  AND (tab_ns.nspname || '.' || tab.relname) IN (%s);`
+
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequences() []string {
+func (pg *PostgreSQL) GetAllSequences(tableList []sqlname.NameTuple) []string {
 	schemaList := pg.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
+	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return t.AsQualifiedCatalogName()
+	}), "','") + "'"
+
 	var sequenceNames []string
-	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
+	query := fmt.Sprintf(FETCH_SEQUENCES_FOR_TABLE_LIST, querySchemaList, qualifiedTableList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
@@ -487,7 +514,6 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
-
 	var sequenceName, sequenceSchema string
 	for rows.Next() {
 		err = rows.Scan(&sequenceSchema, &sequenceName)
