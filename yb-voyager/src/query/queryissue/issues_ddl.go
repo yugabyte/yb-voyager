@@ -330,15 +330,16 @@ var xmlDatatypeIssue = issue.Issue{
 	Type:        XML_DATATYPE,
 	Name:        "Unsupported datatype - xml",
 	Impact:      constants.IMPACT_LEVEL_3,
-	Description: XML_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	Suggestion:  XML_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1043",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 }
 
-func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := xmlDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName)
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
@@ -346,94 +347,810 @@ var xidDatatypeIssue = issue.Issue{
 	Type:        XID_DATATYPE,
 	Name:        "Unsupported datatype - xid",
 	Impact:      constants.IMPACT_LEVEL_3,
-	Description: XID_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	Suggestion:  XID_DATATYPE_ISSUE_SUGGESTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/15638",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#xid-functions-is-not-supported",
 }
 
-func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := xidDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName)
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var postgisDatatypeIssue = issue.Issue{
-	Type:        POSTGIS_DATATYPE,
-	Name:        "Unsupported datatype - POSTGIS",
+var geometryDatatypeIssue = issue.Issue{
+	Type:        GEOMETRY_DATATYPE,
+	Name:        "Unsupported datatype - Geometry",
 	Impact:      constants.IMPACT_LEVEL_3,
-	Description: POSTGIS_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewPostGisDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := postgisDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewGeometryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := geometryDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var unsupportedDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE,
-	Name:        "Unsupported datatype",
+var geographyDatatypeIssue = issue.Issue{
+	Type:        GEOGRAPHY_DATATYPE,
+	Name:        "Unsupported datatype - Geography",
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
 }
 
-func NewUnsupportedDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := unsupportedDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewGeographyDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := geographyDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var unsupportedDatatypeForLiveMigrationIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_1,
+var box2dDatatypeIssue = issue.Issue{
+	Type:        BOX2D_DATATYPE,
+	Name:        "Unsupported datatype - Box2D",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewBox2DDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := box2dDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var box3dDatatypeIssue = issue.Issue{
+	Type:        BOX3D_DATATYPE,
+	Name:        "Unsupported datatype - Box3D",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewBox3DDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := box3dDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var topogeometryDatatypeIssue = issue.Issue{
+	Type:        TOPOGEOMETRY_DATATYPE,
+	Name:        "Unsupported datatype - Topogeometry",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewTopogeometryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := topogeometryDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var pointDatatypeIssue = issue.Issue{
+	Type:        POINT_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Point",
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypeForLMIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := unsupportedDatatypeForLiveMigrationIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewPointDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := pointDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var unsupportedDatatypeForLiveMigrationWithFFOrFBIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_1,
+var lineDatatypeIssue = issue.Issue{
+	Type:        LINE_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Line",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewLineDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := lineDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var lsegDatatypeIssue = issue.Issue{
+	Type:        LSEG_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Lseg",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewLsegDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := lsegDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var boxDatatypeIssue = issue.Issue{
+	Type:        BOX_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Box",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewBoxDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := boxDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var pathDatatypeIssue = issue.Issue{
+	Type:        PATH_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Path",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewPathDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := pathDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var polygonDatatypeIssue = issue.Issue{
+	Type:        POLYGON_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Polygon",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := polygonDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var circleDatatypeIssue = issue.Issue{
+	Type:        CIRCLE_DATATYPE,
+	Name:        "Unsupported datatype for Live migration - Circle",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := circleDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var arrayOfEnumDatatypeIssue = issue.Issue{
+	Type:        ARRAY_OF_ENUM_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: ARRAY_OF_ENUM_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewArrayOfEnumDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := arrayOfEnumDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var userDefinedDatatypeIssue = issue.Issue{
+	Type:        USER_DEFINED_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewUserDefinedDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := userDefinedDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tsQueryDatatypeIssue = issue.Issue{
+	Type:        TSQUERY_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsQuery Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
 
-func NewUnsupportedDatatypesForLMWithFFOrFBIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := unsupportedDatatypeForLiveMigrationWithFFOrFBIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsQueryDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var primaryOrUniqueOnUnsupportedIndexTypesIssue = issue.Issue{
-	Type:        PK_UK_ON_COMPLEX_DATATYPE,
-	Name:        PK_UK_ON_COMPLEX_DATATYPE_ISSUE_NAME,
+var tsVectorDatatypeIssue = issue.Issue{
+	Type:        TSVECTOR_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsVector Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsVectorDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var hstoreDatatypeIssue = issue.Issue{
+	Type:        HSTORE_DATATYPE,
+	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Hstore Datatype",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
+}
+
+func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := hstoreDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CITEXT_DATATYPE,
+	Name:        PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: PK_UK_ON_COMPLEX_DATATYPE_ISSUE_DESCRIPTION,
+	Description: PK_UK_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
-func NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
 		CONSTRAINT_NAME: constraintName,
 	}
-	issue := primaryOrUniqueOnUnsupportedIndexTypesIssue
-	issue.Description = fmt.Sprintf(issue.Description, typeName)
+	issue := primaryOrUniqueConstraintOnCitextDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsVectorDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSVECTOR_DATATYPE,
+	Name:        PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsVectorDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsQueryDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSQUERY_DATATYPE,
+	Name:        PK_UK_ON_TSQUERY_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSQUERY_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsQueryDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnJsonbDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_JSONB_DATATYPE,
+	Name:        PK_UK_ON_JSONB_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_JSONB_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnJsonbDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInetDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INET_DATATYPE,
+	Name:        PK_UK_ON_INET_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INET_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInetDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnJsonDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_JSON_DATATYPE,
+	Name:        PK_UK_ON_JSON_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_JSON_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnJsonDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnMacaddrDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_MACADDR_DATATYPE,
+	Name:        PK_UK_ON_MACADDR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_MACADDR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnMacaddrDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnMacaddr8DatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_MACADDR8_DATATYPE,
+	Name:        PK_UK_ON_MACADDR8_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_MACADDR8_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnMacaddr8DatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnCidrDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CIDR_DATATYPE,
+	Name:        PK_UK_ON_CIDR_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_CIDR_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnCidrDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnBitDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_BIT_DATATYPE,
+	Name:        PK_UK_ON_BIT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_BIT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnBitDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnVarbitDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_VARBIT_DATATYPE,
+	Name:        PK_UK_ON_VARBIT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_VARBIT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnVarbitDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnDaterangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_DATERANGE_DATATYPE,
+	Name:        PK_UK_ON_DATERANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_DATERANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnDaterangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTsrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSRANGE_DATATYPE,
+	Name:        PK_UK_ON_TSRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTsrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTstzrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TSTZRANGE_DATATYPE,
+	Name:        PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTstzrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnNumrangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_NUMRANGE_DATATYPE,
+	Name:        PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnNumrangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInt4rangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INT4RANGE_DATATYPE,
+	Name:        PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInt4rangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnInt8rangeDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INT8RANGE_DATATYPE,
+	Name:        PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnInt8rangeDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnIntervalDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_INTERVAL_DATATYPE,
+	Name:        PK_UK_ON_INTERVAL_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_INTERVAL_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnIntervalDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnCircleDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_CIRCLE_DATATYPE,
+	Name:        PK_UK_ON_CIRCLE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_CIRCLE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnCircleDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnBoxDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_BOX_DATATYPE,
+	Name:        PK_UK_ON_BOX_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_BOX_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnBoxDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnLineDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_LINE_DATATYPE,
+	Name:        PK_UK_ON_LINE_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_LINE_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnLineDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnLsegDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_LSEG_DATATYPE,
+	Name:        PK_UK_ON_LSEG_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_LSEG_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnLsegDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPointDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_POINT_DATATYPE,
+	Name:        PK_UK_ON_POINT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_POINT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPointDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPgLsnDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_PGLSN_DATATYPE,
+	Name:        PK_UK_ON_PGLSN_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_PGLSN_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPgLsnDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPathDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_PATH_DATATYPE,
+	Name:        PK_UK_ON_PATH_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_PATH_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPathDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnPolygonDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_POLYGON_DATATYPE,
+	Name:        PK_UK_ON_POLYGON_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_POLYGON_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnPolygonDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_TXID_SNAPSHOT_DATATYPE,
+	Name:        PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnArrayDatatypeIssue = issue.Issue{
+	Type:        PK_UK_ON_ARRAY_DATATYPE,
+	Name:        PK_UK_ON_ARRAY_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnArrayDatatypeIssue
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var primaryOrUniqueConstraintOnUserDefinedTypeIssue = issue.Issue{
+	Type:        PK_UK_ON_USER_DEFINED_DATATYPE,
+	Name:        PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
+	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+}
+
+func NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
+	details := map[string]interface{}{
+		CONSTRAINT_NAME: constraintName,
+	}
+	issue := primaryOrUniqueConstraintOnUserDefinedTypeIssue
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
@@ -919,22 +1636,71 @@ var loDatatypeIssue = issue.Issue{
 	Type:        LARGE_OBJECT_DATATYPE,
 	Name:        "Unsupported datatype - lo",
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: LARGE_OBJECT_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
 }
 
-func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, colName string) QueryIssue {
+func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
 	issue := loDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName)
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
 }
 
-var multiRangeDatatypeIssue = issue.Issue{
-	Type:        MULTI_RANGE_DATATYPE,
-	Name:        "Unsupported datatype - Multirange",
-	Impact:      constants.IMPACT_LEVEL_1,
-	Description: MULTI_RANGE_DATATYPE_ISSUE_DESCRIPTION,
+var rasterDatatypeIssue = issue.Issue{
+	Type:        RASTER_DATATYPE,
+	Name:        "Unsupported datatype - raster",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewRasterDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := rasterDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var pgLsnDatatypeIssue = issue.Issue{
+	Type:        PG_LSN_DATATYPE,
+	Name:        "Unsupported datatype - pg_lsn",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := pgLsnDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var txidSnapshotDatatypeIssue = issue.Issue{
+	Type:        TXID_SNAPSHOT_DATATYPE,
+	Name:        "Unsupported datatype - txid_snapshot",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := txidSnapshotDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var int8MultirangeDatatypeIssue = issue.Issue{
+	Type:        INT8_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Int8 Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
@@ -942,9 +1708,105 @@ var multiRangeDatatypeIssue = issue.Issue{
 	},
 }
 
-func NewMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := multiRangeDatatypeIssue
-	issue.Description = fmt.Sprintf(issue.Description, colName, typeName)
+func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := int8MultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var int4MultirangeDatatypeIssue = issue.Issue{
+	Type:        INT4_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Int4 Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := int4MultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var dateMultirangeDatatypeIssue = issue.Issue{
+	Type:        DATE_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Date Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := dateMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var numMultirangeDatatypeIssue = issue.Issue{
+	Type:        NUM_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Num Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := numMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tsMultirangeDatatypeIssue = issue.Issue{
+	Type:        TS_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Timestamp Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tstzMultirangeDatatypeIssue = issue.Issue{
+	Type:        TSTZ_MULTIRANGE_DATATYPE,
+	Name:        "Unsupported datatype - Timestamp with timezone Multirange",
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tstzMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
