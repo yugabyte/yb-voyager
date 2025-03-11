@@ -578,18 +578,23 @@ func importData(importFileTasks []*ImportFileTask) {
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-			poolSize := tconf.Parallelism * 2
-			maxParallelConns := tconf.Parallelism
-			maxTasksInProgress := tconf.Parallelism
-			if tconf.EnableYBAdaptiveParallelism {
-				// in case of adaptive parallelism, we need to use maxParalllelism * 2
-				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-				if !ok {
-					utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
-				}
-				poolSize = yb.GetNumMaxConnectionsInPool() * 2
-				maxParallelConns = yb.GetNumMaxConnectionsInPool()
+			maxParallelConns, err := getMaxParallelConnections()
+			if err != nil {
+				utils.ErrExit("Failed to get max parallel connections: %s", err)
 			}
+
+			// poolSize := tconf.Parallelism * 2
+			// maxParallelConns := tconf.Parallelism
+			// maxTasksInProgress := tconf.Parallelism
+			// if tconf.EnableYBAdaptiveParallelism {
+			// 	// in case of adaptive parallelism, we need to use maxParalllelism * 2
+			// 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+			// 	if !ok {
+			// 		utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
+			// 	}
+			// 	poolSize = yb.GetNumMaxConnectionsInPool() * 2
+			// 	maxParallelConns = yb.GetNumMaxConnectionsInPool()
+			// }
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -600,11 +605,12 @@ func importData(importFileTasks []*ImportFileTask) {
 			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
-				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxTasksInProgress, maxColocatedBatchesInProgress)
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker: %s", err)
 				}
 			} else {
+				poolSize := maxParallelConns * 2
 				for _, task := range pendingTasks {
 					// The code can produce `poolSize` number of batches at a time. But, it can consume only
 					// `parallelism` number of batches at a time.
@@ -704,6 +710,21 @@ func importData(importFileTasks []*ImportFileTask) {
 		packAndSendImportDataToSourcePayload(COMPLETE, "")
 	}
 
+}
+
+func getMaxParallelConnections() (int, error) {
+	// poolSize := tconf.Parallelism * 2
+	maxParallelConns := tconf.Parallelism
+	// maxTasksInProgress := tconf.Parallelism
+	if tconf.EnableYBAdaptiveParallelism {
+		// in case of adaptive parallelism, we need to use maxParalllelism * 2
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return 0, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+		}
+		maxParallelConns = yb.GetNumMaxConnectionsInPool()
+	}
+	return maxParallelConns, nil
 }
 
 /*
