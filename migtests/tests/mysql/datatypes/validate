@@ -145,17 +145,19 @@ def migration_completed_checks(tgt):
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
 	
-	tgtVersion = tgt.get_target_version()
-
-	if "2.25" in tgtVersion and os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
-		EXPECTED_SUM_OF_COLUMN['floating_point_types']['float_type'] = '123582.61200000001'
+	EPSILON = 1e-9  # Define a small tolerance for floating-point comparisons
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {table_name} ---- ")
-		for column, sum in column_names_with_sum.items():
+		for column, expected_sum in column_names_with_sum.items():
 			col_sum = tgt.get_sum_of_column_of_table(table_name, column, "public")
-			print(f"column_name: {column}, sum: {col_sum}")
-			assert sum == str(col_sum)
+			print(f"column_name: {column}, sum: {col_sum}")	
+			if table_name == "floating_point_types":  # Handle floating-point comparisons
+				assert abs(float(col_sum) - float(expected_sum)) < EPSILON, \
+					f"Floating-point mismatch: {column} expected {expected_sum}, got {col_sum}"
+			else:
+				assert str(col_sum) == expected_sum, \
+					f"Mismatch: {column} expected {expected_sum}, got {col_sum}"
 
 	distinct_values_enum_types = tgt.get_distinct_values_of_column_of_table("enum_types", "priority", "public")
 	print(f"distinct_enum_values:")
