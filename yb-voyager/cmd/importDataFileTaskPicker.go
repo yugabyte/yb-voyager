@@ -438,7 +438,9 @@ type ColocatedCappedRandomTaskPicker struct {
 	pendingColocatedTasks []*ImportFileTask
 }
 
-func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask, state *ImportDataState, yb YbTargetDBColocatedChecker, colocatedBatchTaskQueue chan func()) (*ColocatedCappedRandomTaskPicker, error) {
+func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColocatedTasksInProgress int, tasks []*ImportFileTask,
+	state *ImportDataState, yb YbTargetDBColocatedChecker, colocatedBatchTaskQueue chan func(),
+	tableTypes *utils.StructMap[sqlname.NameTuple, string]) (*ColocatedCappedRandomTaskPicker, error) {
 	var doneTasks []*ImportFileTask
 
 	var inProgressColocatedTasks []*ImportFileTask
@@ -446,12 +448,12 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 	var pendingColcatedTasks []*ImportFileTask
 	var pendingShardedTasks []*ImportFileTask
 
-	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
+	// tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
 
-	isDBColocated, err := yb.IsDBColocated()
-	if err != nil {
-		return nil, fmt.Errorf("checking if db is colocated: %w", err)
-	}
+	// isDBColocated, err := yb.IsDBColocated()
+	// if err != nil {
+	// 	return nil, fmt.Errorf("checking if db is colocated: %w", err)
+	// }
 
 	addToPendingTasks := func(t *ImportFileTask, tableType string) {
 		if tableType == COLOCATED {
@@ -471,22 +473,26 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 
 	for _, task := range tasks {
 		tableName := task.TableNameTup
-		var isColocated bool
-		var tableType string
-		var ok bool
-		// set tableType if not already set
-		if tableType, ok = tableTypes.Get(tableName); !ok {
+		// var isColocated bool
+		// var tableType string
+		// var ok bool
+		// // set tableType if not already set
+		// if tableType, ok = tableTypes.Get(tableName); !ok {
 
-			if !isDBColocated {
-				tableType = SHARDED
-			} else {
-				isColocated, err = yb.IsTableColocated(tableName)
-				if err != nil {
-					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", tableName, err)
-				}
-				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
-			}
-			tableTypes.Put(tableName, tableType)
+		// 	if !isDBColocated {
+		// 		tableType = SHARDED
+		// 	} else {
+		// 		isColocated, err = yb.IsTableColocated(tableName)
+		// 		if err != nil {
+		// 			return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", tableName, err)
+		// 		}
+		// 		tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
+		// 	}
+		// 	tableTypes.Put(tableName, tableType)
+		// }
+		tableType, ok := tableTypes.Get(tableName)
+		if !ok {
+			return nil, fmt.Errorf("table type not found for table: %v", tableName)
 		}
 
 		// put task into right bucket.

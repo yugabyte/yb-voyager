@@ -96,6 +96,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 
 	state := NewImportDataState(lexportDir)
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
+	importerRole = TARGET_DB_IMPORTER_ROLE
 	return ldataDir, lexportDir, state, nil
 }
 

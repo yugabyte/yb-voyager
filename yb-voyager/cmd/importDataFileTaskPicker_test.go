@@ -1246,9 +1246,12 @@ func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 			shardedTask1.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 1 task, 1 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(1, 3, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(1, 3, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1261,7 +1264,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
 	}
 
 	// 1 task, 3 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1303,9 +1306,12 @@ func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
 			colocatedTask1.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 1 task, 1 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1318,7 +1324,7 @@ func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
 	}
 
 	// 1 task, 3 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1368,9 +1374,12 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
 			shardedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1405,7 +1414,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
 	assert.Error(t, err)
 
 	// 3 tasks 2 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1482,9 +1491,12 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
 			colocatedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1519,7 +1531,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
 	assert.Error(t, err)
 
 	// 3 tasks 2 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1610,10 +1622,13 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 			shardedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 6 tasks, 10 max sharded tasks in progress, 10 max colocated tasks in progress
 	colocatedBatchImportQueue := make(chan func(), 10*2)
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, colocatedBatchImportQueue)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, colocatedBatchImportQueue, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1646,7 +1661,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *test
 
 	// 6 tasks, 2 max sharded tasks in progress, 2 max colocated tasks in progress
 	colocatedBatchImportQueue = make(chan func(), 2*2)
-	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, colocatedBatchImportQueue)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, colocatedBatchImportQueue, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1770,9 +1785,12 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testi
 			colocatedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1807,7 +1825,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testi
 	assert.Error(t, err)
 
 	// 3 tasks 2 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1884,9 +1902,12 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 			shardedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 3 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -1921,7 +1942,7 @@ func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing
 	assert.Error(t, err)
 
 	// 3 tasks 2 max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -2012,9 +2033,12 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 			shardedTask3.TableNameTup,
 		},
 	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
 
 	// 5 tasks, 10 max tasks in progress
-	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 
@@ -2048,13 +2072,13 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	batch4.MarkInProgress()
 
 	// simulate restart. now, those 4 tasks should be in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	assert.Equal(t, 4, len(picker.inProgressTasks()))
 
 	// simulate restart with a smaller no. of max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil)
+	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
 	testutils.FatalIfError(t, err)
 	assert.True(t, picker.HasMoreTasks())
 	// only two shoudl be inprogress even though previously 4 were in progress.
