@@ -1040,6 +1040,9 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	}))
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.TableListExportedFromSource = minQuotedTableList
+		record.SourceExportedTableListWithLeafPartitions = lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("update migration status record: %v", err)

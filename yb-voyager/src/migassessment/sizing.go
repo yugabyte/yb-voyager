@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/samber/lo"
@@ -103,6 +104,7 @@ type IntermediateRecommendation struct {
 	EstimatedTimeInMinForImport     float64
 	ParallelVoyagerJobs             float64
 	FailureReasoning                string
+	CoresNeeded                     float64
 }
 
 const (
@@ -278,20 +280,29 @@ func SizingAssessment() error {
 pickBestRecommendation selects the best recommendation from a map of recommendations by optimizing for the cores. Hence,
 we chose the setup where the number of cores is less.
 Parameters:
-  - recommendation: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
+  - recommendations: A map where the key is the number of vCPUs per instance and the value is an IntermediateRecommendation struct.
 
 Returns:
   - The best IntermediateRecommendation based on the defined criteria.
 */
-func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) IntermediateRecommendation {
-	// find the one with least number of nodes
+func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) IntermediateRecommendation {
+	var recs []IntermediateRecommendation
+	for _, v := range recommendations {
+		recs = append(recs, v)
+	}
+	// descending order sort
+	sort.Slice(recs, func(i, j int) bool {
+		return recs[i].VCPUsPerInstance > recs[j].VCPUsPerInstance
+	})
+
+	// find the one with the least number of nodes
 	var minCores int = math.MaxUint32
 	var finalRecommendation IntermediateRecommendation
 	var foundRecommendation bool = false
 	var maxCores int = math.MinInt32
 
 	// Iterate over each recommendation
-	for _, rec := range recommendation {
+	for _, rec := range recs {
 		// Update maxCores with the maximum number of vCPUs per instance across recommendations. If none of the cores
 		// abe to satisfy the criteria, recommendation with maxCores will be used as final recommendation
 		if maxCores < rec.VCPUsPerInstance {
@@ -300,11 +311,12 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 		// Check if the recommendation has no failure reasoning (i.e., it's a valid recommendation)
 		if rec.FailureReasoning == "" {
 			foundRecommendation = true
-			// Update finalRecommendation if the current recommendation has fewer cores
-			if minCores > int(rec.NumNodes)*rec.VCPUsPerInstance {
+			// Update finalRecommendation if the current recommendation has fewer cores.
+			log.Infof(fmt.Sprintf("vCPU: %v & cores required: %v gives nodes required: %v\n", rec.VCPUsPerInstance, rec.CoresNeeded, rec.NumNodes))
+			if minCores > int(rec.CoresNeeded) {
 				finalRecommendation = rec
-				minCores = int(rec.NumNodes) * rec.VCPUsPerInstance
-			} else if minCores == int(rec.NumNodes)*rec.VCPUsPerInstance {
+				minCores = int(rec.CoresNeeded)
+			} else if minCores == int(rec.CoresNeeded) {
 				// If the number of cores is the same across machines, recommend the machine with higher core count
 				if rec.VCPUsPerInstance > finalRecommendation.VCPUsPerInstance {
 					finalRecommendation = rec
@@ -314,7 +326,7 @@ func pickBestRecommendation(recommendation map[int]IntermediateRecommendation) I
 	}
 	// If no valid recommendation was found, select the recommendation with the maximum number of cores
 	if !foundRecommendation {
-		finalRecommendation = recommendation[maxCores]
+		finalRecommendation = recommendations[maxCores]
 		// notify customers to reach out to the Yugabyte customer support team for further assistance
 		finalRecommendation.FailureReasoning = "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
 	}
@@ -363,8 +375,9 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
-		// Choose max of nodes needed and 3
+		// Choose max of nodes needed and 3 and same for neededCores.
 		nodesNeeded = math.Max(nodesNeeded, 3)
+		neededCores = math.Max(neededCores, float64(previousRecommendation.VCPUsPerInstance*3))
 
 		// Update recommendation with the number of nodes needed
 		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{
@@ -380,6 +393,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 			ShardedSize:                     previousRecommendation.ShardedSize,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
 			FailureReasoning:                previousRecommendation.FailureReasoning,
+			CoresNeeded:                     neededCores,
 		}
 	}
 	// Return updated recommendation map
@@ -428,7 +442,9 @@ func findNumNodesNeededBasedOnTabletsRequired(sourceIndexMetadata []SourceDBMeta
 					// update recommendation to use the maximum of the existing recommended nodes and nodes calculated based on tablets
 					// Caveat: if new nodes required is more than the existing recommended nodes, we would need to
 					// re-evaluate tablets required. Although, in this iteration we've skipping re-evaluation.
-					rec.NumNodes = math.Max(rec.NumNodes, nodesRequired)
+					currentMaxRequiredNodes := math.Max(nodesRequired, rec.NumNodes)
+					rec.CoresNeeded = lo.Ternary(nodesRequired <= rec.NumNodes, rec.CoresNeeded, currentMaxRequiredNodes*float64(rec.VCPUsPerInstance))
+					rec.NumNodes = currentMaxRequiredNodes
 					recommendation[i] = rec
 				}
 			}
@@ -453,7 +469,7 @@ Description:
 This function calculates which size threshold applies to a table based on its size and determines the number of tablets required.
 Following details/comments are with assumption that the previous recommended nodes is 3.
 Similar works for other recommended nodes as well.:
-  - For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous recommended nodes.
+  - For sizes up to the low phase limit (1*3 shards of 512 MB each, up to 1.5 GB), the low phase threshold is used. Where 1 is low phase shard count and 3 is the previous-recommended nodes.
   - After 1*3 shards, the high phase threshold is used.
   - Intermediate phase upto 30 GB is calculated based on 3 tablets of 10 GB each.
   - For sizes up to the high phase limit (72(24*3) shards of 10 GB each, up to 720 GB), the high phase threshold is used.
@@ -1213,7 +1229,7 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 	var multiplicationFactor float64
 	// multiplication factor is different for colocated and sharded tables.
 	// multiplication factor would be maximum of the two:
-	//	max of (mf of selected entry from experiment data,  mf for table wrt selected entry)
+	//	max of (mf of selected entry from experiment data, mf for table wrt selected entry)
 	if objectType == COLOCATED {
 		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
 			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
