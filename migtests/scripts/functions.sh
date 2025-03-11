@@ -947,6 +947,9 @@ compare_sql_files() {
 	sed -i -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
 	sed -i -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
 
+	# Replace the PostGIS "extension not available" message with the "could not open control file" message
+    sed -i -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
+
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
     
