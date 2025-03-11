@@ -860,38 +860,42 @@ func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress
 
 // getTableTypes returns a map of table name to table type (sharded/colocated) for all tables in the tasks.
 func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple, string], error) {
-	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
-		yb, ok := tdb.(YbTargetDBColocatedChecker)
-		if !ok {
-			return nil, fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
-		}
-		isDBColocated, err := yb.IsDBColocated()
-		if err != nil {
-			return nil, fmt.Errorf("checking if db is colocated: %w", err)
-		}
-		for _, task := range tasks {
-			if tableType, ok := tableTypes.Get(task.TableNameTup); !ok {
-				if !isDBColocated {
-					tableType = SHARDED
-				} else {
-					isColocated, err := yb.IsTableColocated(task.TableNameTup)
-					if err != nil {
-						return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", task.TableNameTup.ForOutput(), err)
-					}
-					tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
-				}
-				tableTypes.Put(task.TableNameTup, tableType)
-			}
-		}
-		return tableTypes, nil
+	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil, nil
 	}
-	return nil, nil
+
+	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
+	yb, ok := tdb.(YbTargetDBColocatedChecker)
+	if !ok {
+		return nil, fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+	isDBColocated, err := yb.IsDBColocated()
+	if err != nil {
+		return nil, fmt.Errorf("checking if db is colocated: %w", err)
+	}
+	for _, task := range tasks {
+		if tableType, ok := tableTypes.Get(task.TableNameTup); !ok {
+			if !isDBColocated {
+				tableType = SHARDED
+			} else {
+				isColocated, err := yb.IsTableColocated(task.TableNameTup)
+				if err != nil {
+					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", task.TableNameTup.ForOutput(), err)
+				}
+				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
+			}
+			tableTypes.Put(task.TableNameTup, tableType)
+		}
+	}
+	return tableTypes, nil
+
 }
 
 /*
-when TARGET_DB_IMPORTER_ROLE or IMPORT_FILE_ROLE, we pass on the colocatedBatchImportQueue to the FileTaskImporter
-so that it can submit colocated batches to the queue.
+when TARGET_DB_IMPORTER_ROLE or IMPORT_FILE_ROLE, we pass on
+the batchImportPool and the colocatedBatchImportQueue to the FileTaskImporter
+so that it can submit sharded table batches to the batchImportPool,
+and colocated table batches to the colocatedBatchImportQueue.
 
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
