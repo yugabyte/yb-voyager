@@ -583,18 +583,6 @@ func importData(importFileTasks []*ImportFileTask) {
 				utils.ErrExit("Failed to get max parallel connections: %s", err)
 			}
 
-			// poolSize := tconf.Parallelism * 2
-			// maxParallelConns := tconf.Parallelism
-			// maxTasksInProgress := tconf.Parallelism
-			// if tconf.EnableYBAdaptiveParallelism {
-			// 	// in case of adaptive parallelism, we need to use maxParalllelism * 2
-			// 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-			// 	if !ok {
-			// 		utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
-			// 	}
-			// 	poolSize = yb.GetNumMaxConnectionsInPool() * 2
-			// 	maxParallelConns = yb.GetNumMaxConnectionsInPool()
-			// }
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -713,9 +701,7 @@ func importData(importFileTasks []*ImportFileTask) {
 }
 
 func getMaxParallelConnections() (int, error) {
-	// poolSize := tconf.Parallelism * 2
 	maxParallelConns := tconf.Parallelism
-	// maxTasksInProgress := tconf.Parallelism
 	if tconf.EnableYBAdaptiveParallelism {
 		// in case of adaptive parallelism, we need to use maxParalllelism * 2
 		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
@@ -781,17 +767,6 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
-			// if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-			// 	taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, true)
-			// 	if err != nil {
-			// 		return fmt.Errorf("create file task importer: %w", err)
-			// 	}
-			// } else {
-			// 	taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
-			// 	if err != nil {
-			// 		return fmt.Errorf("create file task importer: %w", err)
-			// 	}
-			// }
 			log.Infof("created file task importer for table: %s, task: %v", task.TableNameTup.ForOutput(), task)
 			taskImporters[task.ID] = taskImporter
 		}

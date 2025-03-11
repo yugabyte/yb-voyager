@@ -448,13 +448,6 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 	var pendingColcatedTasks []*ImportFileTask
 	var pendingShardedTasks []*ImportFileTask
 
-	// tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
-
-	// isDBColocated, err := yb.IsDBColocated()
-	// if err != nil {
-	// 	return nil, fmt.Errorf("checking if db is colocated: %w", err)
-	// }
-
 	addToPendingTasks := func(t *ImportFileTask, tableType string) {
 		if tableType == COLOCATED {
 			pendingColcatedTasks = append(pendingColcatedTasks, t)
@@ -473,23 +466,6 @@ func NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress int, maxColoca
 
 	for _, task := range tasks {
 		tableName := task.TableNameTup
-		// var isColocated bool
-		// var tableType string
-		// var ok bool
-		// // set tableType if not already set
-		// if tableType, ok = tableTypes.Get(tableName); !ok {
-
-		// 	if !isDBColocated {
-		// 		tableType = SHARDED
-		// 	} else {
-		// 		isColocated, err = yb.IsTableColocated(tableName)
-		// 		if err != nil {
-		// 			return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", tableName, err)
-		// 		}
-		// 		tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
-		// 	}
-		// 	tableTypes.Put(tableName, tableType)
-		// }
 		tableType, ok := tableTypes.Get(tableName)
 		if !ok {
 			return nil, fmt.Errorf("table type not found for table: %v", tableName)
