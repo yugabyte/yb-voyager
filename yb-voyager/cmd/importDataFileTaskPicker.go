@@ -584,14 +584,14 @@ func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 
 	// we have a combination of tasks left.
 	// first fill up in-progress tasks from pending tasks if possible.
-	task, err := c.tryPickPendingColocatedTask()
+	task, err := c.pickPendingColocatedTaskAsPerMaxTasks()
 	if err != nil {
 		return nil, fmt.Errorf("picking pending colocated task: %w", err)
 	}
 	if task != nil {
 		return task, nil
 	}
-	task, err = c.tryPickPendingShardedTask()
+	task, err = c.pickPendingShardedTaskAsPerMaxTasks()
 	if err != nil {
 		return nil, fmt.Errorf("picking pending sharded task: %w", err)
 	}
@@ -614,7 +614,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickColocatedTask() (*ImportFileTask, 
 	}
 
 	// try to pick a colocated pending task.
-	task, err := c.tryPickPendingColocatedTask()
+	task, err := c.pickPendingColocatedTaskAsPerMaxTasks()
 	if err != nil {
 		return nil, fmt.Errorf("picking pending colocated task: %w", err)
 	}
@@ -626,7 +626,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickColocatedTask() (*ImportFileTask, 
 	return c.pickInProgressColocatedTask()
 }
 
-func (c *ColocatedCappedRandomTaskPicker) tryPickPendingColocatedTask() (*ImportFileTask, error) {
+func (c *ColocatedCappedRandomTaskPicker) pickPendingColocatedTaskAsPerMaxTasks() (*ImportFileTask, error) {
 	if len(c.inProgressColocatedTasks) < c.maxColocatedTasksInProgress {
 		if len(c.pendingColocatedTasks) > 0 {
 			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingColocatedTasks)
@@ -654,7 +654,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 	}
 
 	// try to pick a sharded pending task.
-	task, err := c.tryPickPendingShardedTask()
+	task, err := c.pickPendingShardedTaskAsPerMaxTasks()
 	if err != nil {
 		return nil, fmt.Errorf("picking pending sharded task: %w", err)
 	}
@@ -666,7 +666,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickShardedTask() (*ImportFileTask, er
 	return c.pickInProgressShardedTask()
 }
 
-func (c *ColocatedCappedRandomTaskPicker) tryPickPendingShardedTask() (*ImportFileTask, error) {
+func (c *ColocatedCappedRandomTaskPicker) pickPendingShardedTaskAsPerMaxTasks() (*ImportFileTask, error) {
 	if len(c.inProgressShardedTasks) < c.maxShardedTasksInProgress {
 		if len(c.pendingShardedTasks) > 0 {
 			taskIndex, pickedTask := c.pickRandomFromListOfTasks(c.pendingShardedTasks)

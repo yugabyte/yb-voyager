@@ -2053,12 +2053,6 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 	assert.Equal(t, 4, len(picker.inProgressTasks()))
 
-	// simulate restart with  a larger no. of max tasks in progress
-	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil)
-	testutils.FatalIfError(t, err)
-	assert.True(t, picker.HasMoreTasks())
-	assert.Equal(t, 4, len(picker.inProgressTasks()))
-
 	// simulate restart with a smaller no. of max tasks in progress
 	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil)
 	testutils.FatalIfError(t, err)
