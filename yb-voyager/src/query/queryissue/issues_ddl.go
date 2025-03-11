@@ -1635,7 +1635,7 @@ func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatemen
 var loDatatypeIssue = issue.Issue{
 	Type:        LARGE_OBJECT_DATATYPE,
 	Name:        "Unsupported datatype - lo",
-	Impact:      constants.IMPACT_LEVEL_1,
+	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
