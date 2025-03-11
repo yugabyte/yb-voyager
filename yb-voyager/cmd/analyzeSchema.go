@@ -345,7 +345,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
-			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false, true))
 		}
 	}
 }
@@ -612,14 +612,14 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			continue
 		}
 		for _, issueInstance := range issues {
-			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true)
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool, addToSummaryMap bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
 
 	var migrationCaveatsIssues = []string{
@@ -683,7 +683,10 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
 
-	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	if addToSummaryMap {
+		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	}
+
 	return utils.AnalyzeSchemaIssue{
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,

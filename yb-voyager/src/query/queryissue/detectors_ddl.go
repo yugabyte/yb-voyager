@@ -141,7 +141,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 
 		if isUnsupportedDatatype {
-			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
+			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLive {
 			reportUnsupoortedDatatypesInLive(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
@@ -227,149 +227,152 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
-	switch col.TypeName {
+func ReportUnsupportedDatatypes(typeName string, columnName string, objType string, objName string) QueryIssue {
+	var issue QueryIssue
+	switch typeName {
 	case "xml":
-		*issues = append(*issues, NewXMLDatatypeIssue(
+		issue = NewXMLDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "xid":
-		*issues = append(*issues, NewXIDDatatypeIssue(
+		issue = NewXIDDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "geometry":
-		*issues = append(*issues, NewGeometryDatatypeIssue(
+		issue = NewGeometryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "geography":
-		*issues = append(*issues, NewGeographyDatatypeIssue(
+		issue = NewGeographyDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "box2d":
-		*issues = append(*issues, NewBox2DDatatypeIssue(
+		issue = NewBox2DDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "box3d":
-		*issues = append(*issues, NewBox3DDatatypeIssue(
+		issue = NewBox3DDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "topogeometry":
-		*issues = append(*issues, NewTopogeometryDatatypeIssue(
+		issue = NewTopogeometryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "lo":
-		*issues = append(*issues, NewLODatatypeIssue(
+		issue = NewLODatatypeIssue(
 			objType,
 			objName,
 			"",
 			"LARGE OBJECT",
-			col.ColumnName,
-		))
+			columnName,
+		)
 	case "int8multirange":
-		*issues = append(*issues, NewInt8MultiRangeDatatypeIssue(
+		issue = NewInt8MultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "int4multirange":
-		*issues = append(*issues, NewInt4MultiRangeDatatypeIssue(
+		issue = NewInt4MultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "datemultirange":
-		*issues = append(*issues, NewDateMultiRangeDatatypeIssue(
+		issue = NewDateMultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "nummultirange":
-		*issues = append(*issues, NewNumMultiRangeDatatypeIssue(
+		issue = NewNumMultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "tsmultirange":
-		*issues = append(*issues, NewTSMultiRangeDatatypeIssue(
+		issue = NewTSMultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "tstzmultirange":
-		*issues = append(*issues, NewTSTZMultiRangeDatatypeIssue(
+		issue = NewTSTZMultiRangeDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "raster":
-		*issues = append(*issues, NewRasterDatatypeIssue(
+		issue = NewRasterDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "pg_lsn":
-		*issues = append(*issues, NewPgLsnDatatypeIssue(
+		issue = NewPgLsnDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "txid_snapshot":
-		*issues = append(*issues, NewTxidSnapshotDatatypeIssue(
+		issue = NewTxidSnapshotDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
 	}
+
+	return issue
 }
 
 func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
@@ -493,7 +496,7 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 	for _, col := range foreignTable.Columns {
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(srcdb.PostgresUnsupportedDataTypes, col.TypeName)
 		if isUnsupportedDatatype {
-			reportUnsupportedDatatypes(col, obj.GetObjectType(), foreignTable.GetObjectName(), &issues)
+			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), foreignTable.GetObjectName()))
 		}
 	}
 

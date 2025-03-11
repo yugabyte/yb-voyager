@@ -1377,19 +1377,36 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
 	var assessmentIssues []AssessmentIssue
+	var issue AssessmentIssue
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
-		issue := AssessmentIssue{
-			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:            "",               // TODO
-			Impact:                 constants.IMPACT_LEVEL_3,
-			ObjectType:             constants.COLUMN,
-			ObjectName:             qualifiedColName,
-			DocsLink:               "",  // TODO
-			MinimumVersionsFixedIn: nil, // TODO
+		switch source.DBType {
+		case ORACLE:
+			issue = AssessmentIssue{
+				Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Description:            "",               // TODO
+				Impact:                 constants.IMPACT_LEVEL_3,
+				ObjectType:             constants.COLUMN,
+				ObjectName:             qualifiedColName,
+				DocsLink:               "",  // TODO
+				MinimumVersionsFixedIn: nil, // TODO
+			}
+		case POSTGRESQL:
+			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
+			var datatype string
+			if strings.Contains(colInfo.DataType, ".") {
+				datatype = strings.Split(colInfo.DataType, ".")[1]
+			} else {
+				datatype = colInfo.DataType
+			}
+			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+			convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
+			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY), queryissue.MinimumVersionsFixedIn)
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
 		assessmentIssues = append(assessmentIssues, issue)
 	}
