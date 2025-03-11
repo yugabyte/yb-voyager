@@ -26,7 +26,7 @@ import (
 
 var ErrExitErr error
 
-func ErrExit(formatString string, args ...interface{}) {
+var ErrExit = func(formatString string, args ...interface{}) {
 	ErrExitErr = fmt.Errorf(formatString, args...)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)

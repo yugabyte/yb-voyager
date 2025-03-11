@@ -280,10 +280,10 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt16: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "public.xml_data_example", stmt16),
-			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
+			NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
 			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
 			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
-			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "description"),
+			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "XML", "description"),
 		},
 		stmt17: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "invoices", stmt17),
@@ -292,7 +292,7 @@ func TestDDLIssues(t *testing.T) {
 			NewXmlFunctionsIssue("INDEX", "idx_invoices ON invoices", stmt18),
 		},
 		stmt19: []QueryIssue{
-			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
+			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "LARGE OBJECT", "raster"),
 			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19, []string{"lo_import"}),
 		},
 		stmt20: []QueryIssue{
@@ -476,7 +476,7 @@ $$ LANGUAGE plpgsql;
 		sqls[4]: []QueryIssue{
 			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));", []string{"lo_put"}),
 			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
-			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "raster"),
+			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "LARGE OBJECT", "raster"),
 			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", []string{"lo_import"}),
 		},
 		sqls[5]: []QueryIssue{

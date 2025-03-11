@@ -3,6 +3,7 @@ package namereg
 import (
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 
 	"github.com/samber/lo"
@@ -68,6 +69,9 @@ type NameRegistry struct {
 	// Source replica has same table name list as original source.
 
 	params NameRegistryParams
+
+	SourceDBSequenceNames map[string][]string
+	YBSequenceNames       map[string][]string
 }
 
 func InitNameRegistry(params NameRegistryParams) error {
@@ -148,6 +152,7 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 	reg.SourceDBType = reg.params.SourceDBType
 	reg.initSourceDBSchemaNames()
 	m := make(map[string][]string)
+	m1 := make(map[string][]string)
 	for _, schemaName := range reg.SourceDBSchemaNames {
 		tableNames, err := reg.params.SDB.GetAllTableNamesRaw(schemaName)
 		if err != nil {
@@ -159,9 +164,47 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
+		m1[schemaName] = append(m1[schemaName], seqNames...)
 	}
 	reg.SourceDBTableNames = m
+	reg.SourceDBSequenceNames = m1
 	return true, nil
+}
+
+// this function returns the tables names in the namereg which is required by the export data
+// table-list code path for getting a full list of tables from first run i.e. registered table list
+// returning the objectNames from here as we need to get nameTuple based on type of tables either leaf partition or normal..
+func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error) {
+	var res []*sqlname.ObjectName
+	var m map[string][]string            // Complete list of tables and sequences
+	var sequencesMap map[string][]string // only sequence list
+	var dbType string
+	var defaultSchemaName string
+	switch reg.params.Role {
+	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		m = reg.SourceDBTableNames
+		sequencesMap = reg.SourceDBSequenceNames
+		dbType = reg.SourceDBType
+		defaultSchemaName = reg.DefaultSourceDBSchemaName
+		if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+			defaultSchemaName = reg.DefaultSourceReplicaDBSchemaName
+		}
+	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_IMPORTER_ROLE:
+		m = reg.YBTableNames
+		sequencesMap = reg.YBSequenceNames
+		dbType = constants.YUGABYTEDB
+		defaultSchemaName = reg.DefaultYBSchemaName
+	}
+	for s, tables := range m {
+		for _, t := range tables {
+			if slices.Contains(sequencesMap[s], t) {
+				//If its a sequence continue and not append in the registerd list
+				continue
+			}
+			res = append(res, sqlname.NewObjectName(dbType, defaultSchemaName, s, t))
+		}
+	}
+	return res, nil
 }
 
 func (reg *NameRegistry) initSourceDBSchemaNames() {
@@ -191,6 +234,7 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 	yb := reg.params.YBDB
 
 	m := make(map[string][]string)
+	m1 := make(map[string][]string)
 	reg.DefaultYBSchemaName = reg.params.TargetDBSchema
 	if reg.SourceDBTableNames != nil && reg.SourceDBType == constants.POSTGRESQL {
 		reg.DefaultYBSchemaName = reg.DefaultSourceDBSchemaName
@@ -212,8 +256,10 @@ func (reg *NameRegistry) registerYBNames() (bool, error) {
 			return false, fmt.Errorf("get all sequence names: %w", err)
 		}
 		m[schemaName] = append(m[schemaName], seqNames...)
+		m1[schemaName] = append(m1[schemaName], seqNames...)
 	}
 	reg.YBTableNames = m
+	reg.YBSequenceNames = m1
 	return true, nil
 }
 

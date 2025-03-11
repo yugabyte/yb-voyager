@@ -619,22 +619,25 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 
 }
 
-var MigrationCaveatsIssues = []string{
-	queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
-	queryissue.FOREIGN_TABLE,
-	queryissue.POLICY_WITH_ROLES,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-	queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-}
-
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
+
+	var migrationCaveatsIssues = []string{
+		queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+		queryissue.FOREIGN_TABLE,
+		queryissue.POLICY_WITH_ROLES,
+	}
+
+	// Adding the Unsupported datatypes issues to the MigrationCaveatsIssues
+	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssues...)
+	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues...)
+
 	switch true {
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
-	case slices.ContainsFunc(MigrationCaveatsIssues, func(i string) bool {
+	case slices.ContainsFunc(migrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.Contains(issueInstance.Type, i)
+		return strings.EqualFold(issueInstance.Type, i)
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
@@ -645,9 +648,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	var constraintIssues = []string{
 		queryissue.EXCLUSION_CONSTRAINTS,
 		queryissue.DEFERRABLE_CONSTRAINTS,
-		queryissue.PK_UK_ON_COMPLEX_DATATYPE,
 		queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
 	}
+
 	/*
 		TODO:
 		// unsupportedIndexIssue
@@ -669,7 +672,13 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		// 2. Keep it in issue.Details and write logic in UI layer to construct display name.
 	*/
 	displayObjectName := issueInstance.ObjectName
-	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(constraintIssues, issueInstance.Type) && ok {
+	var pkOrUkOnComplexDatatypesIssueTypes []string
+	for _, pkOrUkOnComplexDatatypesIssue := range queryissue.PkOrUkOnComplexDatatypesIssues {
+		pkOrUkOnComplexDatatypesIssueTypes = append(pkOrUkOnComplexDatatypesIssueTypes, pkOrUkOnComplexDatatypesIssue.IssueType)
+	}
+
+	combinedIssues := append(constraintIssues, pkOrUkOnComplexDatatypesIssueTypes...)
+	if constraintName, ok := issueInstance.Details[queryissue.CONSTRAINT_NAME]; slices.Contains(combinedIssues, issueInstance.Type) && ok {
 		//In case of constraint issues we add constraint name to the object name to achieve the uniqueness
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
