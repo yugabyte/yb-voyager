@@ -97,12 +97,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
 	}
-	var colToSeqMap map[string]string
-	if msr.ColumnToSequenceMapping == nil {
-		colToSeqMap = source.DB().GetColumnToSequenceMap(tableList)
-	} else {
-		colToSeqMap = msr.ColumnToSequenceMapping
-	}
+	colToSeqMap := fetchOrRetrieveColToSeqMap(msr, tableList)
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
@@ -116,7 +111,6 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
-	
 
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
@@ -238,6 +232,31 @@ func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {
 		}
 	}
 	return nil
+}
+
+func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []sqlname.NameTuple) map[string]string {
+	var storedColToSeqMap map[string]string
+	//fetching the stored one in the MSR
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		storedColToSeqMap = msr.SourceColumnToSequenceMapping
+	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
+		storedColToSeqMap = msr.TargetColumnToSequenceMapping
+	}
+	if len(lo.Keys(storedColToSeqMap)) > 0 {
+		return storedColToSeqMap
+	}
+	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
+	//Storing this col-to-sequence mapping in the MSR as we want to avoid going to db in subsequent runs
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch exporterRole {
+		case SOURCE_DB_EXPORTER_ROLE:
+			msr.SourceColumnToSequenceMapping = colToSeqMap
+		case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
+			msr.TargetColumnToSequenceMapping = colToSeqMap
+		}
+	})
+	return colToSeqMap
 }
 
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {

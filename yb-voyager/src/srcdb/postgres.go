@@ -491,19 +491,16 @@ JOIN pg_attribute AS a
    AND a.attnum = ad.adnum
 WHERE 
   seq.relkind = 'S'
-  AND seq_ns.nspname IN (%s)
   AND (tab_ns.nspname || '.' || tab.relname) IN (%s);`
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
 func (pg *PostgreSQL) GetAllSequences(tableList []sqlname.NameTuple) []string {
-	schemaList := pg.checkSchemasExists()
-	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
 		return t.AsQualifiedCatalogName()
 	}), "','") + "'"
 
 	var sequenceNames []string
-	query := fmt.Sprintf(FETCH_SEQUENCES_FOR_TABLE_LIST, querySchemaList, qualifiedTableList)
+	query := fmt.Sprintf(FETCH_SEQUENCES_FOR_TABLE_LIST, qualifiedTableList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
