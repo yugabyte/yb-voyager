@@ -143,7 +143,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			issues = append(issues, ReportUnsupportedDatatypes(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLive {
-			reportUnsupoortedDatatypesInLive(col, obj.GetObjectType(), table.GetObjectName(), &issues)
+			issues = append(issues, ReportUnsupportedDatatypesInLive(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
@@ -165,7 +165,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					col.ColumnName,
 				))
 			} else {
-				reportUnsupportedDatatypesInLiveWithFFOrFB(col, obj.GetObjectType(), table.GetObjectName(), &issues)
+				issues = append(issues, ReportUnsupportedDatatypesInLiveWithFFOrFB(col.TypeName, col.ColumnName, obj.GetObjectType(), table.GetObjectName()))
 			}
 		}
 
@@ -375,102 +375,107 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 	return issue
 }
 
-func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
-	switch col.TypeName {
+func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objType string, objName string) QueryIssue {
+	var issue QueryIssue
+	switch typeName {
 	case "point":
-		*issues = append(*issues, NewPointDatatypeIssue(
+		issue = NewPointDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "line":
-		*issues = append(*issues, NewLineDatatypeIssue(
+		issue = NewLineDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "lseg":
-		*issues = append(*issues, NewLsegDatatypeIssue(
+		issue = NewLsegDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "box":
-		*issues = append(*issues, NewBoxDatatypeIssue(
+		issue = NewBoxDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "path":
-		*issues = append(*issues, NewPathDatatypeIssue(
+		issue = NewPathDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "polygon":
-		*issues = append(*issues, NewPolygonDatatypeIssue(
+		issue = NewPolygonDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "circle":
-		*issues = append(*issues, NewCircleDatatypeIssue(
+		issue = NewCircleDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
 	}
+
+	return issue
 }
 
-func reportUnsupportedDatatypesInLiveWithFFOrFB(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
-	switch col.TypeName {
+func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName string, objType string, objName string) QueryIssue {
+	var issue QueryIssue
+	switch typeName {
 	case "tsquery":
-		*issues = append(*issues, NewTsQueryDatatypeIssue(
+		issue = NewTsQueryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "tsvector":
-		*issues = append(*issues, NewTsVectorDatatypeIssue(
+		issue = NewTsVectorDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	case "hstore":
-		*issues = append(*issues, NewHstoreDatatypeIssue(
+		issue = NewHstoreDatatypeIssue(
 			objType,
 			objName,
 			"",
-			col.TypeName,
-			col.ColumnName,
-		))
+			typeName,
+			columnName,
+		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
 	}
+	return issue
 }
 
 //=============FOREIGN TABLE ISSUE DETECTOR ===========================
