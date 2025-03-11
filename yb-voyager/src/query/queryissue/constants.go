@@ -259,7 +259,6 @@ const (
 	PK_UK_ON_ARRAY_DATATYPE_ISSUE_NAME         = "Primary/Unique key on column with array datatype"
 	PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_NAME  = "Primary/Unique key on column with user defined datatype"
 
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME            = "Unsupported datatype for Live migration"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback"
 )
 
