@@ -642,6 +642,8 @@ func (c *ColocatedCappedRandomTaskPicker) pickPendingColocatedTaskAsPerMaxTasks(
 			return pickedTask, nil
 		}
 	}
+	log.Debugf("could not pick pending colocated task. inProgressColocatedTasks: %v, maxColocatedTasksInProgress: %v, pendingColocatedTasks: %v",
+		c.inProgressColocatedTasks, c.maxColocatedTasksInProgress, c.pendingColocatedTasks)
 	return nil, nil
 }
 
@@ -682,6 +684,8 @@ func (c *ColocatedCappedRandomTaskPicker) pickPendingShardedTaskAsPerMaxTasks() 
 			return pickedTask, nil
 		}
 	}
+	log.Debugf("could not pick pending sharded task. inProgressShardedTasks: %v, maxShardedTasksInProgress: %v, pendingShardedTasks: %v",
+		c.inProgressShardedTasks, c.maxShardedTasksInProgress, c.pendingShardedTasks)
 	return nil, nil
 }
 

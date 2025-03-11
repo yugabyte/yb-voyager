@@ -39,10 +39,10 @@ type FileTaskImporter struct {
 	task                 *ImportFileTask
 	batchProducer        *FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
-	workerPool           *pool.Pool
+	workerPool           *pool.Pool // worker pool to submit batches for import. Shared across all tasks.
 
 	isTableColocated          bool
-	colocatedImportBatchQueue chan func()
+	colocatedImportBatchQueue chan func() // Queue for colocated import batches. shared across all tasks.
 
 	totalProgressAmount   int64
 	currentProgressAmount int64
