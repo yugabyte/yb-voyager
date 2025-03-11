@@ -602,9 +602,9 @@ func importData(importFileTasks []*ImportFileTask) {
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 			}
 
-			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
+			useTaskPicker := utils.GetEnvAsBool("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
-				maxColocatedBatchesInProgress := utils.GetEnvAsInt("MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
+				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker: %s", err)
