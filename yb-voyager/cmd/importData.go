@@ -50,6 +50,9 @@ import (
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
+var colocatedBatchImportPool *pool.Pool
+var colocatedBatchImportQueue chan func()
+
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
@@ -715,27 +718,7 @@ func importData(importFileTasks []*ImportFileTask) {
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
 	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int) error {
 
-	// setup worker pools
-
-	// The code can produce `poolSize` number of batches at a time. But, it can consume only
-	// `parallelism` number of batches at a time.
-	shardedPoolSize := maxParallelConns * 2
-	batchImportPool = pool.New().WithMaxGoroutines(shardedPoolSize)
-	log.Infof("created batch import pool of size: %d", shardedPoolSize)
-
-	colocatedBatchImportPool := pool.New().WithMaxGoroutines(maxColocatedBatchesInProgress)
-	log.Infof("created colocated batch import pool of size: %d", maxColocatedBatchesInProgress)
-
-	colocatedBatchImportQueue := make(chan func(), maxColocatedBatchesInProgress*2)
-	go func() {
-		for {
-			select {
-			case f := <-colocatedBatchImportQueue:
-				colocatedBatchImportPool.Go(f)
-			}
-		}
-	}()
-
+	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
 	taskImporters := map[int]*FileTaskImporter{}
 
 	var taskPicker FileTaskPicker
@@ -818,6 +801,31 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		}
 	}
 	return nil
+}
+
+func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress int) {
+	shardedPoolSize := maxParallelConns * 2
+	batchImportPool = pool.New().WithMaxGoroutines(shardedPoolSize)
+	log.Infof("created batch import pool of size: %d", shardedPoolSize)
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		colocatedBatchImportPool = pool.New().WithMaxGoroutines(maxColocatedBatchesInProgress)
+		log.Infof("created colocated batch import pool of size: %d", maxColocatedBatchesInProgress)
+
+		colocatedBatchImportQueue = make(chan func(), maxColocatedBatchesInProgress*2)
+
+		colocatedBatchImportQueueConsumer := func() {
+			// just read from channel and submit to the worker pool.
+			// worker pool has a max size of maxColocatedBatchesInProgress, so it will block if all workers are busy.
+			for {
+				select {
+				case f := <-colocatedBatchImportQueue:
+					colocatedBatchImportPool.Go(f)
+				}
+			}
+		}
+		go colocatedBatchImportQueueConsumer()
+	}
 }
 
 func startAdaptiveParallelism() (bool, error) {
