@@ -13,6 +13,16 @@ schema1.sequence_check2_id_seq -> schema1.sequence_check2, schema1.sequence_chec
  sales_region_id_seq -> sales_region, user_code_seq -> users, baz -> (foo, bar), schema3.baz -> (schema3.foo, schema3.bar), foo_bar_baz -> foo_bar
 
 Sequences not actually owned by tables-
+public.seq1, schema2.seq1, schema3.seq1, schema4.seq1
+
+
+export EXPORT_TABLE_LIST="sequence_check1,sequence_check3,multiple_serial_columns,Case_Sensitive_Seq,schema1.sequence_check1,schema1.sequence_check2,schema1.multiple_identity_columns,foo,bar,schema3.foo,schema4.bar,London,sydney,users"
+sequence_check2_id_seq
+multiple_identity_columns_id_seq
+multiple_identity_columns_id2_seq
+schema1.sequence_check3_id_seq
+schema1.multiple_serial_columns_id_seq,schema1.multiple_serial_columns_id2_seq
+foo_bar_baz
 
 */
 drop table if exists sequence_check1;

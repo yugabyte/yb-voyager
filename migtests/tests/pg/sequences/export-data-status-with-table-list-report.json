@@ -1,0 +1,67 @@
+[
+    {
+      "table_name": "sequence_check1",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "sequence_check3",
+      "status": "DONE",
+      "exported_count": 3
+    },
+    {
+      "table_name": "multiple_serial_columns",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "\"Case_Sensitive_Seq\"",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "schema1.sequence_check1",
+      "status": "DONE",
+      "exported_count": 1
+    },
+    {
+      "table_name": "schema1.sequence_check2",
+      "status": "DONE",
+      "exported_count": 6
+    },
+    {
+      "table_name": "schema1.multiple_identity_columns",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "foo",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "bar",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "schema3.foo",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "schema4.bar",
+      "status": "DONE",
+      "exported_count": 2
+    },
+    {
+      "table_name": "sales_region (london, sydney)",
+      "status": "DONE",
+      "exported_count": 666
+    },
+    {
+      "table_name": "users",
+      "status": "DONE",
+      "exported_count": 3
+    }
+  ]
