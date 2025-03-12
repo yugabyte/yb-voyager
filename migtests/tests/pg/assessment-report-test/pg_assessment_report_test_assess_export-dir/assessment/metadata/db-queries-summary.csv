@@ -1,0 +1,809 @@
+queryid,query
+4424453703626463631,"CREATE TABLE users_unique_nulls_not_distinct_index (
+    id INTEGER PRIMARY KEY,
+    email TEXT
+)"
+-1783631354203152882,"create table ext_test(id serial, password text)"
+-5909808985193420198,"SELECT c.oid,
+  n.nspname,
+  c.relname
+FROM pg_catalog.pg_class c
+     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+WHERE c.relname OPERATOR(pg_catalog.~) $1 COLLATE pg_catalog.default
+  AND pg_catalog.pg_table_is_visible(c.oid)
+ORDER BY 2, 3"
+639788312022690228,"CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
+    ON users_unique_nulls_not_distinct_index (email)
+    NULLS NOT DISTINCT"
+7056128052406006072,"INSERT INTO foo (id, value) VALUES ($1, $2)"
+-4213534500399364707,"SELECT a.attname,
+  pg_catalog.format_type(a.atttypid, a.atttypmod),
+  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, $1)
+   FROM pg_catalog.pg_attrdef d
+   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+  a.attnotnull,
+  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+  a.attidentity,
+  a.attgenerated,
+  a.attstorage,
+  a.attcompression AS attcompression,
+  CASE WHEN a.attstattarget=$2 THEN $3 ELSE a.attstattarget END AS attstattarget,
+  pg_catalog.col_description(a.attrelid, a.attnum)
+FROM pg_catalog.pg_attribute a
+WHERE a.attrelid = $4 AND a.attnum > $5 AND NOT a.attisdropped
+ORDER BY a.attnum"
+7092920547109933797,"select * from ""Mixed_Case_Table_Name_Test"""
+7817570275436356857,create table audit(id text)
+-822076081348780663,"SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, $1 AS relhasoids, c.relispartition, pg_catalog.array_to_string(c.reloptions || array(select $2 || x from pg_catalog.unnest(tc.reloptions) x), $3)
+, c.reltablespace, CASE WHEN c.reloftype = $4 THEN $5 ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+FROM pg_catalog.pg_class c
+ LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+WHERE c.oid = $6"
+8553155652359987289,CREATE EXTENSION IF NOT EXISTS pgcrypto
+9025838763430681961,"CREATE OR REPLACE FUNCTION notify_and_insert()
+RETURNS VOID AS $$
+BEGIN
+	LISTEN my_table_changes;
+    INSERT INTO my_table (name) VALUES ('Charlie');
+	NOTIFY my_table_changes, 'New row added with name: Charlie';
+    PERFORM pg_notify('my_table_changes', 'New row added with name: Charlie');
+	UNLISTEN my_table_changes;
+END;
+$$ LANGUAGE plpgsql"
+8357473157414774685,drop procedure if exists tt_insert_data
+-3228890533572829050,DROP DOMAIN IF EXISTS person_name cascade
+-9038704328268125448,"SELECT ctid, tableoid, xmin, xmax, cmin, cmax
+FROM employees2"
+8174035124165496506,GRANT SELECT ON ALL TABLES IN SCHEMA schema2 TO postgres
+485997928816115384,"SELECT 
+		quote_ident(nspname) AS schema_name,
+		CASE 
+			WHEN has_schema_privilege($1, quote_ident(nspname), $2) THEN $3 
+			ELSE $4 
+		END AS usage_permission_status
+	FROM 
+		pg_namespace
+	WHERE 
+		quote_ident(nspname) IN ($5,$6,$7,$8,$9)"
+1459628214538655945,comment on table session_log is 'Our session logs'
+1371779518822626805,"INSERT INTO ""WITH"" (""WITH"") VALUES ($1)"
+-3822757421771852330,SELECT $1 from public.pg_stat_statements LIMIT $2
+-1429804616298784482,"CREATE AGGREGATE inc_sum(int) (
+    sfunc = int4pl,
+    stype = int,
+    initcond = 10
+)"
+3407553005159320679,"CREATE OR REPLACE FUNCTION insert_non_decimal()
+RETURNS VOID AS $$
+BEGIN
+    -- Create a table for demonstration
+    CREATE TEMP TABLE non_decimal_table (
+        id SERIAL,
+        binary_value INTEGER,
+        octal_value INTEGER,
+        hex_value INTEGER
+    );
+    SELECT 5678901234, 0x1527D27F2, 0o52237223762, 0b101010010011111010010011111110010;
+    -- Insert values into the table
+    --not reported as parser converted these values to decimal ones while giving parseTree
+    INSERT INTO non_decimal_table (binary_value, octal_value, hex_value)
+    VALUES (0b1010, 0o012, 0xA); -- Binary (10), Octal (10), Hexadecimal (10)
+
+    RAISE NOTICE 'Row inserted with non-decimal integers.';
+END;
+$$ LANGUAGE plpgsql"
+4828450562911045645,"create table session_log1 
+( 
+   userid int not null, 
+   phonenumber int
+)"
+2431715345936313319,"create table c(id int, c text, nc text)"
+8449881280554683181,"drop table if exists ""Mixed_Case_Table_Name_Test"""
+5635609809222151532,SELECT setting from pg_settings where name = $1
+7748002966649465087,"CREATE TABLE parent_table (
+    id SERIAL PRIMARY KEY,
+    common_column1 TEXT,
+    common_column2 INTEGER
+)"
+-181328996057457699,SET myvars.voyager_user = 'postgres'
+2791418272827835589,"INSERT INTO session_log1 VALUES(i,i)"
+5314605721512809105,drop table if exists ext_test
+3822560557440530317,GRANT USAGE ON SCHEMA pg_toast TO postgres
+-6980009937175063833,"CREATE OR REPLACE FUNCTION prevent_update_shipped_without_date()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF TG_OP = 'UPDATE' AND NEW.status = 'shipped' AND NEW.shipped_date IS NULL THEN
+        RAISE EXCEPTION 'Cannot update status to shipped without setting shipped_date';
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql"
+-1582946468189583382,"CREATE TABLE orders (
+    item Item_details,
+    number_of_items int,
+    created_at timestamp with time zone default now()
+)"
+6220614647708121425,"CREATE OR REPLACE FUNCTION asterisks(n int)
+  RETURNS SETOF text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+BEGIN ATOMIC
+SELECT repeat('*', g) FROM generate_series (1, n) g;
+END"
+1767219896142777888,"SELECT xmlelement(name root, xmlelement(name child, $1))"
+-508457620963991534,"SELECT pg_advisory_lock($1,$2)"
+-3230452989011671703,INSERT INTO AUDIT(id) VALUES (current_timestamp)
+2873743522792665055,CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data)
+-3822522447750979212,"insert into ""Recipients""(First_name,Last_name,Misc) values ($1,$2,$3)"
+-5329221898975031007,"CREATE TABLE date_multirange_table (
+    id SERIAL PRIMARY KEY,
+    project_dates datemultirange
+)"
+-4173649199038582409,DROP type IF EXISTS Item_details cascade
+-1582125682833611046,"CREATE TABLE timestamp_multirange_table (
+    id SERIAL PRIMARY KEY,
+    event_times tsmultirange
+)"
+2745014038706111746,GRANT USAGE ON SCHEMA public TO postgres
+5825599336555462815,"CREATE TABLE users_unique_nulls_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT COMPRESSION pglz,
+    UNIQUE (email)
+)"
+-8862785910644179583,"CREATE VIEW sales_employees as
+select id, first_name,
+last_name, full_name
+from employees2 where Department = 'sales'
+WITH CHECK OPTION"
+-636439183471295530,CREATE INDEX idx_box_data ON Mixed_Data_Types_Table1 USING GIST (box_data)
+7721459589439075175,"CREATE TYPE enum_kind AS ENUM (
+    'YES',
+    'NO',
+    'UNKNOWN'
+)"
+-3621586910788289663,"CREATE CONSTRAINT TRIGGER enforce_shipped_date_constraint
+AFTER UPDATE ON orders2
+FOR EACH ROW
+WHEN (NEW.status = 'shipped' AND NEW.shipped_date IS NULL)
+EXECUTE FUNCTION prevent_update_shipped_without_date()"
+-3436286929497228539,"CREATE OR REPLACE FUNCTION asterisks1(n int)
+  RETURNS text
+  LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE
+RETURN repeat('*', n)"
+-5242670219725082917,"CREATE DOMAIN person_name AS   
+VARCHAR NOT NULL CHECK (value!~ '\s')"
+-8816915513164430719,GRANT USAGE ON SCHEMA information_schema TO postgres
+-7350986834821027869,"SELECT nspname AS schema_name
+	FROM pg_namespace
+	WHERE nspname IN ($1,$2,$3)"
+-5114267286293050390,SELECT xml_is_well_formed($1)
+-4155164059389385707,drop trigger if exists audit_trigger on tt
+6946766354125176656,"CREATE TYPE Item_details AS (  
+    item_id INT,  
+    item_name VARCHAR,  
+    item_price Numeric(5,2)  
+)"
+7558179165382566016,"SELECT xmlforest(first_name AS element1, last_name AS element2) FROM employees2"
+-2173885586574664347,comment on column session_log1.userid is 'The user ID for log1'
+7192409789247709918,"SELECT
+    nspname AS schema_name,
+    SUM(pg_total_relation_size(pg_class.oid)) AS total_size
+FROM
+    pg_class
+    JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+WHERE
+    nspname in ($1,$2,$3)  
+GROUP BY
+    nspname"
+799167850468469635,"CREATE COLLATION schema2.ignore_accents (provider = icu, locale = 'und-u-ks-level1-kc-true', deterministic = false)"
+-1846131619895138379,GRANT SELECT ON ALL SEQUENCES IN SCHEMA test_views TO postgres
+-4692287146381128634,"SELECT pubname
+     , $1
+     , $2
+FROM pg_catalog.pg_publication p
+     JOIN pg_catalog.pg_publication_namespace pn ON p.oid = pn.pnpubid
+     JOIN pg_catalog.pg_class pc ON pc.relnamespace = pn.pnnspid
+WHERE pc.oid =$3 and pg_catalog.pg_relation_is_publishable($4)
+UNION
+SELECT pubname
+     , pg_get_expr(pr.prqual, c.oid)
+     , (CASE WHEN pr.prattrs IS NOT NULL THEN
+         (SELECT string_agg(attname, $5)
+           FROM pg_catalog.generate_series($6, pg_catalog.array_upper(pr.prattrs::pg_catalog.int2[], $7)) s,
+                pg_catalog.pg_attribute
+          WHERE attrelid = pr.prrelid AND attnum = prattrs[s])
+        ELSE $8 END) FROM pg_catalog.pg_publication p
+     JOIN pg_catalog.pg_publication_rel pr ON p.oid = pr.prpubid
+     JOIN pg_catalog.pg_class c ON c.oid = pr.prrelid
+WHERE pr.prrelid = $9
+UNION
+SELECT pubname
+     , $10
+     , $11
+FROM pg_catalog.pg_publication p
+WHERE p.puballtables AND pg_catalog.pg_relation_is_publishable($12)
+ORDER BY 1"
+1589139592371150260,"SELECT c.relchecks, c.relkind, c.relhasindex, c.relhasrules, c.relhastriggers, c.relrowsecurity, c.relforcerowsecurity, $1 AS relhasoids, c.relispartition, $2, c.reltablespace, CASE WHEN c.reloftype = $3 THEN $4 ELSE c.reloftype::pg_catalog.regtype::pg_catalog.text END, c.relpersistence, c.relreplident, am.amname
+FROM pg_catalog.pg_class c
+ LEFT JOIN pg_catalog.pg_class tc ON (c.reltoastrelid = tc.oid)
+LEFT JOIN pg_catalog.pg_am am ON (c.relam = am.oid)
+WHERE c.oid = $5"
+4507262895438977998,"INSERT INTO public.employees (first_name, last_name, department)
+VALUES
+    ($1, $2, $3),
+    ($4, $5, $6),
+    ($7, $8, $9),
+    ($10, $11, $12),
+    ($13, $14, $15)"
+8248314456853924799,GRANT SELECT ON ALL TABLES IN SCHEMA pg_toast TO postgres
+-8573716649807655192,"CREATE TABLE timestamptz_multirange_table (
+    id SERIAL PRIMARY KEY,
+    global_event_times tstzmultirange
+)"
+3064929970309640654,"COPY employeesCopyFromWhere (id, name, age)
+FROM STDIN WITH (FORMAT csv)
+WHERE age > 30"
+5951656039371401347,"CREATE OR REPLACE FUNCTION public.check_sales_region()
+RETURNS TRIGGER AS $$
+BEGIN
+
+    IF NEW.amount < 0 THEN
+        RAISE EXCEPTION 'Amount cannot be negative';
+    END IF;
+
+    IF NEW.branch IS NULL OR NEW.branch = '' THEN
+        RAISE EXCEPTION 'Branch name cannot be null or empty';
+    END IF;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql"
+-5546194591489386283,"CREATE TABLE orders2 (
+    id SERIAL PRIMARY KEY,
+    order_number VARCHAR(50) UNIQUE DEFERRABLE, --unique constraint deferrable test
+    status VARCHAR(50) NOT NULL,
+    shipped_date DATE
+)"
+-9124547116302871515,"drop table if exists ""Recipients"""
+-3485133465557936359,drop aggregate if exists inc_sum(int)
+5013239926430074067,"CREATE OR REPLACE FUNCTION total ()
+RETURNS integer AS $agg_output$
+/******************************************************************************
+  PACKAGE NAME :  fnc_req_ansr_delete
+  DESCRIPTION:    This function return Request ID, Reason ID, along with JSON structure of Repetition_N
+
+  REVISION HISTORY
+  Date          Modified By         Description
+  ----------    -----------         -----------------------------------------
+  18/05/2018    Saurabh Singh  		Initial implementation.
+  
+	Input Parms:
+    1. pv_in_per_id     -- WID (mandatory)                		--the function parameter type: rs_req_dbo.req.per_id%TYPE
+    2. pv_in_pln_id     -- Plan Identifier (mandatory)    		--the function parameter type: rs_req_dbo.req.pln_id%TYPE
+    3. pv_in_wi_req_id  -- Request Identifier (mandatory) 		--the function parameter type: rs_req_dbo.req_ansr.wi_req_id%TYPE,
+    4. pv_in_rsn_id 		-- Reason ID Passed by API [REQUIRED]	--the function parameter type: rs_req_dbo.req_ansr.rsn_id%TYPE
+    5. pv_in_json			-- JSON arry containing Repetition_N
+	6. pv_in_req_src_x		jsonb		All logging information
+	
+	Output Parms:
+	1. pv_out_json 		-- 	Return JSON Array of Repetition_N as rsc_id and rec_upd_tmst: 
+    							{""rsc_id"": null, ""rec_upd_tmst"": ""2018-06-07T20:20:00""}
+
+  
+  29/05/2018	Saurabh Singh		Removed Return Code and Message from the function
+  17/07/2018    Eoin Kelly          Implemented changes to JSON output and input params.
+  08/08/2018    Saurabh Singh       Implemented New logic for Null Reason ID and null jason to delete based on what is provided.
+  
+  Sample Input:
+  Select * from rs_req_fnc_dbo.fnc_req_ansr_delete(
+  '{""api_appl_id"":""default"",""api_lg_trk_id"":""default"",""api_usr_role_c"":""default"",""api_usr_id_ty_c"":""default"",""api_usr_id"":""default"",""api_read_only_i"":""default""}',
+  123456, 25001, 2, 2, '{""repitition_numbers"" : [{""repitition_n"" : 2}]}');
+  
+  Sample Output:
+  {""rsc_id"": null, ""rec_upd_tmst"": ""2018-06-07T20:20:00""}    --- rsc_id is the REPITITION NUMBER
+  
+  ******************************************************************************/
+declare
+	total integer;
+BEGIN
+   SELECT inc_sum(i) into total FROM tt;
+   RETURN total;
+END;
+$agg_output$ LANGUAGE plpgsql"
+9189423113673895440,CREATE TABLE tt (i int)
+4071786537434204570,drop table if exists session_log
+-8999098604051944070,comment on column session_log1.phonenumber is 'The phone number including the area code for log1'
+-7879012914242641290,"INSERT INTO library_nested VALUES
+($1, $2)"
+8331860687748163509,drop table if exists audit
+3475393030727559526,drop function if exists auditlogfunc()
+-7021127382493644845,SELECT pg_stat_statements_reset()
+4014164498603307084,"SELECT a.attname,
+  pg_catalog.format_type(a.atttypid, a.atttypmod),
+  (SELECT pg_catalog.pg_get_expr(d.adbin, d.adrelid, $1)
+   FROM pg_catalog.pg_attrdef d
+   WHERE d.adrelid = a.attrelid AND d.adnum = a.attnum AND a.atthasdef),
+  a.attnotnull,
+  (SELECT c.collname FROM pg_catalog.pg_collation c, pg_catalog.pg_type t
+   WHERE c.oid = a.attcollation AND t.oid = a.atttypid AND a.attcollation <> t.typcollation) AS attcollation,
+  a.attidentity,
+  a.attgenerated
+FROM pg_catalog.pg_attribute a
+WHERE a.attrelid = $2 AND a.attnum > $3 AND NOT a.attisdropped
+ORDER BY a.attnum"
+5402503741048044408,"CREATE TABLE child_table (
+    specific_column1 DATE
+) INHERITS (parent_table)"
+1349090128523880600,"SELECT
+    s.section_name,
+    b.title,
+    b.author
+FROM
+    library_nested l,
+    XMLTABLE(
+        $1
+        PASSING l.lib_data
+        COLUMNS
+            section_name TEXT PATH $2,
+            books XML PATH $3
+    ) AS s,
+    XMLTABLE(
+        $4
+        PASSING s.books
+        COLUMNS
+            title TEXT PATH $5,
+            author TEXT PATH $6
+) AS b"
+-7293713892450948500,CALL tt_insert_data($1)
+-2239601357569617525,"CREATE TABLE products (
+    item Item_details,
+    added_at timestamp with time zone default now(),
+    updated_at timestamp with time zone default now()
+)"
+-3483979013439116157,select total()
+5170449501332046514,"CREATE OR REPLACE FUNCTION public.manage_large_object(loid OID) RETURNS VOID AS $$
+BEGIN
+    IF loid IS NOT NULL THEN
+        -- Unlink the large object to free up storage
+        PERFORM lo_unlink(loid);
+    END IF;
+END;
+$$ LANGUAGE plpgsql"
+-6466561910280777128,"CREATE OR REPLACE PROCEDURE public.update_combined_tbl_data(
+    p_id public.combined_tbl.id%TYPE,           
+    p_c public.combined_tbl.c%TYPE,             
+    p_bitt public.combined_tbl.bitt%TYPE,       
+    p_d public.combined_tbl.d%TYPE              
+)
+AS
+$$
+DECLARE
+    v_new_mac public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example: Using a local variable to store a macaddr value (for illustration)
+    v_new_mac := '00:14:22:01:23:45'::macaddr;
+
+    -- Updating the table with provided parameters
+    UPDATE public.combined_tbl
+    SET 
+        c = p_c,              -- Updating cidr type column
+        bitt = p_bitt,        -- Updating bit column
+        d = p_d,              -- Updating daterange column
+        maddr = v_new_mac     -- Using the local macaddr variable in update
+    WHERE id = p_id;
+
+    RAISE NOTICE 'Updated record with ID: %, CIDR: %, BIT: %, Date range: %', 
+        p_id, p_c, p_bitt, p_d;
+END;
+$$ LANGUAGE plpgsql"
+6467547031472907650,"CREATE TABLE users_unique_nulls_not_distinct (
+    id INTEGER PRIMARY KEY,
+    email TEXT,
+    UNIQUE NULLS NOT DISTINCT (email)
+)"
+-1385269093574736200,"CREATE TABLE library_nested (
+    lib_id INT,
+    lib_data XML
+)"
+7333000095813386604,CREATE INDEX idx_box_data_spgist ON schema2.Mixed_Data_Types_Table1 USING SPGIST (box_data)
+6250922831447425846,CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London')
+-2970296885166154394,comment on column session_log.userid is 'The user ID'
+-6057345072838927139,"CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region)"
+3398622168323840204,"insert into c values($1,$2,$3)"
+2431852845718459534,"CREATE OR REPLACE FUNCTION process_order(orderid INT) RETURNS VOID AS $$
+DECLARE
+    lock_acquired BOOLEAN;
+BEGIN
+    lock_acquired := pg_try_advisory_lock(orderid); -- not able to report this as it is an assignment statement TODO: fix when support this 
+
+    IF NOT lock_acquired THEN
+        RAISE EXCEPTION 'Order % already being processed by another session', orderid;
+    END IF;
+
+    UPDATE orders
+    SET processed_at = NOW()
+    WHERE orders.order_id = orderid;
+
+    RAISE NOTICE 'Order % processed successfully', orderid;
+
+    PERFORM pg_advisory_unlock(orderid);
+END;
+$$ LANGUAGE plpgsql"
+-5621790772997851575,"create table ""Mixed_Case_Table_Name_Test"" (
+	id serial primary key,
+	first_name VARCHAR(50),
+	last_name VARCHAR(50),
+	email VARCHAR(50),
+	gender VARCHAR(50),
+	ip_address VARCHAR(20)
+    
+)"
+-2930491946440451411,comment on table session_log2 is 'Our session logs2'
+-1661625297929705811,"SELECT c2.relname, i.indisprimary, i.indisunique, i.indisclustered, i.indisvalid, pg_catalog.pg_get_indexdef(i.indexrelid, $1, $2),
+  pg_catalog.pg_get_constraintdef(con.oid, $3), contype, condeferrable, condeferred, i.indisreplident, c2.reltablespace
+FROM pg_catalog.pg_class c, pg_catalog.pg_class c2, pg_catalog.pg_index i
+  LEFT JOIN pg_catalog.pg_constraint con ON (conrelid = i.indrelid AND conindid = i.indexrelid AND contype IN ($4,$5,$6))
+WHERE c.oid = $7 AND c.oid = i.indrelid AND i.indexrelid = c2.oid
+ORDER BY i.indisprimary DESC, c2.relname"
+-6493032970975326314,"insert into ""Mixed_Case_Table_Name_Test"" (first_name, last_name, email, gender, ip_address) values ($1, $2, $3, $4, $5)"
+2347090133130278272,SELECT pg_advisory_unlock_all()
+1865275307115748338,GRANT SELECT ON ALL TABLES IN SCHEMA information_schema TO postgres
+2325169421856125887,CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston')
+2176967498515724180,"create table session_log 
+( 
+   userid int not null, 
+   phonenumber int
+)"
+4461117486920709179,"CREATE TABLE bigint_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int8multirange
+)"
+8215748366238326458,comment on column session_log2.phonenumber is 'The phone number including the area code for log2'
+-1222094462601176151,"CREATE TABLE numeric_multirange_table (
+    id SERIAL PRIMARY KEY,
+    price_ranges nummultirange
+)"
+8150270254625462044,"CREATE TABLE Mixed_Data_Types_Table2 (
+    id SERIAL PRIMARY KEY,
+    lsn_data PG_LSN,
+    lseg_data LSEG,
+    path_data PATH
+)"
+4038264363220813960,"CREATE VIEW top_employees_view AS SELECT * FROM (
+			SELECT * FROM employeesForView
+			ORDER BY salary DESC
+			FETCH FIRST 2 ROWS WITH TIES
+		) AS top_employees"
+8269594359045640434,SELECT xmlparse(document $1) as xmldata
+8797807870570666250,"INSERT INTO session_log2 VALUES(i,i)"
+3468158488524822669,"SELECT c.oid::pg_catalog.regclass
+FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+WHERE c.oid = i.inhparent AND i.inhrelid = $1
+  AND c.relkind != $2 AND c.relkind != $3
+ORDER BY inhseqno"
+6503867690039254134,"INSERT INTO orders (item, number_of_items) VALUES (ROW($1, $2, $3), $4)"
+-2299854225491464050,"CREATE OR REPLACE FUNCTION auditlogfunc() RETURNS TRIGGER AS $example_table$
+   BEGIN
+      INSERT INTO AUDIT(id) VALUES (current_timestamp); -- random comment
+      RETURN NEW;
+   END;
+$example_table$ LANGUAGE plpgsql"
+-5349145469046294900,"CREATE TABLE ""Recipients"" (  
+ID SERIAL PRIMARY KEY,  
+    First_name person_name,  
+    Last_name person_name,  
+    Misc enum_kind  
+    )"
+7639628315805988079,"SELECT
+    o.order_id,
+    items.product,
+    items.quantity::INT
+FROM
+    orders_lateral o
+    CROSS JOIN LATERAL XMLTABLE(
+        $1
+        PASSING o.order_details
+        COLUMNS
+            product TEXT PATH $2,
+            quantity TEXT PATH $3
+) AS items"
+8382208435256860221,GRANT USAGE ON SCHEMA test_views TO postgres
+-6326269284807774254,"CREATE TABLE with_example1 (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) -- WITH()
+)
+/* 
+WITH (
+    FILLFACTOR = 80,  -- Active fill factor setting
+    autovacuum_enabled = TRUE,  -- Autovacuum enabled
+    autovacuum_vacuum_scale_factor = 0.1,   -- Scale factor for vacuum
+    autovacuum_freeze_min_age = 10000000  -- Min age for freeze
+    -- These settings are commented out and will not be applied
+)
+*/
+WITH (
+    FILLFACTOR = 80,  /* Fill factor: 70% 
+                         Special characters: {}, (), [], @, # */
+    autovacuum_enabled = TRUE,  /* Autovacuum enabled */
+    autovacuum_vacuum_scale_factor = 0.1,  /* Scale factor for vacuum */
+    autovacuum_freeze_min_age = 10000000  /* Min age for freeze */
+    /* Multiline
+       Comment
+    */
+)"
+-7904686138588432523,"CREATE UNLOGGED TABLE tbl_unlogged (id int, val text)"
+-6831422781188298718,SELECT * FROM pg_stat_statements
+-4315456888993909004,"SET myvars.schema_list = 'public,schema2,test_views'"
+3074323631795655430,GRANT USAGE ON SCHEMA schema2 TO postgres
+191164134617018942,"SELECT oid, stxrelid::pg_catalog.regclass, stxnamespace::pg_catalog.regnamespace::pg_catalog.text AS nsp, stxname,
+pg_catalog.pg_get_statisticsobjdef_columns(oid) AS columns,
+  $1 = any(stxkind) AS ndist_enabled,
+  $2 = any(stxkind) AS deps_enabled,
+  $3 = any(stxkind) AS mcv_enabled,
+stxstattarget
+FROM pg_catalog.pg_statistic_ext
+WHERE stxrelid = $4
+ORDER BY nsp, stxname"
+-9046231394286592220,"CREATE TABLE employeesForView (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    salary NUMERIC(10, 2) NOT NULL
+)"
+4615542740142961622,"SELECT pg_has_role(current_user, $1, $2)"
+2314159063292661019,SELECT inc_sum(i)            FROM tt
+-9097991426450866987,"CREATE TABLE orders_lateral (
+    order_id INT,
+    customer_id INT,
+    order_details XML
+)"
+6405971516772242098,CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney')
+7892297869380901607,"CREATE OR REPLACE PROCEDURE tt_insert_data(""i"" integer)
+LANGUAGE SQL
+AS $$
+
+INSERT INTO public.""tt"" VALUES (""i"");
+
+$$"
+8393090877940339589,INSERT INTO with_example2 (name) VALUES ($1)
+4689259495534515041,GRANT SELECT ON ALL TABLES IN SCHEMA pg_catalog TO postgres
+-3545019233341233291,DROP type IF EXISTS enum_kind cascade
+-2831256111645187012,"select * from ""Case_Sensitive_Columns"""
+-4955981155727158612,"SELECT nspname
+		FROM pg_extension e
+		JOIN pg_namespace n ON e.extnamespace = n.oid
+		WHERE e.extname = $1"
+-7273824228212390621,INSERT INTO with_example1 (name) VALUES ($1)
+1528199465028286184,"CREATE TABLE foo (
+    id   INTEGER PRIMARY KEY,
+    value TEXT
+)"
+-7916061722844013268,"ALTER TABLE sales_unique_nulls_not_distinct_alter
+	ADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)"
+8081153253964444584,"CREATE TABLE Mixed_Data_Types_Table1 (
+    id SERIAL PRIMARY KEY,
+    point_data POINT,
+    snapshot_data TXID_SNAPSHOT,
+    lseg_data LSEG,
+    box_data BOX
+)"
+-370276829360958821,CREATE POLICY policy_test_report ON test_xml_type TO test_policy USING (true)
+3717660409972762128,"CREATE TABLE int_multirange_table (
+    id SERIAL PRIMARY KEY,
+    value_ranges int4multirange
+)"
+-6886006850436757621,"CREATE TABLE IF NOT EXISTS employeesCopyFromWhere (
+    id INT PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INT NOT NULL
+)"
+1753503040133920721,"SELECT table_to_xml($1, $2, $3, $4)"
+-2446995559109739848,GRANT SELECT ON ALL SEQUENCES IN SCHEMA pg_toast TO postgres
+-4791902125508032044,"CREATE TRIGGER audit_trigger AFTER INSERT ON tt
+FOR EACH ROW EXECUTE PROCEDURE auditlogfunc()"
+5961465354144376718,"INSERT INTO test_xml_type values($1,$2)"
+-6918824350767520548,"CREATE TABLE ""WITH"" (
+    id SERIAL PRIMARY KEY,
+    ""WITH"" VARCHAR(100)  /* Column name is ""WITH"" */
+)
+WITH (
+    FILLFACTOR = 75,  /* Fill factor set to 75% */
+    autovacuum_enabled = TRUE,  /* Enable autovacuum */
+    autovacuum_analyze_scale_factor = 0.05  /* Scale factor for analyze */
+)"
+-6440556480526933939,GRANT SELECT ON ALL SEQUENCES IN SCHEMA pg_catalog TO postgres
+2515902531449781665,"INSERT INTO products (item) VALUES (ROW($1, $2, $3))"
+-6243656371406176522,"SELECT pg_advisory_xact_lock($1,$2)"
+7911090456787137671,CREATE SCHEMA IF NOT EXISTS schema2
+8190424341407908757,"SELECT n.nspname as ""Schema"",
+  c.relname as ""Name"",
+  CASE c.relkind WHEN $1 THEN $2 WHEN $3 THEN $4 WHEN $5 THEN $6 WHEN $7 THEN $8 WHEN $9 THEN $10 WHEN $11 THEN $12 WHEN $13 THEN $14 WHEN $15 THEN $16 WHEN $17 THEN $18 END as ""Type"",
+  pg_catalog.pg_get_userbyid(c.relowner) as ""Owner"",
+  CASE c.relpersistence WHEN $19 THEN $20 WHEN $21 THEN $22 WHEN $23 THEN $24 END as ""Persistence"",
+  am.amname as ""Access method"",
+  pg_catalog.pg_size_pretty(pg_catalog.pg_table_size(c.oid)) as ""Size"",
+  pg_catalog.obj_description(c.oid, $25) as ""Description""
+FROM pg_catalog.pg_class c
+     LEFT JOIN pg_catalog.pg_namespace n ON n.oid = c.relnamespace
+     LEFT JOIN pg_catalog.pg_am am ON am.oid = c.relam
+WHERE c.relkind IN ($26,$27,$28,$29,$30)
+  AND c.relname OPERATOR(pg_catalog.~) $31 COLLATE pg_catalog.default
+  AND pg_catalog.pg_table_is_visible(c.oid)
+ORDER BY 1,2"
+2445951040710138033,GRANT USAGE ON SCHEMA pg_catalog TO postgres
+1506898085210546584,"SELECT c.oid::pg_catalog.regclass, c.relkind, inhdetachpending, pg_catalog.pg_get_expr(c.relpartbound, c.oid)
+FROM pg_catalog.pg_class c, pg_catalog.pg_inherits i
+WHERE c.oid = i.inhrelid AND i.inhparent = $1
+ORDER BY pg_catalog.pg_get_expr(c.relpartbound, c.oid) = $2, c.oid::pg_catalog.regclass::pg_catalog.text"
+1943404910878012524,"CREATE TABLE employees2 (
+    id SERIAL PRIMARY KEY,
+    first_name VARCHAR(50) NOT NULL,
+    last_name VARCHAR(50) NOT NULL,
+    full_name VARCHAR(101) GENERATED ALWAYS AS (first_name || ' ' || last_name) STORED,
+    Department varchar(50)
+)"
+9222367315200045839,select * from ext_test
+2984951494556192089,GRANT SELECT ON ALL SEQUENCES IN SCHEMA schema2 TO postgres
+-3878544709437116144,"insert into ""Case_Sensitive_Columns"" (""user"", ""Last_Name"", email, gender, ip_address) values ($1, $2, $3, $4, $5)"
+3624218200384213700,SELECT * from audit
+-1974858864803153783,"create table ""Case_Sensitive_Columns"" (
+	id serial primary key,
+	""user"" VARCHAR(50),
+	""Last_Name"" VARCHAR(50),
+	email VARCHAR(50),
+	gender VARCHAR(50),
+	ip_address VARCHAR(20)
+    
+)"
+-1432011430816745576,"INSERT INTO session_log VALUES(i,i)"
+8747364144348767400,GRANT SELECT ON ALL SEQUENCES IN SCHEMA public TO postgres
+8512981568999210244,"WITH schema_list AS (
+			SELECT unnest(ARRAY[$1,$2,$3,$4,$5]) AS schema_name
+		),
+		accessible_schemas AS (
+			SELECT schema_name
+			FROM schema_list
+			WHERE has_schema_privilege($6, quote_ident(schema_name), $7)
+		)
+		SELECT
+			t.schemaname AS schema_name,
+			t.tablename AS table_name,
+			CASE 
+				WHEN has_table_privilege($8, quote_ident(t.schemaname) || $9 || quote_ident(t.tablename), $10) 
+				THEN $11 
+				ELSE $12 
+			END AS status
+		FROM pg_tables t
+		JOIN accessible_schemas a ON t.schemaname = a.schema_name
+		UNION ALL
+		SELECT
+			t.schemaname AS schema_name,
+			t.tablename AS table_name,
+			$13 AS status
+		FROM pg_tables t
+		WHERE t.schemaname IN (SELECT schema_name FROM schema_list)
+		AND NOT EXISTS (
+			SELECT $14
+			FROM accessible_schemas a
+			WHERE t.schemaname = a.schema_name
+		)"
+-4646111551573460798,"CREATE OR REPLACE FUNCTION public.process_combined_tbl(
+    p_id public.combined_tbl.id%TYPE,        
+    p_c public.combined_tbl.c%TYPE,          
+    p_bitt public.combined_tbl.bitt%TYPE,    
+    p_inds3 public.combined_tbl.inds3%TYPE  
+)
+RETURNS public.combined_tbl.maddr%TYPE AS  
+$$
+DECLARE
+    v_maddr public.combined_tbl.maddr%TYPE;   
+BEGIN
+    -- Example logic: Assigning local variable using passed-in parameter
+    v_maddr := p_c::text;  -- Example conversion (cidr to macaddr), just for illustration
+
+    -- Processing the passed parameters
+    RAISE NOTICE 'Processing: ID = %, CIDR = %, BIT = %, Interval = %, MAC = %',
+        p_id, p_c, p_bitt, p_inds3, v_maddr;
+
+    -- Returning a value of the macaddr type (this could be more meaningful logic)
+    RETURN v_maddr;  -- Returning a macaddr value
+END;
+$$ LANGUAGE plpgsql"
+-1197940462920820665,SET SEARCH_PATH TO schema2
+-7120480236102145993,comment on column session_log2.userid is 'The user ID for log2'
+-7534026800971383508,"CREATE TABLE IF NOT EXISTS employeesCopyOnError (
+    id INT PRIMARY KEY,
+    name TEXT NOT NULL,
+    age INT NOT NULL
+)"
+1816788546459015142,"select aggfnoid,agginitval,aggkind  from pg_aggregate
+where aggfnoid = $1::regproc"
+2740029119971301278,"SELECT $1 || schema_name || $2 || $3 || $4
+FROM information_schema.schemata"
+-3914611145490614591,"SELECT pol.polname, pol.polpermissive,
+  CASE WHEN pol.polroles = $1 THEN $2 ELSE pg_catalog.array_to_string(array(select rolname from pg_catalog.pg_roles where oid = any (pol.polroles) order by 1),$3) END,
+  pg_catalog.pg_get_expr(pol.polqual, pol.polrelid),
+  pg_catalog.pg_get_expr(pol.polwithcheck, pol.polrelid),
+  CASE pol.polcmd
+    WHEN $4 THEN $5
+    WHEN $6 THEN $7
+    WHEN $8 THEN $9
+    WHEN $10 THEN $11
+    END AS cmd
+FROM pg_catalog.pg_policy pol
+WHERE pol.polrelid = $12 ORDER BY 1"
+-1266454318747403852,"INSERT INTO public.""tt"" VALUES (""i"")"
+-6453606918065752020,drop table if exists tt
+6698503010847756279,GRANT pg_read_all_stats to postgres
+8092885464591849296,"create table session_log2 
+( 
+   userid int not null, 
+   phonenumber int
+)"
+-6378844679066550093,"CREATE TABLE sales_unique_nulls_not_distinct (
+    store_id INT,
+    product_id INT,
+    sale_date DATE,
+    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)
+)"
+-6944610738763493903,"CREATE TABLE test_xml_type(id int, data xml)"
+-2441483641787709350,comment on column session_log.phonenumber is 'The phone number including the area code'
+3070522439982622924,"CREATE TABLE with_example2 (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(100) /*
+    WITH()
+    */
+)
+WITH (
+    FILLFACTOR = 80,  /* Fill factor: 70% 
+                         Special characters: {}, (), [], @, # */
+    autovacuum_enabled = TRUE,  /* Autovacuum enabled */
+    autovacuum_vacuum_scale_factor = 0.1,  /* Scale factor for vacuum */
+    autovacuum_freeze_min_age = 10000000  /* Min age for freeze */
+    -- Comment at the end of the block
+)
+/* 
+WITH (
+    FILLFACTOR = 80,  -- Active fill factor setting
+    autovacuum_enabled = TRUE,  -- Autovacuum enabled
+    autovacuum_vacuum_scale_factor = 0.1,   -- Scale factor for vacuum
+    autovacuum_freeze_min_age = 10000000,  -- Min age for freeze
+)
+*/"
+1068941292116731602,SELECT lo_create($1)
+237418894839356347,"SELECT pg_advisory_unlock($1,$2)"
+-1264856100543860409,GRANT SELECT ON ALL TABLES IN SCHEMA public TO postgres
+-2815230421601913730,"SELECT nspname FROM pg_extension e, pg_namespace n WHERE e.extnamespace = n.oid AND e.extname = $1"
+5911164701014426258,SELECT * FROM employees2
+-2090296197243657028,"INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
+VALUES
+    ($1, $2, $3, $4),
+    ($5, $6, $7, $8),
+    ($9, $10, $11, $12)"
+-4012811909374428529,comment on table session_log1 is 'Our session logs1'
+-7585148756408357749,"drop table if exists ""Case_Sensitive_Columns"""
+276733757717712621,"SELECT *
+FROM xmltable(
+    $1
+    PASSING $2
+    COLUMNS 
+        name TEXT PATH $3
+)"
+-3116690887441173014,GRANT SELECT ON ALL TABLES IN SCHEMA test_views TO postgres
+-1112129512542279638,"COPY employeesCopyOnError (id, name, age)
+FROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE )"
+1763637373646796408,GRANT SELECT ON ALL SEQUENCES IN SCHEMA information_schema TO postgres
+8136749123233626174,"do $$
+begin
+   for i in 1..100 loop
+      INSERT INTO session_log VALUES(i,i);
+      INSERT INTO session_log1 VALUES(i,i);
+      INSERT INTO session_log2 VALUES(i,i);
+   end loop;
+end; $$"
+8626996529088186937,"CREATE TABLE sales_unique_nulls_not_distinct_alter (
+	store_id INT,
+	product_id INT,
+	sale_date DATE
+)"

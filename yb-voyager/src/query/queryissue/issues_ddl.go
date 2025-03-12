@@ -443,7 +443,7 @@ func NewTopogeometryDatatypeIssue(objectType string, objectName string, sqlState
 var pointDatatypeIssue = issue.Issue{
 	Type:        POINT_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Point",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -459,7 +459,7 @@ func NewPointDatatypeIssue(objectType string, objectName string, sqlStatement st
 var lineDatatypeIssue = issue.Issue{
 	Type:        LINE_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Line",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -475,7 +475,7 @@ func NewLineDatatypeIssue(objectType string, objectName string, sqlStatement str
 var lsegDatatypeIssue = issue.Issue{
 	Type:        LSEG_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Lseg",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -491,7 +491,7 @@ func NewLsegDatatypeIssue(objectType string, objectName string, sqlStatement str
 var boxDatatypeIssue = issue.Issue{
 	Type:        BOX_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Box",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -507,7 +507,7 @@ func NewBoxDatatypeIssue(objectType string, objectName string, sqlStatement stri
 var pathDatatypeIssue = issue.Issue{
 	Type:        PATH_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Path",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -523,7 +523,7 @@ func NewPathDatatypeIssue(objectType string, objectName string, sqlStatement str
 var polygonDatatypeIssue = issue.Issue{
 	Type:        POLYGON_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Polygon",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -539,7 +539,7 @@ func NewPolygonDatatypeIssue(objectType string, objectName string, sqlStatement 
 var circleDatatypeIssue = issue.Issue{
 	Type:        CIRCLE_DATATYPE,
 	Name:        "Unsupported datatype for Live migration - Circle",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -555,7 +555,7 @@ func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement s
 var arrayOfEnumDatatypeIssue = issue.Issue{
 	Type:        ARRAY_OF_ENUM_DATATYPE,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: ARRAY_OF_ENUM_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -571,7 +571,7 @@ func NewArrayOfEnumDatatypeIssue(objectType string, objectName string, sqlStatem
 var userDefinedDatatypeIssue = issue.Issue{
 	Type:        USER_DEFINED_DATATYPE,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -587,7 +587,7 @@ func NewUserDefinedDatatypeIssue(objectType string, objectName string, sqlStatem
 var tsQueryDatatypeIssue = issue.Issue{
 	Type:        TSQUERY_DATATYPE,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsQuery Datatype",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -603,7 +603,7 @@ func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement 
 var tsVectorDatatypeIssue = issue.Issue{
 	Type:        TSVECTOR_DATATYPE,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsVector Datatype",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
@@ -619,7 +619,7 @@ func NewTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement
 var hstoreDatatypeIssue = issue.Issue{
 	Type:        HSTORE_DATATYPE,
 	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Hstore Datatype",
-	Impact:      constants.IMPACT_LEVEL_3,
+	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
