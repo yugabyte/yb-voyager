@@ -181,24 +181,6 @@ EXPECTED_COUNTS = {
 
 def check_validations_per_schema(tgt, schema_name) -> None:
 
-	# Update the expected counts based on the target version
-	tgtVersion = tgt.get_target_version()
-	print(f"target version: {tgtVersion}")
-	
-	updates = {}
-
-	if "2.25" in tgtVersion:
-		updates = {
-		    "extension_example": {"functions_procedures_count": 61},
-			"foreign_db_example": {"functions_procedures_count": 7},
-			"range_type_example": {"functions_procedures_count": 8},
-			}
-
-	# Apply the updates dynamically
-	for schema, changes in updates.items():
-	    for objects, new_value in changes.items():
-	        EXPECTED_COUNTS[schema][objects] = new_value
-
 	table_list = tgt.get_objects_of_type("TABLE", schema_name)
 	print("table_list:", table_list)
 	assert len(table_list) == EXPECTED_COUNTS[schema_name]["table_count"]
@@ -229,6 +211,24 @@ def check_validations_per_schema(tgt, schema_name) -> None:
 
 
 def migration_completed_checks(tgt):
+
+	# Update the expected counts based on the target version
+	tgtVersion = tgt.get_target_version()
+	print(f"target version: {tgtVersion}")
+	
+	updates = {}
+
+	if "2.25" in tgtVersion:
+		updates = {
+		    "extension_example": {"functions_procedures_count": 61},
+			"foreign_db_example": {"functions_procedures_count": 7},
+			"range_type_example": {"functions_procedures_count": 8},
+			}
+
+	# Apply the updates dynamically
+	for schema, changes in updates.items():
+	    for objects, new_value in changes.items():
+	        EXPECTED_COUNTS[schema][objects] = new_value
 
 	check_validations_per_schema(tgt, "public")
 	check_validations_per_schema(tgt, "am_examples")

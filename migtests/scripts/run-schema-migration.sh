@@ -111,7 +111,7 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
 	# Extract the major version of YugabyteDB from the version string
-	target_major_version=$(run_ysql "${TARGET_DB_NAME}" "SELECT substring(version() FROM 'YB-(\d+\.\d+)') AS \"Major YugabyteDB Version\";" | awk 'NR==4 {print $1}')
+	target_major_version=$(run_ysql "${TARGET_DB_NAME}" "SELECT version();" | grep -oE 'YB-([0-9]+\.[0-9]+)' | cut -d '-' -f2)
 	echo "Major YugabyteDB Version: $target_major_version"
 
     if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
