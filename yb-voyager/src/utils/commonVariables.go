@@ -140,8 +140,8 @@ type TableColumnsDataTypes struct {
 	TableName         string `json:"TableName"`
 	ColumnName        string `json:"ColumnName"`
 	DataType          string `json:"DataType"`
-	IsArrayOfEnumType bool   `json:"isArrayOfEnumType"`
-	IsUDTType         bool   `json:"isUDTType"`
+	IsArrayOfEnumType bool   `json:"IsArrayOfEnumType"`
+	IsUDTType         bool   `json:"IsUDTType"`
 }
 
 type UnsupportedQueryConstruct struct {
