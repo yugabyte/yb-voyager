@@ -1364,6 +1364,11 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
+
+		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
+		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
+		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
+
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 
 		switch true {
@@ -1390,19 +1395,36 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 
 func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
 	var assessmentIssues []AssessmentIssue
+	var issue AssessmentIssue
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
-		issue := AssessmentIssue{
-			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:            "",               // TODO
-			Impact:                 constants.IMPACT_LEVEL_3,
-			ObjectType:             constants.COLUMN,
-			ObjectName:             qualifiedColName,
-			DocsLink:               "",  // TODO
-			MinimumVersionsFixedIn: nil, // TODO
+		switch source.DBType {
+		case ORACLE:
+			issue = AssessmentIssue{
+				Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Description:            "",               // TODO
+				Impact:                 constants.IMPACT_LEVEL_3,
+				ObjectType:             constants.COLUMN,
+				ObjectName:             qualifiedColName,
+				DocsLink:               "",  // TODO
+				MinimumVersionsFixedIn: nil, // TODO
+			}
+		case POSTGRESQL:
+			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
+			var datatype string
+			if strings.Contains(colInfo.DataType, ".") {
+				datatype = strings.Split(colInfo.DataType, ".")[1]
+			} else {
+				datatype = colInfo.DataType
+			}
+			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+			convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
+			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY), queryissue.MinimumVersionsFixedIn)
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
 		assessmentIssues = append(assessmentIssues, issue)
 	}
@@ -1511,19 +1533,37 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				// assessmentReport.AppendIssues(AssessmentIssue{
+				// 	Category:            MIGRATION_CAVEATS_CATEGORY,
+				// 	CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+				// 	Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
+				// 	Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
+				// 	Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
+				// 	Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
+				// 	ObjectType:          constants.COLUMN,
+				// 	ObjectName:          fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
+				// 	DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+				// })
+
+				//////////IMPORTANT????????????????????
+				//////////Should we keep impact level of these datatypes as level 1??????
+
+				var datatype string
+				if strings.Contains(colInfo.DataType, ".") {
+					datatype = strings.Split(colInfo.DataType, ".")[1]
+				} else {
+					datatype = colInfo.DataType
+				}
+				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+				assessmentReport.AppendIssues(
+					convertAnalyzeSchemaIssueToAssessmentIssue(
+						convertedAnalyzeIssue,
+						GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+						queryIssue.MinimumVersionsFixedIn))
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1532,19 +1572,56 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigrationWithFForFB {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1,
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				// assessmentReport.AppendIssues(AssessmentIssue{
+				// 	Category:            MIGRATION_CAVEATS_CATEGORY,
+				// 	CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+				// 	Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
+				// 	Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
+				// 	Impact:              constants.IMPACT_LEVEL_1,
+				// 	Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
+				// 	ObjectType:          constants.COLUMN,
+				// 	ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
+				// 	DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
+				// })
+
+				var datatype string
+				if strings.Contains(colInfo.DataType, ".") {
+					datatype = strings.Split(colInfo.DataType, ".")[1]
+				} else {
+					datatype = colInfo.DataType
+				}
+
+				var queryIssue queryissue.QueryIssue
+
+				if colInfo.IsArrayType && colInfo.IsEnumType {
+					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else if colInfo.IsUDTType {
+					queryIssue = queryissue.NewUserDefinedDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else {
+					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				}
+
+				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+				assessmentReport.AppendIssues(
+					convertAnalyzeSchemaIssueToAssessmentIssue(
+						convertedAnalyzeIssue,
+						GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
+						queryIssue.MinimumVersionsFixedIn))
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION, nil})
