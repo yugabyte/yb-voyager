@@ -111,10 +111,10 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate TableIndexStats Struct Definition",
 			actualType: reflect.TypeOf(migassessment.TableIndexStats{}),
 			expectedType: struct {
-				SchemaName      string  `json:"SchemaName"`
-				ObjectName      string  `json:"ObjectName"`
-				RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
-				ColumnCount     *int64  `json:"ColumnCount"`
+				SchemaName  string `json:"SchemaName"`
+				ObjectName  string `json:"ObjectName"`
+				RowCount    *int64 `json:"RowCount"` // Pointer to allows null values
+				ColumnCount *int64 `json:"ColumnCount"`
 				// TODO: verify if this can be a breaking change
 				ReadsPerSecond  *int64  `json:"ReadsPerSecond"`
 				WritesPerSecond *int64  `json:"WritesPerSecond"`
