@@ -1352,7 +1352,8 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
 
-		allColumnsDataTypes[i].IsArrayOfEnumType = isArrayOfEnumsDatatype
+		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
+		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
 		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
 
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
@@ -1582,7 +1583,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				var queryIssue queryissue.QueryIssue
 
-				if colInfo.IsArrayOfEnumType {
+				if colInfo.IsArrayType && colInfo.IsEnumType {
 					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
 						constants.COLUMN,
 						qualifiedColName,
