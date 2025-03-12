@@ -41,6 +41,7 @@ func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
 }
 
 type TestTargetDB struct {
+	Tconf tgtdb.TargetConf
 	testcontainers.TestContainer
 	tgtdb.TargetDB
 }
