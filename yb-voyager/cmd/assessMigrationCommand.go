@@ -1583,7 +1583,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				var queryIssue queryissue.QueryIssue
 
 				if colInfo.IsArrayOfEnumType {
-					datatype = fmt.Sprintf("%s[]", datatype)
 					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
 						constants.COLUMN,
 						qualifiedColName,
