@@ -213,10 +213,8 @@ const (
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 
-	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
-	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
+	UNSUPPORTED_DATATYPE  = "Unsupported datatype"
+	UNSUPPORTED_PG_SYNTAX = "Unsupported PG syntax"
 
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
