@@ -370,7 +370,11 @@ check_pg_dump_and_pg_restore_version() {
         output "Found sufficient pg_dump version = ${PG_DUMP_VERSION}"
     else
         echo ""
-        echo -e "\e[31mERROR: pg_dump not found or insufficient version ${PG_DUMP_VERSION}. Please install pg_dump>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        if [[ -z "$PG_DUMP_VERSION" ]]; then
+            echo -e "\e[31mERROR: pg_dump not found. Please install pg_dump version >= ${MIN_REQUIRED_MAJOR_VERSION}.\e[0m"
+        else
+            echo -e "\e[31mERROR: pg_dump version ${PG_DUMP_VERSION} is insufficient. Please install pg_dump>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        fi
         pg_dump_wrong_version=1
     fi
 
@@ -380,7 +384,11 @@ check_pg_dump_and_pg_restore_version() {
         output "Found sufficient pg_restore version = ${PG_RESTORE_VERSION}"
     else
         echo ""
-        echo -e "\e[31mERROR: pg_restore not found or insufficient version ${PG_RESTORE_VERSION}. Please install pg_restore>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        if [[ -z "$PG_RESTORE_VERSION" ]]; then
+            echo -e "\e[31mERROR: pg_restore not found. Please install pg_restore version >= ${MIN_REQUIRED_MAJOR_VERSION}.\e[0m"
+        else
+            echo -e "\e[31mERROR: pg_restore version ${PG_RESTORE_VERSION} is insufficient. Please install pg_restore>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        fi
         pg_restore_wrong_version=1
     fi
 
@@ -390,7 +398,12 @@ check_pg_dump_and_pg_restore_version() {
         output "Found sufficient psql version = ${PSQL_VERSION}"
     else
         echo ""
-        echo -e "\e[31mERROR: psql not found or insufficient version ${PSQL_VERSION}. Please install psql>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        if [[ -z "$PSQL_VERSION" ]]; then
+            echo -e "\e[31mERROR: psql not found. Please install psql version >= ${MIN_REQUIRED_MAJOR_VERSION}.\e[0m"
+        else
+            # If psql is found but version is less than min required version
+            echo -e "\e[31mERROR: psql version ${PSQL_VERSION} is insufficient. Please install psql>=${MIN_REQUIRED_MAJOR_VERSION}\e[0m"
+        fi
         psql_wrong_version=1
     fi
 }
