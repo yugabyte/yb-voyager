@@ -470,36 +470,12 @@ func GetAbsPathOfPGCommandAboveVersion(cmd string, sourceDBVersion string) (path
 	return "", binaryCheckIssue, nil
 }
 
-var FETCH_SEQUENCES_FOR_TABLE_LIST = `SELECT
-    seq_ns.nspname AS schema_name,
-    seq.relname AS sequence_name
-FROM pg_class AS tab
-JOIN pg_namespace AS tab_ns
-    ON tab_ns.oid = tab.relnamespace
-JOIN pg_attrdef AS ad
-    ON ad.adrelid = tab.oid
-JOIN pg_depend AS dep
-    ON dep.objid = ad.oid
-    AND dep.classid = 'pg_attrdef'::regclass
-JOIN pg_class AS seq
-    ON seq.oid = dep.refobjid
-JOIN pg_namespace AS seq_ns
-    ON seq_ns.oid = seq.relnamespace
-JOIN pg_attribute AS a
-    ON a.attrelid = tab.oid
-   AND a.attnum = ad.adnum
-WHERE 
-  seq.relkind = 'S'
-  AND (tab_ns.nspname || '.' || tab.relname) IN (%s);`
-
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (pg *PostgreSQL) GetAllSequences(tableList []sqlname.NameTuple) []string {
-	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
-		return t.AsQualifiedCatalogName()
-	}), "','") + "'"
-
+func (pg *PostgreSQL) GetAllSequences() []string {
+	schemaList := pg.checkSchemasExists()
+	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
-	query := fmt.Sprintf(FETCH_SEQUENCES_FOR_TABLE_LIST, qualifiedTableList)
+	query := fmt.Sprintf(`SELECT sequence_schema, sequence_name FROM information_schema.sequences where sequence_schema IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(query)
 	if err != nil {
 		utils.ErrExit("error in querying source database for sequence names: %q: %v\n", query, err)
@@ -732,7 +708,7 @@ func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		return t.AsQualifiedCatalogName()
 	}), "','") + "'"
 
-	// query to find out column name vs sequence name for a table
+	// query to find out column name vs sequence name for a table-list
 	// this query also covers the case of identity columns
 	query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, qualifiedTableList)
 

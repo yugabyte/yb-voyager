@@ -351,7 +351,7 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 }
 
 // GetAllSequences returns all the sequence names in the database for the given schema list
-func (yb *YugabyteDB) GetAllSequences(_ []sqlname.NameTuple) []string {
+func (yb *YugabyteDB) GetAllSequences() []string {
 	schemaList := yb.checkSchemasExists()
 	querySchemaList := "'" + strings.Join(schemaList, "','") + "'"
 	var sequenceNames []string
@@ -689,37 +689,38 @@ func (yb *YugabyteDB) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
-	for _, table := range tableList {
-		// query to find out column name vs sequence name for a table
-		// this query also covers the case of identity columns
-		sname, tname := table.ForCatalogQuery()
-		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
+	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return t.AsQualifiedCatalogName()
+	}), "','") + "'"
 
-		var columeName, sequenceName, schemaName string
-		rows, err := yb.db.Query(query)
+	// query to find out column name vs sequence name for a table-list
+	// this query also covers the case of identity columns
+	query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, qualifiedTableList)
+
+	var tableName, columeName, sequenceName, schemaName string
+	rows, err := yb.db.Query(query)
+	if err != nil {
+		log.Infof("Query to find column to sequence mapping: %s", query)
+		utils.ErrExit("Error in querying for sequences %s: %v",query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows for query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		err := rows.Scan(&tableName, &columeName, &sequenceName, &schemaName)
 		if err != nil {
-			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
+			utils.ErrExit("Error in scanning for sequences with query: %s: %v", query, err)
 		}
-		defer func() {
-			closeErr := rows.Close()
-			if closeErr != nil {
-				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
-			}
-		}()
-		for rows.Next() {
-			err := rows.Scan(&columeName, &sequenceName, &schemaName)
-			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
-			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
-			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
-		}
-		err = rows.Close()
-		if err != nil {
-			utils.ErrExit("close rows for table: %s query: %q: %s", table.String(), query, err)
-		}
+		qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
+		// quoting sequence name as it can be case sensitive - required during import data restore sequences
+		columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+	}
+	err = rows.Close()
+	if err != nil {
+		utils.ErrExit("close rows for query: %q: %s", query, err)
 	}
 
 	return columnToSequenceMap

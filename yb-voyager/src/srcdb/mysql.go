@@ -313,7 +313,7 @@ func (ms *MySQL) getTableColumns(tableName sqlname.NameTuple) ([]string, []strin
 	return columns, dataTypes, nil, nil
 }
 
-func (ms *MySQL) GetAllSequences(_ []sqlname.NameTuple) []string {
+func (ms *MySQL) GetAllSequences() []string {
 	return nil
 }
 

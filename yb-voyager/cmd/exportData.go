@@ -1237,12 +1237,15 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 			}
 			finalTableList = append(finalTableList, seqTuple)
 		}
-		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			switch exporterRole {
 			case SOURCE_DB_EXPORTER_ROLE:
 				record.SourceColumnToSequenceMapping = colToSeqMap
 			}
 		})
+		if err != nil {
+			utils.ErrExit("error updating the column to sequence mapping: %v", err)
+		}
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)

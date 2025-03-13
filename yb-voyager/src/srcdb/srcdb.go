@@ -47,7 +47,7 @@ type SourceDB interface {
 	GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error)
 	ParentTableOfPartition(table sqlname.NameTuple) string
 	GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string
-	GetAllSequences([]sqlname.NameTuple) []string
+	GetAllSequences() []string
 	GetServers() []string
 	GetPartitions(table sqlname.NameTuple) []string
 	GetTableToUniqueKeyColumnsMap(tableList []sqlname.NameTuple) (map[string][]string, error)
