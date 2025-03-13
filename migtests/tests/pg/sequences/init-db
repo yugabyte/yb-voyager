@@ -12,8 +12,15 @@ run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
 
-run_psql ${SOURCE_DB_NAME} "\i pg_sequences_automation.sql;"
+run_psql ${SOURCE_DB_NAME} "\i sequences_schema.sql;"
+run_psql ${SOURCE_DB_NAME} "\i sequences_snapshot_data.sql;"
 
 
-echo "Check source database."
-run_psql ${SOURCE_DB_NAME} "SELECT count(*) FROM sequence_check1;"
+if [ -n "${SOURCE_REPLICA_DB_NAME}" ] && [ "${SOURCE_REPLICA_DB_NAME}" != "${SOURCE_DB_NAME}" ];
+then
+	echo "Initialising FF database"
+	run_psql postgres "DROP DATABASE IF EXISTS ${SOURCE_REPLICA_DB_NAME};"
+    run_psql postgres "CREATE DATABASE ${SOURCE_REPLICA_DB_NAME};"
+    run_psql ${SOURCE_REPLICA_DB_NAME} "\i sequences_schema.sql;"
+fi
+

@@ -173,9 +173,10 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run validations."
-	if [ -x "${TEST_DIR}/validate" ]
-	then
-		 "${TEST_DIR}/validate"
+	if [[ "${EXPORT_TABLE_LIST}" != "" && -x "${TEST_DIR}/validate-with-table-list" ]]; then
+		"${TEST_DIR}/validate-with-table-list"
+	elif [[ -x "${TEST_DIR}/validate" ]]; then
+		"${TEST_DIR}/validate"
 	fi
 
 	step "Run export-data-status"
@@ -198,6 +199,10 @@ main() {
 	expected_file="${TEST_DIR}/import_data_status-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
+    if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		expected_file="${TEST_DIR}/import-data-status-with-table-list-report.json"
+	fi
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
 
