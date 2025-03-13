@@ -461,6 +461,9 @@ centos_main() {
         if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
             echo ""
             echo -e "\e[33mThe script searches for specific package names only. If similar packages are not detected but are present and deemed reliable, use --force-install to install Voyager.\e[0m"
+            if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
+                exit 0
+            fi
             exit 1
         fi
 
