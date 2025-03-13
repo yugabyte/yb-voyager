@@ -287,20 +287,24 @@ foobar, "foobar", FooBar, "FooBar", FOOBAR, "FOOBAR",
 schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOBAR, schema1."FOOBAR",
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
+//TODO: have a separate function for Sequence lookup LookupSequenceName
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
+	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
+		if m == nil && m1 == nil {
+			return nil
+		}
+		res := make(map[string][]string)
+		for s, objs := range m {
+			res[s] = append(res[s], objs...)
+		}
 
-	sourceObjectNameMap := reg.SourceDBTableNames
-	targetObjectNameMap := reg.YBTableNames
-	if len(lo.Keys(reg.SourceDBSequenceNames)) > 0 {
-		for s, objs := range reg.SourceDBSequenceNames {
-			sourceObjectNameMap[s] = append(sourceObjectNameMap[s], objs...)
+		for s, objs := range m1 {
+			res[s] = append(res[s], objs...)
 		}
+		return res
 	}
-	if len(lo.Keys(reg.YBSequenceNames)) > 0 {
-		for s, objs := range reg.YBSequenceNames {
-			targetObjectNameMap[s] = append(targetObjectNameMap[s], objs...)
-		}
-	}
+	sourceObjectNameMap := createAllObjectNamesMap(reg.SourceDBTableNames, reg.SourceDBSequenceNames)
+	targetObjectNameMap := createAllObjectNamesMap(reg.YBTableNames, reg.YBSequenceNames)
 	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
 	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
 	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&

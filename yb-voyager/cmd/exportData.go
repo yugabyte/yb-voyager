@@ -338,6 +338,10 @@ func exportData() bool {
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
 
+	if source.DBType == POSTGRESQL {
+		utils.PrintAndLog("Only the sequences that are attached to the above tables will be restored during the migration.")
+	}
+
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
@@ -1225,14 +1229,20 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := source.DB().GetAllSequences(finalTableList)
-		for _, seq := range sequenceList {
+		colToSeqMap := source.DB().GetColumnToSequenceMap(finalTableList)
+		for _, seq := range colToSeqMap {
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {
 				utils.ErrExit("lookup for sequence failed: %s: err: %v", seq, err)
 			}
 			finalTableList = append(finalTableList, seqTuple)
 		}
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			switch exporterRole {
+			case SOURCE_DB_EXPORTER_ROLE:
+				record.SourceColumnToSequenceMapping = colToSeqMap
+			}
+		})
 	}
 	fmt.Printf("Initiating data export.\n")
 	utils.WaitGroup.Add(1)

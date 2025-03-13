@@ -72,6 +72,7 @@ var PG_COMMAND_VERSION = map[string]string{
 }
 
 const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
+(tn.nspname || '.' || t.relname) As table_name,
 a.attname AS column_name,
 COALESCE(seq.relname, '') AS sequence_name,
 COALESCE(ns.nspname, '') AS schema_name
@@ -82,13 +83,11 @@ LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
 LEFT JOIN pg_depend AS d ON d.objid = ad.oid
 LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
 LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
-WHERE
-tn.nspname = '%s' -- schema name
-AND t.relname = '%s' -- table name
-AND a.attnum > 0
+WHERE a.attnum > 0
 AND NOT a.attisdropped
 AND t.relkind IN ('r', 'P')
-AND seq.relkind = 'S';`
+AND seq.relkind = 'S'
+AND (tn.nspname || '.' || t.relname) IN (%s);`
 
 const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
 FROM pg_attribute AS a 
@@ -729,37 +728,38 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
-	for _, table := range tableList {
-		// query to find out column name vs sequence name for a table
-		// this query also covers the case of identity columns
-		sname, tname := table.ForCatalogQuery()
-		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
+	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return t.AsQualifiedCatalogName()
+	}), "','") + "'"
 
-		var columeName, sequenceName, schemaName string
-		rows, err := pg.db.Query(query)
+	// query to find out column name vs sequence name for a table
+	// this query also covers the case of identity columns
+	query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, qualifiedTableList)
+
+	var tableName, columeName, sequenceName, schemaName string
+	rows, err := pg.db.Query(query)
+	if err != nil {
+		log.Infof("Query to find column to sequence mapping: %s", query)
+		utils.ErrExit("Error in querying for sequences with  query [%v]: %v", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("close rows query %q: %v", query, closeErr)
+		}
+	}()
+	for rows.Next() {
+		err := rows.Scan(&tableName, &columeName, &sequenceName, &schemaName)
 		if err != nil {
-			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
+			utils.ErrExit("Error in scanning for sequences query: %s: %v", query, err)
 		}
-		defer func() {
-			closeErr := rows.Close()
-			if closeErr != nil {
-				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
-			}
-		}()
-		for rows.Next() {
-			err := rows.Scan(&columeName, &sequenceName, &schemaName)
-			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
-			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
-			// quoting sequence name as it can be case sensitive - required during import data restore sequences
-			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
-		}
-		err = rows.Close()
-		if err != nil {
-			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
-		}
+		qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
+		// quoting sequence name as it can be case sensitive - required during import data restore sequences
+		columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+	}
+	err = rows.Close()
+	if err != nil {
+		utils.ErrExit("close rows query %q: %s", query, err)
 	}
 
 	return columnToSequenceMap
