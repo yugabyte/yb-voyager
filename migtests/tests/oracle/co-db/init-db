@@ -5,8 +5,20 @@ set -x
 
 source ${SCRIPTS}/functions.sh
 
+wget https://github.com/oracle-samples/db-sample-schemas/raw/refs/heads/main/customer_orders/co_create.sql
+wget https://github.com/oracle-samples/db-sample-schemas/raw/refs/heads/main/customer_orders/co_populate.sql
+
+# Add the check constraint from ALTER to CREATE for PRODUCTS table due to ALTER failing post view creation
+sed -i 's/\bproduct_details[[:space:]]*BLOB\b/product_details      BLOB CHECK ( product_details IS JSON )/' co_create.sql 
+
+echo "Deleting existing data in source database"
+run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema.sql
+
+echo "Initialising source database & inserting data"
+run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} co_create.sql
+run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} co_populate.sql
+
 echo "Assigning permissions to the validate files"
 chmod +x ${TEST_DIR}/validate
 
-echo "Deleting existing data in target database"
-run_sqlplus_as_schema_owner ${SOURCE_DB_NAME} ${TESTS_DIR}/oracle/utils/delete_full_schema
+
