@@ -710,7 +710,7 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 		}
 	}()
 	for rows.Next() {
-		err := rows.Scan(&tableName, &columeName, &sequenceName, &schemaName)
+		err := rows.Scan(&tableName, &columeName, &schemaName, &sequenceName)
 		if err != nil {
 			utils.ErrExit("Error in scanning for sequences with query: %s: %v", query, err)
 		}
