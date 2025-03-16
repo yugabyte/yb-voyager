@@ -695,33 +695,39 @@ func (yb *YugabyteDB) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[
 
 	// query to find out column name vs sequence name for a table-list
 	// this query also covers the case of identity columns
-	query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, qualifiedTableList)
 
-	var tableName, columeName, sequenceName, schemaName string
-	rows, err := yb.db.Query(query)
-	if err != nil {
-		log.Infof("Query to find column to sequence mapping: %s", query)
-		utils.ErrExit("Error in querying for sequences %s: %v",query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("close rows for query %q: %v", query, closeErr)
-		}
-	}()
-	for rows.Next() {
-		err := rows.Scan(&tableName, &columeName, &schemaName, &sequenceName)
+	runQueryAndUpdateMap := func(template string) {
+		query := fmt.Sprintf(template, qualifiedTableList)
+
+		var tableName, columeName, sequenceName, schemaName string
+		rows, err := yb.db.Query(query)
 		if err != nil {
-			utils.ErrExit("Error in scanning for sequences with query: %s: %v", query, err)
+			log.Infof("Query to find column to sequence mapping: %s", query)
+			utils.ErrExit("Error in querying for sequences with  query [%v]: %v", query, err)
 		}
-		qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
-		// quoting sequence name as it can be case sensitive - required during import data restore sequences
-		columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+		defer func() {
+			closeErr := rows.Close()
+			if closeErr != nil {
+				log.Warnf("close rows query %q: %v", query, closeErr)
+			}
+		}()
+		for rows.Next() {
+			err := rows.Scan(&tableName, &columeName, &schemaName, &sequenceName)
+			if err != nil {
+				utils.ErrExit("Error in scanning for sequences query: %s: %v", query, err)
+			}
+			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
+			// quoting sequence name as it can be case sensitive - required during import data restore sequences
+			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
+		}
+		err = rows.Close()
+		if err != nil {
+			utils.ErrExit("close rows query %q: %s", query, err)
+		}
 	}
-	err = rows.Close()
-	if err != nil {
-		utils.ErrExit("close rows for query: %q: %s", query, err)
-	}
+
+	runQueryAndUpdateMap(FETCH_COLUMN_ALL_SEQUENCES_EXCEPT_DEFAULT_QUERY_TEMPLATE)
+	runQueryAndUpdateMap(FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE)
 
 	return columnToSequenceMap
 }
