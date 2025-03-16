@@ -76,8 +76,6 @@ func TestInitAssessmentDB(t *testing.T) {
 			"object_name":       {Type: "TEXT", PrimaryKey: 2},
 			"row_count":         {Type: "INTEGER"},
 			"column_count":      {Type: "INTEGER"},
-			"reads":             {Type: "INTEGER"},
-			"writes":            {Type: "INTEGER"},
 			"reads_per_second":  {Type: "INTEGER"},
 			"writes_per_second": {Type: "INTEGER"},
 			"is_index":          {Type: "BOOLEAN"},

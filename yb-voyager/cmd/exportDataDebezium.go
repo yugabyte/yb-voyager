@@ -379,6 +379,7 @@ func isOracleJDBCWalletLocationSet(s srcdb.Source) (bool, error) {
 // ---------------------------------------------- Export Data ---------------------------------------//
 
 func debeziumExportData(ctx context.Context, config *dbzm.Config, tableNameToApproxRowCountMap map[string]int64) error {
+
 	if config.SnapshotMode != "never" {
 		err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			record.SnapshotMechanism = "debezium"

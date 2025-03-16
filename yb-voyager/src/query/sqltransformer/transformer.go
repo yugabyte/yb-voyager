@@ -20,7 +20,6 @@ import (
 	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
@@ -64,9 +63,7 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	if len(stmts) == 0 {
-		return stmts, nil
-	}
+	// TODO: Ensure removing all the ALTER stmts which are merged into CREATE. No duplicates.
 
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
@@ -152,42 +149,6 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 		default:
 			result = append(result, stmt)
 		}
-	}
-
-	return result, nil
-}
-
-// write a tranformation function which converts the given tables into Sharded table by adding clause WITH (colocated = true)
-func (t *Transformer) ConvertToShardedTables(stmts []*pg_query.RawStmt, isObjectSharded func(objectName string) bool) ([]*pg_query.RawStmt, error) {
-	if len(stmts) == 0 {
-		return stmts, nil
-	}
-
-	var result []*pg_query.RawStmt
-	for _, stmt := range stmts {
-		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
-
-		switch stmtType {
-		case queryparser.PG_QUERY_CREATE_STMT: // CREATE TABLE case
-			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateStmt().Relation)
-			if isObjectSharded(objectName) {
-				log.Infof("adding colocation option to CREATE TABLE for object %v", objectName)
-				addColocationOptionToCreateTable(stmt.Stmt.GetCreateStmt())
-			}
-
-			result = append(result, stmt)
-		case queryparser.PG_QUERY_CREATE_TABLE_AS_STMT: // CREATE MATERIALIZED VIEW case
-			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateTableAsStmt().Into.Rel)
-			if isObjectSharded(objectName) {
-				log.Infof("adding colocation option to CREATE MATERIALIZED VIEW for object %v", objectName)
-				addColocationOptionToCreateMaterializedView(stmt.Stmt.GetCreateTableAsStmt())
-			}
-
-			result = append(result, stmt)
-		default:
-			result = append(result, stmt)
-		}
-
 	}
 
 	return result, nil

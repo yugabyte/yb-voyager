@@ -115,13 +115,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					if !ok {
 						continue
 					}
-					issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
-						obj.GetObjectType(),
-						table.GetObjectName(),
-						"",
-						typeName,
-						c.ConstraintName,
-					))
+					issues = append(issues,
+						reportIndexOrConstraintIssuesOnComplexDatatypes(
+							obj.GetObjectType(),
+							table.GetObjectName(),
+							typeName,
+							true,
+							c.ConstraintName,
+						))
 				}
 			}
 		}
@@ -142,26 +143,30 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 		if isUnsupportedDatatype {
 			reportUnsupportedDatatypes(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLive {
-			issues = append(issues, NewUnsupportedDatatypeForLMIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				col.TypeName,
-				col.ColumnName,
-			))
+			reportUnsupoortedDatatypesInLive(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 		} else if isUnsupportedDatatypeInLiveWithFFOrFB {
 			//reporting only for TABLE Type  as we don't deal with FOREIGN TABLE in live migration
 			reportTypeName := col.GetFullTypeName()
-			if col.IsArrayType { // For Array cases to make it clear in issue
+			if isArrayOfEnumsDatatype {
 				reportTypeName = fmt.Sprintf("%s[]", reportTypeName)
+				issues = append(issues, NewArrayOfEnumDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else if isUDTDatatype {
+				issues = append(issues, NewUserDefinedDatatypeIssue(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					"",
+					reportTypeName,
+					col.ColumnName,
+				))
+			} else {
+				reportUnsupportedDatatypesInLiveWithFFOrFB(col, obj.GetObjectType(), table.GetObjectName(), &issues)
 			}
-			issues = append(issues, NewUnsupportedDatatypesForLMWithFFOrFBIssue(
-				obj.GetObjectType(),
-				table.GetObjectName(),
-				"",
-				reportTypeName,
-				col.ColumnName,
-			))
 		}
 
 		if col.Compression != "" {
@@ -229,6 +234,7 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
 	case "xid":
@@ -236,10 +242,43 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			col.TypeName,
 			col.ColumnName,
 		))
-	case "geometry", "geography", "box2d", "box3d", "topogeometry":
-		*issues = append(*issues, NewPostGisDatatypeIssue(
+	case "geometry":
+		*issues = append(*issues, NewGeometryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "geography":
+		*issues = append(*issues, NewGeographyDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box2d":
+		*issues = append(*issues, NewBox2DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box3d":
+		*issues = append(*issues, NewBox3DDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "topogeometry":
+		*issues = append(*issues, NewTopogeometryDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -251,10 +290,75 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			objType,
 			objName,
 			"",
+			"LARGE OBJECT",
 			col.ColumnName,
 		))
-	case "int8multirange", "int4multirange", "datemultirange", "nummultirange", "tsmultirange", "tstzmultirange":
-		*issues = append(*issues, NewMultiRangeDatatypeIssue(
+	case "int8multirange":
+		*issues = append(*issues, NewInt8MultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "int4multirange":
+		*issues = append(*issues, NewInt4MultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "datemultirange":
+		*issues = append(*issues, NewDateMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "nummultirange":
+		*issues = append(*issues, NewNumMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tsmultirange":
+		*issues = append(*issues, NewTSMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tstzmultirange":
+		*issues = append(*issues, NewTSTZMultiRangeDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "raster":
+		*issues = append(*issues, NewRasterDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "pg_lsn":
+		*issues = append(*issues, NewPgLsnDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "txid_snapshot":
+		*issues = append(*issues, NewTxidSnapshotDatatypeIssue(
 			objType,
 			objName,
 			"",
@@ -262,13 +366,107 @@ func reportUnsupportedDatatypes(col queryparser.TableColumn, objType string, obj
 			col.ColumnName,
 		))
 	default:
-		*issues = append(*issues, NewUnsupportedDatatypeIssue(
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupoortedDatatypesInLive(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "point":
+		*issues = append(*issues, NewPointDatatypeIssue(
 			objType,
 			objName,
 			"",
 			col.TypeName,
 			col.ColumnName,
 		))
+	case "line":
+		*issues = append(*issues, NewLineDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "lseg":
+		*issues = append(*issues, NewLsegDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "box":
+		*issues = append(*issues, NewBoxDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "path":
+		*issues = append(*issues, NewPathDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "polygon":
+		*issues = append(*issues, NewPolygonDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "circle":
+		*issues = append(*issues, NewCircleDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
+	}
+}
+
+func reportUnsupportedDatatypesInLiveWithFFOrFB(col queryparser.TableColumn, objType string, objName string, issues *[]QueryIssue) {
+	switch col.TypeName {
+	case "tsquery":
+		*issues = append(*issues, NewTsQueryDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "tsvector":
+		*issues = append(*issues, NewTsVectorDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	case "hstore":
+		*issues = append(*issues, NewHstoreDatatypeIssue(
+			objType,
+			objName,
+			"",
+			col.TypeName,
+			col.ColumnName,
+		))
+	default:
+		// Unrecognized types
+		// Throwing error for now
+		utils.ErrExit("Unrecognized unsupported data type %s", col.TypeName)
 	}
 }
 
@@ -386,10 +584,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isUnsupportedType {
-					issues = append(issues, reportIndexOnComplexDatatypesIssue(
+					issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 						obj.GetObjectType(),
 						index.GetObjectName(),
 						param.ExprCastTypeName,
+						false,
+						"",
 					))
 				}
 			} else {
@@ -398,10 +598,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				if !ok {
 					continue
 				}
-				issues = append(issues, reportIndexOnComplexDatatypesIssue(
+				issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 					obj.GetObjectType(),
 					index.GetObjectName(),
 					typeName,
+					false,
+					"",
 				))
 			}
 		}
@@ -410,183 +612,67 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func reportIndexOnComplexDatatypesIssue(objType string, objName string, typeName string) QueryIssue {
+func reportIndexOrConstraintIssuesOnComplexDatatypes(objType string, objName string, typeName string, isPkorUk bool, constraintName string) QueryIssue {
 	var queryIssue QueryIssue
 	switch typeName {
 	case "citext":
-		queryIssue = NewIndexOnCitextDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCitextDatatypeIssue(objType, objName, ""))
 	case "tsvector":
-		queryIssue = NewIndexOnTsVectorDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsVectorDatatypeIssue(objType, objName, ""))
 	case "tsquery":
-		queryIssue = NewIndexOnTsQueryDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsQueryDatatypeIssue(objType, objName, ""))
 	case "jsonb":
-		queryIssue = NewIndexOnJsonbDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnJsonbDatatypeIssue(objType, objName, ""))
 	case "inet":
-		queryIssue = NewIndexOnInetDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInetDatatypeIssue(objType, objName, ""))
 	case "json":
-		queryIssue = NewIndexOnJsonDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnJsonDatatypeIssue(objType, objName, ""))
 	case "macaddr":
-		queryIssue = NewIndexOnMacaddrDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnMacaddrDatatypeIssue(objType, objName, ""))
 	case "macaddr8":
-		queryIssue = NewIndexOnMacaddr8DatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnMacaddr8DatatypeIssue(objType, objName, ""))
 	case "cidr":
-		queryIssue = NewIndexOnCidrDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCidrDatatypeIssue(objType, objName, ""))
 	case "bit":
-		queryIssue = NewIndexOnBitDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnBitDatatypeIssue(objType, objName, ""))
 	case "varbit":
-		queryIssue = NewIndexOnVarbitDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnVarbitDatatypeIssue(objType, objName, ""))
 	case "daterange":
-		queryIssue = NewIndexOnDaterangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnDaterangeDatatypeIssue(objType, objName, ""))
 	case "tsrange":
-		queryIssue = NewIndexOnTsrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsrangeDatatypeIssue(objType, objName, ""))
 	case "tstzrange":
-		queryIssue = NewIndexOnTstzrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTstzrangeDatatypeIssue(objType, objName, ""))
 	case "numrange":
-		queryIssue = NewIndexOnNumrangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnNumrangeDatatypeIssue(objType, objName, ""))
 	case "int4range":
-		queryIssue = NewIndexOnInt4rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInt4rangeDatatypeIssue(objType, objName, ""))
 	case "int8range":
-		queryIssue = NewIndexOnInt8rangeDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInt8rangeDatatypeIssue(objType, objName, ""))
 	case "interval":
-		queryIssue = NewIndexOnIntervalDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnIntervalDatatypeIssue(objType, objName, ""))
 	case "circle":
-		queryIssue = NewIndexOnCircleDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCircleDatatypeIssue(objType, objName, ""))
 	case "box":
-		queryIssue = NewIndexOnBoxDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnBoxDatatypeIssue(objType, objName, ""))
 	case "line":
-		queryIssue = NewIndexOnLineDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnLineDatatypeIssue(objType, objName, ""))
 	case "lseg":
-		queryIssue = NewIndexOnLsegDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnLsegDatatypeIssue(objType, objName, ""))
 	case "point":
-		queryIssue = NewIndexOnPointDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPointDatatypeIssue(objType, objName, ""))
 	case "pg_lsn":
-		queryIssue = NewIndexOnPgLsnDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPgLsnDatatypeIssue(objType, objName, ""))
 	case "path":
-		queryIssue = NewIndexOnPathDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPathDatatypeIssue(objType, objName, ""))
 	case "polygon":
-		queryIssue = NewIndexOnPolygonDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPolygonDatatypeIssue(objType, objName, ""))
 	case "txid_snapshot":
-		queryIssue = NewIndexOnTxidSnapshotDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTxidSnapshotDatatypeIssue(objType, objName, ""))
 	case "array":
-		queryIssue = NewIndexOnArrayDatatypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnArrayDatatypeIssue(objType, objName, ""))
 	case "user_defined_type":
-		queryIssue = NewIndexOnUserDefinedTypeIssue(
-			objType,
-			objName,
-			"",
-		)
+		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnUserDefinedTypeIssue(objType, objName, ""))
 	default:
 		// Unrecognized types
 		// Throwing error for now
@@ -675,11 +761,11 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				if !ok {
 					continue
 				}
-				issues = append(issues, NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue(
+				issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
 					obj.GetObjectType(),
 					alter.GetObjectName(),
-					"",
 					typeName,
+					true,
 					alter.ConstraintName,
 				))
 			}

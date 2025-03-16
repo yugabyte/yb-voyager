@@ -1213,10 +1213,6 @@ type TargetSizingRecommendations struct {
 //====== AssesmentReport struct methods ======//
 
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
-	if !utils.FileOrFolderExists(reportPath) {
-		return nil, fmt.Errorf("report file %q does not exist", reportPath)
-	}
-
 	var report AssessmentReport
 	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
 	if err != nil {
