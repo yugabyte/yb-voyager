@@ -18,6 +18,7 @@ limitations under the License.
 package srcdb
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/samber/lo"
@@ -155,14 +156,12 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 			meta TEXT
 		);`,
 		`ALTER TABLE public.manual_linked_table_1 ALTER COLUMN id SET DEFAULT nextval('public.manual_linked_seq_another');`,
-		`ALTER SEQUENCE public.manual_linked_seq_another OWNED BY  public.manual_linked_table_1.id;`,
 
 		`CREATE TABLE public.manual_linked_table_2 (
 			id BIGINT NOT NULL,
 			meta TEXT
 		);`,
 		`ALTER TABLE public.manual_linked_table_2 ALTER COLUMN id SET DEFAULT nextval('public.manual_linked_seq_another');`,
-		`ALTER SEQUENCE public.manual_linked_seq_another OWNED BY  public.manual_linked_table_2.id;`,
 	)
 	defer testPostgresSource.TestContainer.ExecuteSqls(
 		`DROP TABLE  public.serial_table;`,
@@ -174,7 +173,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		`DROP TABLE  public.manual_linked_table;`,
 		`DROP TABLE  public.manual_linked_table_1;`,
 		`DROP TABLE  public.manual_linked_table_2;`,
-		`DROP SEQUENCE public.manual_linked_seq_another;`,
+		`DROP SEQUENCE IF EXISTS public.manual_linked_seq_another;`,
 		`DROP TABLE  custom_schema.users;`,
 		`DROP SEQUENCE  public.seq1_unattached;`,
 		`DROP SEQUENCE IF EXISTS custom_schema.user_code_seq;`,
@@ -210,6 +209,7 @@ func TestPGGetColumnToSequenceMap(t *testing.T) {
 		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
 		"public.manual_linked_table_2.id":          `public."manual_linked_seq_another"`,
 	}
+	fmt.Printf("actual - %v", actualColumnToSequenceMap)
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
 	for key, val := range actualColumnToSequenceMap {
