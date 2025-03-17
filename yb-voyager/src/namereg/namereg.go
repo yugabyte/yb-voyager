@@ -294,87 +294,10 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 (fuzzy-case-match) schema1.fooBar, schema1."fooBar"
 */
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
-	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
-	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
-	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
-	if (reg.params.Role == TARGET_DB_IMPORTER_ROLE) &&
-		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
-
-		msg := "either both or none of the default schema names should be set"
-		return sqlname.NameTuple{}, fmt.Errorf("%s: [%s], [%s]", msg,
-			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false)
+	if err != nil {
+		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
-	var err error
-	parts := strings.Split(tableNameArg, ".")
-
-	var schemaName, tableName string
-	switch true {
-	case len(parts) == 1:
-		schemaName = ""
-		tableName = tableNameArg
-	case len(parts) == 2:
-		schemaName = parts[0]
-		tableName = parts[1]
-	default:
-		return sqlname.NameTuple{}, fmt.Errorf("invalid table name: %s", tableNameArg)
-	}
-	// Consider a case of oracle data migration: source table name is SAKILA.TABLE1 and it is being imported in ybsakila.table1.
-	// When a name lookup comes for ybsakila.table1 we have to pair it with SAKILA.TABLE1.
-	// Consider the case of fall-forward import-data to source-replica (with different schema for source-replica SAKILA_REPLICA
-	// During the snapshot and event data in the beginning before cutover, lookup will be for SAKILA.TABLE1,
-	// but we want to get the SourceName to be SAKILA_REPLICA.TABLE1.
-	// Therefore, we unqualify the input in case it is equal to the default.
-	if schemaName == reg.DefaultSourceDBSchemaName || schemaName == reg.DefaultSourceReplicaDBSchemaName || schemaName == reg.DefaultYBSchemaName {
-		schemaName = ""
-	}
-
-	var sourceName *sqlname.ObjectName
-	var targetName *sqlname.ObjectName
-	if reg.SourceDBTableNames != nil { // nil for `import data file` mode.
-		sourceName, err = reg.lookup(
-			reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, tableName)
-		if err != nil {
-			errObj := &ErrMultipleMatchingNames{}
-			if errors.As(err, &errObj) {
-				// Case insensitive match.
-				caseInsensitiveName := tableName
-				if reg.SourceDBType == constants.POSTGRESQL || reg.SourceDBType == constants.YUGABYTEDB {
-					caseInsensitiveName = strings.ToLower(tableName)
-				} else if reg.SourceDBType == constants.ORACLE {
-					caseInsensitiveName = strings.ToUpper(tableName)
-				}
-				if lo.Contains(errObj.Names, caseInsensitiveName) {
-					sourceName, err = reg.lookup(
-						reg.SourceDBType, reg.SourceDBTableNames, reg.DefaultSourceSideSchemaName(), schemaName, caseInsensitiveName)
-				}
-			}
-			if err != nil {
-				// `err` can be: no default schema, no matching name, multiple matching names.
-				return sqlname.NameTuple{}, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
-			}
-		}
-	}
-	if reg.YBTableNames != nil { // nil in `export` mode.
-		targetName, err = reg.lookup(
-			constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, tableName)
-		if err != nil {
-			errObj := &ErrMultipleMatchingNames{}
-			if errors.As(err, &errObj) {
-				// A special case.
-				if lo.Contains(errObj.Names, strings.ToLower(tableName)) {
-					targetName, err = reg.lookup(
-						constants.YUGABYTEDB, reg.YBTableNames, reg.DefaultYBSchemaName, schemaName, strings.ToLower(tableName))
-				}
-			}
-			if err != nil {
-				return sqlname.NameTuple{}, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
-			}
-		}
-	}
-	if sourceName == nil && targetName == nil {
-		return sqlname.NameTuple{}, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
-	}
-
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
@@ -388,14 +311,14 @@ In case both the source and target not present for the table this will return er
 */
 
 func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableNameArg string) (sqlname.NameTuple, error) {
-	sourceName, targetName, err := reg.lookupSourceAndTargetTableNamesIgnoreIfEitherSideNotFound(tableNameArg)
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true)
 	if err != nil {
 		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
 	}
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
-func (reg *NameRegistry) lookupSourceAndTargetTableNamesIgnoreIfEitherSideNotFound(tableNameArg string) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
+func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfEitherSideNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
 	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
 	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
@@ -451,8 +374,12 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNamesIgnoreIfEitherSideNotFou
 				}
 			}
 			if err != nil {
-				// `err` can be: no default schema, no matching name, multiple matching names.
-				log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
+				if ignoreIfEitherSideNotFound {
+					log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
+				} else {
+					// `err` can be: no default schema, no matching name, multiple matching names.
+					return nil, nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+				}
 			}
 		}
 	}
@@ -469,14 +396,18 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNamesIgnoreIfEitherSideNotFou
 				}
 			}
 			if err != nil {
-				log.Debugf("lookup target table name [%s.%s]: %v", schemaName, tableName, err)
+				if ignoreIfEitherSideNotFound {
+					log.Debugf("lookup target table name [%s]: %v", tableNameArg, err)
+				} else {
+					// `err` can be: no default schema, no matching name, multiple matching names.
+					return nil, nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+				}
 			}
 		}
 	}
 	if sourceName == nil && targetName == nil {
 		return nil, nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
-
 	return sourceName, targetName, nil
 }
 
