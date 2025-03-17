@@ -18,8 +18,10 @@ limitations under the License.
 package sqltransformer
 
 import (
+	"os"
 	"testing"
 
+	"github.com/containerd/log"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -37,6 +39,14 @@ import (
 	9. [Extra] Exclude constraint (omission of USING btree by parser)
 */
 
+func TestMain(m *testing.M) {
+	// set log level to warn
+	log.SetLevel(log.WarnLevel)
+
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
+
 func TestMergeConstraints_Basic(t *testing.T) {
 	sqlFileContent := `
 	CREATE TABLE test_table1 (
@@ -51,12 +61,15 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	);
 
 	ALTER TABLE test_table1 ADD CONSTRAINT test_table_pk PRIMARY KEY (id);
+	-- Skip NOT VALID merging constraint
+	ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;
 	ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);
 	ALTER TABLE test_table2 ADD CONSTRAINT test_table_uk UNIQUE (email);
 	`
 
 	expectedSqls := []string{
 		`CREATE TABLE test_table1 (id int, name varchar(255), CONSTRAINT test_table_pk PRIMARY KEY (id));`,
+		`ALTER TABLE test_table1 ADD CONSTRAINT check_name CHECK (name <> '') NOT VALID;`,
 		`CREATE TABLE test_table2 (id int, name varchar(255), email varchar(255), CONSTRAINT test_table_uk UNIQUE (email));`,
 		`ALTER TABLE test_table2 ADD CONSTRAINT test_table_fk FOREIGN KEY (id) REFERENCES test_table1 (id);`,
 	}
@@ -395,6 +408,30 @@ func Test_RemovalOfDefaultValuesByParser(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	finalSqlStmts, err := queryparser.DeparseRawStmts(transformedStmts)
+	testutils.FatalIfError(t, err)
+
+	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
+}
+
+// Tests cases where deparse() API deviates from expected SQL or a corner cases which is good to test.
+func Test_DeparsingAPI(t *testing.T) {
+	sqlFileContent := `
+		CREATE TABLE my_table (created_at TIMESTAMPTZ NOT NULL DEFAULT (CURRENT_TIMESTAMP AT TIME ZONE 'UTC'));
+	`
+
+	expectedSqls := []string{
+		// expected: CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');
+		// but below is what parser actual returns due to Parser bug: https://github.com/pganalyze/pg_query_go/issues/126
+		`CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');`,
+	}
+
+	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
+	testutils.FatalIfError(t, err)
+
+	stmts, err := queryparser.ParseSqlFile(tempFilePath)
+	testutils.FatalIfError(t, err)
+
+	finalSqlStmts, err := queryparser.DeparseRawStmts(stmts)
 	testutils.FatalIfError(t, err)
 
 	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
