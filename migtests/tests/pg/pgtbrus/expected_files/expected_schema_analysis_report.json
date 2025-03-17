@@ -87,7 +87,7 @@
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.t",
-            "Reason": "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c and type: public.mycomposit. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Reason": "User defined datatype PUBLIC.MYCOMPOSIT not yet supported by voyager in live migration with fall-forward/fallback. Affected column: c. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE public.t (i int NOT NULL, ts timestamp (0) with time zone DEFAULT now(), j pg_catalog.json, t text, e public.myenum, c public.mycomposit, CONSTRAINT t_pkey PRIMARY KEY (i));",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/pgtbrus/export-dir/schema/tables/table.sql",
             "Suggestion": "",
