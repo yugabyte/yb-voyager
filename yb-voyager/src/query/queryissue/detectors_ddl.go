@@ -95,7 +95,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 
-			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.partitionTablesMap[c.ReferencedTable] {
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE && d.partitionedTablesMap[c.ReferencedTable] {
 				issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 					TABLE_OBJECT_TYPE,
 					table.GetObjectName(),
@@ -797,7 +797,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE &&
-			aid.partitionTablesMap[alter.ConstraintReferencedTable] {
+			aid.partitionedTablesMap[alter.ConstraintReferencedTable] {
 			//FK constraint references partitioned table
 			issues = append(issues, NewForeignKeyReferencesPartitionedTableIssue(
 				TABLE_OBJECT_TYPE,
@@ -808,7 +808,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&
-			aid.partitionTablesMap[alter.GetObjectName()] {
+			aid.partitionedTablesMap[alter.GetObjectName()] {
 			issues = append(issues, NewAlterTableAddPKOnPartiionIssue(
 				obj.GetObjectType(),
 				alter.GetObjectName(),
@@ -919,7 +919,7 @@ func (tid *TriggerIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 		))
 	}
 
-	if trigger.IsBeforeRowTrigger() && tid.partitionTablesMap[trigger.GetTableName()] {
+	if trigger.IsBeforeRowTrigger() && tid.partitionedTablesMap[trigger.GetTableName()] {
 		issues = append(issues, NewBeforeRowOnPartitionTableIssue(
 			obj.GetObjectType(),
 			trigger.GetObjectName(),
@@ -962,10 +962,10 @@ func (v *ViewIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssu
 
 type FunctionIssueDetector struct{}
 
-func (v *FunctionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
+func (f *FunctionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	function, ok := obj.(*queryparser.Function)
 	if !ok {
-		return nil, fmt.Errorf("invalid object type: expected View")
+		return nil, fmt.Errorf("invalid object type: expected Function")
 	}
 	var issues []QueryIssue
 
@@ -1056,6 +1056,7 @@ func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssu
 		return &FunctionIssueDetector{}, nil
 	case *queryparser.Collation:
 		return &CollationIssueDetector{}, nil
+
 	default:
 		return &NoOpIssueDetector{}, nil
 	}

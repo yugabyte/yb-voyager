@@ -331,11 +331,11 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
-		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
+		err = parserIssueDetector.ParseAndProcessDDL(sqlStmtInfo.formattedStmt)
 		if err != nil {
 			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
-		if parserIssueDetector.IsGinIndexPresentInSchema {
+		if parserIssueDetector.IsGinIndexPresentInSchema() {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)

@@ -1500,7 +1500,7 @@ func addNotesToAssessmentReport() {
 			}
 		}
 	case POSTGRESQL:
-		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
+		if parserIssueDetector.IsUnloggedTablesIssueFiltered() {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
 		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)

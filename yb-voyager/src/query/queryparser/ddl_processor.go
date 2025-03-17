@@ -175,8 +175,8 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 				TypeSchema:  typeSchemaName,
 				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 				/*
-				CREATE TABLE tbl_comp(id int, v text COMPRESSION pglz);
-				table_elts:{column_def:{colname:"v" type_name:{names:{string:{sval:"text"}} typemod:-1 location:147} compression:"pglz" is_local:true location:145}}
+					CREATE TABLE tbl_comp(id int, v text COMPRESSION pglz);
+					table_elts:{column_def:{colname:"v" type_name:{names:{string:{sval:"text"}} typemod:-1 location:147} compression:"pglz" is_local:true location:145}}
 				*/
 				Compression: element.GetColumnDef().Compression,
 			})
