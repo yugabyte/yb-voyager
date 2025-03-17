@@ -18,7 +18,6 @@ limitations under the License.
 package srcdb
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/samber/lo"
@@ -191,11 +190,14 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		testutils.CreateNameTuple("public.cross_schema_default_seq_table", "public", testYugabyteDBSource.DBType),
 		testutils.CreateNameTuple("public.manual_linked_table", "public", testYugabyteDBSource.DBType),
 		testutils.CreateNameTuple("custom_schema.users", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTuple("public.manual_linked_table_1", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.manual_linked_table_2", "public", testPostgresSource.DBType),
 	}
 	testYugabyteDBSource.Source.Schema = "public|custom_schema"
 
 	// Test GetColumnToSequenceMap
 	_ = testYugabyteDBSource.DB().Connect()
+	defer testYugabyteDBSource.DB().Disconnect()
 	actualColumnToSequenceMap := testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap := map[string]string{
 		"public.serial_table.id":                   `public."serial_table_id_seq"`,
@@ -203,13 +205,40 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
 		"public.identity_default_table.id":         `public."identity_default_table_id_seq"`,
 		"public.default_nextval_table.id":          `public."manual_seq"`,
-		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq`,
-		"public.manual_linked_table.id":            `public."manual_linked_table_id_seq"`,
-		"custom_schema.users.user_code":            `custom_schema."users_user_code_seq"`,
+		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
+		"custom_schema.users.user_code":            `custom_schema."user_code_seq"`,
 		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
 		"public.manual_linked_table_2.id":          `public."manual_linked_seq_another"`,
 	}
-	fmt.Printf("actual - %v", actualColumnToSequenceMap)
+	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
+	//asssert key val
+	for key, val := range actualColumnToSequenceMap {
+		expectedVal, ok := expectedColumnToSequenceMap[key]
+		assert.Equal(t, ok, true)
+		assert.Equal(t, expectedVal, val)
+	}
+	//case with less tables
+	tableList = []sqlname.NameTuple{
+		testutils.CreateNameTuple("public.serial_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.bigserial_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.identity_always_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.cross_schema_default_seq_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.manual_linked_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTuple("public.manual_linked_table_1", "public", testPostgresSource.DBType),
+	}
+	testPostgresSource.Source.Schema = "public|custom_schema"
+
+	// Test GetColumnToSequenceMap
+	actualColumnToSequenceMap = testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
+	expectedColumnToSequenceMap = map[string]string{
+		"public.serial_table.id":                   `public."serial_table_id_seq"`,
+		"public.bigserial_table.id":                `public."bigserial_table_id_seq"`,
+		"public.identity_always_table.id":          `public."identity_always_table_id_seq"`,
+		"public.cross_schema_default_seq_table.id": `custom_schema."cross_schema_seq"`,
+		"public.manual_linked_table.id":            `public."manual_linked_seq"`,
+		"public.manual_linked_table_1.id":          `public."manual_linked_seq_another"`,
+	}
 	assert.Equal(t, len(lo.Keys(actualColumnToSequenceMap)), len(lo.Keys(expectedColumnToSequenceMap)), "Expected number of tables to match")
 	//asssert key val
 	for key, val := range actualColumnToSequenceMap {
