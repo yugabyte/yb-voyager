@@ -21,7 +21,7 @@ import (
 	"os"
 	"testing"
 
-	"github.com/containerd/log"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -431,7 +431,7 @@ func Test_DeparsingAPI(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	finalSqlStmts, err := queryparser.DeparseRawStmts(stmts)
+	finalSqlStmts, err := queryparser.DeparseRawStmts(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
 	testutils.AssertEqualStringSlices(t, expectedSqls, finalSqlStmts)
