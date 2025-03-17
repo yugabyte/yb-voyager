@@ -1523,21 +1523,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				// assessmentReport.AppendIssues(AssessmentIssue{
-				// 	Category:            MIGRATION_CAVEATS_CATEGORY,
-				// 	CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-				// 	Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
-				// 	Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
-				// 	Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
-				// 	Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
-				// 	ObjectType:          constants.COLUMN,
-				// 	ObjectName:          fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-				// 	DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				// })
-
-				//////////IMPORTANT????????????????????
-				//////////Should we keep impact level of these datatypes as level 1??????
-
 				var datatype string
 				if strings.Contains(colInfo.DataType, ".") {
 					datatype = strings.Split(colInfo.DataType, ".")[1]
@@ -1561,18 +1546,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 			for _, colInfo := range unsupportedDataTypesForLiveMigrationWithFForFB {
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
-
-				// assessmentReport.AppendIssues(AssessmentIssue{
-				// 	Category:            MIGRATION_CAVEATS_CATEGORY,
-				// 	CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-				// 	Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
-				// 	Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-				// 	Impact:              constants.IMPACT_LEVEL_1,
-				// 	Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
-				// 	ObjectType:          constants.COLUMN,
-				// 	ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-				// 	DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				// })
 
 				var datatype string
 				if strings.Contains(colInfo.DataType, ".") {
