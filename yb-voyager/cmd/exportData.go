@@ -587,7 +587,8 @@ func GetRootTableOfPartition(table sqlname.NameTuple) (sqlname.NameTuple, error)
 		//we shouldn't use these but instead get a proper one from the name registry.
 		tuple, err := namereg.NameReg.LookupTableName(table.ForKey())
 		if err != nil {
-			return sqlname.NameTuple{}, fmt.Errorf("lookup failed for the table: %v: %v", table.ForKey(), err)
+			//TODO: fix back to returning error once we remove any DB calls in subsequent even for leaf partitions etc..
+			return table, nil
 		}
 		return tuple, nil
 	}
@@ -788,7 +789,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	return tuple, nil
 }
 
-func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.NameTuple, tableListViaFlag string, excludeTableListViaFlag string) ([]sqlname.NameTuple, error) {
+func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.NameTuple, tableListViaFlag string, excludeTableListViaFlag string) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
 	var err error
 	var includeTableList, excludeTableList []sqlname.NameTuple
 
@@ -808,7 +809,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		//Apply exclude table list filter if present
 		excludeTableList, err = applyFilterAndAddLeafTable(excludeTableListViaFlag, "exclude")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	}
 
@@ -817,7 +818,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		//Apply include table list filter if present
 		includeTableList, err = applyFilterAndAddLeafTable(tableListViaFlag, "include")
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 	} else {
 		//this is only for removing  the mid level partitioned table from fullTableList
@@ -825,11 +826,12 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		//i.e. only add if its a normal, root, or leaf table.
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
 		if err != nil {
-			return nil, fmt.Errorf("error keeping only leaf and root tables: %v", err)
+			return nil, nil, fmt.Errorf("error keeping only leaf and root tables: %v", err)
 		}
 	}
-	//return the final table list generated from the command flags  table-list (include list) / exclude-table-list in this run
-	return sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList), nil
+	//return the include and exclude table list generated from the command flags  table-list (include list) / exclude-table-list in this run
+
+	return includeTableList, excludeTableList, nil
 }
 
 func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlname.NameTuple, error) {
@@ -846,10 +848,11 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	}
 
 	//apply table list flags filter on the nameTupleTableListFromDB
-	tableListInFirstRun, err = applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
+	includeTableList, excludeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %v", err)
 	}
+	tableListInFirstRun = sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 
 	isTableListModified := false
 	if source.TableList != "" || source.ExcludeTableList != "" {
@@ -988,7 +991,6 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	if err != nil {
 		return nil, nil, fmt.Errorf("error applying table list flags for current list: %v", err)
 	}
-
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
 	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
 	if err != nil {
@@ -1009,10 +1011,11 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 	firstRunTableWithLeafsAndRoots []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
 
 	//apply include/exclude flags and if a new table is passed (which is not present in name registry), then error out Unknown table
-	currentRunTableListFilteredViaFlags, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, tableListViaFlag, excludeTableListViaFlag)
+	currentRunIncludeTableList, currentRunExlcudeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, tableListViaFlag, excludeTableListViaFlag)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %v", err)
 	}
+	currentRunTableListFilteredViaFlags := sqlname.SetDifferenceNameTuplesWithKey(currentRunIncludeTableList, currentRunExlcudeTableList)
 	//checks if a given table is new leaf table or not
 	isNewLeafTable := func(t sqlname.NameTuple) bool {
 		for _, leafs := range rootToNewLeafTablesMap {
@@ -1055,25 +1058,17 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 }
 
 func getRegisteredNameRegList() ([]sqlname.NameTuple, error) {
-	registeredListObjNames, err := namereg.NameReg.GetRegisteredTableList()
+	registeredList, err := namereg.NameReg.GetRegisteredTableList(true)
 	if err != nil {
 		utils.ErrExit("error getting registered list in name registry: %v", err)
 	}
 
-	registeredList := make([]sqlname.NameTuple, 0)
-	for _, obj := range registeredListObjNames {
-		tuple, err := getNameTupleFromQualifiedObject(obj.Qualified.Quoted, obj, false)
-		if err != nil {
-			return nil, fmt.Errorf("error in getting the name tuple for the qualified object: %s: %v", obj.Qualified.Quoted, obj)
-		}
-		registeredList = append(registeredList, tuple)
-	}
 	return registeredList, nil
 }
 
 func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
-	missingTables := sqlname.SetDifferenceNameTuples(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions)
-	extraTables := sqlname.SetDifferenceNameTuples(currentRunTableListWithLeafPartitions, firstRunTableListWithLeafPartitions)
+	missingTables := sqlname.SetDifferenceNameTuplesWithKey(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions)
+	extraTables := sqlname.SetDifferenceNameTuplesWithKey(currentRunTableListWithLeafPartitions, firstRunTableListWithLeafPartitions)
 
 	if len(missingTables) > 0 || len(extraTables) > 0 {
 		finalErrMsg := "Changing the table list during live-migration is not allowed."
