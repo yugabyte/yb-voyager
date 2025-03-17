@@ -296,7 +296,7 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
 	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false)
 	if err != nil {
-		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+		return sqlname.NameTuple{}, err
 	}
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
@@ -318,7 +318,7 @@ func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tabl
 	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
 	return ntup, nil
 }
-func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfEitherSideNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
+func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfOtherSideMappingNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	// TODO: REVISIT. Removing the check for reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE because it's possible that import-data-to-source-replica
 	// starts before import-data-to-target and so , defaultYBSchemaName will not be set.
 	// if (reg.role == TARGET_DB_IMPORTER_ROLE || reg.role == SOURCE_REPLICA_DB_IMPORTER_ROLE) &&
@@ -374,7 +374,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 				}
 			}
 			if err != nil {
-				if ignoreIfEitherSideNotFound {
+				if ignoreIfOtherSideMappingNotFound {
 					log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.
@@ -396,7 +396,7 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 				}
 			}
 			if err != nil {
-				if ignoreIfEitherSideNotFound {
+				if ignoreIfOtherSideMappingNotFound {
 					log.Debugf("lookup target table name [%s]: %v", tableNameArg, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.
