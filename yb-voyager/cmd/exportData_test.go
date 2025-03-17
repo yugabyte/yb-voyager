@@ -939,6 +939,7 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		t.Errorf("error initialising name reg for the source: %v", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
 	err = testYugabyteDBTarget.Init()
 	if err != nil {
 		utils.ErrExit("Failed to connect to yugabyte database: %w", err)
