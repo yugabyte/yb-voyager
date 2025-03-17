@@ -18,6 +18,7 @@ limitations under the License.
 package srcdb
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/samber/lo"
@@ -182,22 +183,24 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 
 	sqlname.SourceDBType = "postgresql"
 	tableList := []sqlname.NameTuple{
-		testutils.CreateNameTuple("public.serial_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.bigserial_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.identity_always_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.identity_default_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.default_nextval_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.cross_schema_default_seq_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.manual_linked_table", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("custom_schema.users", "public", testYugabyteDBSource.DBType),
-		testutils.CreateNameTuple("public.manual_linked_table_1", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.manual_linked_table_2", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.serial_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.bigserial_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.identity_always_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.identity_default_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.default_nextval_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.cross_schema_default_seq_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("custom_schema.users", "public", testYugabyteDBSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_2", "public", testPostgresSource.DBType),
 	}
 	testYugabyteDBSource.Source.Schema = "public|custom_schema"
 
 	// Test GetColumnToSequenceMap
 	_ = testYugabyteDBSource.DB().Connect()
 	defer testYugabyteDBSource.DB().Disconnect()
+
+	fmt.Print("--- Full table list case ---- \n")
 	actualColumnToSequenceMap := testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap := map[string]string{
 		"public.serial_table.id":                   `public."serial_table_id_seq"`,
@@ -218,18 +221,20 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		assert.Equal(t, ok, true)
 		assert.Equal(t, expectedVal, val)
 	}
+	fmt.Print("Full table list case completed!\n")
 	//case with less tables
 	tableList = []sqlname.NameTuple{
-		testutils.CreateNameTuple("public.serial_table", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.bigserial_table", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.identity_always_table", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.cross_schema_default_seq_table", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.manual_linked_table", "public", testPostgresSource.DBType),
-		testutils.CreateNameTuple("public.manual_linked_table_1", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.serial_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.bigserial_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.identity_always_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.cross_schema_default_seq_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.manual_linked_table", "public", testPostgresSource.DBType),
+		testutils.CreateNameTupleWithSourceName("public.manual_linked_table_1", "public", testPostgresSource.DBType),
 	}
 	testPostgresSource.Source.Schema = "public|custom_schema"
 
 	// Test GetColumnToSequenceMap
+	fmt.Print("----- Subset of table list case ----- \n")
 	actualColumnToSequenceMap = testYugabyteDBSource.DB().GetColumnToSequenceMap(tableList)
 	expectedColumnToSequenceMap = map[string]string{
 		"public.serial_table.id":                   `public."serial_table_id_seq"`,
@@ -246,6 +251,7 @@ func TestYBGetColumnToSequenceMap(t *testing.T) {
 		assert.Equal(t, ok, true)
 		assert.Equal(t, expectedVal, val)
 	}
+	fmt.Print("Subset of table list case completed!\n")
 }
 
 func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
