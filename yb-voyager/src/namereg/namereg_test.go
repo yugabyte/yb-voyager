@@ -45,10 +45,10 @@ var oracleToYBNameRegistry = &NameRegistry{
 	DefaultYBSchemaName:       "public",
 	//DefaultSourceReplicaDBSchemaName: "SAKILA_FF", // Will be set using SetDefaultSourceReplicaDBSchemaName().
 	SourceDBTableNames: map[string][]string{
-		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `MixedCaps1`, `MixedCAPS1`, `lower_caps`},
+		"SAKILA": {`TABLE1`, `TABLE2`, `Table2`, `MixedCaps`, `MixedCaps1`, `MixedCAPS1`, `lower_caps`, `TABLE3`},
 	},
 	YBTableNames: map[string][]string{
-		"public": {"table1", "table2", `Table2`, `mixedcaps`, `MixedCaps1`, `MixedCAPS1`, "lower_caps"},
+		"public": {"table1", "table2", `Table2`, `mixedcaps`, `MixedCaps1`, `MixedCAPS1`, "lower_caps", `table123`},
 	},
 }
 
@@ -308,6 +308,37 @@ func TestNameRegistryFailedLookup(t *testing.T) {
 	assert.Contains(err.Error(), "no default schema name")
 	reg.DefaultSourceDBSchemaName = "SAKILA"
 	reg.DefaultYBSchemaName = "public"
+
+	//source table not exist in target
+	_, err = reg.LookupTableName("SAKILA.TABLE3")
+	require.NotNil(err)
+	assert.Contains(err.Error(), "lookup target table name")
+
+	var tuple sqlname.NameTuple
+	sourceObj := sqlname.NewObjectNameWithQualifiedName(constants.ORACLE, "SAKILA", "SAKILA.TABLE3")
+	reg.params.Role = SOURCE_DB_EXPORTER_ROLE
+	expectedTuple := sqlname.NameTuple{
+		SourceName:  sourceObj,
+		CurrentName: sourceObj,
+	}
+	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("SAKILA.TABLE3")
+	require.Nil(err)
+	assert.Equal(expectedTuple, tuple, "tableName: SAKILA.TABLE3")
+
+	//target table not exist in source
+	_, err = reg.LookupTableName("public.table123")
+	require.NotNil(err)
+	assert.Contains(err.Error(), "lookup source table name")
+	reg.params.Role = TARGET_DB_IMPORTER_ROLE
+	targetObj := sqlname.NewObjectNameWithQualifiedName(constants.YUGABYTEDB, "public", "public.table123")
+	expectedTuple = sqlname.NameTuple{
+		TargetName:  targetObj,
+		CurrentName: targetObj,
+	}
+	tuple, err = reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound("public.table123")
+	require.Nil(err)
+	assert.Equal(expectedTuple, tuple, "tableName: public.table123")
+
 }
 
 func TestDifferentSchemaInSameDBAsSourceReplica1(t *testing.T) {
@@ -607,8 +638,8 @@ func TestNameRegistryStructs(t *testing.T) {
 				YBTableNames                     map[string][]string
 				DefaultSourceReplicaDBSchemaName string
 				params                           NameRegistryParams
-				SourceDBSequenceNames           map[string][]string
-				YBSequenceNames                 map[string][]string
+				SourceDBSequenceNames            map[string][]string
+				YBSequenceNames                  map[string][]string
 			}{},
 		},
 	}
@@ -696,7 +727,7 @@ func TestNameRegistryJson(t *testing.T) {
 		"  },",
 		`  "DefaultSourceReplicaDBSchemaName": "SAKILA_FF",`,
 		`  "SourceDBSequenceNames": null,`,
-        `  "YBSequenceNames": null`,
+		`  "YBSequenceNames": null`,
 		"}",
 	}, "\n")
 
