@@ -108,7 +108,7 @@ type ImportBatchArgs struct {
 
 func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	options := args.copyOptions()
-	options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
+	// options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
 	columns := ""
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))

@@ -379,18 +379,18 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 		return
 	}
 
-	var defaultBatchSize int64
-	if tconf.TargetDBType == ORACLE {
-		defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
-	} else if tconf.TargetDBType == POSTGRESQL {
-		defaultBatchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
-	} else {
-		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
-	}
+	// var defaultBatchSize int64
+	// if tconf.TargetDBType == ORACLE {
+	// 	defaultBatchSize = DEFAULT_BATCH_SIZE_ORACLE
+	// } else if tconf.TargetDBType == POSTGRESQL {
+	// 	defaultBatchSize = DEFAULT_BATCH_SIZE_POSTGRESQL
+	// } else {
+	// 	defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
+	// }
 
-	if numLinesInASplit > defaultBatchSize {
-		utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
-	}
+	// if numLinesInASplit > defaultBatchSize {
+	// 	utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
+	// }
 }
 
 func validateFFDBSchemaFlag() {
