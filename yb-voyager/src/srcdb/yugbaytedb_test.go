@@ -270,6 +270,7 @@ func TestYugabyteGetTableToUniqueKeyColumnsMap(t *testing.T) {
             ('user1', 30),
             ('user2', 40);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	testYugabyteDBSource.Schema = "test_schema"
 
 	uniqueTablesList := []sqlname.NameTuple{
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
@@ -319,6 +320,7 @@ func TestYugabyteGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testYugabyteDBSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	testYugabyteDBSource.Schema = "test_schema"
 
 	// Test GetNonPKTables
 	_ = testYugabyteDBSource.DB().Connect()

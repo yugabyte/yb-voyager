@@ -272,6 +272,8 @@ func TestPostgresGetTableToUniqueKeyColumnsMap(t *testing.T) {
             ('user2', 40);`)
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
+	testPostgresSource.Schema = "test_schema"
+
 	uniqueTablesList := []sqlname.NameTuple{
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "unique_table")},
 		{CurrentName: sqlname.NewObjectName("postgresql", "test_schema", "test_schema", "another_unique_table")},
@@ -320,6 +322,7 @@ func TestPostgresGetNonPKTables(t *testing.T) {
 		name VARCHAR(255)
 	);`)
 	defer testPostgresSource.TestContainer.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	testPostgresSource.Schema = "test_schema"
 
 	// Test GetNonPKTables
 	_ = testPostgresSource.DB().Connect()
