@@ -1,4 +1,5 @@
 //go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -2086,4 +2087,55 @@ func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
 	assert.Equal(t, 2, len(picker.inProgressTasks()))
 	assert.Equal(t, 1, len(picker.inProgressColocatedTasks))
 	assert.Equal(t, 1, len(picker.inProgressShardedTasks))
+}
+
+func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	err = picker.WaitForTasksBatchesTobeImported()
+	assert.NoError(t, err)
 }
