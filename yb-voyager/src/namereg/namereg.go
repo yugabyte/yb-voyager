@@ -173,26 +173,17 @@ func (reg *NameRegistry) registerSourceNames() (bool, error) {
 // this function returns the tables names in the namereg which is required by the export data
 // table-list code path for getting a full list of tables from first run i.e. registered table list
 // returning the objectNames from here as we need to get nameTuple based on type of tables either leaf partition or normal..
-func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error) {
-	var res []*sqlname.ObjectName
+func (reg *NameRegistry) GetRegisteredTableList(ignoreOtherSideOfMappingIfNotFound bool) ([]sqlname.NameTuple, error) {
+	var res []sqlname.NameTuple
 	var m map[string][]string            // Complete list of tables and sequences
 	var sequencesMap map[string][]string // only sequence list
-	var dbType string
-	var defaultSchemaName string
 	switch reg.params.Role {
 	case SOURCE_DB_EXPORTER_ROLE, SOURCE_DB_IMPORTER_ROLE, SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		m = reg.SourceDBTableNames
 		sequencesMap = reg.SourceDBSequenceNames
-		dbType = reg.SourceDBType
-		defaultSchemaName = reg.DefaultSourceDBSchemaName
-		if reg.params.Role == SOURCE_REPLICA_DB_IMPORTER_ROLE {
-			defaultSchemaName = reg.DefaultSourceReplicaDBSchemaName
-		}
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE, TARGET_DB_IMPORTER_ROLE:
 		m = reg.YBTableNames
 		sequencesMap = reg.YBSequenceNames
-		dbType = constants.YUGABYTEDB
-		defaultSchemaName = reg.DefaultYBSchemaName
 	}
 	for s, tables := range m {
 		for _, t := range tables {
@@ -200,7 +191,20 @@ func (reg *NameRegistry) GetRegisteredTableList() ([]*sqlname.ObjectName, error)
 				//If its a sequence continue and not append in the registerd list
 				continue
 			}
-			res = append(res, sqlname.NewObjectName(dbType, defaultSchemaName, s, t))
+			tableName := fmt.Sprintf("%v.%v", s, t)
+			if ignoreOtherSideOfMappingIfNotFound {
+				tuple, err := reg.LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableName)
+				if err != nil {
+					return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+				}
+				res = append(res, tuple)
+			} else {
+				tuple, err := reg.LookupTableName(tableName)
+				if err != nil {
+					return nil, fmt.Errorf("error lookup for the table name [%v]: %v", tableName, err)
+				}
+				res = append(res, tuple)
+			}
 		}
 	}
 	return res, nil
@@ -289,6 +293,31 @@ schema1.foobar, schema1."foobar", schema1.FooBar, schema1."FooBar", schema1.FOOB
 */
 //TODO: have a separate function for Sequence lookup LookupSequenceName
 func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple, error) {
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, false)
+	if err != nil {
+		return sqlname.NameTuple{}, err
+	}
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+	return ntup, nil
+}
+
+//================================================
+
+/*
+this function hels returning the nametuple in case the tableNameArg is only present in target or source and not both,
+so this will return a nametuple with one side populated only
+In case both the source and target not present for the table this will return error.
+*/
+
+func (reg *NameRegistry) LookupTableNameAndIgnoreOtherSideMappingIfNotFound(tableNameArg string) (sqlname.NameTuple, error) {
+	sourceName, targetName, err := reg.lookupSourceAndTargetTableNames(tableNameArg, true)
+	if err != nil {
+		return sqlname.NameTuple{}, fmt.Errorf("error lookup source and target names for table [%v]: %v", tableNameArg, err)
+	}
+	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
+	return ntup, nil
+}
+func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ignoreIfOtherSideMappingNotFound bool) (*sqlname.ObjectName, *sqlname.ObjectName, error) {
 	createAllObjectNamesMap := func(m map[string][]string, m1 map[string][]string) map[string][]string {
 		if m == nil && m1 == nil {
 			return nil
@@ -312,7 +341,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 		(reg.DefaultSourceSideSchemaName() == "") != (reg.DefaultYBSchemaName == "") {
 
 		msg := "either both or none of the default schema names should be set"
-		return sqlname.NameTuple{}, fmt.Errorf("%s: [%s], [%s]", msg,
+		return nil, nil, fmt.Errorf("%s: [%s], [%s]", msg,
 			reg.DefaultSourceSideSchemaName(), reg.DefaultYBSchemaName)
 	}
 	var err error
@@ -327,7 +356,7 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 		schemaName = parts[0]
 		tableName = parts[1]
 	default:
-		return sqlname.NameTuple{}, fmt.Errorf("invalid table name: %s", tableNameArg)
+		return nil, nil, fmt.Errorf("invalid table name: %s", tableNameArg)
 	}
 	// Consider a case of oracle data migration: source table name is SAKILA.TABLE1 and it is being imported in ybsakila.table1.
 	// When a name lookup comes for ybsakila.table1 we have to pair it with SAKILA.TABLE1.
@@ -360,8 +389,13 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 				}
 			}
 			if err != nil {
-				// `err` can be: no default schema, no matching name, multiple matching names.
-				return sqlname.NameTuple{}, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+				errNotFound := &ErrNameNotFound{}
+				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
+					log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
+				} else {
+					// `err` can be: no default schema, no matching name, multiple matching names.
+					return nil, nil, fmt.Errorf("lookup source table name [%s.%s]: %w", schemaName, tableName, err)
+				}
 			}
 		}
 	}
@@ -378,16 +412,20 @@ func (reg *NameRegistry) LookupTableName(tableNameArg string) (sqlname.NameTuple
 				}
 			}
 			if err != nil {
-				return sqlname.NameTuple{}, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+				errNotFound := &ErrNameNotFound{}
+				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
+					log.Debugf("lookup target table name [%s]: %v", tableNameArg, err)
+				} else {
+					// `err` can be: no default schema, no matching name, multiple matching names.
+					return nil, nil, fmt.Errorf("lookup target table name [%s]: %w", tableNameArg, err)
+				}
 			}
 		}
 	}
 	if sourceName == nil && targetName == nil {
-		return sqlname.NameTuple{}, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
+		return nil, nil, &ErrNameNotFound{ObjectType: "table", Name: tableNameArg}
 	}
-
-	ntup := NewNameTuple(reg.params.Role, sourceName, targetName)
-	return ntup, nil
+	return sourceName, targetName, nil
 }
 
 func (reg *NameRegistry) lookup(
