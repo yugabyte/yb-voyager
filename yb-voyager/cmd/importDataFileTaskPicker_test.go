@@ -2136,6 +2136,9 @@ func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testi
 		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
 	}
 
+	// Even though no task importer has been created for any of the tasks,
+	// WaitForTasksBatchesTobeImported should not fail. It should assume that tasks
+	// are not yet done yet.
 	err = picker.WaitForTasksBatchesTobeImported()
 	assert.NoError(t, err)
 }
