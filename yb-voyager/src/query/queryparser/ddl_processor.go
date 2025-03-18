@@ -29,7 +29,7 @@ import (
 
 // Base parser interface
 /*
-Whenever adding a new DDL type to prasing for detecting issues, need to extend this DDLProcessor
+Whenever adding a new DDL type to parse for detecting issues, need to extend this DDLProcessor
 with the Process() function to adding logic to get the required information out from the parseTree of that DDL
 and store it in a DDLObject struct
 */
@@ -40,7 +40,7 @@ type DDLProcessor interface {
 // Base DDL object interface
 /*
 Whenever adding a new DDL type, You need to extend this DDLObject struct to be extended for that object type
-with the required for storing the information which should have these required function also extended for the objeect Name and schema name
+with the required for storing the information which should have these required function also extended for the object Name and schema name
 */
 type DDLObject interface {
 	GetObjectName() string
