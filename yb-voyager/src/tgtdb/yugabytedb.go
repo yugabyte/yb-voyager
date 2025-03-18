@@ -993,6 +993,7 @@ const (
 	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
+	SET_YB_FAST_PATH_FOR_COLOCATED_COPY         = "SET yb_fast_path_for_colocated_copy=true"
 	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
 )
 
@@ -1017,6 +1018,10 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 	}
 	if checkSessionVariableSupport(tconf, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ) {
 		sessionVars = append(sessionVars, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ)
+	}
+
+	if checkSessionVariableSupport(tconf, SET_YB_FAST_PATH_FOR_COLOCATED_COPY) {
+		sessionVars = append(sessionVars, SET_YB_FAST_PATH_FOR_COLOCATED_COPY)
 	}
 
 	if tconf.EnableUpsert {
