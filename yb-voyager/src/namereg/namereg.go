@@ -374,7 +374,8 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 				}
 			}
 			if err != nil {
-				if ignoreIfOtherSideMappingNotFound {
+				errNotFound := &ErrNameNotFound{}
+				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
 					log.Debugf("lookup source table name [%s.%s]: %v", schemaName, tableName, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.
@@ -396,7 +397,8 @@ func (reg *NameRegistry) lookupSourceAndTargetTableNames(tableNameArg string, ig
 				}
 			}
 			if err != nil {
-				if ignoreIfOtherSideMappingNotFound {
+				errNotFound := &ErrNameNotFound{}
+				if ignoreIfOtherSideMappingNotFound && errors.As(err, &errNotFound) {
 					log.Debugf("lookup target table name [%s]: %v", tableNameArg, err)
 				} else {
 					// `err` can be: no default schema, no matching name, multiple matching names.

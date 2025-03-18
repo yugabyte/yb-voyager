@@ -1015,6 +1015,9 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 	if err != nil {
 		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %v", err)
 	}
+	//Filtering the include and exclude list here using the ForKey() because we are using the LookupTableNameAndIgnoreOtherSideMappingIfNotFound for the Registered list 
+	//Which will populate the NameTuple for all the tables with both sides in case available (including the partitions) and if not available then only one side.
+	//but the addLeafPartitions function still adds the leafs with only Source side populated so in case such cases the String comparision won't help so we need to do the Key based Differences
 	currentRunTableListFilteredViaFlags := sqlname.SetDifferenceNameTuplesWithKey(currentRunIncludeTableList, currentRunExlcudeTableList)
 	//checks if a given table is new leaf table or not
 	isNewLeafTable := func(t sqlname.NameTuple) bool {
