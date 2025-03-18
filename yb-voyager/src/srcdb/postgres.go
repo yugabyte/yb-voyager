@@ -71,24 +71,69 @@ var PG_COMMAND_VERSION = map[string]string{
 	"psql":       "9.0", //psql features we need are available in 7.1 onwards, keeping it to 9.0 for safety
 }
 
-const FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE = `SELECT
+/*
+This query returns all types of sequences attached to the tables -
+1. SERIAL/BIGSERIAL datatypes
+2. IDENTITY (ALWAYS / DEFAULT) columns
+3. SEQUENCE objects owned by the table columns
+
+this query doesn't return sequences that are attached to table by using the nextval function of sequence as DEFAULT clause of column
+e.g. CREATE TABLE default_clause_tbl(id int DEFAULT nextval('public.seq'::regclass), val text);
+*/
+const FETCH_COLUMN_ALL_SEQUENCES_EXCEPT_DEFAULT_QUERY_TEMPLATE = `SELECT
+(tn.nspname || '.' || t.relname)  AS table_name,
 a.attname AS column_name,
-COALESCE(seq.relname, '') AS sequence_name,
-COALESCE(ns.nspname, '') AS schema_name
-FROM pg_class AS t
-JOIN pg_attribute AS a ON a.attrelid = t.oid
-JOIN pg_namespace AS tn ON tn.oid = t.relnamespace
-LEFT JOIN pg_attrdef AS ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
-LEFT JOIN pg_depend AS d ON d.objid = ad.oid
-LEFT JOIN pg_class AS seq ON seq.oid = d.refobjid
-LEFT JOIN pg_namespace AS ns ON ns.oid = seq.relnamespace
+seq_ns.nspname AS sequence_schema,
+seq.relname AS sequence_name
+FROM pg_class t
+JOIN pg_namespace tn ON tn.oid = t.relnamespace
+JOIN pg_attribute a ON a.attrelid = t.oid
+LEFT JOIN pg_attrdef ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+LEFT JOIN pg_depend dep
+	ON (dep.objid = ad.oid ) 
+	OR (a.attidentity <> '' AND dep.refobjid = a.attrelid AND dep.refobjsubid = a.attnum)  -- identity sequence
+	OR (dep.refobjid = t.oid AND dep.refobjsubid = a.attnum) -- owned sequences
+LEFT JOIN pg_class seq ON seq.oid = dep.objid AND seq.relkind = 'S'
+LEFT JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
 WHERE
-tn.nspname = '%s' -- schema name
-AND t.relname = '%s' -- table name
-AND a.attnum > 0
-AND NOT a.attisdropped
-AND t.relkind IN ('r', 'P')
-AND seq.relkind = 'S';`
+	a.attnum > 0
+	AND NOT a.attisdropped
+	AND (seq.relname IS NOT NULL)
+	AND (tn.nspname || '.' || t.relname ) IN (%s);`
+
+/*
+This query returns all types of sequences attached to the tables -
+1. SERIAL/BIGSERIAL datatypes
+2. DEFAULT nextval()
+
+the change in this query  from the above query is this line 
+
+LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S' 
+
+where the join is happening with `dep.refobjid` which helps in getting the default nextval cases as 
+
+
+*/
+const FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE = `SELECT
+	(tn.nspname || '.' || t.relname)  AS table_name,
+	a.attname AS column_name,
+	seq_ns.nspname AS sequence_schema,
+	seq.relname AS sequence_name
+	FROM pg_class t
+	JOIN pg_namespace tn ON tn.oid = t.relnamespace
+	JOIN pg_attribute a ON a.attrelid = t.oid
+	LEFT JOIN pg_attrdef ad ON ad.adrelid = t.oid AND ad.adnum = a.attnum
+	LEFT JOIN pg_depend dep
+		ON (dep.objid = ad.oid ) 
+		OR (a.attidentity <> '' AND dep.refobjid = a.attrelid AND dep.refobjsubid = a.attnum)  -- identity sequence
+		OR (dep.refobjid = t.oid AND dep.refobjsubid = a.attnum) -- owned sequences
+	LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S'
+	LEFT JOIN pg_namespace seq_ns ON seq_ns.oid = seq.relnamespace
+	WHERE
+		a.attnum > 0
+		AND NOT a.attisdropped
+		AND (seq.relname IS NOT NULL)
+		AND (tn.nspname || '.' || t.relname ) IN (%s);`
 
 const GET_TABLE_COLUMNS_QUERY_TEMPLATE_PG_AND_YB = `SELECT a.attname AS column_name, t.typname AS data_type, rol.rolname AS data_type_owner 
 FROM pg_attribute AS a 
@@ -113,8 +158,8 @@ func (pg *PostgreSQL) Connect() error {
 		err := pg.db.Ping()
 		if err == nil {
 			log.Infof("Already connected to the source database")
-				log.Infof("Already connected to the source database")
-				return nil
+			log.Infof("Already connected to the source database")
+			return nil
 		} else {
 			log.Infof("Failed to ping the source database: %s", err)
 			pg.Disconnect()
@@ -487,7 +532,6 @@ func (pg *PostgreSQL) GetAllSequences() []string {
 			log.Warnf("close rows for query %q: %v", query, closeErr)
 		}
 	}()
-
 	var sequenceName, sequenceSchema string
 	for rows.Next() {
 		err = rows.Scan(&sequenceSchema, &sequenceName)
@@ -706,38 +750,45 @@ func (pg *PostgreSQL) ParentTableOfPartition(table sqlname.NameTuple) string {
 
 func (pg *PostgreSQL) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[string]string {
 	columnToSequenceMap := make(map[string]string)
-	for _, table := range tableList {
-		// query to find out column name vs sequence name for a table
-		// this query also covers the case of identity columns
-		sname, tname := table.ForCatalogQuery()
-		query := fmt.Sprintf(FETCH_COLUMN_SEQUENCES_QUERY_TEMPLATE, sname, tname)
+	qualifiedTableList := "'" + strings.Join(lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+		return t.AsQualifiedCatalogName()
+	}), "','") + "'"
 
-		var columeName, sequenceName, schemaName string
+	// query to find out column name vs sequence name for a table-list
+	// this query also covers the case of identity columns
+
+	runQueryAndUpdateMap := func(template string) {
+		query := fmt.Sprintf(template, qualifiedTableList)
+
+		var tableName, columeName, sequenceName, schemaName string
 		rows, err := pg.db.Query(query)
 		if err != nil {
 			log.Infof("Query to find column to sequence mapping: %s", query)
-			utils.ErrExit("Error in querying for sequences in table: %s: %v", table, err)
+			utils.ErrExit("Error in querying for sequences with  query [%v]: %v", query, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
 			if closeErr != nil {
-				log.Warnf("close rows for table %s query %q: %v", table.String(), query, closeErr)
+				log.Warnf("close rows query %q: %v", query, closeErr)
 			}
 		}()
 		for rows.Next() {
-			err := rows.Scan(&columeName, &sequenceName, &schemaName)
+			err := rows.Scan(&tableName, &columeName, &schemaName, &sequenceName)
 			if err != nil {
-				utils.ErrExit("Error in scanning for sequences in table: %s: %v", table, err)
+				utils.ErrExit("Error in scanning for sequences query: %s: %v", query, err)
 			}
-			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columeName)
+			qualifiedColumnName := fmt.Sprintf("%s.%s", tableName, columeName)
 			// quoting sequence name as it can be case sensitive - required during import data restore sequences
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf(`%s."%s"`, schemaName, sequenceName)
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows query %q: %s", query, err)
 		}
 	}
+
+	runQueryAndUpdateMap(FETCH_COLUMN_ALL_SEQUENCES_EXCEPT_DEFAULT_QUERY_TEMPLATE)
+	runQueryAndUpdateMap(FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE)
 
 	return columnToSequenceMap
 }
