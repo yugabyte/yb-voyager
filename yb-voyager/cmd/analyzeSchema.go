@@ -324,7 +324,7 @@ func addSummaryDetailsForIndexes() {
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlStmtInfo := range sqlInfoArr {
-		_, err := queryparser.Parse(sqlStmtInfo.stmt)
+		_, err := queryparser.Parse(sqlStmtInfo.formattedStmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
 			if !summaryMap[objType].invalidCount[sqlStmtInfo.objName] {
 				reason := fmt.Sprintf("%s - '%s'", UNSUPPORTED_PG_SYNTAX_ISSUE_REASON, err.Error())

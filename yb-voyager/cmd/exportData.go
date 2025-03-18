@@ -1353,6 +1353,12 @@ func clearMigrationStateIfRequired() {
 			utils.ErrExit("Failed to remove name registry file: %s", err)
 		}
 
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			record.TableListExportedFromSource = nil
+			record.SourceExportedTableListWithLeafPartitions = nil
+			record.SourceColumnToSequenceMapping = nil
+		})
+
 		err = metadb.TruncateTablesInMetaDb(exportDir, []string{metadb.QUEUE_SEGMENT_META_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_TABLE_NAME, metadb.EXPORTED_EVENTS_STATS_PER_TABLE_TABLE_NAME})
 		if err != nil {
 			utils.ErrExit("Failed to truncate tables in metadb: %s", err)
