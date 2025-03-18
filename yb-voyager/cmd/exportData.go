@@ -338,6 +338,10 @@ func exportData() bool {
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
 
+	if source.DBType == POSTGRESQL {
+		utils.PrintAndLog("Only the sequences that are attached to the above exported tables will be restored during the migration.")
+	}
+
 	//finalTableList is with leaf partitions and root tables after this in the whole export flow to make all the catalog queries work fine
 
 	if changeStreamingIsEnabled(exportType) || useDebezium {
@@ -1168,10 +1172,12 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 			utils.ErrExit("Exiting at user's request. Use `--exclude-table-list` flag to continue without these tables")
 		} else {
 			var importingDatabase string
-			if importerRole == TARGET_DB_IMPORTER_ROLE {
+			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 				importingDatabase = "target"
-			} else {
-				importingDatabase = "source/source-replica"
+			} else if exporterRole == TARGET_DB_EXPORTER_FF_ROLE {
+				importingDatabase = "source-replica"
+			} else if exporterRole == TARGET_DB_EXPORTER_FB_ROLE {
+				importingDatabase = "source"
 			}
 
 			utils.PrintAndLog(color.YellowString("Continuing with the export by ignoring just these columns' data. \nPlease make sure to remove any null constraints on these columns in the %s database.", importingDatabase))
@@ -1221,8 +1227,15 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 
 	if source.DBType == POSTGRESQL {
 		//need to export setval() calls to resume sequence value generation
-		sequenceList := source.DB().GetAllSequences()
-		for _, seq := range sequenceList {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("error getting migration status record: %v", err)
+		}
+		colToSeqMap, err := fetchOrRetrieveColToSeqMap(msr, finalTableList)
+		if err != nil {
+			utils.ErrExit("error fetching the column to sequence mapping: %v", err)
+		}
+		for _, seq := range colToSeqMap {
 			seqTuple, err := namereg.NameReg.LookupTableName(seq)
 			if err != nil {
 				utils.ErrExit("lookup for sequence failed: %s: err: %v", seq, err)

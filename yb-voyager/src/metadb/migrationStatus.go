@@ -68,6 +68,9 @@ type MigrationStatusRecord struct {
 
 	ImportDataFileFlagFileTableMapping string `json:"ImportDataFileFlagFileTableMapping"` // Import data file command's file_table_mapping flag
 	ImportDataFileFlagDataDir          string `json:"ImportDataFileFlagDataDir"`          // Import data file command's data-dir flag
+
+	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
+	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"
