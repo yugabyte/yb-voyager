@@ -1266,7 +1266,6 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 	})
 	testutils.FatalIfError(t, err)
 
-
 	//Start import-data
 	err = testYugabyteDBTarget.Init()
 	testutils.FatalIfError(t, err)
