@@ -35,6 +35,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 type TestDB struct {
@@ -1152,20 +1153,13 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 
 	//Start import-data
 	err = testYugabyteDBTarget.Init()
-	if err != nil {
-		utils.ErrExit("Failed to connect to yugabyte database: %w", err)
-	}
+	testutils.FatalIfError(t, err)
 	err = InitNameRegistry(testExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, testYugabyteDBTarget.TargetDB, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
+	testYugabyteDBTarget.ExecuteSqls(cleanUpSqls...)
+
 	testYugabyteDBTarget.Finalize()
-	err = testYugabyteDBSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to postgres database: %w", err)
-	}
-	defer testYugabyteDBSource.DB().Disconnect()
-	defer testYugabyteDBSource.ExecuteSqls(cleanUpSqls...)
 	if testExportDir != "" {
 		defer os.RemoveAll(testExportDir)
 	}
@@ -1184,9 +1178,8 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
 	}
 	//export-data
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
 
 	source.TableList = "test_partitions_sequences,test_source_extra"
@@ -1219,13 +1212,11 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 	testExportDir := setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
 
 	err := testPostgresSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to postgres database: %w", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	defer testPostgresSource.DB().Disconnect()
 	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
 	metaDB = initMetaDB(testExportDir)
@@ -1273,25 +1264,21 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 		})
 		msr.SourceRenameTablesMap = expectedPartitionsToRootMap
 	})
-	if err != nil {
-		t.Fatalf("error updating msr: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 
 	//Start import-data
 	err = testYugabyteDBTarget.Init()
-	if err != nil {
-		utils.ErrExit("Failed to connect to yugabyte database: %w", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	testYugabyteDBSource.ExecuteSqls(`CREATE TABLE test_target_extra(id int, val text);`)
 	err = InitNameRegistry(testExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, testYugabyteDBTarget.TargetDB, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	testYugabyteDBTarget.Finalize()
 	err = testYugabyteDBSource.DB().Connect()
-	if err != nil {
-		utils.ErrExit("Failed to connect to postgres database: %w", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	defer testYugabyteDBSource.DB().Disconnect()
 	defer testYugabyteDBSource.ExecuteSqls(cleanUpSqls...)
 	defer testYugabyteDBSource.ExecuteSqls(`DROP TABLE test_target_extra;`)
@@ -1313,17 +1300,15 @@ func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
 	}
 	//export-data
 	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
 
 	//export-data-from-target
 	source.TableList = "test_partitions_sequences,sales_region,datatypes1,foreign_test"
 	err = InitNameRegistry(testExportDir, TARGET_DB_EXPORTER_FB_ROLE, testYugabyteDBSource.Source, testYugabyteDBSource.DB(), nil, nil, false)
-	if err != nil {
-		t.Errorf("error initialising name reg for the source: %v", err)
-	}
+	testutils.FatalIfError(t, err)
+
 	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
 
 	source.TableList = "sales_region,test_target_extra"
