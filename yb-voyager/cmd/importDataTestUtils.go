@@ -21,7 +21,6 @@ import (
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp/noopcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -98,7 +97,6 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 
 	state := NewImportDataState(lexportDir)
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
-	controlPlane = &noopcp.NoopControlPlane{}
 	importerRole = TARGET_DB_IMPORTER_ROLE
 	return ldataDir, lexportDir, state, nil
 }

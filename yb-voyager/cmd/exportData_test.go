@@ -98,23 +98,6 @@ func TestMain(m *testing.M) {
 		},
 	}
 
-	targetConf := tgtdb.TargetConf{
-		DBVersion:    testYugabyteDBSource.TestContainer.GetConfig().DBVersion,
-		User:         testYugabyteDBSource.TestContainer.GetConfig().User,
-		Password:     testYugabyteDBSource.TestContainer.GetConfig().Password,
-		Schema:       testYugabyteDBSource.TestContainer.GetConfig().Schema,
-		DBName:       testYugabyteDBSource.TestContainer.GetConfig().DBName,
-		Host:         testYugabyteDBSource.Source.Host,
-		Port:         testYugabyteDBSource.Source.Port,
-		TargetDBType: YUGABYTEDB,
-		SSLMode:      "disable",
-	}
-	testYugabyteDBTarget = &TestTargetDB{
-		Tconf:         targetConf,
-		TestContainer: testYugabyteDBSource.TestContainer,
-		TargetDB:      tgtdb.NewTargetDB(&targetConf),
-	}
-
 	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 	exitCode := m.Run()
