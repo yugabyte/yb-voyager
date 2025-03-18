@@ -35,6 +35,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 type TestDB struct {
@@ -939,6 +940,7 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		t.Errorf("error initialising name reg for the source: %v", err)
 	}
 	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
 	err = testYugabyteDBTarget.Init()
 	if err != nil {
 		utils.ErrExit("Failed to connect to yugabyte database: %w", err)
@@ -1080,4 +1082,254 @@ func TestTableListInFreshRunOfExportDataBasicYB(t *testing.T) {
 		getNameTuple("public.test_partitions_sequences_b"),
 	}
 	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, missingTables3, nil, expectedNewTableListWithLessTables, rootTables)
+}
+
+func TestTableListInFreshRunOfExportDataForTablesExtraInSource(t *testing.T) {
+
+	testExportDir := setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
+
+	err := testPostgresSource.DB().Connect()
+	if err != nil {
+		utils.ErrExit("Failed to connect to postgres database: %w", err)
+	}
+	testPostgresSource.ExecuteSqls(`CREATE TABLE test_source_extra(id int, val text);`)
+	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
+	if err != nil {
+		t.Errorf("error initialising name reg for the source: %v", err)
+	}
+	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	defer testPostgresSource.ExecuteSqls(`DROP TABLE test_source_extra;`)
+
+	metaDB = initMetaDB(testExportDir)
+	//Running the command level functions
+	source = *testPostgresSource.Source
+	source.ExcludeTableList = "test_source_extra"
+
+	expectedPartitionsToRootMap := map[string]string{
+		"public.test_partitions_sequences_l": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_s": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_b": "public.test_partitions_sequences",
+		"p1.london":                          "public.sales_region",
+		"p1.sydney":                          "public.sales_region",
+		"p1.boston":                          "public.sales_region",
+	}
+	expectedTableList := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTuple("public.sales_region"),
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
+
+	//Create msr with required details for subsequent run
+
+	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.sales_region"),
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
+		msr.SourceDBConf = testPostgresSource.Source
+		msr.TargetDBConf = &testYugabyteDBTarget.Tconf
+		msr.TableListExportedFromSource = lo.Map(expectedTableListWithOnlyRootTable, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceExportedTableListWithLeafPartitions = lo.Map(expectedTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceRenameTablesMap = expectedPartitionsToRootMap
+	})
+	if err != nil {
+		t.Fatalf("error updating msr: %v", err)
+	}
+
+	//Start import-data
+	err = testYugabyteDBTarget.Init()
+	testutils.FatalIfError(t, err)
+	err = InitNameRegistry(testExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, testYugabyteDBTarget.TargetDB, false)
+	testutils.FatalIfError(t, err)
+
+	testYugabyteDBTarget.ExecuteSqls(cleanUpSqls...)
+
+	testYugabyteDBTarget.Finalize()
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
+
+	expectedTableList = []sqlname.NameTuple{
+		getNameTupleWithTargetName("public.test_partitions_sequences"),
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTupleWithTargetName("public.sales_region"),
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTupleWithTargetName("public.datatypes1"),
+		getNameTupleWithTargetName("public.foreign_test"),
+	}
+	//export-data
+	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
+	testutils.FatalIfError(t, err)
+
+	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
+
+	source.TableList = "test_partitions_sequences,test_source_extra"
+	source.ExcludeTableList = ""
+	//Guardrails test case for missing and extra tables
+
+	rootTables := []sqlname.NameTuple{
+		getNameTupleWithTargetName("public.test_partitions_sequences"),
+		getNameTupleWithTargetName("public.sales_region"),
+	}
+	expectedMissingTables := []sqlname.NameTuple{
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTupleWithTargetName("public.datatypes1"),
+		getNameTupleWithTargetName("public.foreign_test"),
+	}
+
+	ntuple := getNameTuple("public.test_source_extra")
+	ntuple.TargetName = nil
+	expectedExtraTables := []sqlname.NameTuple{
+		ntuple,
+	}
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables, expectedExtraTables, expectedTableList, rootTables)
+
+}
+
+func TestTableListInFreshRunOfExportDataForTablesExtraInTarget(t *testing.T) {
+
+	testExportDir := setupPostgresDBSourceAndYugabyteDBTargetWithExportDependencies(t, pgSchemaSqls, pgSchemasTest1)
+
+	err := testPostgresSource.DB().Connect()
+	testutils.FatalIfError(t, err)
+
+	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
+	testutils.FatalIfError(t, err)
+
+	defer testPostgresSource.DB().Disconnect()
+	defer testPostgresSource.ExecuteSqls(cleanUpSqls...)
+	metaDB = initMetaDB(testExportDir)
+	//Running the command level functions
+	source = *testPostgresSource.Source
+
+	expectedPartitionsToRootMap := map[string]string{
+		"public.test_partitions_sequences_l": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_s": "public.test_partitions_sequences",
+		"public.test_partitions_sequences_b": "public.test_partitions_sequences",
+		"p1.london":                          "public.sales_region",
+		"p1.sydney":                          "public.sales_region",
+		"p1.boston":                          "public.sales_region",
+	}
+	expectedTableList := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences"),
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTuple("public.sales_region"),
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTuple("public.datatypes1"),
+		getNameTuple("public.foreign_test"),
+	}
+	assertTableListFilteringInTheFirstRun(t, expectedPartitionsToRootMap, expectedTableList)
+
+	//Create msr with required details for subsequent run
+
+	expectedTableListWithOnlyRootTable := []sqlname.NameTuple{
+		getNameTupleWithTargetName("public.test_partitions_sequences"),
+		getNameTupleWithTargetName("public.sales_region"),
+		getNameTupleWithTargetName("public.datatypes1"),
+		getNameTupleWithTargetName("public.foreign_test"),
+	}
+	err = metaDB.UpdateMigrationStatusRecord(func(msr *metadb.MigrationStatusRecord) {
+		msr.SourceDBConf = testPostgresSource.Source
+		msr.TargetDBConf = &testYugabyteDBTarget.Tconf
+		msr.TableListExportedFromSource = lo.Map(expectedTableListWithOnlyRootTable, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceExportedTableListWithLeafPartitions = lo.Map(expectedTableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
+		msr.SourceRenameTablesMap = expectedPartitionsToRootMap
+	})
+	testutils.FatalIfError(t, err)
+
+	//Start import-data
+	err = testYugabyteDBTarget.Init()
+	testutils.FatalIfError(t, err)
+
+	testYugabyteDBSource.ExecuteSqls(`CREATE TABLE test_target_extra(id int, val text);`)
+	err = InitNameRegistry(testExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, testYugabyteDBTarget.TargetDB, false)
+	testutils.FatalIfError(t, err)
+
+	testYugabyteDBTarget.Finalize()
+	err = testYugabyteDBSource.DB().Connect()
+	testutils.FatalIfError(t, err)
+
+	defer testYugabyteDBSource.DB().Disconnect()
+	defer testYugabyteDBSource.ExecuteSqls(cleanUpSqls...)
+	defer testYugabyteDBSource.ExecuteSqls(`DROP TABLE test_target_extra;`)
+	if testExportDir != "" {
+		defer os.RemoveAll(testExportDir)
+	}
+
+	expectedTableList = []sqlname.NameTuple{
+		getNameTupleWithTargetName("public.test_partitions_sequences"),
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTupleWithTargetName("public.sales_region"),
+		getNameTuple("p1.London"),
+		getNameTuple("p1.Sydney"),
+		getNameTuple("p1.Boston"),
+		getNameTupleWithTargetName("public.datatypes1"),
+		getNameTupleWithTargetName("public.foreign_test"),
+	}
+	//export-data
+	err = InitNameRegistry(testExportDir, SOURCE_DB_EXPORTER_ROLE, testPostgresSource.Source, testPostgresSource.DB(), nil, nil, false)
+	testutils.FatalIfError(t, err)
+
+	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
+
+	//export-data-from-target
+	source.TableList = "test_partitions_sequences,sales_region,datatypes1,foreign_test"
+	err = InitNameRegistry(testExportDir, TARGET_DB_EXPORTER_FB_ROLE, testYugabyteDBSource.Source, testYugabyteDBSource.DB(), nil, nil, false)
+	testutils.FatalIfError(t, err)
+
+	assertInitialTableListOnSubsequentRun(t, false, expectedTableList, expectedPartitionsToRootMap)
+
+	source.TableList = "sales_region,test_target_extra"
+	//Guardrails test case for missing and extra tables
+
+	rootTables := []sqlname.NameTuple{
+		getNameTupleWithTargetName("public.test_partitions_sequences"),
+		getNameTupleWithTargetName("public.sales_region"),
+	}
+	expectedMissingTables := []sqlname.NameTuple{
+		getNameTuple("public.test_partitions_sequences_l"),
+		getNameTuple("public.test_partitions_sequences_s"),
+		getNameTuple("public.test_partitions_sequences_b"),
+		getNameTupleWithTargetName("public.datatypes1"),
+		getNameTupleWithTargetName("public.foreign_test"),
+	}
+
+	ntuple := getNameTupleWithTargetName("public.test_target_extra")
+	ntuple.SourceName = nil
+	expectedExtraTables := []sqlname.NameTuple{
+		ntuple,
+	}
+	assertGuardrailsChecksForMissingAndExtraTablesInSubsequentRun(t, expectedMissingTables, expectedExtraTables, expectedTableList, rootTables)
+
 }

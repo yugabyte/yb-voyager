@@ -187,6 +187,20 @@ func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
 	return res
 }
 
+func SetDifferenceNameTuplesWithKey(a, b []NameTuple) []NameTuple {
+	m := make(map[string]bool)
+	for _, x := range b {
+		m[x.ForKey()] = true
+	}
+	var res []NameTuple
+	for _, x := range a {
+		if !m[x.ForKey()] {
+			res = append(res, x)
+		}
+	}
+	return res
+}
+
 // Implements: utils.Keyer.Key()
 func (t NameTuple) Key() string {
 	return t.ForKey()
