@@ -1195,19 +1195,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 			})
 			docsLink = issue.DocsLink
 
-			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
-				Type:                   issue.Type,
-				Name:                   issue.Name,
-				Impact:                 issue.Impact,
-				Description:            issue.Reason,
-				ObjectType:             issue.ObjectType,
-				ObjectName:             issue.ObjectName,
-				SqlStatement:           issue.SqlStatement,
-				DocsLink:               issue.DocsLink,
-				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
-			})
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.Reason, issue.MinimumVersionsFixedIn))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
