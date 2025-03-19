@@ -32,6 +32,44 @@ type DDLIssueDetector interface {
 	DetectIssues(queryparser.DDLObject) ([]QueryIssue, error)
 }
 
+func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
+	switch obj.(type) {
+	case *queryparser.Table:
+		return &TableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
+	case *queryparser.Index:
+		return &IndexIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
+	case *queryparser.AlterTable:
+		return &AlterTableIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
+	case *queryparser.Policy:
+		return &PolicyIssueDetector{}, nil
+	case *queryparser.Trigger:
+		return &TriggerIssueDetector{
+			ParserIssueDetector: *p,
+		}, nil
+	case *queryparser.ForeignTable:
+		return &ForeignTableIssueDetector{}, nil
+	case *queryparser.View:
+		return &ViewIssueDetector{}, nil
+	case *queryparser.MView:
+		return &MViewIssueDetector{}, nil
+	case *queryparser.Function:
+		return &FunctionIssueDetector{}, nil
+	case *queryparser.Collation:
+		return &CollationIssueDetector{}, nil
+	case *queryparser.Extension:
+		return &ExtensionIssueDetector{}, nil
+
+	default:
+		return &NoOpIssueDetector{}, nil
+	}
+}
+
 //=============TABLE ISSUE DETECTOR ===========================
 
 // TableIssueDetector handles detection of table-related issues
@@ -510,6 +548,11 @@ func (f *ForeignTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 }
 
 //=============INDEX ISSUE DETECTOR ===========================
+
+const (
+	GIN_ACCESS_METHOD   = "gin"
+	BTREE_ACCESS_METHOD = "btree"
+)
 
 // IndexIssueDetector handles detection of index-related issues
 type IndexIssueDetector struct {
@@ -1017,6 +1060,30 @@ func (c *CollationIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	return issues, nil
 }
 
+//=============UNSUPPORTED EXTENSION ISSUE DETECTOR ===========================
+
+// UnsupportedExtensionIssueDetector handles detection of unsupported extension issues
+type ExtensionIssueDetector struct{}
+
+func (e *ExtensionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
+	extension, ok := obj.(*queryparser.Extension)
+	if !ok {
+		return nil, fmt.Errorf("invalid object type: expected Extension")
+	}
+	issues := make([]QueryIssue, 0)
+
+	if !slices.Contains(supportedExtensionsOnYB, extension.GetObjectName()) {
+		issues = append(issues, NewExtensionsIssue(
+			obj.GetObjectType(),
+			extension.GetObjectName(),
+			"",
+		))
+		utils.PrintAndLog("[debug] Unsupported extension %s", extension.GetObjectName())
+	}
+
+	return issues, nil
+}
+
 //=============NO-OP ISSUE DETECTOR ===========================
 
 // Need to handle all the cases for which we don't have any issues detector
@@ -1025,44 +1092,3 @@ type NoOpIssueDetector struct{}
 func (n *NoOpIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIssue, error) {
 	return nil, nil
 }
-
-func (p *ParserIssueDetector) GetDDLDetector(obj queryparser.DDLObject) (DDLIssueDetector, error) {
-	switch obj.(type) {
-	case *queryparser.Table:
-		return &TableIssueDetector{
-			ParserIssueDetector: *p,
-		}, nil
-	case *queryparser.Index:
-		return &IndexIssueDetector{
-			ParserIssueDetector: *p,
-		}, nil
-	case *queryparser.AlterTable:
-		return &AlterTableIssueDetector{
-			ParserIssueDetector: *p,
-		}, nil
-	case *queryparser.Policy:
-		return &PolicyIssueDetector{}, nil
-	case *queryparser.Trigger:
-		return &TriggerIssueDetector{
-			ParserIssueDetector: *p,
-		}, nil
-	case *queryparser.ForeignTable:
-		return &ForeignTableIssueDetector{}, nil
-	case *queryparser.View:
-		return &ViewIssueDetector{}, nil
-	case *queryparser.MView:
-		return &MViewIssueDetector{}, nil
-	case *queryparser.Function:
-		return &FunctionIssueDetector{}, nil
-	case *queryparser.Collation:
-		return &CollationIssueDetector{}, nil
-
-	default:
-		return &NoOpIssueDetector{}, nil
-	}
-}
-
-const (
-	GIN_ACCESS_METHOD   = "gin"
-	BTREE_ACCESS_METHOD = "btree"
-)

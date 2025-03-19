@@ -194,6 +194,7 @@ const (
 	COMPRESSION_CLAUSE_IN_TABLE_NAME = "COMPRESSION clause in table for TOASTing"
 	DATABASE_OPTIONS_PG15            = "DATABASE_OPTIONS_PG15"
 	DATABASE_OPTIONS_PG17            = "DATABASE_OPTIONS_PG17"
+	UNSUPPORTED_EXTENSION            = "UNSUPPORTED_EXTENSION"
 )
 
 const (
@@ -411,6 +412,7 @@ const (
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION              = "Non-Deterministic collations are not yet supported in YugabyteDB."
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint on columns with NULL values is not yet supported in YugabyteDB."
+	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
 )
 
 // Object types

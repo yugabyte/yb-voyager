@@ -1992,3 +1992,26 @@ func NewDatabaseOptionsPG17Issue(objectType string, objectName string, sqlStatem
 	issue.Description = fmt.Sprintf(issue.Description, strings.Join(options, ", "))
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var extensionsIssue = issue.Issue{
+	Type:        UNSUPPORTED_EXTENSION,
+	Name:        UNSUPPORTED_EXTENSION_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1538",
+	DocsLink:    "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+	// TODO: main version specific list of unsupported extension; based on that we can figure out MinimumVersionsFixedIn dynamically for each extension
+}
+
+func NewExtensionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := extensionsIssue
+	issue.Description = fmt.Sprintf(issue.Description, objectName)
+
+	// Ques: Do we need this still? We have moved pass supporting 2.18
+	// TODO: we need to mention this in the summary of analyze
+	// if strings.ToLower(sqlInfo.objName) == "hll" {
+	// 	summaryMap["EXTENSION"].details[`'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version.`] = true
+	// }
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
