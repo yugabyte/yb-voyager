@@ -1040,11 +1040,56 @@ type Function struct {
 }
 
 func (f *Function) GetObjectName() string {
-	return lo.Ternary(f.SchemaName != "", fmt.Sprintf("%s.%s", f.SchemaName, f.FuncName), f.FuncName)
+	return utils.BuildObjectName(f.SchemaName, f.FuncName)
 }
 func (f *Function) GetSchemaName() string { return f.SchemaName }
 
 func (f *Function) GetObjectType() string { return FUNCTION_OBJECT_TYPE }
+
+// ============================Extension Processor =================
+
+type ExtensionProcessor struct{}
+
+func NewExtensionProcessor() *ExtensionProcessor {
+	return &ExtensionProcessor{}
+}
+
+func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	extensionNode, ok := getCreateExtensionStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE EXTENSION statement")
+	}
+
+	/*
+		stmt:{create_extension_stmt:{extname:"hstore" if_not_exists:true
+		options:{def_elem:{defname:"schema" arg:{string:{sval:"public"}}....
+	*/
+	defNames, err := TraverseAndExtractDefNamesFromDefElem(extensionNode.CreateExtensionStmt.ProtoReflect())
+	if err != nil {
+		return nil, fmt.Errorf("error getting the defElems in extension: %v", err)
+	}
+
+	extension := &Extension{
+		SchemaName:    defNames["schema"],
+		ExtensionName: extensionNode.CreateExtensionStmt.Extname,
+	}
+
+	return extension, nil
+}
+
+type Extension struct {
+	SchemaName    string
+	ExtensionName string
+}
+
+func (e *Extension) GetObjectName() string {
+	// returning unqualified name as extension name as required in most of the cases
+	return e.ExtensionName
+}
+
+func (e *Extension) GetSchemaName() string { return e.SchemaName }
+
+func (e *Extension) GetObjectType() string { return EXTENSION_OBJECT_TYPE }
 
 //=============================No-Op PROCESSOR ==================
 
