@@ -1401,12 +1401,15 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			}
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
-			var datatype string
-			if strings.Contains(colInfo.DataType, ".") {
-				datatype = strings.Split(colInfo.DataType, ".")[1]
-			} else {
-				datatype = colInfo.DataType
+			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+			if !ok {
+				log.Warnf("failed to get datatype from %s", colInfo.DataType)
+				continue
 			}
+
+			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 			convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
 			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY), queryissue.MinimumVersionsFixedIn)
@@ -1523,12 +1526,15 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				var datatype string
-				if strings.Contains(colInfo.DataType, ".") {
-					datatype = strings.Split(colInfo.DataType, ".")[1]
-				} else {
-					datatype = colInfo.DataType
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
 				}
+
+				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
 				assessmentReport.AppendIssues(
@@ -1547,15 +1553,17 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				var datatype string
-				if strings.Contains(colInfo.DataType, ".") {
-					datatype = strings.Split(colInfo.DataType, ".")[1]
-				} else {
-					datatype = colInfo.DataType
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
 				}
 
 				var queryIssue queryissue.QueryIssue
 
+				// We obtain the queryissue from the Report function or directly as used below. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				if colInfo.IsArrayType && colInfo.IsEnumType {
 					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
 						constants.COLUMN,

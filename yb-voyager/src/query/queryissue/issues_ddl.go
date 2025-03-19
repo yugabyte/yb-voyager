@@ -327,8 +327,8 @@ func NewInsufficientColumnInPKForPartition(objectType string, objectName string,
 }
 
 var xmlDatatypeIssue = issue.Issue{
-	Type:        XML_DATATYPE,
-	Name:        "Unsupported datatype - xml",
+	Type:        UNSUPPORTED_DATATYPE_XML,
+	Name:        UNSUPPORTED_DATATYPE_XML_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	Suggestion:  XML_DATATYPE_ISSUE_SUGGESTION,
@@ -344,8 +344,8 @@ func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement stri
 }
 
 var xidDatatypeIssue = issue.Issue{
-	Type:        XID_DATATYPE,
-	Name:        "Unsupported datatype - xid",
+	Type:        UNSUPPORTED_DATATYPE_XID,
+	Name:        UNSUPPORTED_DATATYPE_XID_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	Suggestion:  XID_DATATYPE_ISSUE_SUGGESTION,
@@ -361,8 +361,8 @@ func NewXIDDatatypeIssue(objectType string, objectName string, sqlStatement stri
 }
 
 var geometryDatatypeIssue = issue.Issue{
-	Type:        GEOMETRY_DATATYPE,
-	Name:        "Unsupported datatype - Geometry",
+	Type:        UNSUPPORTED_DATATYPE_GEOMETRY,
+	Name:        UNSUPPORTED_DATATYPE_GEOMETRY_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
@@ -377,8 +377,8 @@ func NewGeometryDatatypeIssue(objectType string, objectName string, sqlStatement
 }
 
 var geographyDatatypeIssue = issue.Issue{
-	Type:        GEOGRAPHY_DATATYPE,
-	Name:        "Unsupported datatype - Geography",
+	Type:        UNSUPPORTED_DATATYPE_GEOGRAPHY,
+	Name:        UNSUPPORTED_DATATYPE_GEOGRAPHY_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
@@ -393,8 +393,8 @@ func NewGeographyDatatypeIssue(objectType string, objectName string, sqlStatemen
 }
 
 var box2dDatatypeIssue = issue.Issue{
-	Type:        BOX2D_DATATYPE,
-	Name:        "Unsupported datatype - Box2D",
+	Type:        UNSUPPORTED_DATATYPE_BOX2D,
+	Name:        UNSUPPORTED_DATATYPE_BOX2D_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
@@ -409,8 +409,8 @@ func NewBox2DDatatypeIssue(objectType string, objectName string, sqlStatement st
 }
 
 var box3dDatatypeIssue = issue.Issue{
-	Type:        BOX3D_DATATYPE,
-	Name:        "Unsupported datatype - Box3D",
+	Type:        UNSUPPORTED_DATATYPE_BOX3D,
+	Name:        UNSUPPORTED_DATATYPE_BOX3D_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
@@ -425,8 +425,8 @@ func NewBox3DDatatypeIssue(objectType string, objectName string, sqlStatement st
 }
 
 var topogeometryDatatypeIssue = issue.Issue{
-	Type:        TOPOGEOMETRY_DATATYPE,
-	Name:        "Unsupported datatype - Topogeometry",
+	Type:        UNSUPPORTED_DATATYPE_TOPOGEOMETRY,
+	Name:        UNSUPPORTED_DATATYPE_TOPOGEOMETRY_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/11323",
@@ -440,9 +440,187 @@ func NewTopogeometryDatatypeIssue(objectType string, objectName string, sqlState
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+var loDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_LARGE_OBJECT,
+	Name:        UNSUPPORTED_DATATYPE_LARGE_OBJECT_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
+}
+
+func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
+	issue := loDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
+}
+
+var rasterDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_RASTER,
+	Name:        UNSUPPORTED_DATATYPE_RASTER_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewRasterDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := rasterDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var pgLsnDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_PG_LSN,
+	Name:        UNSUPPORTED_DATATYPE_PG_LSN_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := pgLsnDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var txidSnapshotDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_TXID_SNAPSHOT,
+	Name:        UNSUPPORTED_DATATYPE_TXID_SNAPSHOT_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
+}
+
+func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := txidSnapshotDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var int8MultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_INT8_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_INT8_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := int8MultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var int4MultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_INT4_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_INT4_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := int4MultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var dateMultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_DATE_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_DATE_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := dateMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var numMultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_NUM_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_NUM_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := numMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tsMultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_TS_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_TS_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tsMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var tstzMultirangeDatatypeIssue = issue.Issue{
+	Type:        UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_3,
+	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
+		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+	},
+}
+
+func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
+	issue := tstzMultirangeDatatypeIssue
+	typeName = strings.ToUpper(typeName)
+	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
 var pointDatatypeIssue = issue.Issue{
-	Type:        POINT_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Point",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -457,8 +635,8 @@ func NewPointDatatypeIssue(objectType string, objectName string, sqlStatement st
 }
 
 var lineDatatypeIssue = issue.Issue{
-	Type:        LINE_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Line",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -473,8 +651,8 @@ func NewLineDatatypeIssue(objectType string, objectName string, sqlStatement str
 }
 
 var lsegDatatypeIssue = issue.Issue{
-	Type:        LSEG_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Lseg",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LSEG_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -489,8 +667,8 @@ func NewLsegDatatypeIssue(objectType string, objectName string, sqlStatement str
 }
 
 var boxDatatypeIssue = issue.Issue{
-	Type:        BOX_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Box",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_BOX_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -505,8 +683,8 @@ func NewBoxDatatypeIssue(objectType string, objectName string, sqlStatement stri
 }
 
 var pathDatatypeIssue = issue.Issue{
-	Type:        PATH_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Path",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_PATH_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -521,8 +699,8 @@ func NewPathDatatypeIssue(objectType string, objectName string, sqlStatement str
 }
 
 var polygonDatatypeIssue = issue.Issue{
-	Type:        POLYGON_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Polygon",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POLYGON_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -537,8 +715,8 @@ func NewPolygonDatatypeIssue(objectType string, objectName string, sqlStatement 
 }
 
 var circleDatatypeIssue = issue.Issue{
-	Type:        CIRCLE_DATATYPE,
-	Name:        "Unsupported datatype for Live migration - Circle",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_CIRCLE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -553,10 +731,10 @@ func NewCircleDatatypeIssue(objectType string, objectName string, sqlStatement s
 }
 
 var arrayOfEnumDatatypeIssue = issue.Issue{
-	Type:        ARRAY_OF_ENUM_DATATYPE,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Array of Enum Datatype",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: ARRAY_OF_ENUM_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ARRAY_OF_ENUM_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
@@ -569,10 +747,10 @@ func NewArrayOfEnumDatatypeIssue(objectType string, objectName string, sqlStatem
 }
 
 var userDefinedDatatypeIssue = issue.Issue{
-	Type:        USER_DEFINED_DATATYPE,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - User Defined Datatype",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
+	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 }
@@ -585,8 +763,8 @@ func NewUserDefinedDatatypeIssue(objectType string, objectName string, sqlStatem
 }
 
 var tsQueryDatatypeIssue = issue.Issue{
-	Type:        TSQUERY_DATATYPE,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsQuery Datatype",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -601,8 +779,8 @@ func NewTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement 
 }
 
 var tsVectorDatatypeIssue = issue.Issue{
-	Type:        TSVECTOR_DATATYPE,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - TsVector Datatype",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -617,8 +795,8 @@ func NewTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement
 }
 
 var hstoreDatatypeIssue = issue.Issue{
-	Type:        HSTORE_DATATYPE,
-	Name:        "Unsupported datatype for Live migration with fall-forward/fallback - Hstore Datatype",
+	Type:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE,
+	Name:        UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
@@ -1630,184 +1808,6 @@ var percentTypeSyntax = issue.Issue{
 
 func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	return newQueryIssue(percentTypeSyntax, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var loDatatypeIssue = issue.Issue{
-	Type:        LARGE_OBJECT_DATATYPE,
-	Name:        "Unsupported datatype - lo",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported", // TODO
-}
-
-func NewLODatatypeIssue(objectType string, objectName string, SqlStatement string, typeName string, colName string) QueryIssue {
-	issue := loDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, SqlStatement, map[string]interface{}{})
-}
-
-var rasterDatatypeIssue = issue.Issue{
-	Type:        RASTER_DATATYPE,
-	Name:        "Unsupported datatype - raster",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-}
-
-func NewRasterDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := rasterDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var pgLsnDatatypeIssue = issue.Issue{
-	Type:        PG_LSN_DATATYPE,
-	Name:        "Unsupported datatype - pg_lsn",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-}
-
-func NewPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := pgLsnDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var txidSnapshotDatatypeIssue = issue.Issue{
-	Type:        TXID_SNAPSHOT_DATATYPE,
-	Name:        "Unsupported datatype - txid_snapshot",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/1731",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-}
-
-func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := txidSnapshotDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var int8MultirangeDatatypeIssue = issue.Issue{
-	Type:        INT8_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Int8 Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := int8MultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var int4MultirangeDatatypeIssue = issue.Issue{
-	Type:        INT4_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Int4 Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := int4MultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var dateMultirangeDatatypeIssue = issue.Issue{
-	Type:        DATE_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Date Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := dateMultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var numMultirangeDatatypeIssue = issue.Issue{
-	Type:        NUM_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Num Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := numMultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var tsMultirangeDatatypeIssue = issue.Issue{
-	Type:        TS_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Timestamp Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := tsMultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var tstzMultirangeDatatypeIssue = issue.Issue{
-	Type:        TSTZ_MULTIRANGE_DATATYPE,
-	Name:        "Unsupported datatype - Timestamp with timezone Multirange",
-	Impact:      constants.IMPACT_LEVEL_3,
-	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
-		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
-	},
-}
-
-func NewTSTZMultiRangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
-	issue := tstzMultirangeDatatypeIssue
-	typeName = strings.ToUpper(typeName)
-	issue.Description = fmt.Sprintf(issue.Description, typeName, colName)
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var securityInvokerViewIssue = issue.Issue{
