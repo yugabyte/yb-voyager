@@ -527,12 +527,12 @@ centos_main() {
         echo -e "\e[31mERROR: perl-DBD-MySQL did not get installed.\e[0m"
         exit 1
     fi
-    # sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
-    # if [ $? -ne 0 ]; then
-    #     echo ""
-    #     echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
-    #     exit 1
-    # fi
+    sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
+        exit 1
+    fi
 
     echo "Installing ora2pg..."
     sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
