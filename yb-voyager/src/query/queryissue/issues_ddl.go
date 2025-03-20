@@ -2006,12 +2006,5 @@ var extensionsIssue = issue.Issue{
 func NewExtensionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := extensionsIssue
 	issue.Description = fmt.Sprintf(issue.Description, objectName)
-
-	// Ques: Do we need this still? We have moved pass supporting 2.18
-	// TODO: we need to mention this in the summary of analyze
-	// if strings.ToLower(sqlInfo.objName) == "hll" {
-	// 	summaryMap["EXTENSION"].details[`'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version.`] = true
-	// }
-
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
