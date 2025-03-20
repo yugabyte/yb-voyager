@@ -2005,6 +2005,5 @@ var extensionsIssue = issue.Issue{
 
 func NewExtensionsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
 	issue := extensionsIssue
-	issue.Description = fmt.Sprintf(issue.Description, objectName)
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

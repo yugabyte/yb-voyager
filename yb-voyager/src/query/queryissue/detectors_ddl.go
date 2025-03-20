@@ -1070,15 +1070,14 @@ func (e *ExtensionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	if !ok {
 		return nil, fmt.Errorf("invalid object type: expected Extension")
 	}
-	issues := make([]QueryIssue, 0)
 
+	issues := make([]QueryIssue, 0)
 	if !slices.Contains(supportedExtensionsOnYB, extension.GetObjectName()) {
 		issues = append(issues, NewExtensionsIssue(
 			obj.GetObjectType(),
 			extension.GetObjectName(),
 			"",
 		))
-		utils.PrintAndLog("[debug] Unsupported extension %s", extension.GetObjectName())
 	}
 
 	return issues, nil
