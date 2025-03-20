@@ -50,7 +50,6 @@ jobs:
         go test -v ./... -tags 'issues_integration'
 
     - name: Test Latest Stable YB Version
-      if: ${{ matrix.version == '2024.2.0.0-b145' }}
       run: |
         cd yb-voyager
         go test -v ./... -tags 'yb_version_latest_stable'
