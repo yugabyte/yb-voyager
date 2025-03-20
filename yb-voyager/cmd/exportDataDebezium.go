@@ -246,7 +246,7 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
 		storedColToSeqMap = msr.TargetColumnToSequenceMapping
 	}
-	if storedColToSeqMap != nil {
+	if storedColToSeqMap != nil && !bool(startClean) {
 		return storedColToSeqMap, nil
 	}
 	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
