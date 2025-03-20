@@ -245,7 +245,7 @@ func TestAllIssues(t *testing.T) {
 	stmtsWithExpectedIssues[stmt2] = modifiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt2], "FUNCTION", "process_order")
 
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -319,7 +319,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 	}
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -784,7 +784,7 @@ FROM test_jsonb1;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for _, stmt := range ddlSqls {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -1024,7 +1024,7 @@ REFERENCES schema1.abc (id);
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range ddlStmtsWithIssues {

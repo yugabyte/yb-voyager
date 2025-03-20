@@ -43,26 +43,24 @@ type ParserIssueDetector struct {
 		Here only those columns on tables are stored which have unsupported type for Index in YB
 	*/
 	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
-	/*
-		list of composite types with fully qualified typename in the exported schema
-	*/
+
+	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
-	/*
-		list of enum types with fully qualified typename in the exported schema
-	*/
+
+	// list of enum types with fully qualified typename in the exported schema
 	enumTypes []string
 
-	partitionTablesMap map[string]bool
+	// key is partitioned table, value is true
+	partitionedTablesMap map[string]bool
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
 
-	//Boolean to check if there are any Gin indexes
-	IsGinIndexPresentInSchema bool
+	isGinIndexPresentInSchema bool
 
 	// Boolean to check if there are any unlogged tables that were filtered
 	// out because they are fixed as per the target db version
-	IsUnloggedTablesIssueFiltered bool
+	isUnloggedTablesIssueFiltered bool
 
 	//Functions in exported schema
 	functionObjects []*queryparser.Function
@@ -76,7 +74,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithUnsupportedIndexDatatypes: make(map[string]map[string]string),
 		compositeTypes:                       make([]string, 0),
 		enumTypes:                            make([]string, 0),
-		partitionTablesMap:                   make(map[string]bool),
+		partitionedTablesMap:                 make(map[string]bool),
 		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
 	}
 }
@@ -125,7 +123,7 @@ func (p *ParserIssueDetector) getIssuesNotFixedInTargetDbVersion(issues []QueryI
 			filteredIssues = append(filteredIssues, i)
 		} else {
 			if i.Issue.Type == UNLOGGED_TABLES {
-				p.IsUnloggedTablesIssueFiltered = true
+				p.isUnloggedTablesIssueFiltered = true
 			}
 		}
 	}
@@ -186,7 +184,8 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
-func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
+// this function is to parse the DDL and process it to extract the metadata about schema like isGinIndexPresentInSchema, partition tables, etc.
+func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
 	if err != nil {
 		return fmt.Errorf("error parsing a query: %v", err)
@@ -207,7 +206,7 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	case *queryparser.Table:
 		table, _ := ddlObj.(*queryparser.Table)
 		if table.IsPartitioned {
-			p.partitionTablesMap[table.GetObjectName()] = true
+			p.partitionedTablesMap[table.GetObjectName()] = true
 		}
 
 		for _, col := range table.Columns {
@@ -248,7 +247,7 @@ func (p *ParserIssueDetector) ParseRequiredDDLs(query string) error {
 	case *queryparser.Index:
 		index, _ := ddlObj.(*queryparser.Index)
 		if index.AccessMethod == GIN_ACCESS_METHOD {
-			p.IsGinIndexPresentInSchema = true
+			p.isGinIndexPresentInSchema = true
 		}
 	case *queryparser.Function:
 		fn, _ := ddlObj.(*queryparser.Function)
@@ -474,4 +473,12 @@ func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 	}
 	jsonbFunctions = append(jsonbFunctions, catalogFunctionsReturningJsonb.ToSlice()...)
 	return jsonbFunctions
+}
+
+func (p *ParserIssueDetector) IsGinIndexPresentInSchema() bool {
+	return p.isGinIndexPresentInSchema
+}
+
+func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
+	return p.isUnloggedTablesIssueFiltered
 }
