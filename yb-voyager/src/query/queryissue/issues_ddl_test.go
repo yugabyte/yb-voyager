@@ -29,6 +29,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -1136,12 +1137,39 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	}
 }
 
-func TestDDLIssuesInYBVersion(t *testing.T) {
-	var err error
+func testExtensionSupportList(t *testing.T) {
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	// fetch pg_available_extensions(extension available for installation) and compare with our static list of supported extensions
+	rows, err := conn.Query(context.Background(), "SELECT name FROM pg_available_extensions")
+	assert.NoError(t, err)
+
+	var actualSupportedExtensionOnYB []string
+	for rows.Next() {
+		var name string
+		err := rows.Scan(&name)
+		assert.NoError(t, err)
+		actualSupportedExtensionOnYB = append(actualSupportedExtensionOnYB, name)
+	}
+
+	diff := utils.SetDifference(actualSupportedExtensionOnYB, SupportedExtensionsOnYB)
+	if len(diff) > 0 {
+		t.Errorf("The following extensions are supported in YB Version %s but not in the static list of supported extensions: %v", testYbVersion, diff)
+	}
+}
+
+func GetYBVersionEnv() string {
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
 		panic("YB_VERSION env variable is not set. Set YB_VERSION=2024.1.3.0-b105 for example")
 	}
+	return ybVersion
+}
+
+func TestDDLIssuesInYBVersion(t *testing.T) {
+	var err error
+	ybVersion := GetYBVersionEnv()
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
@@ -1222,4 +1250,7 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "PK and UK on complex data type", ybVersion), testPKandUKONComplexDataType)
 	assert.True(t, success)
 
+	// TODO: enable this as part of this ticket - https://yugabyte.atlassian.net/browse/DB-15825
+	// success = t.Run(fmt.Sprintf("%s-%s", "extension support list", ybVersion), testExtensionSupportList)
+	// assert.True(t, success)
 }
