@@ -102,5 +102,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 				utils.ErrExit("failed to remove redundant alter table during export schema: %v", err.Error())
 			}
 		}
+
+		fmt.Println() // for formatting the output in the console
 	}
 }

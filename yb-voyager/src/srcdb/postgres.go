@@ -411,6 +411,7 @@ func (pg *PostgreSQL) ExportSchema(exportDir string, schemaDir string) {
 		log.Info("Export of schema completed.")
 		utils.WaitChannel <- returnCode
 		<-utils.WaitChannel
+		fmt.Println() // for formatting the output in the console
 	}
 }
 

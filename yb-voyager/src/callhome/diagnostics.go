@@ -255,11 +255,10 @@ func MarshalledJsonString[T any](value T) string {
 
 // [For development] Read ENV VARS for value of SendDiagnostics
 func ReadEnvSendDiagnostics() {
-	rawSendDiag := os.Getenv("YB_VOYAGER_SEND_DIAGNOSTICS")
-	for _, val := range []string{"0", "no", "false"} {
-		if rawSendDiag == val {
-			SendDiagnostics = false
-		}
+	if utils.GetEnvAsBool("YB_VOYAGER_SEND_DIAGNOSTICS", true) {
+		SendDiagnostics = true
+	} else {
+		SendDiagnostics = false
 	}
 }
 

@@ -19,6 +19,7 @@ jobs:
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
     runs-on: ubuntu-22.04
     services:
       postgres:

@@ -20,6 +20,7 @@ import (
 	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
@@ -63,8 +64,6 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
-	// TODO: Ensure removing all the ALTER stmts which are merged into CREATE. No duplicates.
-
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
@@ -119,6 +118,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 					Otherwise, add it to the result slice
 				*/
 				alterTableCmdType := alterTableCmd.GetSubtype()
+				log.Infof("alterTableCmdType: %v", *alterTableCmdType.Enum())
 				if *alterTableCmdType.Enum() != pg_query.AlterTableType_AT_AddConstraint {
 					// If the ALTER TABLE stmt is not an ADD CONSTRAINT stmt, then need to append it to the result slice
 					result = append(result, stmt)
@@ -143,6 +143,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 				if !ok {
 					return nil, fmt.Errorf("CREATE TABLE stmt not found for table %v", objectName)
 				}
+				log.Infof("merging constraint %v into CREATE TABLE for object %v", constrType, objectName)
 				createStmt.Stmt.GetCreateStmt().TableElts = append(createStmt.Stmt.GetCreateStmt().TableElts, alterTableCmd.GetDef())
 			}
 

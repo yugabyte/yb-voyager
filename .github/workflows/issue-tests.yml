@@ -16,6 +16,7 @@ jobs:
     env:
       YB_VERSION: ${{ matrix.version }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
 
     runs-on: ubuntu-22.04
     steps:

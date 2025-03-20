@@ -10,6 +10,9 @@ jobs:
   run-misc-migration-tests:
     runs-on: ubuntu-22.04
     
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
+
     services:
         postgres:
           image: postgres:17
