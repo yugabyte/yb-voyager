@@ -73,6 +73,14 @@ type fileTaskImportStatusChecker interface {
 	AllBatchesSubmitted() bool
 }
 
+type ErrTaskNotFound struct {
+	taskID int
+}
+
+func (e ErrTaskNotFound) Error() string {
+	return fmt.Sprintf("task importer with id %d not registered", e.taskID)
+}
+
 func (s *ImportDataState) PrepareForFileImport(filePath string, tableNameTup sqlname.NameTuple) error {
 	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
 	log.Infof("Creating %q.", fileStateDir)
@@ -665,7 +673,7 @@ func (s *ImportDataState) UnregisterFileTaskImporter(importer fileTaskImportStat
 func (s *ImportDataState) AllBatchesSubmittedForTask(taskId int) (bool, error) {
 	taskImporter, ok := s.inProgressTaskImporters[taskId]
 	if !ok {
-		return false, fmt.Errorf("task importer with id %d not registered", taskId)
+		return false, ErrTaskNotFound{taskId}
 	}
 	return taskImporter.AllBatchesSubmitted(), nil
 }

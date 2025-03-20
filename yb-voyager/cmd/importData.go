@@ -595,7 +595,7 @@ func importData(importFileTasks []*ImportFileTask) {
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress)
 				if err != nil {
-					utils.ErrExit("Failed to import tasks via task picker: %s", err)
+					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
 			} else {
 				poolSize := maxParallelConns * 2
