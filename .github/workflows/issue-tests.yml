@@ -32,7 +32,7 @@ jobs:
         # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
         if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
           ACTUAL_YB_VERSION="2024.2.2.0-b61"
-        esle
+        else
           ACTUAL_YB_VERSION="${YB_VERSION}"
         fi
 
