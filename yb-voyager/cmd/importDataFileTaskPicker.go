@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 
 	"time"
@@ -700,6 +701,11 @@ func (c *ColocatedCappedRandomTaskPicker) WaitForTasksBatchesTobeImported() erro
 	for _, task := range c.inProgressTasks() {
 		taskAllBatchesSubmitted, err := c.state.AllBatchesSubmittedForTask(task.ID)
 		if err != nil {
+			if errors.As(err, &ErrTaskNotFound{}) {
+				log.Infof("task [%v] not found in state. Assuming all batches NOT submitted for task", task)
+				allTasksAllBatchesSubmitted = false
+				break
+			}
 			return fmt.Errorf("checking if all batches are submitted for task: %v: %w", task, err)
 		}
 		if !taskAllBatchesSubmitted {
