@@ -262,7 +262,7 @@ const (
 
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME            = "Unsupported datatype for Live migration"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME = "Unsupported datatype for Live migration with fall-forward/fallback"
-	UNSUPPORTED_EXTENSION_ISSUE_NAME                          = "Unsupported extension"
+	UNSUPPORTED_EXTENSION_ISSUE_NAME                          = "Unsupported Extension"
 )
 
 // Issues Description
