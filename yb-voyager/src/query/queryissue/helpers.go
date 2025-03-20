@@ -183,7 +183,7 @@ var unsupportedDatabaseOptionsFromPG17 = mapset.NewThreadUnsafeSet([]string{
 }...)
 
 // Note: Not quoting extname like `"uuid-ossp"` as the pgparser returns case sensitive name without any quotes
-var supportedExtensionsOnYB = []string{
+var SupportedExtensionsOnYB = []string{
 	"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
 	"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
 	"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",

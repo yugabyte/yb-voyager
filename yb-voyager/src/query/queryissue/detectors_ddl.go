@@ -1006,7 +1006,7 @@ func (e *ExtensionIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Quer
 	}
 
 	issues := make([]QueryIssue, 0)
-	if !slices.Contains(supportedExtensionsOnYB, extension.GetObjectName()) {
+	if !slices.Contains(SupportedExtensionsOnYB, extension.GetObjectName()) {
 		issues = append(issues, NewExtensionsIssue(
 			obj.GetObjectType(),
 			extension.GetObjectName(),
