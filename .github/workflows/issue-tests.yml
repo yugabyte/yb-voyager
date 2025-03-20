@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [2.23.1.0-b220, 2024.1.4.0-b108, 2024.2.1.0-b185, 2.20.9.0-b47, 2.25.0.0-b489]
+        version: [2.23.1.0-b220, 2024.1.4.0-b108, LATEST_STABLE, 2.20.9.0-b47, 2.25.0.0-b489]
     env:
       YB_VERSION: ${{ matrix.version }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
@@ -29,11 +29,18 @@ jobs:
 
     - name: Setup YugabyteDB
       run: |
+        # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
+        if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
+          ACTUAL_YB_VERSION="2024.2.2.0-b61"
+        esle
+          ACTUAL_YB_VERSION="${YB_VERSION}"
+        fi
+
         # using s3 release instead of docker image to allow testing against un-released versions
-        wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${YB_VERSION}/yugabyte-${YB_VERSION}-centos-x86_64.tar.gz
-        mkdir -p yugabyte-${YB_VERSION}
-        tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
-        yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1
+        wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${ACTUAL_YB_VERSION}/yugabyte-${ACTUAL_YB_VERSION}-centos-x86_64.tar.gz
+        mkdir -p yugabyte-${ACTUAL_YB_VERSION}
+        tar -xvzf yugabyte-${ACTUAL_YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${ACTUAL_YB_VERSION} --strip-components=1
+        yugabyte-${ACTUAL_YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1
         sleep 20
     
     - name: Test YugabyteDB connection
@@ -51,7 +58,7 @@ jobs:
         go test -v ./... -tags 'issues_integration'
 
     - name: Test Latest Stable YB Version
-      if: ${{ matrix.version == '2024.2.0.0-b145' }}
+      if: ${{ matrix.version == 'LATEST_STABLE' }}
       run: |
         cd yb-voyager
         go test -v ./... -tags 'yb_version_latest_stable'
