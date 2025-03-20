@@ -115,10 +115,12 @@ func (d *dummyTargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
 }
 
 func TestMain(m *testing.M) {
-	// to avoid info level logs flooding the unit test output
+	// set logging level to WARN
+	// to avoid info level logs flooding the test output
 	log.SetLevel(log.WarnLevel)
 
 	exitCode := m.Run()
+
 	os.Exit(exitCode)
 }
 
