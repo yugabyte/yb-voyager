@@ -1073,7 +1073,6 @@ func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObjec
 		SchemaName:    defNames["schema"],
 		ExtensionName: extensionNode.CreateExtensionStmt.Extname,
 	}
-
 	return extension, nil
 }
 
@@ -1145,6 +1144,8 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewNoOpProcessor(), nil
 	case PG_QUERY_CREATE_FUNCTION_STMT:
 		return NewFunctionProcessor(), nil
+	case PG_QUERY_CREATE_EXTENSION_STMT:
+		return NewExtensionProcessor(), nil
 	default:
 		return NewNoOpProcessor(), nil
 	}

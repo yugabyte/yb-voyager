@@ -312,6 +312,7 @@ func addSummaryDetailsForIndexes() {
 }
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+	log.Infof("checking SQL statements using parser for object type %s in file %s", objType, fpath)
 	for _, sqlStmtInfo := range sqlInfoArr {
 		_, err := queryparser.Parse(sqlStmtInfo.stmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
@@ -322,6 +323,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
+
 		err = parserIssueDetector.ParseAndProcessDDL(sqlStmtInfo.formattedStmt)
 		if err != nil {
 			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
