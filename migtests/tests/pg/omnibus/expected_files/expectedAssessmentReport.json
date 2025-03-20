@@ -592,7 +592,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "CREATE_CONVERSION",
 			"Name": "Create Conversion",
-			"Description": "CREATE CONVERSION is not supported yet Remove it from the exported schema",
+			"Description": "CREATE CONVERSION is not supported yet. Remove it from the exported schema",
 			"Impact": "LEVEL_3",
 			"ObjectType": "CONVERSION",
 			"ObjectName": "conversion_example.myconv",
