@@ -1244,8 +1244,10 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			ObjectName: constants.OBFUSCATE_STRING,
 		}
 
+		// special handling for extension name in callhome issues: retail object name and make issue name explicit
 		if slices.Contains(includeObjectNameInCallhomePayloadForIssueTypes, origIssue.Type) {
 			callhomeIssue.ObjectName = origIssue.ObjectName
+			callhomeIssue.Name = fmt.Sprintf("%s - %s", origIssue.Name, origIssue.ObjectName)
 		}
 
 		callhomeIssues = append(callhomeIssues, callhomeIssue)

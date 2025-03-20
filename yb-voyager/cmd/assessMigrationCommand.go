@@ -173,12 +173,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			ObjectType:          issue.ObjectType,
 		}
 
-		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
-
-		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
-		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
-		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
-		// }
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			obfuscatedIssue.Name = fmt.Sprintf("%s - %s", issue.Name, issue.ObjectName)
+		}
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
