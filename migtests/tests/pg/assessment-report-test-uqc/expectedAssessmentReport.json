@@ -165,7 +165,7 @@
 			"CategoryDescription": "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block",
 			"Type": "JSONB_SUBSCRIPTING",
 			"Name": "Jsonb Subscripting",
-			"Description": "Jsonb subscripting is not yet supported in YugabyteDB.",
+			"Description": "Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-> / ->>) to access the jsonb fields.",	
 			"Impact": "LEVEL_2",
 			"ObjectType": "FUNCTION",
 			"ObjectName": "sales.get_user_info",
