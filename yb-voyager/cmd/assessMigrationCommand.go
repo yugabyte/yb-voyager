@@ -1194,7 +1194,6 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-
 			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.Reason, issue.MinimumVersionsFixedIn))
 		}
 		feature := UnsupportedFeature{
