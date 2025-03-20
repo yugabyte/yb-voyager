@@ -864,3 +864,14 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 	sb.WriteString(final[lastIndex:]) // Append the text after the last group.
 	return sb.String(), nil
 }
+
+func JoinSentences(s1, s2 string) string {
+	s1 = strings.TrimSpace(s1)
+	s2 = strings.TrimSpace(s2)
+
+	// Check if s1 already ends with a full stop
+	if strings.HasSuffix(s1, ".") {
+		return s1 + " " + s2
+	}
+	return s1 + ". " + s2
+}

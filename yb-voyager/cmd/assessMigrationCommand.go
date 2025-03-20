@@ -952,14 +952,14 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
 			issueDescription = analyzeIssue.Reason
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, issueDescription, minVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, minVersionsFixedIn))
 		}
 	}
 
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
 }
 
-func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
 	return AssessmentIssue{
 		Category:            analyzeSchemaIssue.IssueType,
 		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
@@ -968,7 +968,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
-		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, utils.JoinSentences(analyzeSchemaIssue.Reason, analyzeSchemaIssue.Suggestion)),
 
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
@@ -1194,7 +1194,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.Reason, issue.MinimumVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.MinimumVersionsFixedIn))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
