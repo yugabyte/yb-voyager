@@ -363,7 +363,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "DATE_MULTIRANGE_DATATYPE",
+			"Type": "UNSUPPORTED_DATATYPE_DATE_MULTIRANGE",
 			"Name": "Unsupported datatype - Date Multirange",
 			"Description": "DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: all_event_ranges.",
 			"Impact": "LEVEL_3",
