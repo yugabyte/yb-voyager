@@ -1561,9 +1561,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 
 				var queryIssue queryissue.QueryIssue
 
-				// We obtain the queryissue from the Report function or directly as used below. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
-				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
-				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				if colInfo.IsArrayType && colInfo.IsEnumType {
 					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
 						constants.COLUMN,

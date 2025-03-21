@@ -336,6 +336,8 @@ var xmlDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 }
 
+// ============================= Unsupported Datatypes Issues ========================================
+
 func NewXMLDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, colName string) QueryIssue {
 	issue := xmlDatatypeIssue
 	typeName = strings.ToUpper(typeName)
@@ -819,6 +821,8 @@ var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
+
+// ============================= PK abd UK Constraints on Unsupported Datatypes Issues =================
 
 func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
@@ -1331,6 +1335,8 @@ func NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objectType string, objec
 	issue := primaryOrUniqueConstraintOnUserDefinedTypeIssue
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
+
+// ============================= Index on Unsupported Datatypes Issues =================
 
 var indexOnArrayDatatypeIssue = issue.Issue{
 	Type:        INDEX_ON_ARRAY_DATATYPE,
