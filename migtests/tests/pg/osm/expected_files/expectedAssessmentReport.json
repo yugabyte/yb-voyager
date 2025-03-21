@@ -94,7 +94,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "GEOMETRY_DATATYPE",
+			"Type": "UNSUPPORTED_DATATYPE_GEOMETRY",
 			"Name": "Unsupported datatype - Geometry",
 			"Description": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
 			"Impact": "LEVEL_3",
@@ -107,7 +107,7 @@
 		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "HSTORE_DATATYPE",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
 			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - Hstore Datatype",
 			"Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags. These columns will be excluded when exporting and importing data in live migration workflows.",
 			"Impact": "LEVEL_1",

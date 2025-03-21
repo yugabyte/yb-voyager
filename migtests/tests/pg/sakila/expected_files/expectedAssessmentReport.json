@@ -211,7 +211,7 @@
 		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "TSVECTOR_DATATYPE",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
 			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - TsVector Datatype",
 			"Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: fulltext. These columns will be excluded when exporting and importing data in live migration workflows.",
 			"Impact": "LEVEL_1",
