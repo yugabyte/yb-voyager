@@ -1412,7 +1412,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 			convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
-			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY), queryissue.MinimumVersionsFixedIn)
+			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryissue.MinimumVersionsFixedIn)
 		default:
 			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
@@ -1540,7 +1540,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(
 					convertAnalyzeSchemaIssueToAssessmentIssue(
 						convertedAnalyzeIssue,
-						GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
 						queryIssue.MinimumVersionsFixedIn))
 			}
 			if len(columns) > 0 {
@@ -1585,7 +1584,6 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				assessmentReport.AppendIssues(
 					convertAnalyzeSchemaIssueToAssessmentIssue(
 						convertedAnalyzeIssue,
-						GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
 						queryIssue.MinimumVersionsFixedIn))
 			}
 			if len(columns) > 0 {
