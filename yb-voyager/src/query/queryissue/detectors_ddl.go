@@ -624,63 +624,121 @@ func reportIndexOrConstraintIssuesOnComplexDatatypes(objType string, objName str
 	var queryIssue QueryIssue
 	switch typeName {
 	case "citext":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCitextDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnCitextDatatypeIssue(objType, objName, ""))
 	case "tsvector":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsVectorDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnTsVectorDatatypeIssue(objType, objName, ""))
 	case "tsquery":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsQueryDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnTsQueryDatatypeIssue(objType, objName, ""))
 	case "jsonb":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnJsonbDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnJsonbDatatypeIssue(objType, objName, ""))
 	case "inet":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInetDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnInetDatatypeIssue(objType, objName, ""))
 	case "json":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnJsonDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnJsonDatatypeIssue(objType, objName, ""))
 	case "macaddr":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnMacaddrDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnMacaddrDatatypeIssue(objType, objName, ""))
 	case "macaddr8":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnMacaddr8DatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnMacaddr8DatatypeIssue(objType, objName, ""))
 	case "cidr":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCidrDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnCidrDatatypeIssue(objType, objName, ""))
 	case "bit":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnBitDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnBitDatatypeIssue(objType, objName, ""))
 	case "varbit":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnVarbitDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnVarbitDatatypeIssue(objType, objName, ""))
 	case "daterange":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnDaterangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnDaterangeDatatypeIssue(objType, objName, ""))
 	case "tsrange":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTsrangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnTsrangeDatatypeIssue(objType, objName, ""))
 	case "tstzrange":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTstzrangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnTstzrangeDatatypeIssue(objType, objName, ""))
 	case "numrange":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnNumrangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnNumrangeDatatypeIssue(objType, objName, ""))
 	case "int4range":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInt4rangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnInt4rangeDatatypeIssue(objType, objName, ""))
 	case "int8range":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnInt8rangeDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnInt8rangeDatatypeIssue(objType, objName, ""))
 	case "interval":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnIntervalDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnIntervalDatatypeIssue(objType, objName, ""))
 	case "circle":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnCircleDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnCircleDatatypeIssue(objType, objName, ""))
 	case "box":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnBoxDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnBoxDatatypeIssue(objType, objName, ""))
 	case "line":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnLineDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnLineDatatypeIssue(objType, objName, ""))
 	case "lseg":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnLsegDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnLsegDatatypeIssue(objType, objName, ""))
 	case "point":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPointDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnPointDatatypeIssue(objType, objName, ""))
 	case "pg_lsn":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPgLsnDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnPgLsnDatatypeIssue(objType, objName, ""))
 	case "path":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPathDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnPathDatatypeIssue(objType, objName, ""))
 	case "polygon":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnPolygonDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnPolygonDatatypeIssue(objType, objName, ""))
 	case "txid_snapshot":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnTxidSnapshotDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnTxidSnapshotDatatypeIssue(objType, objName, ""))
 	case "array":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnArrayDatatypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnArrayDatatypeIssue(objType, objName, ""))
 	case "user_defined_type":
-		queryIssue = lo.Ternary(isPkorUk, NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objType, objName, "", typeName, constraintName), NewIndexOnUserDefinedTypeIssue(objType, objName, ""))
+		queryIssue = lo.Ternary(isPkorUk,
+			NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objType, objName, "", typeName, constraintName),
+			NewIndexOnUserDefinedTypeIssue(objType, objName, ""))
 	default:
 		// Unrecognized types
 		// Throwing error for now

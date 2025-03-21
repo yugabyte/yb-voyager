@@ -620,11 +620,8 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool, addToSummaryMap bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
 
-	var migrationCaveatsIssues = []string{
-		queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
-		queryissue.FOREIGN_TABLE,
-		queryissue.POLICY_WITH_ROLES,
-	}
+	// Adding all the migration caveats issues to the migrationCaveatsIssues
+	var migrationCaveatsIssues = queryissue.MigrationCaveatsIssues
 
 	// Adding the Unsupported datatypes issues to the MigrationCaveatsIssues
 	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssues...)

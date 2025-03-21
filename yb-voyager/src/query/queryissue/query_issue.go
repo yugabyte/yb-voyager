@@ -33,6 +33,12 @@ type QueryIssue struct {
 	Details      map[string]interface{} // additional details about the issue
 }
 
+var MigrationCaveatsIssues = []string{
+	ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
+	FOREIGN_TABLE,
+	POLICY_WITH_ROLES,
+}
+
 var UnsupportedDatatypesInLiveMigrationIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_POINT,
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_LINE,
