@@ -875,3 +875,12 @@ func JoinSentences(s1, s2 string) string {
 	}
 	return s1 + ". " + s2
 }
+
+// SliceLastElement returns the last element of a slice (if non-empty) and a boolean indicating success.
+func SliceLastElement[T any](slice []T) (T, bool) {
+	if len(slice) == 0 {
+		var zeroValue T // Default zero value of type T
+		return zeroValue, false
+	}
+	return slice[len(slice)-1], true
+}
