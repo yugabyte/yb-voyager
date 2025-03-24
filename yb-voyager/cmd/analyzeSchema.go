@@ -617,6 +617,10 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 
 }
 
+// addToSummaryMap parameter has been added so that this function can be used to just convert any QueryIssue to AnalyzeSchemaIssue
+// without adding it to the summaryMap
+// addToSummaryMap=false is being used in assess migration where we are getting the QueryIssues for the respective unsupported datatypes and converting them to AnalyzeSchemaIssue
+// summaryMap is used in schema analysis report to show the summary of the schema objects
 func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool, addToSummaryMap bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
 

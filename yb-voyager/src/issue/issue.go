@@ -22,7 +22,7 @@ import (
 
 type Issue struct {
 	// Type acts as ID for the issue; should be unique across all issues
-	// for example: ...
+	// for example: UNSUPPORTED_DATATYPE_PG_LSN, UNLOGGED_TABLES, etc
 	// This field is not to be changed frequently; if changed, be careful about impact on callhome and yugabyted
 	Type string
 

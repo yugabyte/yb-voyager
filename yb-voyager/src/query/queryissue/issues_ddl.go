@@ -507,8 +507,8 @@ func NewTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlState
 }
 
 var int8MultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_INT8_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_INT8_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_INT8MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_INT8MULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -526,8 +526,8 @@ func NewInt8MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 }
 
 var int4MultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_INT4_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_INT4_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_INT4MULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_INT4MULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -545,8 +545,8 @@ func NewInt4MultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 }
 
 var dateMultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_DATE_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_DATE_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_DATEMULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_DATEMULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -564,8 +564,8 @@ func NewDateMultiRangeDatatypeIssue(objectType string, objectName string, sqlSta
 }
 
 var numMultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_NUM_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_NUM_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_NUMMULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_NUMMULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -583,8 +583,8 @@ func NewNumMultiRangeDatatypeIssue(objectType string, objectName string, sqlStat
 }
 
 var tsMultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_TS_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_TS_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_TSMULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_TSMULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -602,8 +602,8 @@ func NewTSMultiRangeDatatypeIssue(objectType string, objectName string, sqlState
 }
 
 var tstzMultirangeDatatypeIssue = issue.Issue{
-	Type:        UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE,
-	Name:        UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE_ISSUE_NAME,
+	Type:        UNSUPPORTED_DATATYPE_TSTZMULTIRANGE,
+	Name:        UNSUPPORTED_DATATYPE_TSTZMULTIRANGE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: UNSUPPORTED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -812,7 +812,7 @@ func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-// ============================= PK abd UK Constraints on Unsupported Datatypes Issues =================
+// ============================= PK and UK Constraints on Unsupported Datatypes Issues =================
 
 var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Type:        PK_UK_ON_CITEXT_DATATYPE,
