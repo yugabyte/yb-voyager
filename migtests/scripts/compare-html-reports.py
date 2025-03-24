@@ -57,7 +57,7 @@ def extract_paragraphs(soup):
                 continue
         
         # Skip paragraphs that contain "Database Version:" or "Voyager Version:" as it vary according to the environment
-        if p.find("strong") and any(skip_text in p.get_text() for skip_text in ["Database Version:", "Voyager Version:"]):
+        if p.find("strong") and any(skip_text in p.get_text() for skip_text in ["Database Version:", "Voyager Version:", "Target YB Version:"]):
             continue
         
         filtered_paragraphs.append(p)
