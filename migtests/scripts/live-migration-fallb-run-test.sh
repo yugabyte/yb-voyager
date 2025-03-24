@@ -116,10 +116,6 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true  || "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
-		"${SCRIPTS}/add-pk-from-alter-to-create"
-	fi
-
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
