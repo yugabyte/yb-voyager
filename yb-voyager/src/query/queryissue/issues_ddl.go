@@ -812,6 +812,8 @@ func NewHstoreDatatypeIssue(objectType string, objectName string, sqlStatement s
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
+// ============================= PK abd UK Constraints on Unsupported Datatypes Issues =================
+
 var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Type:        PK_UK_ON_CITEXT_DATATYPE,
 	Name:        PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME,
@@ -821,8 +823,6 @@ var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
-
-// ============================= PK abd UK Constraints on Unsupported Datatypes Issues =================
 
 func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
 	details := map[string]interface{}{
