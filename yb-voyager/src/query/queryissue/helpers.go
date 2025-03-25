@@ -17,6 +17,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
+
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
@@ -191,4 +193,8 @@ var SupportedExtensionsOnYB = []string{
 	"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
 	"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
 	"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension",
+}
+
+func AppendObjectNameToIssueName(issueName string, objectName string) string {
+	return fmt.Sprintf("%s - %s", issueName, objectName)
 }

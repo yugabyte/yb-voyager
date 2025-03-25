@@ -175,7 +175,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
-			obfuscatedIssue.Name = fmt.Sprintf("%s - %s", issue.Name, issue.ObjectName)
+			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
 
 		// appending the issue after obfuscating sensitive information
