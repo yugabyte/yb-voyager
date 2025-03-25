@@ -719,12 +719,14 @@ check_yum_dependencies() {
     for requirement in "${centos_yum_all_db_common_package_requirements[@]}"; do
         IFS='|' read -r package version_type required_version <<< "$requirement"
         check_yum_package_version "$package" "$version_type" "$required_version"
+        echo "Package: $package, version_type: $version_type, required_version: $required_version"
     done
 
     if [ "$MYSQL_ONLY" -eq 1 ]; then
         for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
             check_yum_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
         done
 
         for requirement in "${centos_yum_mysql_package_requirements[@]}"; do
@@ -740,6 +742,7 @@ check_yum_dependencies() {
             fi
 
             check_yum_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
         done
     fi
 
@@ -747,11 +750,13 @@ check_yum_dependencies() {
         for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
             check_yum_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
         done
 
         for requirement in "${centos_yum_oracle_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
             check_yum_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
         done
     fi
 
