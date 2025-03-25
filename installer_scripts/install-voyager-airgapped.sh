@@ -8,14 +8,26 @@ LOG_FILE=/tmp/install-yb-voyager.log
 CHECK_ONLY_DEPENDENCIES="false"
 FORCE_INSTALL="false"
 PRINT_DEPENDENCIES="false"
+PG_ONLY=0
+MYSQL_ONLY=0
+ORACLE_ONLY=0
 
-centos_yum_package_requirements=(
+centos_yum_all_db_common_package_requirements=(
   "make|min|0"
   "sqlite|min|0"
+)
+
+centos_yum_mysql_oracle_common_package_requirements=(
   "perl|min|0"
   "perl-DBI|min|0"
   "perl-ExtUtils-MakeMaker|min|0"
+)
+
+centos_yum_mysql_package_requirements=(
   "mysql-devel|min|0"
+)
+
+centos_yum_oracle_package_requirements=(
   "libaio|min|0"
   "oracle-instantclient-tools|exact|21.5.0.0.0"
   "oracle-instantclient-basic|exact|21.5.0.0.0"
@@ -24,14 +36,23 @@ centos_yum_package_requirements=(
   "oracle-instantclient-sqlplus|exact|21.5.0.0.0"
 )
 
-ubuntu_apt_package_requirements=(
+ubuntu_apt_all_db_common_package_requirements=(
   "make|min|0"
   "sqlite3|min|0"
+)
+
+ubuntu_apt_mysql_oracle_common_package_requirements=(
   "perl|min|0"
   "libdbi-perl|min|0"
-  "libaio1|min|0"
-  "libmysqlclient-dev|min|0"
   "libmodule-build-perl|min|0"
+)
+
+ubuntu_apt_mysql_package_requirements=(
+  "libmysqlclient-dev|min|0"
+)
+
+ubuntu_apt_oracle_package_requirements=(
+  "libaio1|min|0"
   "oracle-instantclient-tools|exact|21.5.0.0.0"
   "oracle-instantclient-basic|exact|21.5.0.0.0"
   "oracle-instantclient-devel|exact|21.5.0.0.0"
@@ -52,7 +73,6 @@ cpan_modules_requirements=(
 
 ubuntu_missing_apt_packages=()
 centos_missing_yum_packages=()
-missing_cpan_modules=()
 binutils_wrong_version=0
 java_wrong_version=0
 pg_dump_wrong_version=0
@@ -116,14 +136,15 @@ main() {
 			;;
 	esac
     # Check if yb-voyager is installed using yb-voyager version. Else exit with error and log it too.
-    yb_voyager_version=$(yb-voyager version)
-    if [ $? -ne 0 ]; then
-        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-        exit 1
-    else
-        echo "yb-voyager version"
-        echo "$yb_voyager_version"
-    fi
+    # echo ""
+    # yb_voyager_version=$(yb-voyager version)
+    # if [ $? -ne 0 ]; then
+    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+    #     exit 1
+    # else
+    #     echo "yb-voyager version"
+    #     echo "$yb_voyager_version"
+    # fi
 }
 
 #=============================================================================
@@ -323,7 +344,7 @@ check_java() {
 }
 
 get_passed_options() {
-	OPTS=$(getopt -o "dfh", --long check-only-dependencies,force-install,help --name 'install-voyager-airgapped' -- $ARGS_LINUX)
+	OPTS=$(getopt -o "dfhpmo", --long check-only-dependencies,force-install,pg-only,oracle-only,mysql-only,help --name 'install-voyager-airgapped' -- $ARGS_LINUX)
 
 	eval set -- "$OPTS"
 
@@ -334,15 +355,30 @@ get_passed_options() {
 				shift
 				;;
             -f | --force-install )
-                FORCE_INSTALL="true"
+                FORCE_INSTALL="true";
 				shift
 				;;
+            -p | --pg-only )
+                PG_ONLY=1;
+                shift
+                ;;
+            -m | --mysql-only )
+                MYSQL_ONLY=1;
+                shift
+                ;;
+            -o | --oracle-only )
+                ORACLE_ONLY=1;
+                shift
+                ;;
             -h | --help )
                 echo "Usage: $0 [options]"
                 echo "Options:"
                 echo "  -d, --check-only-dependencies  Check only dependencies and exit."
                 echo "  -f, --force-install            Force install packages without checking dependencies."
                 echo "  -h, --help                     Display this help message."
+                echo "  -p, --pg-only                  Install and check only PostgreSQL related packages."
+                echo "  -m, --mysql-only               Install and check only MySQL related packages."
+                echo "  -o, --oracle-only              Install and check only Oracle related packages."
                 PRINT_DEPENDENCIES="true"
                 shift
                 ;;
@@ -351,6 +387,19 @@ get_passed_options() {
 				;;
 		esac
 	done
+    
+    # Allow only one of pg-only, mysql-only, oracle-only options to be passed.
+    if (( PG_ONLY + ORACLE_ONLY + MYSQL_ONLY > 1 )); then
+        echo "Error: Only one of pg-only, mysql-only, oracle-only options can be passed."
+        exit 1
+    fi
+
+    # If none of the three options are passed then by default all are true
+    if (( PG_ONLY == 0 && ORACLE_ONLY == 0 && MYSQL_ONLY == 0 )); then
+        PG_ONLY=1
+        MYSQL_ONLY=1
+        ORACLE_ONLY=1
+    fi
 }
 
 check_pg_dump_and_pg_restore_version() {
@@ -435,15 +484,17 @@ print_misc_dependencies(){
     echo ""
     echo -e "\e[33mJava:\e[0m"
     echo "Minimum version: 17"
-    echo ""
-    echo -e "\e[33mpg_dump:\e[0m"
-    echo "Minimum version: 14"
-    echo ""
-    echo -e "\e[33mpg_restore:\e[0m"
-    echo "Minimum version: 14"
-    echo ""
-    echo -e "\e[33mpsql:\e[0m"
-    echo "Minimum version: 14"
+    if [ "$PG_ONLY" -eq 1 ]; then
+        echo ""
+        echo -e "\e[33mpg_dump:\e[0m"
+        echo "Minimum version: 14"
+        echo ""
+        echo -e "\e[33mpg_restore:\e[0m"
+        echo "Minimum version: 14"
+        echo ""
+        echo -e "\e[33mpsql:\e[0m"
+        echo "Minimum version: 14"
+    fi
 }
 
 #=============================================================================
@@ -458,8 +509,19 @@ centos_main() {
         print_misc_dependencies
         echo ""
         echo -e "\e[33mYum packages:\e[0m"
-        print_dependencies "${centos_yum_package_requirements[@]}"
-        print_steps_to_install_oic_on_centos
+
+        print_dependencies "${centos_yum_all_db_common_package_requirements[@]}"
+
+        if [ "$MYSQL_ONLY" -eq 1 ]; then
+            print_dependencies "${centos_yum_mysql_oracle_common_package_requirements[@]}"
+            print_dependencies "${centos_yum_mysql_package_requirements[@]}"
+        fi
+
+        if [ "$ORACLE_ONLY" -eq 1 ]; then
+            print_dependencies "${centos_yum_mysql_oracle_common_package_requirements[@]}"
+            print_dependencies "${centos_yum_oracle_package_requirements[@]}"
+            print_steps_to_install_oic_on_centos
+        fi
         exit 0
     fi
 
@@ -468,10 +530,14 @@ centos_main() {
         echo "Checking dependencies..."
         check_binutils_version
         check_java
-        check_pg_dump_and_pg_restore_version
+
+        if [ "$PG_ONLY" -eq 1 ]; then
+            check_pg_dump_and_pg_restore_version
+        fi
+    
         check_yum_dependencies
         # If either of the yum or cpan dependencies are missing or binutils wrong version, exit with error.
-        if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
+        if { [ ${#centos_missing_yum_packages[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then 
             echo ""
             echo -e "\e[33mThe script searches for specific package names only. If similar packages are not detected but are present and deemed reliable, use --force-install to install Voyager.\e[0m"
             if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
@@ -493,7 +559,13 @@ centos_main() {
     # Prompt the user for permission to install the packages
     while true; do
         echo ""
-	    echo -n "Do you want to proceed with the installation of packages (cpan modules, ora2pg, debezium, yb-voyager)? (y/n):"
+
+        packages_to_install="debezium, yb-voyager"
+        if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
+            packages_to_install="cpan modules, ora2pg, debezium, yb-voyager"
+        fi
+
+	    echo -n "Do you want to proceed with the installation of packages ($packages_to_install)? [Y/n]: "
 	    read yn
 	    case $yn in
 		[Yy]* )
@@ -505,61 +577,76 @@ centos_main() {
 	    esac
 	done
 
-    echo ""
-    echo "Installing cpan modules..."
-    echo ""
-    for module_info in "${cpan_modules_requirements[@]}"; do
-        # Split each entry by '|' to get module details
-        IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
-    
-        # Call the install function with module details
-        install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
-    done
-    sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
-    if [ $? -ne 0 ]; then
+    # Install cpan modules only if either MYSQL_ONLY or ORACLE_ONLY is 1
+    if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
         echo ""
-        echo -e "\e[31mERROR: mariadb-connector-c did not get installed.\e[0m"
-        exit 1
-    fi
-    sudo yum install -y -q perl-DBD-MySQL*.rpm 1>&2
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: perl-DBD-MySQL did not get installed.\e[0m"
-        exit 1
-    fi
-    sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
-        exit 1
+        echo "Installing cpan modules..."
+        # echo ""
+        # for module_info in "${cpan_modules_requirements[@]}"; do
+        #     # Split each entry by '|' to get module details
+        #     IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+        
+        #     # Call the install function with module details
+        #     install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+        # done
     fi
 
-    echo "Installing ora2pg..."
-    sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
-        exit 1
+    if [ "$MYSQL_ONLY" -eq 1 ]; then
+        echo "Installing mariadb-connector-c and perl-DBD-MySQL..."
+
+        # sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: mariadb-connector-c did not get installed.\e[0m"
+        #     exit 1
+        # fi
+        # sudo yum install -y -q perl-DBD-MySQL*.rpm 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: perl-DBD-MySQL did not get installed.\e[0m"
+        #     exit 1
+        # fi
+    fi
+
+    if [ "$ORACLE_ONLY" -eq 1 ]; then
+        echo "Installing perl-DBD-Oracle..."
+
+        # sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
+        #     exit 1
+        # fi
+    fi
+
+    # Install ora2pg only if MYSQL_ONLY or ORACLE_ONLY is 1
+    if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
+        echo "Installing ora2pg..."
+        # sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
+        #     exit 1
+        # fi
     fi
     echo ""
     # The package name is like debezium-2.3.3-1.8.0b0111.noarch.rpm. The DEBEZIUM_YUM_VERSION is 2.3.3-1.8.0. Add * to match the version.
     echo "Installing debezium..."
-    sudo yum install -y -q debezium*.noarch.rpm 1>&2
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
-        exit 1
-    fi
+    # sudo yum install -y -q debezium*.noarch.rpm 1>&2
+    # if [ $? -ne 0 ]; then
+    #     echo ""
+    #     echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
+    #     exit 1
+    # fi
     echo ""
     echo "Installing yb-voyager..."
     # The package name is like yb-voyager-1.8.0-b0111.x86_64.rpm. The YB_VOYAGER_YUM_VERSION is 1.8.0. Add * to match the version.
-    sudo yum install -y -q yb-voyager*.x86_64.rpm 1>&2
-  
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-        exit 1
-    fi
+    # sudo yum install -y -q yb-voyager*.x86_64.rpm 1>&2
+    # if [ $? -ne 0 ]; then
+    #     echo ""
+    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+    #     exit 1
+    # fi
     echo ""
     echo "Installation completed." 
 
@@ -628,20 +715,45 @@ check_yum_package_version() {
 }
 
 check_yum_dependencies() {
-    for requirement in "${centos_yum_package_requirements[@]}"; do
-        IFS='|' read -r package version_type required_version <<< "$requirement"
-       
-        # In case of rhel9 the mysql-devel package is not available. However, mysql-community-devel is available. So check for that instead.
-        # Check if OS is rhel9
-        version=$(source /etc/os-release; echo "$VERSION_ID")
-	    # Extract only the major version
-	    majorVersion=$(echo $version | cut -d '.' -f 1)
-        if [[ "$majorVersion" -eq 9 && "$package" == "mysql-devel" ]]; then
-            package="mysql-community-devel"
-        fi
 
+    for requirement in "${centos_yum_all_db_common_package_requirements[@]}"; do
+        IFS='|' read -r package version_type required_version <<< "$requirement"
         check_yum_package_version "$package" "$version_type" "$required_version"
     done
+
+    if [ "$MYSQL_ONLY" -eq 1 ]; then
+        for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+            check_yum_package_version "$package" "$version_type" "$required_version"
+        done
+
+        for requirement in "${centos_yum_mysql_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+
+            # In case of rhel9 the mysql-devel package is not available. However, mysql-community-devel is available. So check for that instead.
+            # Check if OS is rhel9
+            version=$(source /etc/os-release; echo "$VERSION_ID")
+            # Extract only the major version
+            majorVersion=$(echo $version | cut -d '.' -f 1)
+            if [[ "$majorVersion" -eq 9 && "$package" == "mysql-devel" ]]; then
+                package="mysql-community-devel"
+            fi
+
+            check_yum_package_version "$package" "$version_type" "$required_version"
+        done
+    fi
+
+    if [ "$ORACLE_ONLY" -eq 1 ]; then
+        for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+            check_yum_package_version "$package" "$version_type" "$required_version"
+        done
+
+        for requirement in "${centos_yum_oracle_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+            check_yum_package_version "$package" "$version_type" "$required_version"
+        done
+    fi
 
     if [ ${#centos_missing_yum_packages[@]} -ne 0 ]; then
         echo ""
@@ -667,8 +779,20 @@ ubuntu_main() {
         print_misc_dependencies
         echo ""
         echo -e "\e[33mApt packages:\e[0m"
-        print_dependencies "${ubuntu_apt_package_requirements[@]}"
-        print_steps_to_install_oic_on_ubuntu
+
+        print_dependencies "${ubuntu_apt_all_db_common_package_requirements[@]}"
+
+        if [ "$MYSQL_ONLY" -eq 1 ]; then
+            print_dependencies "${ubuntu_apt_mysql_oracle_common_package_requirements[@]}"
+            print_dependencies "${ubuntu_apt_mysql_package_requirements[@]}"
+        fi
+
+        if [ "$ORACLE_ONLY" -eq 1 ]; then
+            print_dependencies "${ubuntu_apt_mysql_oracle_common_package_requirements[@]}"
+            print_dependencies "${ubuntu_apt_oracle_package_requirements[@]}"
+            print_steps_to_install_oic_on_ubuntu
+        fi
+
         exit 0
     fi
 
@@ -677,11 +801,15 @@ ubuntu_main() {
         echo "Checking dependencies..."
         check_binutils_version
         check_java
-        check_pg_dump_and_pg_restore_version
+
+        if [ "$PG_ONLY" -eq 1 ]; then
+            check_pg_dump_and_pg_restore_version
+        fi 
+
         check_apt_dependencies
 
         # If either of the apt or cpan dependencies are missing or binutils wrong version, exit with error.
-        if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ ${#missing_cpan_modules[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
+        if { [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ] || [ "$binutils_wrong_version" -eq 1 ] || [ "$java_wrong_version" -eq 1 ] || [ "$pg_dump_wrong_version" -eq 1 ] || [ "$pg_restore_wrong_version" -eq 1 ] || [ "$psql_wrong_version" -eq 1 ]; } && [ "$FORCE_INSTALL" = "false" ]; then
             echo ""
             echo -e "\e[33mThe script searches for specific package names only. If similar packages are not detected but are present and deemed reliable, use --force-install to install Voyager.\e[0m"
             if [ "$CHECK_ONLY_DEPENDENCIES" = "true" ]; then
@@ -703,7 +831,13 @@ ubuntu_main() {
     # Prompt the user for permission to install the packages
     while true; do
         echo ""
-	    echo -n "Do you want to proceed with the installation of packages (cpan modules, ora2pg, debezium, yb-voyager)? (y/n):"
+
+        packages_to_install="debezium, yb-voyager"
+        if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
+            packages_to_install="cpan modules, ora2pg, $packages_to_install"
+        fi
+
+	    echo -n "Do you want to proceed with the installation of packages ($packages_to_install)? (y/n):"
 	    read yn
 	    case $yn in
 		[Yy]* )
@@ -715,53 +849,73 @@ ubuntu_main() {
 	    esac
 	done
 
-    echo ""
-    echo "Installing cpan modules..."
-    echo ""
-    for module_info in "${cpan_modules_requirements[@]}"; do
-        # Split each entry by '|' to get module details
-        IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
-    
-        # Call the install function with module details
-        install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
-    done
-    sudo dpkg -i ./libdbd-mysql-perl*.deb 1>&2
-    if [ $? -ne 0 ]; then
+    # Install cpan modules only if either of ORACLE_ONLY or MYSQL_ONLY is 1
+    if [ "$ORACLE_ONLY" -eq 1 ] || [ "$MYSQL_ONLY" -eq 1 ]; then
         echo ""
-        echo -e "\e[31mERROR: libdbd-mysql-perl did not get installed.\e[0m"
-        exit 1
-    fi
-    sudo dpkg -i ./libdbd-oracle-perl*.deb 1>&2
-    if [ $? -ne 0 ]; then
+        echo "Installing cpan modules..."
         echo ""
-        echo -e "\e[31mERROR: libdbd-oracle-perl did not get installed.\e[0m"
-        exit 1
+        # for module_info in "${cpan_modules_requirements[@]}"; do
+        #     # Split each entry by '|' to get module details
+        #     IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+        
+        #     # Call the install function with module details
+        #     install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+        # done
     fi
 
+    if [ "$MYSQL_ONLY" -eq 1 ]; then
 
-    echo "Installing ora2pg..."
-    sudo apt install -y -q ./ora2pg*all.deb 1>&2
-    if [ $? -ne 0 ]; then
+        echo "Installing libdbd-mysql-perl..."
         echo ""
-        echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
-        exit 1
+
+        # sudo dpkg -i ./libdbd-mysql-perl*.deb 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: libdbd-mysql-perl did not get installed.\e[0m"
+        #     exit 1
+        # fi
     fi
+
+    if [ "$ORACLE_ONLY" -eq 1 ]; then
+
+        echo "Installing libdbd-oracle-perl..."
+        echo ""
+
+        # sudo dpkg -i ./libdbd-oracle-perl*.deb 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: libdbd-oracle-perl did not get installed.\e[0m"
+        #     exit 1
+        # fi
+    fi
+
+    # Install ora2pg if either of ORACLE_ONLY or MYSQL_ONLY is 1
+    if [ "$ORACLE_ONLY" -eq 1 ] || [ "$MYSQL_ONLY" -eq 1 ]; then
+        echo "Installing ora2pg..."
+        # sudo apt install -y -q ./ora2pg*all.deb 1>&2
+        # if [ $? -ne 0 ]; then
+        #     echo ""
+        #     echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
+        #     exit 1
+        # fi
+    fi
+
     echo ""
     echo "Installing debezium..."
-    sudo apt install -y -q ./debezium*all.deb 1>&2
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
-        exit 1
-    fi
+    # sudo apt install -y -q ./debezium*all.deb 1>&2
+    # if [ $? -ne 0 ]; then
+    #     echo ""
+    #     echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
+    #     exit 1
+    # fi
     echo ""
     echo "Installing yb-voyager..."
-    sudo apt install -y -q ./yb-voyager*amd64.deb 1>&2
-    if [ $? -ne 0 ]; then
-        echo ""
-        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-        exit 1
-    fi
+    # sudo apt install -y -q ./yb-voyager*amd64.deb 1>&2
+    # if [ $? -ne 0 ]; then
+    #     echo ""
+    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+    #     exit 1
+    # fi
     echo ""
     echo "Installation completed."
 
@@ -794,10 +948,27 @@ print_steps_to_install_oic_on_ubuntu() {
 }
 
 check_apt_dependencies() {
-    for requirement in "${ubuntu_apt_package_requirements[@]}"; do
+    for requirement in "${ubuntu_apt_all_db_common_package_requirements[@]}"; do
         IFS='|' read -r package version_type required_version <<< "$requirement"
         check_apt_package_version "$package" "$version_type" "$required_version"
+        echo "Package: $package, version_type: $version_type, required_version: $required_version"
     done
+
+    if [ "$MYSQL_ONLY" -eq 1 ]; then
+        for requirement in "${ubuntu_apt_mysql_oracle_common_package_requirements[@]}" "${ubuntu_apt_mysql_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+            check_apt_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
+        done
+    fi
+
+    if [ "$ORACLE_ONLY" -eq 1 ]; then
+        for requirement in "${ubuntu_apt_mysql_oracle_common_package_requirements[@]}" "${ubuntu_apt_oracle_package_requirements[@]}"; do
+            IFS='|' read -r package version_type required_version <<< "$requirement"
+            check_apt_package_version "$package" "$version_type" "$required_version"
+            echo "Package: $package, version_type: $version_type, required_version: $required_version"
+        done
+    fi
 
     if [ ${#ubuntu_missing_apt_packages[@]} -ne 0 ]; then
         echo ""
