@@ -581,7 +581,7 @@ centos_main() {
     if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
         echo ""
         echo "Installing cpan modules..."
-        # echo ""
+        echo ""
         # for module_info in "${cpan_modules_requirements[@]}"; do
         #     # Split each entry by '|' to get module details
         #     IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
