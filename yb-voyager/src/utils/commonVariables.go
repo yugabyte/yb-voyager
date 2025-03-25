@@ -136,10 +136,13 @@ type IndexInfo struct {
 }
 
 type TableColumnsDataTypes struct {
-	SchemaName string `json:"SchemaName"`
-	TableName  string `json:"TableName"`
-	ColumnName string `json:"ColumnName"`
-	DataType   string `json:"DataType"`
+	SchemaName  string `json:"SchemaName"`
+	TableName   string `json:"TableName"`
+	ColumnName  string `json:"ColumnName"`
+	DataType    string `json:"DataType"`
+	IsArrayType bool   `json:"-"`
+	IsEnumType  bool   `json:"-"`
+	IsUDTType   bool   `json:"-"`
 }
 
 type UnsupportedQueryConstruct struct {
