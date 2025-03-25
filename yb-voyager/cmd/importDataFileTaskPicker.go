@@ -552,6 +552,7 @@ func (c *ColocatedCappedRandomTaskPicker) pickRandomFromListOfTasks(tasks []*Imp
 	return taskIndex, tasks[taskIndex]
 }
 
+// Pick a colocated task if possible, else pick a sharded task.
 func (c *ColocatedCappedRandomTaskPicker) Pick() (*ImportFileTask, error) {
 	if !c.HasMoreTasks() {
 		return nil, fmt.Errorf("no more tasks")

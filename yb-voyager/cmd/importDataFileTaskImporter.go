@@ -99,7 +99,30 @@ func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	return fti.submitBatch(batch)
 }
 
+func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
+	importBatchFunc := func() {
+		// There are `poolSize` number of competing go-routines trying to invoke COPY.
+		// But the `connPool` will allow only `parallelism` number of connections to be
+		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
+		fti.importBatch(batch)
+		if reportProgressInBytes {
+			fti.updateProgress(batch.ByteCount)
+		} else {
+			fti.updateProgress(batch.RecordCount)
+		}
+	}
+	if fti.colocatedImportBatchQueue != nil && fti.isTableColocated {
+		fti.colocatedImportBatchQueue <- importBatchFunc
+	} else {
+		fti.workerPool.Go(importBatchFunc)
+	}
+
+	log.Infof("Queued batch: %s", spew.Sdump(batch))
+	return nil
+}
+
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
+
 	err := batch.MarkInProgress()
 	if err != nil {
 		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
@@ -135,28 +158,6 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	if err != nil {
 		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
 	}
-}
-
-func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
-	importBatchFunc := func() {
-		// There are `poolSize` number of competing go-routines trying to invoke COPY.
-		// But the `connPool` will allow only `parallelism` number of connections to be
-		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
-		fti.importBatch(batch)
-		if reportProgressInBytes {
-			fti.updateProgress(batch.ByteCount)
-		} else {
-			fti.updateProgress(batch.RecordCount)
-		}
-	}
-	if fti.colocatedImportBatchQueue != nil && fti.isTableColocated {
-		fti.colocatedImportBatchQueue <- importBatchFunc
-	} else {
-		fti.workerPool.Go(importBatchFunc)
-	}
-
-	log.Infof("Queued batch: %s", spew.Sdump(batch))
-	return nil
 }
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
