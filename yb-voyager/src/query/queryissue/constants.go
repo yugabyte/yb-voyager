@@ -292,6 +292,7 @@ const (
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSQUERY_ISSUE_NAME       = "Unsupported datatype for Live migration with fall-forward/fallback - tsquery Datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR_ISSUE_NAME      = "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype"
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE_ISSUE_NAME        = "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype"
+	UNSUPPORTED_EXTENSION_ISSUE_NAME                                        = "Unsupported Extension"
 )
 
 // Issues Description
