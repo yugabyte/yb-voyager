@@ -38,7 +38,7 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, fastPath bool) (int64, error)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
@@ -113,6 +113,19 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
+
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
+}
+
+// returns YB COPY statement for fast path
+// To trigger COPY fast path, no transaction and ROWS_PER_TRANSACTION should be used
+func (args *ImportBatchArgs) GetYBFastCopyStatement() string {
+	options := args.copyOptions()
+	columns := ""
+	if len(args.Columns) > 0 {
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+	}
+
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 

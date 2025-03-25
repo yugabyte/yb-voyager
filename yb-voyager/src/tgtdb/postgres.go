@@ -356,7 +356,11 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, fastPath bool) (int64, error) {
+	if fastPath {
+		panic("fastPath is not supported for import batch in PostgreSQL")
+	}
+
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
