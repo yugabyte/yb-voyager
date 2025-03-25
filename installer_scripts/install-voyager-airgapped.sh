@@ -136,15 +136,15 @@ main() {
 			;;
 	esac
     # Check if yb-voyager is installed using yb-voyager version. Else exit with error and log it too.
-    # echo ""
-    # yb_voyager_version=$(yb-voyager version)
-    # if [ $? -ne 0 ]; then
-    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-    #     exit 1
-    # else
-    #     echo "yb-voyager version"
-    #     echo "$yb_voyager_version"
-    # fi
+    echo ""
+    yb_voyager_version=$(yb-voyager version)
+    if [ $? -ne 0 ]; then
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+        exit 1
+    else
+        echo "yb-voyager version"
+        echo "$yb_voyager_version"
+    fi
 }
 
 #=============================================================================
@@ -582,73 +582,73 @@ centos_main() {
         echo ""
         echo "Installing cpan modules..."
         echo ""
-        # for module_info in "${cpan_modules_requirements[@]}"; do
-        #     # Split each entry by '|' to get module details
-        #     IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+        for module_info in "${cpan_modules_requirements[@]}"; do
+            # Split each entry by '|' to get module details
+            IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
         
-        #     # Call the install function with module details
-        #     install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
-        # done
+            # Call the install function with module details
+            install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+        done
     fi
 
     if [ "$MYSQL_ONLY" -eq 1 ]; then
         echo "Installing mariadb-connector-c and perl-DBD-MySQL..."
         echo ""
 
-        # sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: mariadb-connector-c did not get installed.\e[0m"
-        #     exit 1
-        # fi
-        # sudo yum install -y -q perl-DBD-MySQL*.rpm 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: perl-DBD-MySQL did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: mariadb-connector-c did not get installed.\e[0m"
+            exit 1
+        fi
+        sudo yum install -y -q perl-DBD-MySQL*.rpm 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: perl-DBD-MySQL did not get installed.\e[0m"
+            exit 1
+        fi
     fi
 
     if [ "$ORACLE_ONLY" -eq 1 ]; then
         echo "Installing perl-DBD-Oracle..."
         echo ""
 
-        # sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: perl-DBD-Oracle did not get installed.\e[0m"
+            exit 1
+        fi
     fi
 
     # Install ora2pg only if MYSQL_ONLY or ORACLE_ONLY is 1
     if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
         echo "Installing ora2pg..."
-        # sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo yum install -y -q ora2pg*.noarch.rpm 1>&2 
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
+            exit 1
+        fi
     fi
     echo ""
     # The package name is like debezium-2.3.3-1.8.0b0111.noarch.rpm. The DEBEZIUM_YUM_VERSION is 2.3.3-1.8.0. Add * to match the version.
     echo "Installing debezium..."
-    # sudo yum install -y -q debezium*.noarch.rpm 1>&2
-    # if [ $? -ne 0 ]; then
-    #     echo ""
-    #     echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
-    #     exit 1
-    # fi
+    sudo yum install -y -q debezium*.noarch.rpm 1>&2
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
+        exit 1
+    fi
     echo ""
     echo "Installing yb-voyager..."
     # The package name is like yb-voyager-1.8.0-b0111.x86_64.rpm. The YB_VOYAGER_YUM_VERSION is 1.8.0. Add * to match the version.
-    # sudo yum install -y -q yb-voyager*.x86_64.rpm 1>&2
-    # if [ $? -ne 0 ]; then
-    #     echo ""
-    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-    #     exit 1
-    # fi
+    sudo yum install -y -q yb-voyager*.x86_64.rpm 1>&2
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+        exit 1
+    fi
     echo ""
     echo "Installation completed." 
 
@@ -861,13 +861,13 @@ ubuntu_main() {
         echo ""
         echo "Installing cpan modules..."
         echo ""
-        # for module_info in "${cpan_modules_requirements[@]}"; do
-        #     # Split each entry by '|' to get module details
-        #     IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
+        for module_info in "${cpan_modules_requirements[@]}"; do
+            # Split each entry by '|' to get module details
+            IFS="|" read -r module_name requirement_type required_version package <<< "$module_info"
         
-        #     # Call the install function with module details
-        #     install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
-        # done
+            # Call the install function with module details
+            install_perl_module "$module_name" "$requirement_type" "$required_version" "$package"
+        done
     fi
 
     if [ "$MYSQL_ONLY" -eq 1 ]; then
@@ -875,12 +875,12 @@ ubuntu_main() {
         echo "Installing libdbd-mysql-perl..."
         echo ""
 
-        # sudo dpkg -i ./libdbd-mysql-perl*.deb 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: libdbd-mysql-perl did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo dpkg -i ./libdbd-mysql-perl*.deb 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: libdbd-mysql-perl did not get installed.\e[0m"
+            exit 1
+        fi
     fi
 
     if [ "$ORACLE_ONLY" -eq 1 ]; then
@@ -888,41 +888,41 @@ ubuntu_main() {
         echo "Installing libdbd-oracle-perl..."
         echo ""
 
-        # sudo dpkg -i ./libdbd-oracle-perl*.deb 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: libdbd-oracle-perl did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo dpkg -i ./libdbd-oracle-perl*.deb 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: libdbd-oracle-perl did not get installed.\e[0m"
+            exit 1
+        fi
     fi
 
     # Install ora2pg if either of ORACLE_ONLY or MYSQL_ONLY is 1
     if [ "$ORACLE_ONLY" -eq 1 ] || [ "$MYSQL_ONLY" -eq 1 ]; then
         echo "Installing ora2pg..."
-        # sudo apt install -y -q ./ora2pg*all.deb 1>&2
-        # if [ $? -ne 0 ]; then
-        #     echo ""
-        #     echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
-        #     exit 1
-        # fi
+        sudo apt install -y -q ./ora2pg*all.deb 1>&2
+        if [ $? -ne 0 ]; then
+            echo ""
+            echo -e "\e[31mERROR: ora2pg did not get installed.\e[0m"
+            exit 1
+        fi
     fi
 
     echo ""
     echo "Installing debezium..."
-    # sudo apt install -y -q ./debezium*all.deb 1>&2
-    # if [ $? -ne 0 ]; then
-    #     echo ""
-    #     echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
-    #     exit 1
-    # fi
+    sudo apt install -y -q ./debezium*all.deb 1>&2
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "\e[31mERROR: debezium did not get installed.\e[0m"
+        exit 1
+    fi
     echo ""
     echo "Installing yb-voyager..."
-    # sudo apt install -y -q ./yb-voyager*amd64.deb 1>&2
-    # if [ $? -ne 0 ]; then
-    #     echo ""
-    #     echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
-    #     exit 1
-    # fi
+    sudo apt install -y -q ./yb-voyager*amd64.deb 1>&2
+    if [ $? -ne 0 ]; then
+        echo ""
+        echo -e "\e[31mERROR: yb-voyager did not get installed.\e[0m"
+        exit 1
+    fi
     echo ""
     echo "Installation completed."
 
