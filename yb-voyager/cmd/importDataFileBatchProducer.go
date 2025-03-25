@@ -31,7 +31,7 @@ type FileBatchProducer struct {
 	task  *ImportFileTask
 	state *ImportDataState
 
-	pendingBatches  []*Batch //pending batches after recovery
+	pendingBatches  []*Batch // pending batches after recovery
 	lastBatchNumber int64    // batch number of the last batch that was produced
 	lastOffset      int64    // file offset from where the last batch was produced, only used in recovery
 	fileFullySplit  bool     // if the file is fully split into batches
@@ -51,6 +51,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 	if err != nil {
 		return nil, fmt.Errorf("preparing for file import: %s", err)
 	}
+
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
