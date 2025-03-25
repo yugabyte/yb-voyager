@@ -565,7 +565,7 @@ centos_main() {
             packages_to_install="cpan modules, ora2pg, debezium, yb-voyager"
         fi
 
-	    echo -n "Do you want to proceed with the installation of packages ($packages_to_install)? [Y/n]: "
+	    echo -n "Do you want to proceed with the installation of packages ($packages_to_install)? [y/n]: "
 	    read yn
 	    case $yn in
 		[Yy]* )
@@ -593,6 +593,7 @@ centos_main() {
 
     if [ "$MYSQL_ONLY" -eq 1 ]; then
         echo "Installing mariadb-connector-c and perl-DBD-MySQL..."
+        echo ""
 
         # sudo yum install -y -q mariadb-connector-c*.rpm 1>&2
         # if [ $? -ne 0 ]; then
@@ -610,6 +611,7 @@ centos_main() {
 
     if [ "$ORACLE_ONLY" -eq 1 ]; then
         echo "Installing perl-DBD-Oracle..."
+        echo ""
 
         # sudo yum install -y -q perl-DBD-Oracle*.rpm 1>&2
         # if [ $? -ne 0 ]; then
