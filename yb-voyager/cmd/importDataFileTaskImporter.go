@@ -122,12 +122,65 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 }
 
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
+	/*
+		Check if the batch is already in progress then we need to recover with failure handling for unique constraint violation
+		Now we can have two paths:
+		1. If non-txn is enabled and allowed for the batch(check PK/non-PK table) [TODO: treat non-PK tables but with unique constraint as PK only?]
+			then use fast path
+		2. Else If non-txn is disabled
+			then use normal path(existing)
 
+		Fast Path - Does everything like normal path but without transaction around COPY command
+		And in case of recovery; the batch will import via INSERT ON CONFLICT DO NOTHING path
+
+		Case: What if user change the flag/behaviour to use txn/non-txn path at the time of resumption?
+		- Complication comes as we will have to recover the files as per the previous fast path approach, rest of the batches(not created or just created) can continue as asked by the user
+		- For the first phase: Can we restrict the user to not change the flag/behaviour among fast/normal path.
+	*/
+
+	fastPath := utils.GetEnvAsBool("YBVOYAGER_YB_COPY_FAST_PATH", false)
+	if importerRole == TARGET_DB_IMPORTER_ROLE && fastPath /* && batchForNonPKTable*/ {
+		fti.importBatchViaFastPath(batch)
+	} else {
+		fti.importBatchViaNormalPath(batch)
+	}
+}
+
+func (fti *FileTaskImporter) importBatchViaFastPath(batch *Batch) {
+	/*
+		Fast path do non-txn import of batches
+		In case of recovery(last run imported partial batch):
+		in progress batch(es) will import via INSERT ON CONFLICT DO NOTHING approach
+		to recover with failure handling for unique constraint violation
+	*/
+	log.Infof("importing batch %q via fast path", batch.FilePath)
+
+	recoverBatch := batch.IsInterrupted()
+	if recoverBatch {
+		// TODO: implement recovery logic
+		// TODO2: Make the task picker logic to first pick and import the interrupted task(in progress ones)
+		utils.ErrExit("recovery logic not implemented")
+	} else {
+		fti.importBatchCore(batch)
+	}
+}
+
+func (fti *FileTaskImporter) importBatchViaNormalPath(batch *Batch) {
+	/*
+		Normal path uses txn for importing batches
+		In case of recovery(last run imported full batch but not marked as done):
+		we check the metadata table on target if batch is already imported in last run
+		which avoids unique constraint violation and we can skip the batch
+	*/
+	log.Infof("importing batch %q via normal path", batch.FilePath)
+	fti.importBatchCore(batch)
+}
+
+func (fti *FileTaskImporter) importBatchCore(batch *Batch) {
 	err := batch.MarkInProgress()
 	if err != nil {
 		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
 	}
-	log.Infof("Importing %q", batch.FilePath)
 
 	importBatchArgs := *fti.importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
@@ -137,7 +190,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	sleepIntervalSec := 0
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, false)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}

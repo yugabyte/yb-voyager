@@ -18,6 +18,7 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"sort"
 
 	log "github.com/sirupsen/logrus"
 
@@ -57,6 +58,12 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
 	completed := len(pendingBatches) == 0 && fileFullySplit
+
+	// sort the pending batches by placing interrupted batches at front so that they are ingested first for that file ensuring recovery first.
+	// TODO: Need to ensure the file/tasks picked are the priortised based on the inprogress ones being prioritised than the new ones.
+	sort.Slice(pendingBatches, func(i, j int) bool {
+		return pendingBatches[i].IsInterrupted()
+	})
 
 	return &FileBatchProducer{
 		task:            task,
