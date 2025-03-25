@@ -446,27 +446,18 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
-		rowsAffected, err = yb.importBatch(conn, batch, args)
+		if fastPath {
+			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args)
+		} else {
+			rowsAffected, err = yb.importBatchWithTxn(conn, batch, args)
+		}
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
-	var file *os.File
-	file, err = batch.Open()
-	if err != nil {
-		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
-	}
-	defer file.Close()
-
-	//setting the schema so that COPY command can acesss the table
-	err = yb.setTargetSchema(conn)
-	if err != nil {
-		return 0, fmt.Errorf("setting schema on conn: %w", err)
-	}
-
+func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
 	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
 	ctx := context.Background()
 	var tx pgx.Tx
@@ -491,9 +482,27 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		}
 	}()
 
-	// Check if the split is already imported.
-	var alreadyImported bool
-	alreadyImported, rowsAffected, err = yb.isBatchAlreadyImported(tx, batch)
+	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args)
+	return rowsAffected, err
+}
+
+func (yb *TargetYugabyteDB) importBatchNoTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	return yb.copyBatchCore(conn, batch, args)
+}
+
+func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	// 1. Open the batch file
+	file, err := batch.Open()
+	if err != nil {
+		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+	}
+	defer file.Close()
+
+	// 2. setting the schema so that COPY command can acesss the table
+	yb.setTargetSchema(conn)
+
+	// 3. Check if the split is already imported.
+	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
 		return 0, err
 	}
@@ -501,11 +510,11 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		return rowsAffected, nil
 	}
 
-	// Import the split using COPY command.
+	// 4. Import the batch using COPY command.
 	var res pgconn.CommandTag
 	copyCommand := args.GetYBCopyStatement()
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
-	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCommand)
+	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
@@ -514,7 +523,8 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		return res.RowsAffected(), err
 	}
 
-	err = yb.recordEntryInDB(tx, batch, res.RowsAffected())
+	// 5. Record the import in the DB.
+	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 	}
@@ -1124,10 +1134,10 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
 	return nil
 }
 
-func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
+func (yb *TargetYugabyteDB) isBatchAlreadyImported(conn *pgx.Conn, batch Batch) (bool, int64, error) {
 	var rowsImported int64
 	query := batch.GetQueryIsBatchAlreadyImported()
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
+	err := conn.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.GetFilePath())
 		return true, rowsImported, nil
@@ -1139,9 +1149,9 @@ func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool
 	return false, 0, fmt.Errorf("check if %s is already imported: %w", batch.GetFilePath(), err)
 }
 
-func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected int64) error {
+func (yb *TargetYugabyteDB) recordEntryInDB(conn *pgx.Conn, batch Batch, rowsAffected int64) error {
 	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
-	_, err := tx.Exec(context.Background(), cmd)
+	_, err := conn.Exec(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
 	}
