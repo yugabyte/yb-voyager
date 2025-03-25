@@ -1460,7 +1460,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_INT8_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_INT8MULTIRANGE",
 			"Name": "Unsupported datatype - int8multirange",
 			"Description": "INT8MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
 			"Impact": "LEVEL_3",
@@ -1475,7 +1475,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_INT4_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_INT4MULTIRANGE",
 			"Name": "Unsupported datatype - int4multirange",
 			"Description": "INT4MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
 			"Impact": "LEVEL_3",
@@ -1490,7 +1490,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_DATE_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_DATEMULTIRANGE",
 			"Name": "Unsupported datatype - datemultirange",
 			"Description": "DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: project_dates.",
 			"Impact": "LEVEL_3",
@@ -1505,7 +1505,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_NUM_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_NUMMULTIRANGE",
 			"Name": "Unsupported datatype - nummultirange",
 			"Description": "NUMMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: price_ranges.",
 			"Impact": "LEVEL_3",
@@ -1520,7 +1520,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_INT4_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_INT4MULTIRANGE",
 			"Name": "Unsupported datatype - int4multirange",
 			"Description": "INT4MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
 			"Impact": "LEVEL_3",
@@ -1535,7 +1535,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_DATE_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_DATEMULTIRANGE",
 			"Name": "Unsupported datatype - datemultirange",
 			"Description": "DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: project_dates.",
 			"Impact": "LEVEL_3",
@@ -1576,7 +1576,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_TS_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_TSMULTIRANGE",
 			"Name": "Unsupported datatype - tsmultirange",
 			"Description": "TSMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: event_times.",
 			"Impact": "LEVEL_3",
@@ -1591,7 +1591,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_TSTZMULTIRANGE",
 			"Name": "Unsupported datatype - tstzmultirange",
 			"Description": "TSTZMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: global_event_times.",
 			"Impact": "LEVEL_3",
@@ -1697,7 +1697,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_INT8_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_INT8MULTIRANGE",
 			"Name": "Unsupported datatype - int8multirange",
 			"Description": "INT8MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
 			"Impact": "LEVEL_3",
@@ -1751,7 +1751,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_TS_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_TSMULTIRANGE",
 			"Name": "Unsupported datatype - tsmultirange",
 			"Description": "TSMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: event_times.",
 			"Impact": "LEVEL_3",
@@ -1766,7 +1766,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_NUM_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_NUMMULTIRANGE",
 			"Name": "Unsupported datatype - nummultirange",
 			"Description": "NUMMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: price_ranges.",
 			"Impact": "LEVEL_3",
@@ -1781,7 +1781,7 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_DATATYPE_TSTZ_MULTIRANGE",
+			"Type": "UNSUPPORTED_DATATYPE_TSTZMULTIRANGE",
 			"Name": "Unsupported datatype - tstzmultirange",
 			"Description": "TSTZMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: global_event_times.",
 			"Impact": "LEVEL_3",
