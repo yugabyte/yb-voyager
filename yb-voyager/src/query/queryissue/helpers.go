@@ -17,6 +17,8 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
+
 	mapset "github.com/deckarep/golang-set/v2"
 )
 
@@ -181,3 +183,18 @@ var unsupportedDatabaseOptionsFromPG15 = mapset.NewThreadUnsafeSet([]string{
 var unsupportedDatabaseOptionsFromPG17 = mapset.NewThreadUnsafeSet([]string{
 	"builtin_locale", "icu_rules",
 }...)
+
+// Note: Not quoting extname like `"uuid-ossp"` as the pgparser returns case sensitive name without any quotes
+var SupportedExtensionsOnYB = []string{
+	"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
+	"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
+	"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
+	"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
+	"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
+	"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
+	"tsm_system_time", "unaccent", "uuid-ossp", "yb_pg_metrics", "yb_test_extension",
+}
+
+func AppendObjectNameToIssueName(issueName string, objectName string) string {
+	return fmt.Sprintf("%s - %s", issueName, objectName)
+}

@@ -29,7 +29,7 @@ import (
 
 // Base parser interface
 /*
-Whenever adding a new DDL type to prasing for detecting issues, need to extend this DDLProcessor
+Whenever adding a new DDL type to parse for detecting issues, need to extend this DDLProcessor
 with the Process() function to adding logic to get the required information out from the parseTree of that DDL
 and store it in a DDLObject struct
 */
@@ -40,7 +40,7 @@ type DDLProcessor interface {
 // Base DDL object interface
 /*
 Whenever adding a new DDL type, You need to extend this DDLObject struct to be extended for that object type
-with the required for storing the information which should have these required function also extended for the objeect Name and schema name
+with the required for storing the information which should have these required function also extended for the object Name and schema name
 */
 type DDLObject interface {
 	GetObjectName() string
@@ -175,8 +175,8 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 				TypeSchema:  typeSchemaName,
 				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 				/*
-				CREATE TABLE tbl_comp(id int, v text COMPRESSION pglz);
-				table_elts:{column_def:{colname:"v" type_name:{names:{string:{sval:"text"}} typemod:-1 location:147} compression:"pglz" is_local:true location:145}}
+					CREATE TABLE tbl_comp(id int, v text COMPRESSION pglz);
+					table_elts:{column_def:{colname:"v" type_name:{names:{string:{sval:"text"}} typemod:-1 location:147} compression:"pglz" is_local:true location:145}}
 				*/
 				Compression: element.GetColumnDef().Compression,
 			})
@@ -1040,11 +1040,55 @@ type Function struct {
 }
 
 func (f *Function) GetObjectName() string {
-	return lo.Ternary(f.SchemaName != "", fmt.Sprintf("%s.%s", f.SchemaName, f.FuncName), f.FuncName)
+	return utils.BuildObjectName(f.SchemaName, f.FuncName)
 }
 func (f *Function) GetSchemaName() string { return f.SchemaName }
 
 func (f *Function) GetObjectType() string { return FUNCTION_OBJECT_TYPE }
+
+// ============================Extension Processor =================
+
+type ExtensionProcessor struct{}
+
+func NewExtensionProcessor() *ExtensionProcessor {
+	return &ExtensionProcessor{}
+}
+
+func (ep *ExtensionProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, error) {
+	extensionNode, ok := getCreateExtensionStmtNode(parseTree)
+	if !ok {
+		return nil, fmt.Errorf("not a CREATE EXTENSION statement")
+	}
+
+	/*
+		stmt:{create_extension_stmt:{extname:"hstore" if_not_exists:true
+		options:{def_elem:{defname:"schema" arg:{string:{sval:"public"}}....
+	*/
+	defNames, err := TraverseAndExtractDefNamesFromDefElem(extensionNode.CreateExtensionStmt.ProtoReflect())
+	if err != nil {
+		return nil, fmt.Errorf("error getting the defElems in extension: %v", err)
+	}
+
+	extension := &Extension{
+		SchemaName:    defNames["schema"],
+		ExtensionName: extensionNode.CreateExtensionStmt.Extname,
+	}
+	return extension, nil
+}
+
+type Extension struct {
+	SchemaName    string
+	ExtensionName string
+}
+
+func (e *Extension) GetObjectName() string {
+	// returning unqualified name as extension name as required in most of the cases
+	return e.ExtensionName
+}
+
+func (e *Extension) GetSchemaName() string { return e.SchemaName }
+
+func (e *Extension) GetObjectType() string { return EXTENSION_OBJECT_TYPE }
 
 //=============================No-Op PROCESSOR ==================
 
@@ -1100,6 +1144,8 @@ func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 		return NewNoOpProcessor(), nil
 	case PG_QUERY_CREATE_FUNCTION_STMT:
 		return NewFunctionProcessor(), nil
+	case PG_QUERY_CREATE_EXTENSION_STMT:
+		return NewExtensionProcessor(), nil
 	default:
 		return NewNoOpProcessor(), nil
 	}

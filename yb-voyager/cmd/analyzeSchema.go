@@ -66,22 +66,13 @@ var (
 	ws         = `[\s\n\t]+`
 	optionalWS = `[\s\n\t]*` //optional white spaces
 	//TODO: fix this ident regex for the proper PG identifiers syntax - refer: https://github.com/yugabyte/yb-voyager/pull/1547#discussion_r1629282309
-	ident                   = `[a-zA-Z0-9_."-]+`
-	operatorIdent           = `[a-zA-Z0-9_."-+*/<>=~!@#%^&|` + "`" + `]+` // refer https://www.postgresql.org/docs/current/sql-createoperator.html
-	ifExists                = opt("IF", "EXISTS")
-	ifNotExists             = opt("IF", "NOT", "EXISTS")
-	commaSeperatedTokens    = `[^,]+(?:,[^,]+){1,}`
-	unqualifiedIdent        = `[a-zA-Z0-9_]+`
-	commonClause            = `[a-zA-Z]+`
-	supportedExtensionsOnYB = []string{
-		"adminpack", "amcheck", "autoinc", "bloom", "btree_gin", "btree_gist", "citext", "cube",
-		"dblink", "dict_int", "dict_xsyn", "earthdistance", "file_fdw", "fuzzystrmatch", "hll", "hstore",
-		"hypopg", "insert_username", "intagg", "intarray", "isn", "lo", "ltree", "moddatetime",
-		"orafce", "pageinspect", "pg_buffercache", "pg_cron", "pg_freespacemap", "pg_hint_plan", "pg_prewarm", "pg_stat_monitor",
-		"pg_stat_statements", "pg_trgm", "pg_visibility", "pgaudit", "pgcrypto", "pgrowlocks", "pgstattuple", "plpgsql",
-		"postgres_fdw", "refint", "seg", "sslinfo", "tablefunc", "tcn", "timetravel", "tsm_system_rows",
-		"tsm_system_time", "unaccent", `"uuid-ossp"`, "yb_pg_metrics", "yb_test_extension",
-	}
+	ident                = `[a-zA-Z0-9_."-]+`
+	operatorIdent        = `[a-zA-Z0-9_."-+*/<>=~!@#%^&|` + "`" + `]+` // refer https://www.postgresql.org/docs/current/sql-createoperator.html
+	ifExists             = opt("IF", "EXISTS")
+	ifNotExists          = opt("IF", "NOT", "EXISTS")
+	commaSeperatedTokens = `[^,]+(?:,[^,]+){1,}`
+	unqualifiedIdent     = `[a-zA-Z0-9_]+`
+	commonClause         = `[a-zA-Z]+`
 )
 
 func cat(tokens ...string) string {
@@ -198,13 +189,11 @@ var (
 const (
 	// Type and Reason for Issues detected using regexp, reported in assessment and analyze both
 	CREATE_CONVERSION_ISSUE_TYPE      = "CREATE_CONVERSION"
-	UNSUPPORTED_EXTENSION_ISSUE_TYPE  = "UNSUPPORTED_EXTENSION"
 	VIEW_WITH_CHECK_OPTION_ISSUE_TYPE = "VIEW_WITH_CHECK_OPTION"
 	COMPOUND_TRIGGER_ISSUE_TYPE       = "COMPOUND_TRIGGER"
 	UNSUPPORTED_PG_SYNTAX_ISSUE_TYPE  = "UNSUPPORTED_PG_SYNTAX"
 
 	CREATE_CONVERSION_ISSUE_REASON     = "CREATE CONVERSION is not supported yet"
-	UNSUPPORTED_EXTENSION_ISSUE_REASON = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
 	VIEW_CHECK_OPTION_ISSUE_REASON     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
 	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER not supported in YugabyteDB."
 	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON = "SQL statement(s) might be unsupported please review and edit to match PostgreSQL syntax if required"
@@ -321,6 +310,7 @@ func addSummaryDetailsForIndexes() {
 }
 
 func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+	log.Infof("checking SQL statements using parser for object type %s in file %s", objType, fpath)
 	for _, sqlStmtInfo := range sqlInfoArr {
 		_, err := queryparser.Parse(sqlStmtInfo.formattedStmt)
 		if err != nil { //if the Stmt is not already report by any of the regexes
@@ -331,11 +321,12 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			}
 			continue
 		}
-		err = parserIssueDetector.ParseRequiredDDLs(sqlStmtInfo.formattedStmt)
+
+		err = parserIssueDetector.ParseAndProcessDDL(sqlStmtInfo.formattedStmt)
 		if err != nil {
 			utils.ErrExit("error parsing stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
-		if parserIssueDetector.IsGinIndexPresentInSchema {
+		if parserIssueDetector.IsGinIndexPresentInSchema() {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
@@ -700,19 +691,6 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Suggestion:             issueInstance.Suggestion,
 		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
-	}
-}
-
-func checkExtensions(sqlInfoArr []sqlInfo, fpath string) {
-	for _, sqlInfo := range sqlInfoArr {
-		if sqlInfo.objName != "" && !slices.Contains(supportedExtensionsOnYB, sqlInfo.objName) {
-			summaryMap["EXTENSION"].invalidCount[sqlInfo.objName] = true
-			reportCase(fpath, UNSUPPORTED_EXTENSION_ISSUE_TYPE, UNSUPPORTED_EXTENSION_ISSUE_REASON, "https://github.com/yugabyte/yb-voyager/issues/1538", "", "EXTENSION",
-				sqlInfo.objName, sqlInfo.formattedStmt, UNSUPPORTED_FEATURES_CATEGORY, EXTENSION_DOC_LINK, constants.IMPACT_LEVEL_3)
-		}
-		if strings.ToLower(sqlInfo.objName) == "hll" {
-			summaryMap["EXTENSION"].details[`'hll' extension is supported in YugabyteDB v2.18 onwards. Please verify this extension as per the target YugabyteDB version.`] = true
-		}
 	}
 }
 
@@ -1100,9 +1078,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
 		}
 		if detectIssues {
-			if objType == "EXTENSION" {
-				checkExtensions(sqlInfoArr, filePath)
-			}
 			checker(sqlInfoArr, filePath, objType)
 
 			if objType == "CONVERSION" {
@@ -1249,7 +1224,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 // analyze issue types to send the object names for to callhome
 var includeObjectNameInCallhomePayloadForIssueTypes = []string{
-	UNSUPPORTED_EXTENSION_ISSUE_TYPE,
+	queryissue.UNSUPPORTED_EXTENSION,
 }
 
 func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
@@ -1271,8 +1246,10 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			ObjectName: constants.OBFUSCATE_STRING,
 		}
 
+		// special handling for extension name in callhome issues: retail object name and make issue name explicit
 		if slices.Contains(includeObjectNameInCallhomePayloadForIssueTypes, origIssue.Type) {
 			callhomeIssue.ObjectName = origIssue.ObjectName
+			callhomeIssue.Name = queryissue.AppendObjectNameToIssueName(origIssue.Name, origIssue.ObjectName)
 		}
 
 		callhomeIssues = append(callhomeIssues, callhomeIssue)
