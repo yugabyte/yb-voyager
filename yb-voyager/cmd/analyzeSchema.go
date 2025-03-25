@@ -213,10 +213,8 @@ const (
 	STORED_GENERATED_COLUMN_ISSUE_REASON = "Stored generated columns are not supported."
 	POLICY_ROLE_ISSUE                    = "Policy require roles to be created."
 
-	UNSUPPORTED_DATATYPE                           = "Unsupported datatype"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION            = "Unsupported datatype for Live migration"
-	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB = "Unsupported datatype for Live migration with fall-forward/fallback"
-	UNSUPPORTED_PG_SYNTAX                          = "Unsupported PG syntax"
+	UNSUPPORTED_DATATYPE  = "Unsupported datatype"
+	UNSUPPORTED_PG_SYNTAX = "Unsupported PG syntax"
 
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION = "insufficient columns in the PRIMARY KEY constraint definition in CREATE TABLE"
 	GIN_INDEX_DETAILS                        = "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
@@ -345,7 +343,7 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
-			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false))
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false, true))
 		}
 	}
 }
@@ -612,21 +610,22 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			continue
 		}
 		for _, issueInstance := range issues {
-			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true)
+			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
 	}
 
 }
 
-func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool) utils.AnalyzeSchemaIssue {
+// addToSummaryMap parameter has been added so that this function can be used to just convert any QueryIssue to AnalyzeSchemaIssue
+// without adding it to the summaryMap
+// addToSummaryMap=false is being used in assess migration where we are getting the QueryIssues for the respective unsupported datatypes and converting them to AnalyzeSchemaIssue
+// summaryMap is used in schema analysis report to show the summary of the schema objects
+func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fileName string, isPlPgSQLIssue bool, addToSummaryMap bool) utils.AnalyzeSchemaIssue {
 	issueType := UNSUPPORTED_FEATURES_CATEGORY
 
-	var migrationCaveatsIssues = []string{
-		queryissue.ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
-		queryissue.FOREIGN_TABLE,
-		queryissue.POLICY_WITH_ROLES,
-	}
+	// Adding all the migration caveats issues to the migrationCaveatsIssues
+	var migrationCaveatsIssues = queryissue.MigrationCaveatsIssues
 
 	// Adding the Unsupported datatypes issues to the MigrationCaveatsIssues
 	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssues...)
@@ -637,7 +636,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(migrationCaveatsIssues, func(i string) bool {
 		//Adding the MIGRATION_CAVEATS issueType(category) of the utils.Issue for these issueInstances in MigrationCaveatsIssues
-		return strings.EqualFold(issueInstance.Type, i)
+		return issueInstance.Type == i
 	}):
 		issueType = MIGRATION_CAVEATS_CATEGORY
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
@@ -683,7 +682,10 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		displayObjectName = fmt.Sprintf("%s, constraint: (%s)", issueInstance.ObjectName, constraintName)
 	}
 
-	summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	if addToSummaryMap {
+		summaryMap[issueInstance.ObjectType].invalidCount[issueInstance.ObjectName] = true
+	}
+
 	return utils.AnalyzeSchemaIssue{
 		IssueType:              issueType,
 		ObjectType:             issueInstance.ObjectType,
