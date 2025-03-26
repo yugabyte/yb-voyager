@@ -344,13 +344,13 @@ check_java() {
 }
 
 get_passed_options() {
-	OPTS=$(getopt -o "dfhpmo", --long check-only-dependencies,force-install,pg-only,oracle-only,mysql-only,help --name 'install-voyager-airgapped' -- $ARGS_LINUX)
+	OPTS=$(getopt -o "dfhpmo", --long check-dependencies-only,force-install,pg-only,oracle-only,mysql-only,help --name 'install-voyager-airgapped' -- $ARGS_LINUX)
 
 	eval set -- "$OPTS"
 
 	while true; do
 		case "$1" in
-			-d | --check-only-dependencies ) 
+			-d | --check-dependencies-only ) 
 				CHECK_ONLY_DEPENDENCIES="true";
 				shift
 				;;
@@ -373,7 +373,7 @@ get_passed_options() {
             -h | --help )
                 echo "Usage: $0 [options]"
                 echo "Options:"
-                echo "  -d, --check-only-dependencies  Check only dependencies and exit."
+                echo "  -d, --check-dependencies-only  Check only dependencies and exit."
                 echo "  -f, --force-install            Force install packages without checking dependencies."
                 echo "  -h, --help                     Display this help message."
                 echo "  -p, --pg-only                  Install and check only PostgreSQL related packages."
