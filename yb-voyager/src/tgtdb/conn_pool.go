@@ -296,6 +296,7 @@ func (pool *ConnectionPool) initSession(conn *pgx.Conn) error {
 			if strings.Contains(err.Error(), ERROR_MSG_PERMISSION_DENIED) {
 				return nil
 			}
+			log.Errorf("Failed to execute session init script %q: %s\n", v, err)
 			return err
 		}
 	}
