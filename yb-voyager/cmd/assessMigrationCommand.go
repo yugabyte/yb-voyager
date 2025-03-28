@@ -498,6 +498,8 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalShardedSize:   totalShardedSize,
 		},
 		ConversionIssues: schemaAnalysisReport.Issues,
+		Sizing:           assessmentReport.Sizing,
+		TableIndexStats:  assessmentReport.TableIndexStats,
 		AssessmentJsonReport: AssessmentReportYugabyteD{
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,
