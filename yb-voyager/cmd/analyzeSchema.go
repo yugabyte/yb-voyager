@@ -195,7 +195,7 @@ const (
 
 	CREATE_CONVERSION_ISSUE_REASON     = "CREATE CONVERSION is not supported yet"
 	VIEW_CHECK_OPTION_ISSUE_REASON     = "Schema containing VIEW WITH CHECK OPTION is not supported yet."
-	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER not supported in YugabyteDB."
+	COMPOUND_TRIGGER_ISSUE_REASON      = "COMPOUND TRIGGER is not supported in YugabyteDB."
 	UNSUPPORTED_PG_SYNTAX_ISSUE_REASON = "SQL statement(s) might be unsupported please review and edit to match PostgreSQL syntax if required"
 
 	// Refactor: constants below used in some comparisions (use Issue Type there and remove these)

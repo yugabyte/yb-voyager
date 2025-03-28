@@ -1884,7 +1884,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	Type:        SQL_BODY_IN_FUNCTION,
 	Name:        SQL_BODY_IN_FUNCTION_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: "SQL Body for sql languages in function statement is not supported in YugabyteDB",
+	Description: SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
