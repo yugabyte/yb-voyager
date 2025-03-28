@@ -150,10 +150,6 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
-	if [ "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
-		"${SCRIPTS}/add-pk-from-alter-to-create"
-	fi
-
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
@@ -173,9 +169,10 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
 	step "Run validations."
-	if [ -x "${TEST_DIR}/validate" ]
-	then
-		 "${TEST_DIR}/validate"
+	if [[ "${EXPORT_TABLE_LIST}" != "" && -x "${TEST_DIR}/validate-with-table-list" ]]; then
+		"${TEST_DIR}/validate-with-table-list"
+	elif [[ -x "${TEST_DIR}/validate" ]]; then
+		"${TEST_DIR}/validate"
 	fi
 
 	step "Run export-data-status"
@@ -198,6 +195,10 @@ main() {
 	expected_file="${TEST_DIR}/import_data_status-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
 
+    if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		expected_file="${TEST_DIR}/import-data-status-with-table-list-report.json"
+	fi
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
 

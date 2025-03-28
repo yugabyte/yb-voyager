@@ -93,8 +93,14 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 		return true, nil
 	})
-
-	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	colToSeqMap, err := fetchOrRetrieveColToSeqMap(msr, tableList)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error fetching or retrieving the column to sequence mapping: %v", err)
+	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
 		return nil, nil, fmt.Errorf("getting column to sequence mapping %s", err)
@@ -108,11 +114,6 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	tableRenameMapping := strings.Join(lo.MapToSlice(partitionsToRootTableMap, func(k, v string) string {
 		return fmt.Sprintf("%s:%s", k, v)
 	}), ",")
-
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get migration status record: %w", err)
-	}
 
 	dbzmLogLevel := config.LogLevel
 	if config.IsLogLevelErrorOrAbove() {
@@ -234,6 +235,34 @@ func generateOrGetStreamIDForYugabyteCDCClient(config *dbzm.Config) error {
 		}
 	}
 	return nil
+}
+
+func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []sqlname.NameTuple) (map[string]string, error) {
+	var storedColToSeqMap map[string]string
+	//fetching the stored one in the MSR
+	switch exporterRole {
+	case SOURCE_DB_EXPORTER_ROLE:
+		storedColToSeqMap = msr.SourceColumnToSequenceMapping
+	case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
+		storedColToSeqMap = msr.TargetColumnToSequenceMapping
+	}
+	if storedColToSeqMap != nil && !bool(startClean) {
+		return storedColToSeqMap, nil
+	}
+	colToSeqMap := source.DB().GetColumnToSequenceMap(tableList)
+	//Storing this col-to-sequence mapping in the MSR as we want to avoid going to db in subsequent runs
+	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		switch exporterRole {
+		case SOURCE_DB_EXPORTER_ROLE:
+			record.SourceColumnToSequenceMapping = colToSeqMap
+		case TARGET_DB_EXPORTER_FB_ROLE, TARGET_DB_EXPORTER_FF_ROLE:
+			record.TargetColumnToSequenceMapping = colToSeqMap
+		}
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error in updating migration status record: %v", err)
+	}
+	return colToSeqMap, nil
 }
 
 func getColumnToSequenceMapping(colToSeqMap map[string]string) (string, error) {

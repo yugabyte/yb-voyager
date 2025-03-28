@@ -864,3 +864,23 @@ func ObfuscateFormatDetails(format, final, obfuscateWith string) (string, error)
 	sb.WriteString(final[lastIndex:]) // Append the text after the last group.
 	return sb.String(), nil
 }
+
+func JoinSentences(s1, s2 string) string {
+	s1 = strings.TrimSpace(s1)
+	s2 = strings.TrimSpace(s2)
+
+	// Check if s1 already ends with a full stop
+	if strings.HasSuffix(s1, ".") {
+		return s1 + " " + s2
+	}
+	return s1 + ". " + s2
+}
+
+// SliceLastElement returns the last element of a slice (if non-empty) and a boolean indicating success.
+func SliceLastElement[T any](slice []T) (T, bool) {
+	if len(slice) == 0 {
+		var zeroValue T // Default zero value of type T
+		return zeroValue, false
+	}
+	return slice[len(slice)-1], true
+}

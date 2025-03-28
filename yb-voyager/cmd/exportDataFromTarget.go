@@ -23,6 +23,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -49,6 +50,14 @@ var exportDataFromTargetCmd = &cobra.Command{
 		err = verifySSLFlags()
 		if err != nil {
 			utils.ErrExit("failed to verify SSL flags: %v", err)
+		}
+		if source.SSLRootCert != "" {
+			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				record.TargetDBConf.SSLRootCert = source.SSLRootCert
+			})
+			if err != nil {
+				utils.ErrExit("error updating migration status record: %v", err)
+			}
 		}
 		err = initSourceConfFromTargetConf()
 		if err != nil {

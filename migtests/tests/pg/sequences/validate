@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 import yb
-
+import os
 def main():
     yb.run_checks(migration_completed_checks)
     yb.run_checks(YB_specific_checks)
@@ -91,11 +91,11 @@ NUM_TABLES = {
 }
 
 NUM_SEQUENCES = {
-    'public': 4+3+1+2, # 2 are implicit because of serial/generated columns
+    'public': 4+3+1+2+1, # 2 are implicit because of serial/generated columns
     'schema1': 1+3, # 3 are implicit because of serial/generated columns
-    'schema2': 1,
-    'schema3': 1,
-    'schema4': 0
+    'schema2': 1+1,
+    'schema3': 1+1,
+    'schema4': 0+1,
 }
 
 def YB_specific_checks(tgt):
@@ -168,6 +168,74 @@ def migration_completed_checks_for_sequences_partitions(tgt):
     print(f"for sequence_check3, Id returned- {id_returned} and expected id - {expected_id}")
     assert id_returned == expected_id
 
+def migration_completed_checks_for_sequences_attached_to_multiple_table_columns(tgt):
+    UNIQUE_CONSTRAINT_ERROR_CODE = 23505
+    INSERT_SEQUENCE_QUERY = f"insert into public.foo(value) values('TEST')"
+    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, UNIQUE_CONSTRAINT_ERROR_CODE)
+    print(f"insert query returned for public.foo - {insert_query_chk_error}")
+    assert insert_query_chk_error == False
+
+    SELECT_ID_QUERY = f"select id from public.foo where value = 'TEST';"
+    id_returned = tgt.execute_query(SELECT_ID_QUERY)
+    expected_id = EXPECTED_ROW_COUNT['public']['foo'] +  EXPECTED_ROW_COUNT['public']['bar'] + 1
+    print(f"for public.foo, Id returned- {id_returned} and expected id - {expected_id}")
+    assert id_returned == expected_id
+
+    INSERT_SEQUENCE_QUERY = f"insert into public.bar(value) values('2024-06-10')"
+    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, UNIQUE_CONSTRAINT_ERROR_CODE)
+    print(f"insert query returned for public.bar - {insert_query_chk_error}")
+    assert insert_query_chk_error == False
+
+    SELECT_ID_QUERY = f"select id from public.bar where value = '2024-06-10';"
+    id_returned = tgt.execute_query(SELECT_ID_QUERY)
+    expected_id = EXPECTED_ROW_COUNT['public']['foo'] +  EXPECTED_ROW_COUNT['public']['bar'] + 2
+    print(f"for bar, Id returned- {id_returned} and expected id - {expected_id}")
+    assert id_returned == expected_id
+    
+    INSERT_SEQUENCE_QUERY = f"insert into schema3.foo(value) values('TEST2')"
+    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, UNIQUE_CONSTRAINT_ERROR_CODE)
+    print(f"insert query returned for schema3.foo - {insert_query_chk_error}")
+    assert insert_query_chk_error == False
+
+    SELECT_ID_QUERY = f"select id from schema3.foo where value = 'TEST2';"
+    id_returned = tgt.execute_query(SELECT_ID_QUERY)
+    expected_id = EXPECTED_ROW_COUNT['schema3']['foo'] + EXPECTED_ROW_COUNT['schema4']['bar'] + 1
+    print(f"for schema3.foo, Id returned- {id_returned} and expected id - {expected_id}")
+    assert id_returned == expected_id
+
+    INSERT_SEQUENCE_QUERY = f"insert into schema4.bar(value) values('2024-05-22')"
+    insert_query_chk_error = tgt.run_query_and_chk_error(INSERT_SEQUENCE_QUERY, UNIQUE_CONSTRAINT_ERROR_CODE)
+    print(f"insert query returned for schema4.bar - {insert_query_chk_error}")
+    assert insert_query_chk_error == False
+
+    SELECT_ID_QUERY = f"select id from schema4.bar where value = '2024-05-22';"
+    id_returned = tgt.execute_query(SELECT_ID_QUERY)
+    expected_id = EXPECTED_ROW_COUNT['schema3']['foo'] + EXPECTED_ROW_COUNT['schema4']['bar'] + 2
+    print(f"for schema4.bar, Id returned- {id_returned} and expected id - {expected_id}")
+    assert id_returned == expected_id
+
+
+EXPECTED_SEQUENCE_VALUES_NOT_ATTACHED_TO_COLUMNS_OR_ARE_NON_INT_COLS = {
+    'public.seq1':0,
+    'schema2.seq1':0,
+    'schema3.seq1':0,
+    'schema4.seq1':0,
+    'user_code_seq':3
+}
+
+#Not migrating this sequence as this is sequence on non-integer column for BETA_FAST_DATA_EXPORT
+if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
+    EXPECTED_SEQUENCE_VALUES_NOT_ATTACHED_TO_COLUMNS_OR_ARE_NON_INT_COLS['user_code_seq'] = 0
+
+def migration_completed_checks_for_sequences_not_attached_columns(tgt):
+    for sequence, last_val in EXPECTED_SEQUENCE_VALUES_NOT_ATTACHED_TO_COLUMNS_OR_ARE_NON_INT_COLS.items():
+        NEXT_VAL_QUERY = f"SELECT pg_catalog.nextval('{sequence}');"
+        val_returned = tgt.execute_query(NEXT_VAL_QUERY)
+        #As we are not migrating the sequences not attached to the table columns hence it should return 1
+        expected_val = last_val +1
+        print(f"for sequence - {sequence}, val returned- {val_returned} and expected val - {expected_val}")
+        assert val_returned == expected_val
+
 
 def migration_completed_checks(tgt):
     migration_completed_checks_per_schema(tgt, 'public')
@@ -178,6 +246,8 @@ def migration_completed_checks(tgt):
 
     migration_completed_checks_for_sequences_per_schema(tgt, 'public')
     migration_completed_checks_for_sequences_per_schema(tgt, 'schema1')
+    migration_completed_checks_for_sequences_attached_to_multiple_table_columns(tgt)
+    migration_completed_checks_for_sequences_not_attached_columns(tgt)
     migration_completed_checks_for_sequences_partitions(tgt)
 
 if __name__ == "__main__":

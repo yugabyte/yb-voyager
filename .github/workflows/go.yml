@@ -10,6 +10,8 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-22.04
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
     steps:
     - uses: actions/checkout@v3
 

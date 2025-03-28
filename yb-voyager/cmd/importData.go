@@ -50,6 +50,9 @@ import (
 var metaInfoDirName = META_INFO_DIR_NAME
 var batchSizeInNumRows = int64(0)
 var batchImportPool *pool.Pool
+var colocatedBatchImportPool *pool.Pool
+var colocatedBatchImportQueue chan func()
+
 var tablesProgressMetadata map[string]*utils.TableProgressMetadata
 var importerRole string
 var identityColumnsMetaDBKey string
@@ -575,16 +578,11 @@ func importData(importFileTasks []*ImportFileTask) {
 		} else {
 			utils.PrintAndLog("Tables to import: %v", importFileTasksToTableNames(pendingTasks))
 			prepareTableToColumns(pendingTasks) //prepare the tableToColumns map
-			poolSize := tconf.Parallelism * 2
-			maxTasksInProgress := tconf.Parallelism
-			if tconf.EnableYBAdaptiveParallelism {
-				// in case of adaptive parallelism, we need to use maxParalllelism * 2
-				yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-				if !ok {
-					utils.ErrExit("adaptive parallelism is only supported if target DB is YugabyteDB")
-				}
-				poolSize = yb.GetNumMaxConnectionsInPool() * 2
+			maxParallelConns, err := getMaxParallelConnections()
+			if err != nil {
+				utils.ErrExit("Failed to get max parallel connections: %s", err)
 			}
+
 			progressReporter := NewImportDataProgressReporter(bool(disablePb))
 
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -592,20 +590,22 @@ func importData(importFileTasks []*ImportFileTask) {
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
 			}
 
-			useTaskPicker := utils.GetEnvAsBool("USE_TASK_PICKER_FOR_IMPORT", true)
+			useTaskPicker := utils.GetEnvAsBool("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
-				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, poolSize, maxTasksInProgress)
+				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress)
 				if err != nil {
-					utils.ErrExit("Failed to import tasks via task picker: %s", err)
+					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
 			} else {
+				poolSize := maxParallelConns * 2
 				for _, task := range pendingTasks {
 					// The code can produce `poolSize` number of batches at a time. But, it can consume only
 					// `parallelism` number of batches at a time.
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -700,8 +700,21 @@ func importData(importFileTasks []*ImportFileTask) {
 
 }
 
+func getMaxParallelConnections() (int, error) {
+	maxParallelConns := tconf.Parallelism
+	if tconf.EnableYBAdaptiveParallelism {
+		// in case of adaptive parallelism, we need to use maxParalllelism * 2
+		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		if !ok {
+			return 0, fmt.Errorf("adaptive parallelism is only supported if target DB is YugabyteDB")
+		}
+		maxParallelConns = yb.GetNumMaxConnectionsInPool()
+	}
+	return maxParallelConns, nil
+}
+
 /*
-1. Initialize a worker pool
+1. Initialize a worker pool. In case of TARGET_DB_IMPORTER_ROLE  or IMPORT_FILE_ROLE, also create a colocated batch import pool and a corresponding queue.
 2. Create a task picker which helps the importer choose which task to process in each iteration.
 3. Loop until all tasks are done:
   - Pick a task from the task picker.
@@ -709,21 +722,27 @@ func importData(importFileTasks []*ImportFileTask) {
   - For the task that is picked, produce the next batch and submit it to the worker pool. Worker will asynchronously import the batch.
   - If task is done, mark it as done in the task picker.
 */
-func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, poolSize int, maxTasksInProgress int) error {
-	// The code can produce `poolSize` number of batches at a time. But, it can consume only
-	// `parallelism` number of batches at a time.
-	batchImportPool = pool.New().WithMaxGoroutines(poolSize)
-	log.Infof("created batch import pool of size: %d", poolSize)
+func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int) error {
+
+	var err error
+
+	setupWorkerPoolAndQueue(maxParallelConns, maxColocatedBatchesInProgress)
 	taskImporters := map[int]*FileTaskImporter{}
+	tableTypes, err := getTableTypes(pendingTasks)
+	if err != nil {
+		return fmt.Errorf("get table types: %w", err)
+	}
 
 	var taskPicker FileTaskPicker
-	var err error
+	var yb *tgtdb.TargetYugabyteDB
+	var ok bool
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
-		yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+		yb, ok = tdb.(*tgtdb.TargetYugabyteDB)
 		if !ok {
 			return fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 		}
-		taskPicker, err = NewColocatedAwareRandomTaskPicker(maxTasksInProgress, pendingTasks, state, yb)
+		taskPicker, err = NewColocatedCappedRandomTaskPicker(maxShardedTasksInProgress, maxColocatedBatchesInProgress, pendingTasks, state, yb, colocatedBatchImportQueue, tableTypes)
 		if err != nil {
 			return fmt.Errorf("create colocated aware randmo task picker: %w", err)
 		}
@@ -744,9 +763,9 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes)
 			if err != nil {
-				return fmt.Errorf("create file task importer: %s", err)
+				return fmt.Errorf("create file task importer: %w", err)
 			}
 			log.Infof("created file task importer for table: %s, task: %v", task.TableNameTup.ForOutput(), task)
 			taskImporters[task.ID] = taskImporter
@@ -787,6 +806,94 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		}
 	}
 	return nil
+}
+
+func setupWorkerPoolAndQueue(maxParallelConns int, maxColocatedBatchesInProgress int) {
+	shardedPoolSize := maxParallelConns * 2
+	batchImportPool = pool.New().WithMaxGoroutines(shardedPoolSize)
+	log.Infof("created batch import pool of size: %d", shardedPoolSize)
+
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		colocatedBatchImportPool = pool.New().WithMaxGoroutines(maxColocatedBatchesInProgress)
+		log.Infof("created colocated batch import pool of size: %d", maxColocatedBatchesInProgress)
+
+		colocatedBatchImportQueue = make(chan func(), maxColocatedBatchesInProgress*2)
+
+		colocatedBatchImportQueueConsumer := func() {
+			// just read from channel and submit to the worker pool.
+			// worker pool has a max size of maxColocatedBatchesInProgress, so it will block if all workers are busy.
+			for {
+				select {
+				case f := <-colocatedBatchImportQueue:
+					colocatedBatchImportPool.Go(f)
+				}
+			}
+		}
+		go colocatedBatchImportQueueConsumer()
+	}
+}
+
+// getTableTypes returns a map of table name to table type (sharded/colocated) for all tables in the tasks.
+func getTableTypes(tasks []*ImportFileTask) (*utils.StructMap[sqlname.NameTuple, string], error) {
+	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil, nil
+	}
+
+	tableTypes := utils.NewStructMap[sqlname.NameTuple, string]()
+	yb, ok := tdb.(YbTargetDBColocatedChecker)
+	if !ok {
+		return nil, fmt.Errorf("expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+	isDBColocated, err := yb.IsDBColocated()
+	if err != nil {
+		return nil, fmt.Errorf("checking if db is colocated: %w", err)
+	}
+	for _, task := range tasks {
+		if tableType, ok := tableTypes.Get(task.TableNameTup); !ok {
+			if !isDBColocated {
+				tableType = SHARDED
+			} else {
+				isColocated, err := yb.IsTableColocated(task.TableNameTup)
+				if err != nil {
+					return nil, fmt.Errorf("checking if table is colocated: table: %v: %w", task.TableNameTup.ForOutput(), err)
+				}
+				tableType = lo.Ternary(isColocated, COLOCATED, SHARDED)
+			}
+			tableTypes.Put(task.TableNameTup, tableType)
+		}
+	}
+	return tableTypes, nil
+
+}
+
+/*
+when TARGET_DB_IMPORTER_ROLE or IMPORT_FILE_ROLE, we pass on
+the batchImportPool and the colocatedBatchImportQueue to the FileTaskImporter
+so that it can submit sharded table batches to the batchImportPool,
+and colocated table batches to the colocatedBatchImportQueue.
+
+Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
+*/
+func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(), tableTypes *utils.StructMap[sqlname.NameTuple, string]) (*FileTaskImporter, error) {
+	var taskImporter *FileTaskImporter
+	var err error
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		tableType, ok := tableTypes.Get(task.TableNameTup)
+		if !ok {
+			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
+		}
+
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED)
+		if err != nil {
+			return nil, fmt.Errorf("create file task importer: %w", err)
+		}
+	} else {
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
+		if err != nil {
+			return nil, fmt.Errorf("create file task importer: %w", err)
+		}
+	}
+	return taskImporter, nil
 }
 
 func startAdaptiveParallelism() (bool, error) {
