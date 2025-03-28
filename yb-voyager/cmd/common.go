@@ -1140,6 +1140,8 @@ Version History
 */
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.2"
 
+// TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
+// Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
 type AssessMigrationPayload struct {
 	PayloadVersion                 string
 	VoyagerVersion                 string
@@ -1151,6 +1153,8 @@ type AssessMigrationPayload struct {
 	SourceSizeDetails              SourceDBSizeDetails
 	TargetRecommendations          TargetSizingRecommendations
 	ConversionIssues               []utils.AnalyzeSchemaIssue
+	Sizing                         *migassessment.SizingAssessmentReport
+	TableIndexStats                *[]migassessment.TableIndexStats
 	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReportYugabyteD
 }
