@@ -363,7 +363,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 		Error:              callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnable:  getControlPlaneType() == YUGABYTED,
+		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):

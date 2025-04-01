@@ -180,10 +180,10 @@ func packAndSendExportDataPayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = EXPORT_DATA_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs:      int64(source.NumConnections),
-		StartClean:        bool(startClean),
-		Error:             callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnable: getControlPlaneType() == YUGABYTED,
+		ParallelJobs:       int64(source.NumConnections),
+		StartClean:         bool(startClean),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
+		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
 	}
 
 	updateExportSnapshotDataStatsInPayload(&exportDataPayload)

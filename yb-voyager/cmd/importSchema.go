@@ -293,7 +293,7 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		PostSnapshotImport: bool(flagPostSnapshotImport),
 		StartClean:         bool(startClean),
 		Error:              callhome.SanitizeErrorMsg(errMsg),
-		YugabyteDUIEnable:  getControlPlaneType() == YUGABYTED,
+		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
 	err := callhome.SendPayload(&payload)

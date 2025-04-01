@@ -79,9 +79,9 @@ func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
 		bulkAssessmentDBConfigs[i].Password = ""
 	}
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
-		FleetConfigCount:  len(bulkAssessmentDBConfigs),
-		Error:             callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnable: getControlPlaneType() == YUGABYTED,
+		FleetConfigCount:   len(bulkAssessmentDBConfigs),
+		Error:              callhome.SanitizeErrorMsg(errorMsg),
+		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)
