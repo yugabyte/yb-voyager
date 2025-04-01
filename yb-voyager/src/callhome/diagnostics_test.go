@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	"github.com/google/uuid"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -87,6 +88,7 @@ func TestCallhomeStructs(t *testing.T) {
 				IndexSizingStats               string                    `json:"index_sizing_stats"`
 				SourceConnectivity             bool                      `json:"source_connectivity"`
 				IopsInterval                   int64                     `json:"iops_interval"`
+				YugabyteDUIEnabled             bool                      `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -121,8 +123,9 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate AssessMigrationBulkPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AssessMigrationBulkPhasePayload{}),
 			expectedType: struct {
-				FleetConfigCount int    `json:"fleet_config_count"`
-				Error            string `json:"error"`
+				FleetConfigCount   int    `json:"fleet_config_count"`
+				Error              string `json:"error"`
+				YugabyteDUIEnabled bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -145,17 +148,19 @@ func TestCallhomeStructs(t *testing.T) {
 				UseOrafce              bool   `json:"use_orafce"`
 				CommentsOnObjects      bool   `json:"comments_on_objects"`
 				Error                  string `json:"error"`
+				YugabyteDUIEnabled     bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
 			name:       "Validate AnalyzePhasePayload Struct Definition",
 			actualType: reflect.TypeOf(AnalyzePhasePayload{}),
 			expectedType: struct {
-				PayloadVersion  string                 `json:"payload_version"`
-				TargetDBVersion *ybversion.YBVersion   `json:"target_db_version"`
-				Issues          []AnalyzeIssueCallhome `json:"issues"`
-				DatabaseObjects string                 `json:"database_objects"`
-				Error           string                 `json:"error"`
+				PayloadVersion     string                 `json:"payload_version"`
+				TargetDBVersion    *ybversion.YBVersion   `json:"target_db_version"`
+				Issues             []AnalyzeIssueCallhome `json:"issues"`
+				DatabaseObjects    string                 `json:"database_objects"`
+				Error              string                 `json:"error"`
+				YugabyteDUIEnabled bool                   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -184,6 +189,7 @@ func TestCallhomeStructs(t *testing.T) {
 				EventsExportRate        int64  `json:"events_export_rate_3m,omitempty"`
 				LiveWorkflowType        string `json:"live_workflow_type,omitempty"`
 				Error                   string `json:"error"`
+				YugabyteDUIEnabled      bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -198,6 +204,7 @@ func TestCallhomeStructs(t *testing.T) {
 				PostSnapshotImport bool   `json:"post_snapshot_import"`
 				StartClean         bool   `json:"start_clean"`
 				Error              string `json:"error"`
+				YugabyteDUIEnabled bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -214,6 +221,7 @@ func TestCallhomeStructs(t *testing.T) {
 				LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 				EnableUpsert        bool   `json:"enable_upsert"`
 				Error               string `json:"error"`
+				YugabyteDUIEnabled  bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -227,6 +235,7 @@ func TestCallhomeStructs(t *testing.T) {
 				StartClean         bool   `json:"start_clean"`
 				DataFileParameters string `json:"data_file_parameters"`
 				Error              string `json:"error"`
+				YugabyteDUIEnabled bool   `json:"yugabyted_ui_enabled"`
 			}{},
 		},
 		{
@@ -250,6 +259,8 @@ func TestCallhomeStructs(t *testing.T) {
 				BackupSchemaFiles    bool   `json:"backup_schema_files"`
 				SaveMigrationReports bool   `json:"save_migration_reports"`
 				Error                string `json:"error"`
+				YugabyteDUIEnabled  bool   `json:"yugabyted_ui_enabled"`
+
 			}{},
 		},
 	}
