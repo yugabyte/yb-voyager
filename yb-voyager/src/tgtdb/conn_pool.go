@@ -25,6 +25,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -278,6 +279,30 @@ func (pool *ConnectionPool) shuffledConnUriList() []string {
 		connUriList[i], connUriList[j] = connUriList[j], connUriList[i]
 	})
 	return connUriList
+}
+
+func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
+	log.Infof("Checking for connections on host: %s", servers)
+	var conn *pgx.Conn
+	var gotIt bool
+	for {
+		conn, gotIt = <-pool.conns
+		if !gotIt {
+			break
+		}
+
+		if conn == nil {
+			break
+		}
+		if slices.Contains(servers, conn.Config().Host) {
+			log.Infof("Removing the connection for server: %s", conn.Config().Host)
+			conn.Close(context.Background())
+		} else {
+			pool.conns <- conn
+		}
+	}
+
+	return nil
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {

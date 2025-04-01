@@ -175,7 +175,10 @@ func (yb *TargetYugabyteDB) connect() error {
 	if err != nil {
 		return fmt.Errorf("connect to target db: %w", err)
 	}
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		return fmt.Errorf("error setting target schema: %w", err)
+	}
 	yb.conn_ = conn
 	return nil
 }
@@ -222,7 +225,17 @@ func (yb *TargetYugabyteDB) PrepareForStreaming() {
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {
-	tconfs := yb.getYBServers()
+	var tconfs []*TargetConf
+	loadBalancerUsed, confs, err := yb.GetYBServers()
+	if err != nil {
+		return fmt.Errorf("error fetching the yb servers: %v", err)
+	}
+	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+		utils.PrintAndLog(LB_WARN_MSG)
+		tconfs = []*TargetConf{yb.tconf}
+	} else {
+		tconfs = testAndFilterYbServers(confs)
+	}
 	var targetUriList []string
 	for _, tconf := range tconfs {
 		targetUriList = append(targetUriList, tconf.Uri)
@@ -250,7 +263,7 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	yb.connPool = NewConnectionPool(params)
 	redactedParams := &ConnectionParams{}
 	//Whenever adding new fields to CONNECTION PARAMS check if that needs to be redacted while logging
-	err := copier.Copy(redactedParams, params)
+	err = copier.Copy(redactedParams, params)
 	if err != nil {
 		log.Errorf("couldn't get the copy of connection params for logging: %v", err)
 		return nil
@@ -452,7 +465,10 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	defer file.Close()
 
 	//setting the schema so that COPY command can acesss the table
-	yb.setTargetSchema(conn)
+	err = yb.setTargetSchema(conn)
+	if err != nil {
+		return 0, fmt.Errorf("setting schema on conn: %w", err)
+	}
 
 	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
 	ctx := context.Background()
@@ -769,7 +785,7 @@ const (
 	GET_YB_SERVERS_QUERY = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
 )
 
-func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
+func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 	var tconfs []*TargetConf
 	var loadBalancerUsed bool
 
@@ -789,7 +805,7 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
 
 				if err != nil {
-					utils.ErrExit("error in parsing useYbServers flag: %v", err)
+					return false, nil, fmt.Errorf("error in parsing useYbServers flag: %v", err)
 				}
 			} else {
 				clone.Host = ybServer
@@ -804,13 +820,13 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 		url := tconf.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
-			utils.ErrExit("Unable to connect to database: %v", err)
+			return false, nil, fmt.Errorf("Unable to connect to database: %v", err)
 		}
 		defer conn.Close(context.Background())
 
 		rows, err := conn.Query(context.Background(), GET_YB_SERVERS_QUERY)
 		if err != nil {
-			utils.ErrExit("error in query rows from yb_servers(): %v", err)
+			return false, nil, fmt.Errorf("error in query rows from yb_servers(): %v", err)
 		}
 		defer rows.Close()
 
@@ -821,7 +837,7 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
 				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-				utils.ErrExit("error in scanning rows of yb_servers(): %v", err)
+				return false, nil, fmt.Errorf("error in scanning rows of yb_servers(): %v", err)
 			}
 
 			// check if given host is one of the server in cluster
@@ -858,13 +874,13 @@ func (yb *TargetYugabyteDB) getYBServers() []*TargetConf {
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
 
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		utils.PrintAndLog(LB_WARN_MSG)
-		tconfs = []*TargetConf{tconf}
-	} else {
-		tconfs = testAndFilterYbServers(tconfs)
-	}
-	return tconfs
+	// if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+	// 	utils.PrintAndLog(LB_WARN_MSG)
+	// 	tconfs = []*TargetConf{tconf}
+	// } else {
+	// 	tconfs = testAndFilterYbServers(tconfs)
+	// }
+	return loadBalancerUsed, tconfs, nil
 }
 
 func getCloneConnectionUri(clone *TargetConf) string {
@@ -885,10 +901,19 @@ func getCloneConnectionUri(clone *TargetConf) string {
 }
 
 func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
-	targetConfs := yb.getYBServers()
-	totalCores, _ := fetchCores(targetConfs) // no need to handle error in case we couldn't fine cores
+	var tconfs []*TargetConf
+	loadBalancerUsed, confs, err := yb.GetYBServers()
+	if err != nil {
+		log.Errorf("callhome error fetching yb servers: %v", err)
+	}
+	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+		tconfs = []*TargetConf{yb.tconf}
+	} else {
+		tconfs = testAndFilterYbServers(confs)
+	}
+	totalCores, _ := fetchCores(tconfs) // no need to handle error in case we couldn't fine cores
 	return &callhome.TargetDBDetails{
-		NodeCount: len(targetConfs),
+		NodeCount: len(tconfs),
 		Cores:     totalCores,
 		DBVersion: yb.GetVersion(),
 	}
@@ -1089,11 +1114,11 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	return err == nil
 }
 
-func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
+func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, yb.tconf.Host, err)
+		return fmt.Errorf("run query: %q on target %q: %s", setSchemaQuery, conn.Config().Host, err)
 	}
 
 	// append oracle schema in the search_path for orafce
@@ -1101,9 +1126,9 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err = conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		return fmt.Errorf("unable to update search_path for orafce extension with query: %q on target %q: %v", updateSearchPath, conn.Config().Host, err)
 	}
-
+	return nil
 }
 
 func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
@@ -1346,6 +1371,10 @@ func (yb *TargetYugabyteDB) UpdateNumConnectionsInPool(delta int) error {
 	return yb.connPool.UpdateNumConnections(delta)
 }
 
+func (yb *TargetYugabyteDB) RemoveConnectionsForHosts(servers []string) error {
+	return yb.connPool.RemoveConnectionsForHosts(servers)
+}
+
 func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportDir string) error {
 	log.Infof("clearing migration state for migrationUUID: %s", migrationUUID)
 	schema := BATCH_METADATA_TABLE_SCHEMA
@@ -1482,4 +1511,24 @@ func IsCurrentUserSuperUser(tconf *TargetConf) (bool, error) {
 
 func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string, enabledFks []string, err error) {
 	return nil, nil, nil
+}
+
+func (yb *TargetYugabyteDB) NumOfReplicationSlots() (int64,error) {
+	query := "SELECT count(slot_name) from pg_replication_slots";
+	rows, err := yb.Query(query)
+	if err != nil {
+		return 0, fmt.Errorf("querying if user is superuser: %w", err)
+	}
+	defer rows.Close()
+
+	var numOfSlots int64
+	if rows.Next() {
+		err = rows.Scan(&numOfSlots)
+		if err != nil {
+			return 0, fmt.Errorf("scanning row for query: %w", err)
+		}
+	} else {
+		return 0, fmt.Errorf("no current user found in pg_roles")
+	}
+	return numOfSlots, nil
 }

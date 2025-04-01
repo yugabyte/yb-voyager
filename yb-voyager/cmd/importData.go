@@ -41,6 +41,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitordbhealth"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -525,6 +526,10 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 		}
 	}
+	err = startMonitoringHealth()
+	if err != nil {
+		utils.ErrExit("Failed to start monitoring health: %s", err)
+	}
 	if adaptiveParallelismStarted {
 		utils.PrintAndLog("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
 	} else {
@@ -894,6 +899,20 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 		}
 	}
 	return taskImporter, nil
+}
+
+func startMonitoringHealth() error {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
+	}
+	go func() {
+		err := monitordbhealth.MonitorTargetHealth(yb)
+		if err != nil {
+			utils.ErrExit("Following nodes are not healthy, please check and fix the issue and re-run the import: %s", tconf.Host)
+		}
+	}()
+	return nil
 }
 
 func startAdaptiveParallelism() (bool, error) {
