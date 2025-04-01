@@ -1265,6 +1265,7 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			return dbObject
 		})),
 		Error: callhome.SanitizeErrorMsg(errorMsg),
+		YugabyteDUIEnable: getControlPlaneType() == YUGABYTED,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)

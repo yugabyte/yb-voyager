@@ -97,7 +97,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    tconf.TargetDBType,
+		DBType: tconf.TargetDBType,
 	}
 	if targetDBDetails != nil {
 		sourceDBDetails.DBVersion = targetDBDetails.DBVersion
@@ -106,10 +106,11 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		LiveWorkflowType: FALL_BACK,
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ParallelJobs:      int64(tconf.Parallelism),
+		StartClean:        bool(startClean),
+		LiveWorkflowType:  FALL_BACK,
+		Error:             callhome.SanitizeErrorMsg(errorMsg),
+		YugabyteDUIEnable: getControlPlaneType() == YUGABYTED,
 	}
 
 	importDataPayload.Phase = importPhase

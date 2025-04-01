@@ -112,6 +112,7 @@ type AssessMigrationPhasePayload struct {
 	IndexSizingStats               string                    `json:"index_sizing_stats"`
 	SourceConnectivity             bool                      `json:"source_connectivity"`
 	IopsInterval                   int64                     `json:"iops_interval"`
+	YugabyteDUIEnable              bool                      `json:"yugabyted_ui_enable"`
 }
 
 type AssessmentIssueCallhome struct {
@@ -145,8 +146,9 @@ type ObjectSizingStats struct {
 }
 
 type AssessMigrationBulkPhasePayload struct {
-	FleetConfigCount int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
-	Error            string `json:"error"`
+	FleetConfigCount  int    `json:"fleet_config_count"` // Not storing any source info just the count of db configs passed to bulk cmd
+	Error             string `json:"error"`
+	YugabyteDUIEnable bool   `json:"yugabyted_ui_enable"`
 }
 
 type ExportSchemaPhasePayload struct {
@@ -155,6 +157,7 @@ type ExportSchemaPhasePayload struct {
 	UseOrafce              bool   `json:"use_orafce"`
 	CommentsOnObjects      bool   `json:"comments_on_objects"`
 	Error                  string `json:"error"`
+	YugabyteDUIEnable      bool   `json:"yugabyted_ui_enable"`
 }
 
 var ANALYZE_PHASE_PAYLOAD_VERSION = "1.0"
@@ -162,11 +165,12 @@ var ANALYZE_PHASE_PAYLOAD_VERSION = "1.0"
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
 // https://github.com/yugabyte/yugabyte-growth/blob/ad5df306c50c05136df77cd6548a1091ae577046/diagnostics_v2/main.py#L563
 type AnalyzePhasePayload struct {
-	PayloadVersion  string                 `json:"payload_version"`
-	TargetDBVersion *ybversion.YBVersion   `json:"target_db_version"`
-	Issues          []AnalyzeIssueCallhome `json:"issues"`
-	DatabaseObjects string                 `json:"database_objects"`
-	Error           string                 `json:"error"`
+	PayloadVersion    string                 `json:"payload_version"`
+	TargetDBVersion   *ybversion.YBVersion   `json:"target_db_version"`
+	Issues            []AnalyzeIssueCallhome `json:"issues"`
+	DatabaseObjects   string                 `json:"database_objects"`
+	Error             string                 `json:"error"`
+	YugabyteDUIEnable bool                   `json:"yugabyted_ui_enable"`
 }
 
 type AnalyzeIssueCallhome struct {
@@ -190,6 +194,7 @@ type ExportDataPhasePayload struct {
 	EventsExportRate    int64  `json:"events_export_rate_3m,omitempty"`
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 	Error               string `json:"error"`
+	YugabyteDUIEnable   bool   `json:"yugabyted_ui_enable"`
 }
 
 type ImportSchemaPhasePayload struct {
@@ -201,6 +206,7 @@ type ImportSchemaPhasePayload struct {
 	PostSnapshotImport bool   `json:"post_snapshot_import"`
 	StartClean         bool   `json:"start_clean"`
 	Error              string `json:"error"`
+	YugabyteDUIEnable  bool   `json:"yugabyted_ui_enable"`
 }
 
 type ImportDataPhasePayload struct {
@@ -215,6 +221,7 @@ type ImportDataPhasePayload struct {
 	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
 	EnableUpsert        bool   `json:"enable_upsert"`
 	Error               string `json:"error"`
+	YugabyteDUIEnable   bool   `json:"yugabyted_ui_enable"`
 }
 
 type ImportDataFilePhasePayload struct {
@@ -225,6 +232,7 @@ type ImportDataFilePhasePayload struct {
 	StartClean         bool   `json:"start_clean"`
 	DataFileParameters string `json:"data_file_parameters"`
 	Error              string `json:"error"`
+	YugabyteDUIEnable  bool   `json:"yugabyted_ui_enable"`
 }
 
 type DataFileParameters struct {
@@ -242,6 +250,7 @@ type EndMigrationPhasePayload struct {
 	BackupSchemaFiles    bool   `json:"backup_schema_files"`
 	SaveMigrationReports bool   `json:"save_migration_reports"`
 	Error                string `json:"error"`
+	YugabyteDUIEnable    bool   `json:"yugabyted_ui_enable"`
 }
 
 func MarshalledJsonString[T any](value T) string {
