@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -157,6 +158,29 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 	masterAddresses := strings.Trim(strings.Split(stdout, ": ")[1], " \n")
 	ybc.ybMasterNodes = masterAddresses
 	return masterAddresses, nil
+}
+
+func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
+	tserverPort := "9100" //TODO: make it internally handled by yb-client
+	if os.Getenv("YB_TSERVER_PORT") != "" {
+		tserverPort = os.Getenv("YB_TSERVER_PORT")
+	}
+	args := fmt.Sprintf("-get_num_of_cdc_streams -master_addresses %s -tserver_port %s", ybc.ybServers, tserverPort)
+
+	if ybc.sslRootCert != "" {
+		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
+	}
+
+	stdout, err := ybc.runCommand(args)
+	if err != nil {
+		return 0, fmt.Errorf("running command with args: %s, error: %s", args, err)
+	}
+	//stdout - Streams: <num_of_streams>
+	numOfStreams, err := strconv.Atoi(strings.Trim(strings.Split(stdout, ": ")[1], " \n"))
+	if err != nil {
+		return 0, fmt.Errorf("error parsing the output[%v] of cmd with args[%v] : %v", stdout, args, err)
+	}
+	return numOfStreams, nil
 }
 
 func (ybc *YugabyteDBCDCClient) runCommand(args string) (string, error) {

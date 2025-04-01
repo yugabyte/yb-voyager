@@ -1513,8 +1513,8 @@ func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string
 	return nil, nil, nil
 }
 
-func (yb *TargetYugabyteDB) NumOfReplicationSlots() (int64,error) {
-	query := "SELECT count(slot_name) from pg_replication_slots";
+func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
+	query := "SELECT count(slot_name) from pg_replication_slots"
 	rows, err := yb.Query(query)
 	if err != nil {
 		return 0, fmt.Errorf("querying if user is superuser: %w", err)

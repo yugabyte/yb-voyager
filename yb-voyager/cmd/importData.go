@@ -41,7 +41,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitordbhealth"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -907,7 +907,7 @@ func startMonitoringHealth() error {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
-		err := monitordbhealth.MonitorTargetHealth(yb)
+		err := monitor.MonitorTargetHealth(yb)
 		if err != nil {
 			utils.ErrExit("Following nodes are not healthy, please check and fix the issue and re-run the import: %s", tconf.Host)
 		}
