@@ -356,6 +356,9 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled."+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
+	BoolVar(cmd.Flags(), &skipClusterHealthChecks, "skip-cluster-health-checks", false,
+		"Skips the monitoring of the health checks (Node status, disk space, etc.) of the target YugabyteDB cluster."+
+			"By default, voyager will keep monitoring all the health checks for the cluster stable.")
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {

@@ -69,6 +69,7 @@ var valueConverter dbzm.ValueConverter
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 var targetDBDetails *callhome.TargetDBDetails
+var skipClusterHealthChecks utils.BoolStr
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -902,6 +903,9 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 }
 
 func startMonitoringHealth() error {
+	if skipClusterHealthChecks {
+		return nil
+	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")

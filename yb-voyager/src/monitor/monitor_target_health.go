@@ -75,10 +75,10 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth) error {
 
 /*
 1. if node goes down
-remove its connections from pool and if any current importBatch is running that it will fail and automatic retry will take care of using the rest conns
+remove its connections from pool and if any current importBatch is running it will fail and automatic retry will take care of using the rest conns
 
 2. if node come back
-the new connections will automatically to that node handled via conn-pool
+the new connections will automatically go to that node -- handled via conn-pool
 
 3. load balancer on the cluster
 No node status checks will happen as we put the load on the load balancer IP and it will take care of this adaptation automatically
@@ -146,6 +146,10 @@ func monitorDiskAndMemoryStatusAndAbort(yb TargetDBForMonitorHealth) error {
 /*
 If any of the replication streams are enabled on the cluster during the import -
 let the user know to enable it after import data is done to avoid wal or disk space issues because of replication
+
+Caveats - 
+1. For all deployments - only logical replication info is easily detectable - using the pg_replciation_slots for getting num of logical replication slots
+2. For YBA/yugabyted - with above also trying to figure the xcluster replication streams/CDC gRPC streams using the yb-client wrapper jar to fetch num of all cdc streams on the cluster
 */
 func monitorReplicationOnTarget(yb TargetDBForMonitorHealth) error {
 	numOfSlots, err := yb.NumOfLogicalReplicationSlots()
