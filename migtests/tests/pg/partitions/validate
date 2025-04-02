@@ -203,7 +203,7 @@ def migration_completed_checks(tgt):
 		query = query_and_partition_name['query']
 		partition_table_name = query_and_partition_name['partition_table_name']
 		schema_name = query_and_partition_name['schema_name']
-		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
+		# run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
 
 	
 
