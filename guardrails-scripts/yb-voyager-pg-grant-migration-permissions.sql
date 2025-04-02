@@ -229,6 +229,16 @@ GRANT pg_read_all_stats to :voyager_user;
             schema_name = ANY(string_to_array(:'schema_list', ','))
         \gexec
 
+        \echo ''
+        \echo '--- Granting SELECT, UPDATE, USAGE on All Sequences in Specified Schemas ---'
+        SELECT 
+            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+        FROM 
+            information_schema.schemata
+        WHERE 
+            schema_name = ANY(string_to_array(:'schema_list', ','))
+        \gexec
+
         DO $$ 
         BEGIN 
         IF (substring((SELECT setting FROM pg_catalog.pg_settings WHERE name = 'server_version'), '^[0-9]+')::int >= 15) THEN
