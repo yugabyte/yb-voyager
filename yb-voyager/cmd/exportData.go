@@ -303,7 +303,7 @@ func exportData() bool {
 	tableListTuplesToDisplay := lo.Map(finalTableList, func(table sqlname.NameTuple, _ int) sqlname.NameTuple {
 		renamedTable, isRenamed := renameTableIfRequired(table.ForOutput())
 		if isRenamed {
-			t := table.ForMinOutput()
+			t := table.ForOutput()
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
@@ -329,12 +329,13 @@ func exportData() bool {
 	//handle case of display in case user is filtering few partitions in table-list
 	tableListToDisplay := lo.Map(tableListTuplesToDisplay, func(table sqlname.NameTuple, _ int) string {
 		partitions, ok := leafPartitions.Get(table)
-		if source.DBType == POSTGRESQL && ok && msr.IsExportTableListSet {
+		if slices.Contains([]string{POSTGRESQL, YUGABYTEDB}, source.DBType) && ok && msr.IsExportTableListSet {
 			partitions := strings.Join(partitions, ", ")
-			return fmt.Sprintf("%s (%s)", table.ForMinOutput(), partitions)
+			return fmt.Sprintf("%s (%s)", table.ForOutput(), partitions)
 		}
-		return table.ForMinOutput()
+		return table.ForOutput()
 	})
+
 	fmt.Printf("num tables to export: %d\n", len(tableListToDisplay))
 	utils.PrintAndLog("table list for data export: %v", tableListToDisplay)
 
@@ -743,7 +744,7 @@ func reportUnsupportedTables(finalTableList []sqlname.NameTuple) {
 	var nonPKTables []string
 	for _, table := range finalTableList {
 		if lo.Contains(allNonPKTables, table.ForKey()) {
-			nonPKTables = append(nonPKTables, table.ForMinOutput())
+			nonPKTables = append(nonPKTables, table.ForOutput())
 		}
 	}
 	if len(nonPKTables) > 0 {
@@ -1076,23 +1077,38 @@ func getRegisteredNameRegList() ([]sqlname.NameTuple, error) {
 func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions []sqlname.NameTuple) ([]sqlname.NameTuple, []sqlname.NameTuple, error) {
 	missingTables := sqlname.SetDifferenceNameTuplesWithKey(firstRunTableListWithLeafPartitions, currentRunTableListWithLeafPartitions)
 	extraTables := sqlname.SetDifferenceNameTuplesWithKey(currentRunTableListWithLeafPartitions, firstRunTableListWithLeafPartitions)
+	displayList := func(list []sqlname.NameTuple) string {
+		return strings.Join(lo.Map(list, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		}), ",")
+	}
 
 	if len(missingTables) > 0 || len(extraTables) > 0 {
-		finalErrMsg := "Changing the table list during live-migration is not allowed."
+		changeListMsg := color.RedString("Changing the table list during live-migration is not allowed.")
+		missingMsgFinal := ""
+		extraMsgFinal := ""
 		if len(missingTables) > 0 {
-			finalErrMsg = fmt.Sprintf("%s\nMissing tables in the current run compared to the initial list: [%v]", finalErrMsg, strings.Join(lo.Map(missingTables, func(t sqlname.NameTuple, _ int) string {
-				return t.ForMinOutput()
-			}), ","))
+			missingMsg := color.YellowString("Missing tables in the current run compared to the initial list")
+			missingMsgFinal = fmt.Sprintf("\n%s: [%v]", missingMsg, displayList(missingTables))
 		}
 		if len(extraTables) > 0 {
-			finalErrMsg = fmt.Sprintf("%s\nExtra tables in the current run compared to the initial list: [%v]", finalErrMsg, strings.Join(lo.Map(extraTables, func(t sqlname.NameTuple, _ int) string {
-				return t.ForMinOutput()
-			}), ","))
+			extraMsg := color.YellowString("Extra tables in the current run compared to the initial list")
+			extraMsgFinal = fmt.Sprintf("\n%s: [%v]", extraMsg, displayList(extraTables))
 		}
-		finalErrMsg = fmt.Sprintf("%s\nTable list passed in the initial run of migration - [%v]\nRe-run the command with the table list passed in the initial run of migration.", finalErrMsg, strings.Join(lo.Map(firstRunTableListWithLeafPartitions, func(t sqlname.NameTuple, _ int) string {
-			return t.ForMinOutput()
-		}), ","))
-		return missingTables, extraTables, fmt.Errorf(finalErrMsg)
+		tableListInFirstRunMsg := fmt.Sprintf("\n%s: [%v]", color.YellowString("Table list passed in the initial run of migration"), displayList(firstRunTableListWithLeafPartitions))
+		reRunMsg := color.YellowString("Re-run the command with the table list passed in the initial run of migration or start a fresh migration.")
+		//The following error msg is in format -
+		/*
+			Changing the table list during live-migration is not allowed.
+
+
+			Missing tables in the current run compared to the initial list: [<list>]
+			Extra tables in the current run compared to the initial list: [<list>]
+			Table list passed in the initial run of migration: - [<list>]
+
+			Re-run the command with the table list passed in the initial run of migration or start a fresh migration.
+		*/
+		return missingTables, extraTables, fmt.Errorf("\n%s\n\n%s%s%s\n\n%s", changeListMsg, missingMsgFinal, extraMsgFinal, tableListInFirstRunMsg, reRunMsg)
 	}
 
 	return nil, nil, nil
@@ -1125,7 +1141,7 @@ func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.Na
 		utils.PrintAndLog(listToPrint)
 		msg := "Do you want to continue?"
 		if !utils.AskPrompt(msg) {
-			utils.ErrExit("Aborting, Start a fresh migration...")
+			utils.ErrExit("Aborting, Start a fresh migration if required...")
 		}
 	}
 	return rootToNewLeafTablesMap, nil
@@ -1142,7 +1158,7 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 		finalTableList, skippedTableList = source.DB().FilterEmptyTables(finalTableList)
 		if len(skippedTableList) != 0 {
 			utils.PrintAndLog("skipping empty tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-				return table.ForMinOutput()
+				return table.ForOutput()
 			}))
 		}
 	}
@@ -1150,7 +1166,7 @@ func finalizeTableColumnList(finalTableList []sqlname.NameTuple) ([]sqlname.Name
 	finalTableList, skippedTableList = source.DB().FilterUnsupportedTables(migrationUUID, finalTableList, useDebezium)
 	if len(skippedTableList) != 0 {
 		utils.PrintAndLog("skipping unsupported tables: %v", lo.Map(skippedTableList, func(table sqlname.NameTuple, _ int) string {
-			return table.ForMinOutput()
+			return table.ForOutput()
 		}))
 	}
 
