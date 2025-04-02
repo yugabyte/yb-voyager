@@ -17,7 +17,7 @@ DELETE FROM sales_region WHERE id = 5;
 DELETE FROM sales_region WHERE id = 99;
 
 -- Insert into the test_partitions_sequences table
-INSERT INTO test_partitions_sequences (id, amount, branch, region) VALUES (1011, 1000, 'Branch 1011', 'Sydney');
+INSERT INTO test_partitions_sequences (id, id1, amount, branch, region) VALUES (1011, 1230, 1000, 'Branch 1011', 'Sydney');
 
 -- Insert into a specific partition
 INSERT INTO test_partitions_sequences_b (id, amount, branch, region) VALUES (1012, 2000, 'Branch 1012', 'Boston');

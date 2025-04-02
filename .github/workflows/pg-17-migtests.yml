@@ -248,6 +248,10 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
 
+      - name: "TEST: pg-live-migration-partitions-fall-back"
+        if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/partitions
+
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
