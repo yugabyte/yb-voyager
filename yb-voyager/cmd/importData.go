@@ -903,6 +903,9 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 }
 
 func startMonitoringHealth() error {
+	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil
+	}
 	if skipClusterHealthChecks {
 		return nil
 	}
