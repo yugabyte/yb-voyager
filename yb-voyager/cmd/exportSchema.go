@@ -160,6 +160,8 @@ func exportSchema() error {
 		}
 	}
 
+	nudgeUserToRunAssessment()
+
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
@@ -190,6 +192,27 @@ func exportSchema() error {
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+	return nil
+}
+
+func nudgeUserToRunAssessment() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %w", err)
+	}
+
+	if msr.MigrationAssessmentDone {
+		return nil
+	}
+	if source.DBType != POSTGRESQL {
+		// At this point, we are only interested in nudging postgres users to run assessment
+		// because it is far more advanced and useful for them.
+		return nil
+	}
+	if !utils.AskPrompt("It is recommended to run assess-migration before exporting schema. https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/assess-migration/ \n" +
+		"Do you want to continue anyway without running assess-migration") {
+		utils.ErrExit("Aborting...")
+	}
 	return nil
 }
 
