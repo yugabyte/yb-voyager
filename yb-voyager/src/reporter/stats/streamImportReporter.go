@@ -44,6 +44,7 @@ type StreamImportStatsReporter struct {
 	eventsSlidingWindow      [61]int64 // stores events per 10 secs for last 10 mins
 	remainingEvents          int64
 	estimatedTimeToCatchUp   time.Duration
+	displayExtraInfo         string
 	uitable                  *uilive.Writer
 	metaDB                   *metadb.MetaDB
 }
@@ -66,7 +67,7 @@ func (s *StreamImportStatsReporter) Finalize() {
 	s.uitable.Stop()
 }
 
-var headerRow, seperator1, seperator2, seperator3, row1, row2, row3, row4, row5, row6, timerRow io.Writer
+var headerRow, seperator1, seperator2, seperator3, row1, row2, row3, row4, row5, row6, displayExtraInfo, timerRow io.Writer
 
 func (s *StreamImportStatsReporter) ReportStats(ctx context.Context) {
 	displayTicker := time.NewTicker(10 * time.Second)
@@ -82,6 +83,7 @@ func (s *StreamImportStatsReporter) ReportStats(ctx context.Context) {
 	row4 = s.uitable.Newline()
 	row5 = s.uitable.Newline()
 	row6 = s.uitable.Newline()
+	displayExtraInfo = s.uitable.Newline()
 	timerRow = s.uitable.Newline()
 
 	s.uitable.Start()
@@ -122,7 +124,17 @@ func (s *StreamImportStatsReporter) refreshStats() {
 	fmt.Fprint(row5, color.GreenString("| %-30s | %30s |\n", "Remaining Events", strconv.FormatInt(s.remainingEvents, 10)))
 	fmt.Fprint(row6, color.GreenString("| %-30s | %30s |\n", "Estimated Time to catch up", s.estimatedTimeToCatchUp.String()))
 	fmt.Fprint(seperator3, color.GreenString("| %-30s | %30s |\n", "-----------------------------", "-----------------------------"))
+	if s.displayExtraInfo != "" {
+		fmt.Fprint(displayExtraInfo, color.RedString(s.displayExtraInfo))
+	}
 	s.uitable.Flush()
+}
+
+func (s *StreamImportStatsReporter) DisplayInformation(info string) {
+	s.Lock()
+	defer s.Unlock()
+	s.displayExtraInfo = info
+
 }
 
 func (s *StreamImportStatsReporter) slideWindow() {

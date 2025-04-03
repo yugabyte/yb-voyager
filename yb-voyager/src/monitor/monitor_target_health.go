@@ -23,8 +23,10 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/vbauerster/mpb/v8"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -45,8 +47,10 @@ type TargetDBForMonitorHealth interface {
 
 // bool variable is for indicating if a node is down or up
 var nodeStatuses map[string]bool
+var monitorProgress *mpb.Progress
+var monitorBar *mpb.Bar
 
-func MonitorTargetHealth(yb TargetDBForMonitorHealth) error {
+func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB) error {
 	nodeStatuses = make(map[string]bool)
 	loadBalancerEnabled, servers, err := yb.GetYBServers()
 	if err != nil {
@@ -56,7 +60,7 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth) error {
 		nodeStatuses[server.Host] = true
 	}
 	for {
-		err := monitorNodesStatusAndAbort(yb, loadBalancerEnabled)
+		nodeAlert, err := monitorNodesStatusAndAbort(yb, loadBalancerEnabled)
 		if err != nil {
 			utils.ErrExit("Following nodes are not healthy, please check and fix the issue and re-run the import\n %v", err)
 		}
@@ -64,11 +68,18 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth) error {
 		if err != nil {
 			log.Infof("error monitoring the disk and memory - %v", err)
 		}
-		err = monitorReplicationOnTarget(yb)
+		replicationAlert, err := monitorReplicationOnTarget(yb)
 		if err != nil {
 			log.Infof("error monitoring the replication - %v", err)
 		}
-
+		if nodeAlert != "" || replicationAlert != "" {
+			err = metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
+				*s = fmt.Sprintf("Alert!\n %s", strings.Join([]string{nodeAlert, replicationAlert}, "\n"))
+			})
+			if err != nil {
+				utils.ErrExit("error pfsdjkfhskhdfk")
+			}
+		}
 		time.Sleep(time.Duration(MONITOR_HEALTH_FREQUENCY_SECONDS) * time.Second)
 	}
 }
@@ -83,13 +94,13 @@ the new connections will automatically go to that node -- handled via conn-pool
 3. load balancer on the cluster
 No node status checks will happen as we put the load on the load balancer IP and it will take care of this adaptation automatically
 */
-func monitorNodesStatusAndAbort(yb TargetDBForMonitorHealth, loadBalancerEnabled bool) error {
+func monitorNodesStatusAndAbort(yb TargetDBForMonitorHealth, loadBalancerEnabled bool) (string, error) {
 	if loadBalancerEnabled {
-		return nil
+		return "", nil
 	}
 	_, currentNodes, err := yb.GetYBServers()
 	if err != nil {
-		return fmt.Errorf("error fetching servers informtion: %v", err)
+		return "", fmt.Errorf("error fetching servers informtion: %v", err)
 	}
 	downNodes := make([]string, 0)
 
@@ -101,13 +112,13 @@ func monitorNodesStatusAndAbort(yb TargetDBForMonitorHealth, loadBalancerEnabled
 		}
 	}
 	if len(downNodes) > 0 {
-		utils.PrintAndLog("Following nodes are not healthy, please check them - [%v]", strings.Join(downNodes, ", "))
 		err := yb.RemoveConnectionsForHosts(downNodes)
 		if err != nil {
-			utils.PrintAndLog("error while re-initialising the conn pool: %v", err)
+			return "", fmt.Errorf("error while re-initialising the conn pool: %v", err)
 		}
+		return fmt.Sprintf("Following nodes are not healthy, please check them - [%v].", strings.Join(downNodes, ", ")), nil
 	}
-	return nil
+	return "", nil
 }
 
 /*
@@ -147,14 +158,14 @@ func monitorDiskAndMemoryStatusAndAbort(yb TargetDBForMonitorHealth) error {
 If any of the replication streams are enabled on the cluster during the import -
 let the user know to enable it after import data is done to avoid wal or disk space issues because of replication
 
-Caveats - 
+Caveats -
 1. For all deployments - only logical replication info is easily detectable - using the pg_replciation_slots for getting num of logical replication slots
 2. For YBA/yugabyted - with above also trying to figure the xcluster replication streams/CDC gRPC streams using the yb-client wrapper jar to fetch num of all cdc streams on the cluster
 */
-func monitorReplicationOnTarget(yb TargetDBForMonitorHealth) error {
+func monitorReplicationOnTarget(yb TargetDBForMonitorHealth) (string, error) {
 	numOfSlots, err := yb.NumOfLogicalReplicationSlots()
 	if err != nil {
-		return fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
+		return "", fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
 	}
 	ybServers := lo.Keys(nodeStatuses)
 	addresses := strings.Join(ybServers, ":7100,")
@@ -162,14 +173,14 @@ func monitorReplicationOnTarget(yb TargetDBForMonitorHealth) error {
 	ybClient := dbzm.NewYugabyteDBCDCClient("", addresses, "", "", "", nil)
 	err = ybClient.Init()
 	if err != nil {
-		return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
+		return "", fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
 	}
 	numOfStreams, err := ybClient.GetNumOfReplicationStreams()
 	if err != nil {
-		return fmt.Errorf("error fetching num of replication streams: %v", err)
+		return "", fmt.Errorf("error fetching num of replication streams: %v", err)
 	}
 	if numOfSlots > 0 || numOfStreams > 0 {
-		utils.PrintAndLog("Logical Replciation is enabled on the cluster, enable it only once the import-data is done ingesting to keep the cluster stable")
+		return "Logical Replication is enabled on the cluster, enable it only once the import-data is done ingesting to keep the cluster stable.", nil
 	}
-	return nil
+	return "", nil
 }

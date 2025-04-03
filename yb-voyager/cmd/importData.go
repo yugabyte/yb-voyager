@@ -70,6 +70,7 @@ var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]
 var conflictDetectionCache *ConflictDetectionCache
 var targetDBDetails *callhome.TargetDBDetails
 var skipClusterHealthChecks utils.BoolStr
+var progressReporter *ImportDataProgressReporter
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -527,6 +528,7 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 		}
 	}
+	progressReporter = NewImportDataProgressReporter(bool(disablePb))
 	err = startMonitoringHealth()
 	if err != nil {
 		utils.ErrExit("Failed to start monitoring health: %s", err)
@@ -588,9 +590,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("Failed to get max parallel connections: %s", err)
 			}
-
-			progressReporter := NewImportDataProgressReporter(bool(disablePb))
-
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
 				importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
@@ -690,7 +689,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
 	}
-
 	fmt.Printf("\nImport data complete.\n")
 
 	switch importerRole {
@@ -914,9 +912,40 @@ func startMonitoringHealth() error {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
-		err := monitor.MonitorTargetHealth(yb)
+		for {
+			var info string
+			_, err := metaDB.GetJsonObject(nil, metadb.MONITOR_TARGET_HEALTH_KEY, &info)
+			if err != nil {
+				utils.ErrExit("%v", err)
+			}
+			if info != "" {
+				info := color.RedString(info)
+				if !disablePb {
+					if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
+						progressReporter.DisplayInformation(info)
+					} else {
+						statsReporter.DisplayInformation(info)
+
+					}
+				} else {
+					utils.PrintAndLog(info)
+				}
+				err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
+					*s = ""
+				})
+				if err != nil {
+					utils.ErrExit("%v", err)
+				}
+			}
+
+			time.Sleep(time.Duration(monitor.MONITOR_HEALTH_FREQUENCY_SECONDS) * time.Second)
+		}
+
+	}()
+	go func() {
+		err := monitor.MonitorTargetHealth(yb, metaDB)
 		if err != nil {
-			utils.ErrExit("Following nodes are not healthy, please check and fix the issue and re-run the import: %s", tconf.Host)
+			utils.ErrExit("err -%v", err)
 		}
 	}()
 	return nil
