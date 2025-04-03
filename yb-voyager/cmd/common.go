@@ -1053,6 +1053,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 // =====================================================================
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
+// TODO: some of the fields have pointers, to be on safer side, we should convert all pointers fields to the actual type(store copy)
 type AssessmentReport struct {
 	VoyagerVersion                 string                                `json:"VoyagerVersion"`
 	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`

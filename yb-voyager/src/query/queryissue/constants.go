@@ -412,7 +412,8 @@ const (
 	DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION      = "Deterministic option/attribute with collation is not yet supported in YugabyteDB."
 	NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION              = "Non-Deterministic collations are not yet supported in YugabyteDB."
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
-	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint on columns with NULL values is not yet supported in YugabyteDB."
+	SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION                     = "SQL language functions with an inline body are not supported in YugabyteDB."
+	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB."
 	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
 )
 
