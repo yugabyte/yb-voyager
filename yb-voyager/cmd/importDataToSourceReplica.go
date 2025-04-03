@@ -110,11 +110,11 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_REPLICA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:       int64(tconf.Parallelism),
-		StartClean:         bool(startClean),
-		LiveWorkflowType:   FALL_FORWARD,
-		Error:              callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
+		ParallelJobs:     int64(tconf.Parallelism),
+		StartClean:       bool(startClean),
+		LiveWorkflowType: FALL_FORWARD,
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

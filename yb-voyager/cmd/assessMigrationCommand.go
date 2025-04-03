@@ -212,7 +212,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
 		SourceConnectivity:             assessmentMetadataDirFlag == "",
 		IopsInterval:                   intervalForCapturingIOPS,
-		YugabyteDUIEnabled:             getControlPlaneType() == YUGABYTED,
+		ControlPlaneType:               getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)

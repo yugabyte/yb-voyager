@@ -120,7 +120,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg string) {
 		BackupSchemaFiles:    bool(backupSchemaFiles),
 		SaveMigrationReports: bool(saveMigrationReports),
 		Error:                callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnabled:   getControlPlaneType() == YUGABYTED,
+		ControlPlaneType:     getControlPlaneType(),
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status

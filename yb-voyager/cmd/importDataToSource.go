@@ -106,11 +106,11 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:       int64(tconf.Parallelism),
-		StartClean:         bool(startClean),
-		LiveWorkflowType:   FALL_BACK,
-		Error:              callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnabled: getControlPlaneType() == YUGABYTED,
+		ParallelJobs:     int64(tconf.Parallelism),
+		StartClean:       bool(startClean),
+		LiveWorkflowType: FALL_BACK,
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	importDataPayload.Phase = importPhase

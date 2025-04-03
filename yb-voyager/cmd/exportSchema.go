@@ -212,7 +212,7 @@ func packAndSendExportSchemaPayload(status string, errorMsg string) {
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
 		Error:                  callhome.SanitizeErrorMsg(errorMsg),
-		YugabyteDUIEnabled:     getControlPlaneType() == YUGABYTED,
+		ControlPlaneType:       getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
