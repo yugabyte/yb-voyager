@@ -152,7 +152,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "COMPOUND_TRIGGER",
 			"Name": "Compound Trigger",
-			"Description": "COMPOUND TRIGGER not supported in YugabyteDB.",
+			"Description": "COMPOUND TRIGGER is not supported in YugabyteDB.",
 			"Impact": "-",
 			"ObjectType": "TRIGGER",
 			"ObjectName": "trg_simple_insert",
@@ -1308,6 +1308,7 @@
 		}
 	],
 	"Notes": [
+		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e.",
 		"Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.",
 		"There are some BITMAP indexes present in the schema that will get converted to GIN indexes, but GIN indexes are partially supported in YugabyteDB as mentioned in \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yugabyte-db/issues/7850\"\u003ehttps://github.com/yugabyte/yugabyte-db/issues/7850\u003c/a\u003e so take a look and modify them if not supported."
