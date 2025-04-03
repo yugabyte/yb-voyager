@@ -1264,7 +1264,8 @@ func packAndSendAnalyzeSchemaPayload(status string, errorMsg string) {
 			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
 			return dbObject
 		})),
-		Error: callhome.SanitizeErrorMsg(errorMsg),
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(analyzePayload)
