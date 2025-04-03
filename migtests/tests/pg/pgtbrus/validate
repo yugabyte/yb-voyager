@@ -40,7 +40,12 @@ def migration_completed_checks(tgt):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
-	assert len(fetched_procedures_functions) == 6
+	tgtVersion = tgt.get_target_version()
+	print(f"target version: {tgtVersion}")
+	if "2.25" in tgtVersion:
+		assert len(fetched_procedures_functions) == 9
+	else:
+		assert len(fetched_procedures_functions) == 6
 
 	num_sequences = tgt.count_sequences("public")
 	print(f"actual number_sequences: {num_sequences}, expected num_sequences: 4")
