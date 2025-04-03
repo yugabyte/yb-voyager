@@ -376,9 +376,9 @@ get_passed_options() {
                 echo "  -d, --check-dependencies-only  Check only dependencies and exit."
                 echo "  -f, --force-install            Force install packages without checking dependencies."
                 echo "  -h, --help                     Display this help message."
-                echo "  -p, --pg-only                  Install and check only PostgreSQL related packages."
-                echo "  -m, --mysql-only               Install and check only MySQL related packages."
-                echo "  -o, --oracle-only              Install and check only Oracle related packages."
+                echo "  -p, --pg-only                  Install and check only PostgreSQL source related voyager dependencies."
+                echo "  -m, --mysql-only               Install and check only MySQL source related voyager dependencies."
+                echo "  -o, --oracle-only              Install and check only Oracle source related voyager dependencies."
                 PRINT_DEPENDENCIES="true"
                 shift
                 ;;
@@ -391,6 +391,7 @@ get_passed_options() {
     # Allow only one of pg-only, mysql-only, oracle-only options to be passed.
     if (( PG_ONLY + ORACLE_ONLY + MYSQL_ONLY > 1 )); then
         echo "Error: Only one of pg-only, mysql-only, oracle-only options can be passed."
+        echo "If you want to install and check dependencies related to all the databases, do not pass any of these options."
         exit 1
     fi
 
@@ -723,12 +724,15 @@ check_yum_dependencies() {
         check_yum_package_version "$package" "$version_type" "$required_version"
     done
 
-    if [ "$MYSQL_ONLY" -eq 1 ]; then
+    if [ "$MYSQL_ONLY" -eq 1 ] || [ "$ORACLE_ONLY" -eq 1 ]; then
+        # When either mysql and oracle are requested, check the common packages first.
         for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
             check_yum_package_version "$package" "$version_type" "$required_version"
         done
+    fi
 
+    if [ "$MYSQL_ONLY" -eq 1 ]; then
         for requirement in "${centos_yum_mysql_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
 
@@ -746,11 +750,6 @@ check_yum_dependencies() {
     fi
 
     if [ "$ORACLE_ONLY" -eq 1 ]; then
-        for requirement in "${centos_yum_mysql_oracle_common_package_requirements[@]}"; do
-            IFS='|' read -r package version_type required_version <<< "$requirement"
-            check_yum_package_version "$package" "$version_type" "$required_version"
-        done
-
         for requirement in "${centos_yum_oracle_package_requirements[@]}"; do
             IFS='|' read -r package version_type required_version <<< "$requirement"
             check_yum_package_version "$package" "$version_type" "$required_version"
