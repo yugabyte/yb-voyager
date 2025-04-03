@@ -294,6 +294,7 @@ func init() {
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+
 }
 
 func assessMigration() (err error) {
@@ -1751,6 +1752,7 @@ func getSupportedVersionString(minimumVersionsFixedIn map[string]*ybversion.YBVe
 }
 
 func validateSourceDBTypeForAssessMigration() {
+	fmt.Println("Source DB Type:", source.DBType)
 	if source.DBType == "" {
 		utils.ErrExit("Error required flag \"source-db-type\" not set")
 	}
