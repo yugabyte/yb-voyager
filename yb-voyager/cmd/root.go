@@ -381,6 +381,7 @@ func initConfig(cmd *cobra.Command) error {
 		return err
 	}
 
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 	v.AutomaticEnv() // read in environment variables that match
 
 	err = bindCobraFlagsToViper(cmd, v)
