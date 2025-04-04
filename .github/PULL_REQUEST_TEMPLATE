@@ -17,6 +17,8 @@ Mention the new unit tests added
 Was any manual testing needed? If yes, is there a need to add integration tests for that?
 -->
 
+### Does your PR have changes in callhome/yugabyted payloads? If so, is the payload version incremented?
+
 ### Does your PR have changes that can cause upgrade issues? 
 | Component        | Breaking changes? |
 | :----------------------------------------------: | :-----------: |
