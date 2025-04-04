@@ -2,10 +2,12 @@ import com.google.common.net.HostAndPort;
 import org.yb.client.AsyncYBClient;
 import org.yb.client.ListTablesResponse;
 import org.yb.client.YBClient;
+import org.yb.client.ListCDCStreamsResponse;
 import org.yb.client.YBTable;
 import org.yb.master.MasterDdlOuterClass.ListTablesResponsePB.TableInfo;
 import java.util.Set;   
 import java.util.HashSet;
+import java.util.stream.Collectors;
 
 import java.util.Objects;
 
@@ -51,8 +53,15 @@ public class Main {
             masterAddressesList = masterAddressesList.replace("{", ""); //removing {}
             masterAddressesList = masterAddressesList.replace("}", "");
             System.out.println("Master Addresses: " + masterAddressesList);
+        } else if (parameters.getNumOfCDCStreams) {
+            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, null, null);
+            if (cdcStreamsResponse.hasError()) {
+              throw new RuntimeException("error getting the num of cdc streams");
+            }
+            System.out.println("Streams: " + cdcStreamsResponse.getStreams().size());
         } else {
-            throw new RuntimeException("Either create or delete stream id should be specified");
+            throw new RuntimeException("unknown paramter");
+
         }
     }
 }
