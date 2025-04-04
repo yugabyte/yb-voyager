@@ -354,11 +354,17 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.EnableYBAdaptiveParallelism, "enable-adaptive-parallelism", true,
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
-		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled."+
+		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
-	BoolVar(cmd.Flags(), &skipClusterHealthChecks, "skip-cluster-health-checks", false,
-		"Skips the monitoring of the health checks (Node status, disk space, etc.) of the target YugabyteDB cluster."+
-			"By default, voyager will keep monitoring all the health checks for the cluster stable.")
+	BoolVar(cmd.Flags(), &skipReplicationChecks, "skip-replication-checks", false,
+		"Skips the monitoring of the replication enabled or not on the target YugabyteDB cluster. "+
+			"By default, voyager will keep monitoring of the replication enabled to keep the cluster stable.")
+	BoolVar(cmd.Flags(), &skipNodeHealthChecks, "skip-node-health-checks", false,
+		"Skips the monitoring of the Node status checks on the target YugabyteDB cluster. "+
+			"By default, voyager will keep monitoring the node status to keep the cluster stable.")
+	BoolVar(cmd.Flags(), &skipDiskUsageHealthChecks, "skip-disk-usage-health-checks", false,
+		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
+			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {

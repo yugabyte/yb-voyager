@@ -69,7 +69,9 @@ var valueConverter dbzm.ValueConverter
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 var targetDBDetails *callhome.TargetDBDetails
-var skipClusterHealthChecks utils.BoolStr
+var skipReplicationChecks utils.BoolStr
+var skipNodeHealthChecks utils.BoolStr
+var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
 var importDataCmd = &cobra.Command{
@@ -904,7 +906,7 @@ func startMonitoringHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
 	}
-	if skipClusterHealthChecks {
+	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {
 		return nil
 	}
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
@@ -913,29 +915,9 @@ func startMonitoringHealth() error {
 	}
 	go func() {
 		for {
-			var info string
-			_, err := metaDB.GetJsonObject(nil, metadb.MONITOR_TARGET_HEALTH_KEY, &info)
+			err := displayMonitoringInformation()
 			if err != nil {
-				utils.ErrExit("%v", err)
-			}
-			if info != "" {
-				info := color.RedString(info)
-				if !disablePb {
-					if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
-						progressReporter.DisplayInformation(info)
-					} else {
-						statsReporter.DisplayInformation(info)
-
-					}
-				} else {
-					utils.PrintAndLog(info)
-				}
-				err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
-					*s = ""
-				})
-				if err != nil {
-					utils.ErrExit("%v", err)
-				}
+				log.Errorf("error displaying the monitoring information on the console: %v", err)
 			}
 
 			time.Sleep(time.Duration(monitor.MONITOR_HEALTH_FREQUENCY_SECONDS) * time.Second)
@@ -943,11 +925,39 @@ func startMonitoringHealth() error {
 
 	}()
 	go func() {
-		err := monitor.MonitorTargetHealth(yb, metaDB)
+		err := monitor.MonitorTargetHealth(yb, metaDB, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks)
 		if err != nil {
-			utils.ErrExit("err -%v", err)
+			log.Errorf("error monitoring the target health: %v", err)
 		}
 	}()
+	return nil
+}
+
+func displayMonitoringInformation() error {
+	var info string
+	_, err := metaDB.GetJsonObject(nil, metadb.MONITOR_TARGET_HEALTH_KEY, &info)
+	if err != nil {
+		return fmt.Errorf("error getting the metadb object for the Monitor target health key: %v", err)
+	}
+	if info != "" {
+		info := color.RedString(info)
+		if disablePb {
+			utils.PrintAndLog(info)
+		} else {
+			if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
+				progressReporter.DisplayInformation(info)
+			} else {
+				statsReporter.DisplayInformation(info)
+
+			}
+		}
+		err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
+			*s = ""
+		})
+		if err != nil {
+			return fmt.Errorf("error updating the metadb object for the Monitor target health key: %v", err)
+		}
+	}
 	return nil
 }
 
