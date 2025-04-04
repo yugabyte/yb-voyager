@@ -133,7 +133,7 @@ func (s *StreamImportStatsReporter) refreshStats() {
 func (s *StreamImportStatsReporter) DisplayInformation(info string) {
 	s.Lock()
 	defer s.Unlock()
-	s.displayExtraInfo = info
+	s.displayExtraInfo += info
 
 }
 

@@ -285,7 +285,8 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	log.Infof("Checking for connections on host: %s", servers)
 	var conn *pgx.Conn
 	var gotIt bool
-	for {
+	size := pool.size
+	for i := 0; i < size; i++ {
 		conn, gotIt = <-pool.conns
 		if !gotIt {
 			break

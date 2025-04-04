@@ -531,7 +531,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 	progressReporter = NewImportDataProgressReporter(bool(disablePb))
-	err = startMonitoringHealth()
+	err = startMonitoringTargetHealth()
 	if err != nil {
 		utils.ErrExit("Failed to start monitoring health: %s", err)
 	}
@@ -902,7 +902,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	return taskImporter, nil
 }
 
-func startMonitoringHealth() error {
+func startMonitoringTargetHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
 	}

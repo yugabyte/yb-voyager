@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	MONITOR_HEALTH_FREQUENCY_SECONDS = 10
+	MONITOR_HEALTH_FREQUENCY_SECONDS = 15
 	METRIC_FREE_DISK_SPACE           = "free_disk_space"
 	METRIC_TOTAL_DISK_SPACE          = "total_disk_space"
 	FREE_DISK_SPACE_THREASHOLD       = 10
@@ -67,27 +67,24 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, ski
 
 	var nodeAlert string
 	for {
-		if !skipNodeHealthChecks {
-			nodeAlert, err = monitorNodesStatusAndAdapt(yb, loadBalancerEnabled)
-			if err != nil {
-				log.Errorf("error monitoring the node status and adapt: %v", err)
-			}
+		nodeAlert, err = monitorNodesStatusAndAdapt(yb, loadBalancerEnabled, skipNodeHealthChecks)
+		if err != nil {
+			log.Errorf("error monitoring the node status and adapt: %v", err)
 		}
-		if !skipDiskUsageHealthChecks {
-			err = monitorDiskAndMemoryStatusAndAbort(yb)
-			if err != nil {
-				log.Errorf("error monitoring the disk and memory: %v", err)
-			}
+
+		err = monitorDiskUsageAndAbort(yb, skipDiskUsageHealthChecks)
+		if err != nil {
+			log.Errorf("error monitoring the disk and memory: %v", err)
 		}
-		if !skipReplicationChecks {
-			err = monitorReplicationOnTarget(yb)
-			if err != nil {
-				log.Errorf("error monitoring the replication: %v", err)
-			}
+
+		err = monitorReplicationOnTarget(yb, skipReplicationChecks)
+		if err != nil {
+			log.Errorf("error monitoring the replication: %v", err)
 		}
+
 		if nodeAlert != "" {
 			err = metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
-				*s = fmt.Sprintf("Alert!\n %s", strings.Join([]string{nodeAlert}, "\n"))
+				*s = fmt.Sprintf("Alert!\n%s\n", nodeAlert)
 			})
 			if err != nil {
 				log.Infof("error updating the health alerts in the metadb: %v", err)
@@ -106,8 +103,13 @@ the new connections will automatically go to that node -- handled via conn-pool
 
 3. load balancer on the cluster
 No node status checks will happen as we put the load on the load balancer IP and it will take care of this adaptation automatically
+
+TODO: see what to be done for   resumption or re-run case how to handle if something is already stored in msr
 */
-func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled bool) (string, error) {
+func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled bool, skip utils.BoolStr) (string, error) {
+	if skip {
+		return "", nil
+	}
 	if loadBalancerEnabled {
 		return "", nil
 	}
@@ -132,7 +134,7 @@ func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled
 		}
 	}
 	if len(downNodes) > 0 {
-		downNodeMsg := fmt.Sprintf("Following nodes are not healthy, please check them - [%v].", strings.Join(downNodes, ", "))
+		downNodeMsg := fmt.Sprintf("Following nodes are not healthy, please check them - [%v]", strings.Join(downNodes, ", "))
 		err := yb.RemoveConnectionsForHosts(downNodes)
 		if err != nil {
 			return downNodeMsg, fmt.Errorf("error while removing the connections for the down nodes[%v]: %v", downNodes, err)
@@ -147,7 +149,10 @@ If disk space on any node is less than 10%, error out the import and let the use
 
 //TODO: enhance yb_server_metrics() to give these metrics.
 */
-func monitorDiskAndMemoryStatusAndAbort(yb TargetDBForMonitorHealth) error {
+func monitorDiskUsageAndAbort(yb TargetDBForMonitorHealth, skip utils.BoolStr) error {
+	if skip {
+		return nil
+	}
 	nodeMetrics, err := yb.GetClusterMetrics()
 	if err != nil {
 		return fmt.Errorf("error fetching cluster metrics: %v", err)
@@ -183,7 +188,10 @@ Caveats -
 1. For all deployments - only logical replication info is easily detectable - using the pg_replciation_slots for getting num of logical replication slots
 2. For YBA/yugabyted - with above also trying to figure the xcluster replication streams/CDC gRPC streams using the yb-client wrapper jar to fetch num of all cdc streams on the cluster
 */
-func monitorReplicationOnTarget(yb TargetDBForMonitorHealth) error {
+func monitorReplicationOnTarget(yb TargetDBForMonitorHealth, skip utils.BoolStr) error {
+	if skip {
+		return nil
+	}
 	numOfSlots, err := yb.NumOfLogicalReplicationSlots()
 	if err != nil {
 		return fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
