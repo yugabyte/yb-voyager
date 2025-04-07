@@ -26,7 +26,7 @@ import (
 
 var advisoryLocksIssue = issue.Issue{
 	Type:        ADVISORY_LOCKS,
-	Name:        "Advisory Locks",
+	Name:        ADVISORY_LOCKS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: ADVISORY_LOCKS_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -40,7 +40,7 @@ func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement st
 
 var systemColumnsIssue = issue.Issue{
 	Type:        SYSTEM_COLUMNS,
-	Name:        "System Columns",
+	Name:        SYSTEM_COLUMNS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -54,7 +54,7 @@ func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement st
 
 var xmlFunctionsIssue = issue.Issue{
 	Type:        XML_FUNCTIONS,
-	Name:        "XML Functions",
+	Name:        XML_FUNCTIONS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: XML_FUNCTIONS_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -68,7 +68,7 @@ func NewXmlFunctionsIssue(objectType string, objectName string, sqlStatement str
 
 var regexFunctionsIssue = issue.Issue{
 	Type:        REGEX_FUNCTIONS,
-	Name:        "Regex Functions",
+	Name:        REGEX_FUNCTIONS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: REGEX_FUNCTIONS_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -85,7 +85,7 @@ func NewRegexFunctionsIssue(objectType string, objectName string, sqlStatement s
 
 var anyValueAggregateFunction = issue.Issue{
 	Type:        ANY_VALUE_AGGREGATE_FUNCTION,
-	Name:        ANY_VALUE_AGGREGATE_FUNCTION_NAME,
+	Name:        ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -99,7 +99,7 @@ func NewAnyValueAggregateFunctionIssue(objectType string, objectName string, sql
 
 var rangeAggregateFunctionIssue = issue.Issue{
 	Type:        RANGE_AGGREGATE_FUNCTION,
-	Name:        RANGE_AGGREGATE_FUNCTION_NAME,
+	Name:        RANGE_AGGREGATE_FUNCTION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: RANGE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -120,7 +120,7 @@ func NewRangeAggregateFunctionIssue(objectType string, objectName string, sqlSta
 
 var jsonConstructorFunctionsIssue = issue.Issue{
 	Type:        JSON_CONSTRUCTOR_FUNCTION,
-	Name:        JSON_CONSTRUCTOR_FUNCTION_NAME,
+	Name:        JSON_CONSTRUCTOR_FUNCTION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: JSON_CONSTRUCTOR_FUNCTION_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -138,7 +138,7 @@ func NewJsonConstructorFunctionIssue(objectType string, objectName string, sqlSt
 
 var jsonQueryFunctionIssue = issue.Issue{
 	Type:        JSON_QUERY_FUNCTION,
-	Name:        JSON_QUERY_FUNCTIONS_NAME,
+	Name:        JSON_QUERY_FUNCTIONS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: JSON_QUERY_FUNCTION_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -156,7 +156,7 @@ func NewJsonQueryFunctionIssue(objectType string, objectName string, sqlStatemen
 
 var loFunctionsIssue = issue.Issue{
 	Type:        LARGE_OBJECT_FUNCTIONS,
-	Name:        LARGE_OBJECT_FUNCTIONS_NAME,
+	Name:        LARGE_OBJECT_FUNCTIONS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: LO_FUNCTIONS_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25318",
@@ -173,7 +173,7 @@ func NewLOFuntionsIssue(objectType string, objectName string, sqlStatement strin
 
 var jsonbSubscriptingIssue = issue.Issue{
 	Type:        JSONB_SUBSCRIPTING,
-	Name:        JSONB_SUBSCRIPTING_NAME,
+	Name:        JSONB_SUBSCRIPTING_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: JSONB_SUBSCRIPTING_ISSUE_DESCRIPTION,
 	Suggestion:  "Use Arrow operators (-> / ->>) to access the jsonb fields.",
@@ -190,7 +190,7 @@ func NewJsonbSubscriptingIssue(objectType string, objectName string, sqlStatemen
 
 var jsonPredicateIssue = issue.Issue{
 	Type:        JSON_TYPE_PREDICATE,
-	Name:        JSON_TYPE_PREDICATE_NAME,
+	Name:        JSON_TYPE_PREDICATE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: JSON_PREDICATE_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -204,7 +204,7 @@ func NewJsonPredicateIssue(objectType string, objectName string, sqlStatement st
 
 var copyFromWhereIssue = issue.Issue{
 	Type:        COPY_FROM_WHERE,
-	Name:        "COPY FROM ... WHERE",
+	Name:        COPY_FROM_WHERE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: COPY_FROM_WHERE_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -221,7 +221,7 @@ func NewCopyFromWhereIssue(objectType string, objectName string, sqlStatement st
 
 var copyOnErrorIssue = issue.Issue{
 	Type:        COPY_ON_ERROR,
-	Name:        "COPY ... ON_ERROR",
+	Name:        COPY_ON_ERROR_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: COPY_ON_ERROR_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -235,7 +235,7 @@ func NewCopyOnErrorIssue(objectType string, objectName string, sqlStatement stri
 
 var fetchWithTiesIssue = issue.Issue{
 	Type:        FETCH_WITH_TIES,
-	Name:        "FETCH .. WITH TIES",
+	Name:        FETCH_WITH_TIES_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: FETCH_WITH_TIES_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -248,7 +248,7 @@ func NewFetchWithTiesIssue(objectType string, objectName string, sqlStatement st
 
 var cteWithMaterializedIssue = issue.Issue{
 	Type:        CTE_WITH_MATERIALIZED_CLAUSE,
-	Name:        CTE_WITH_MATERIALIZED_CLAUSE_NAME,
+	Name:        CTE_WITH_MATERIALIZED_CLAUSE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Modifying the materialization of CTE is not supported yet in YugabyteDB.",
 	Suggestion:  "No workaround available right now",
@@ -265,7 +265,7 @@ func NewCTEWithMaterializedIssue(objectType string, objectName string, sqlStatem
 
 var mergeStatementIssue = issue.Issue{
 	Type:        MERGE_STATEMENT,
-	Name:        "Merge Statement",
+	Name:        MERGE_STATEMENT_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: MERGE_STATEMENT_ISSUE_DESCRIPTION,
 	Suggestion:  "Use PL/pgSQL to write the logic to get this functionality.",
@@ -280,7 +280,7 @@ func NewMergeStatementIssue(objectType string, objectName string, sqlStatement s
 
 var listenNotifyIssue = issue.Issue{
 	Type:        LISTEN_NOTIFY,
-	Name:        LISTEN_NOTIFY_NAME,
+	Name:        LISTEN_NOTIFY_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2, //TODO: confirm impact
 	Description: "LISTEN / NOTIFY is not supported yet in YugabyteDB.",
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/1872",
@@ -293,7 +293,7 @@ func NewListenNotifyIssue(objectType string, objectName string, sqlStatement str
 
 var nonDecimalIntegerLiteralIssue = issue.Issue{
 	Type:        NON_DECIMAL_INTEGER_LITERAL,
-	Name:        NON_DECIMAL_INTEGER_LITERAL_NAME,
+	Name:        NON_DECIMAL_INTEGER_LITERAL_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: "Non decimal integer literals are not supported in YugabyteDB",
 	Suggestion:  "",
@@ -307,7 +307,7 @@ func NewNonDecimalIntegerLiteralIssue(objectType string, objectName string, sqlS
 
 var twoPhaseCommitIssue = issue.Issue{
 	Type:        TWO_PHASE_COMMIT,
-	Name:        "Two-Phase Commit (XA syntax)",
+	Name:        TWO_PHASE_COMMIT_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_3,
 	Description: "Tow-Phase Commit is not supported yet in YugabyteDB.",
 	Suggestion:  "",

@@ -1818,7 +1818,7 @@ func NewPercentTypeSyntaxIssue(objectType string, objectName string, sqlStatemen
 
 var securityInvokerViewIssue = issue.Issue{
 	Type:        SECURITY_INVOKER_VIEWS,
-	Name:        "Security Invoker Views",
+	Name:        SECURITY_INVOKER_VIEWS_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: SECURITY_INVOKER_VIEWS_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -1834,7 +1834,7 @@ func NewSecurityInvokerViewIssue(objectType string, objectName string, SqlStatem
 
 var deterministicOptionCollationIssue = issue.Issue{
 	Type:        DETERMINISTIC_OPTION_WITH_COLLATION,
-	Name:        DETERMINISTIC_OPTION_WITH_COLLATION_NAME,
+	Name:        DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -1850,7 +1850,7 @@ func NewDeterministicOptionCollationIssue(objectType string, objectName string, 
 
 var nonDeterministicCollationIssue = issue.Issue{
 	Type:        NON_DETERMINISTIC_COLLATION,
-	Name:        NON_DETERMINISTIC_COLLATION_NAME,
+	Name:        NON_DETERMINISTIC_COLLATION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: NON_DETERMINISTIC_COLLATION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -1863,7 +1863,7 @@ func NewNonDeterministicCollationIssue(objectType string, objectName string, Sql
 
 var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	Type:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE,
-	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME,
+	Name:        FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -1882,7 +1882,7 @@ func NewForeignKeyReferencesPartitionedTableIssue(objectType string, objectName 
 
 var sqlBodyInFunctionIssue = issue.Issue{
 	Type:        SQL_BODY_IN_FUNCTION,
-	Name:        SQL_BODY_IN_FUNCTION_NAME,
+	Name:        SQL_BODY_IN_FUNCTION_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25575",
@@ -1898,7 +1898,7 @@ func NewSqlBodyInFunctionIssue(objectType string, objectName string, SqlStatemen
 
 var uniqueNullsNotDistinctIssue = issue.Issue{
 	Type:        UNIQUE_NULLS_NOT_DISTINCT,
-	Name:        UNIQUE_NULLS_NOT_DISTINCT_NAME,
+	Name:        UNIQUE_NULLS_NOT_DISTINCT_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -1939,7 +1939,7 @@ Hence this feature is not completely not supported so not marking it supported i
 */
 var compressionClauseForToasting = issue.Issue{
 	Type:        COMPRESSION_CLAUSE_IN_TABLE,
-	Name:        COMPRESSION_CLAUSE_IN_TABLE_NAME,
+	Name:        COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: "TOASTing is disabled internally in YugabyteDB and hence this clause is not relevant.",
 	Suggestion:  "Remove the clause from the DDL.",
