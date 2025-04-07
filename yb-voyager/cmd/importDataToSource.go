@@ -97,7 +97,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    tconf.TargetDBType,
+		DBType: tconf.TargetDBType,
 	}
 	if targetDBDetails != nil {
 		sourceDBDetails.DBVersion = targetDBDetails.DBVersion
@@ -110,6 +110,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	importDataPayload.Phase = importPhase

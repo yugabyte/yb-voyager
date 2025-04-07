@@ -103,6 +103,7 @@ func AskPrompt(args ...string) bool {
 
 	}
 	fmt.Printf("? [Y/N]: ")
+	log.Infof("Prompt: %s", strings.Join(args, " "))
 
 	_, err := fmt.Scan(&input)
 
