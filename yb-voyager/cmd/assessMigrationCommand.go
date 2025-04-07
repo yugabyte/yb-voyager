@@ -500,6 +500,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 		ConversionIssues: schemaAnalysisReport.Issues,
 		Sizing:           assessmentReport.Sizing,
 		TableIndexStats:  assessmentReport.TableIndexStats,
+		Notes:            assessmentReport.Notes,
 		AssessmentJsonReport: AssessmentReportYugabyteD{
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,

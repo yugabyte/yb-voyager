@@ -1137,6 +1137,7 @@ Version History
 1.0: Introduced AssessmentIssue field for storing assessment issues in flattened format
 1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
 1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
+1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 */
 var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.2"
 
@@ -1155,7 +1156,8 @@ type AssessMigrationPayload struct {
 	ConversionIssues               []utils.AnalyzeSchemaIssue
 	Sizing                         *migassessment.SizingAssessmentReport
 	TableIndexStats                *[]migassessment.TableIndexStats
-	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
+	Notes                          []string
+	// Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReportYugabyteD
 }
 
@@ -1176,6 +1178,7 @@ type AssessmentIssueYugabyteD struct {
 	Details json.RawMessage `json:"Details,omitempty"`
 }
 
+// To be deprecated in future
 type AssessmentReportYugabyteD struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
