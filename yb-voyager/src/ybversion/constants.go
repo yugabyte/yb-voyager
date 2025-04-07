@@ -26,7 +26,6 @@ const (
 	SERIES_2_25   = "2.25"
 )
 
-// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
 var LatestStable *YBVersion
 
 var V2024_1_0_0 *YBVersion
@@ -73,5 +72,6 @@ func init() {
 		panic("could not create version 2.25.0.0")
 	}
 
+	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
 	LatestStable = V2024_2_2_0
 }
