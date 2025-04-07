@@ -13,6 +13,48 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
+// Voyager environment variables
+// SOURCE_DB_PASSWORD
+// TARGET_DB_PASSWORD
+// SOURCE_REPLICA_DB_PASSWORD
+// JAVA_HOME
+// YB_MASTER_PORT
+// YUGABYTED_DB_CONN_STRING
+// CONTROL_PLANE_TYPE
+// LOCAL_CALL_HOME_SERVICE_HOST
+// LOCAL_CALL_HOME_SERVICE_PORT
+// QUEUE_SEGMENT_MAX_BYTES
+// DEBEZIUM_DIST_DIR
+// YB_TSERVER_PORT
+// CSV_READER_MAX_BUFFER_SIZE_BYTES
+// BETA_FAST_DATA_EXPORT
+// TNS_ADMIN
+// YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS
+// NUM_EVENT_CHANNELS
+// EVENT_CHANNEL_SIZE
+// MAX_EVENTS_PER_BATCH
+// MAX_INTERVAL_BETWEEN_BATCHES
+// MAX_CPU_THRESHOLD
+// ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS
+// MIN_AVAILABLE_MEMORY_THRESHOLD
+// MAX_BATCH_SIZE_BYTES
+// REPORT_UNSUPPORTED_PLPGSQL_OBJECTS
+// REPORT_UNSUPPORTED_QUERY_CONSTRUCTS
+// YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS
+// YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT
+// YB_VOYAGER_SEND_DIAGNOSTICS
+
+// export CONTROL_PLANE_TYPE=yugabyted
+// export YUGABYTED_DB_CONN_STRING=<ysql-connection-parameters>
+// export EXPORT_DIR=$HOME/export-dir
+// BETA_FAST_DATA_EXPORT=1
+// export CSV_READER_MAX_BUFFER_SIZE_BYTES = <MAX_ROW_SIZE_IN_BYTES>
+// export YB_VOYAGER_SEND_DIAGNOSTICS=[true|false|yes|no|1|0]
+// REPORT_UNSUPPORTED_QUERY_CONSTRUCTS=false
+// SOURCE_DB_PASSWORD
+// TARGET_DB_PASSWORD
+
 package cmd
 
 import (
@@ -380,8 +422,9 @@ func initConfig(cmd *cobra.Command) error {
 		// Return the error if validation fails
 		return err
 	}
-
-	v.AutomaticEnv() // read in environment variables that match
+	v.SetEnvPrefix("YB_VOYAGER")                                 // Set the prefix for environment variables
+	v.AutomaticEnv()                                             // Automatically override values from the environment variables
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_")) // Replace '-' and '.' with '_' in env vars to match viper keys
 
 	err = bindCobraFlagsToViper(cmd, v)
 	if err != nil {
