@@ -47,7 +47,10 @@ func NewImportDataProgressReporter(disablePb bool) *ImportDataProgressReporter {
 func (pr *ImportDataProgressReporter) DisplayInformation(info string) {
 	pr.Lock()
 	defer pr.Unlock()
-	pr.progress.Write([]byte(info)) // TODO: chck return values
+	_, err := pr.progress.Write([]byte(info))
+	if err != nil {
+		log.Infof("error writing the information (%s) on the console via progress container: %v", info, err)
+	}
 }
 
 func (pr *ImportDataProgressReporter) ImportFileStarted(task *ImportFileTask, totalProgressAmount int64) {

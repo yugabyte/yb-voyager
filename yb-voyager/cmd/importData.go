@@ -951,6 +951,7 @@ func displayMonitoringInformation() error {
 
 			}
 		}
+		//Unset the metadb for the informationt that is displayed on the console so that only new information can be picked up directly once it comes in further iterations.
 		err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
 			*s = ""
 		})

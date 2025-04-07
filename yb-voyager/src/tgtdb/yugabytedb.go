@@ -873,13 +873,6 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
-
-	// if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-	// 	utils.PrintAndLog(LB_WARN_MSG)
-	// 	tconfs = []*TargetConf{tconf}
-	// } else {
-	// 	tconfs = testAndFilterYbServers(tconfs)
-	// }
 	return loadBalancerUsed, tconfs, nil
 }
 

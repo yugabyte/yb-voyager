@@ -25,7 +25,6 @@ import (
 	"github.com/fatih/color"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	"github.com/vbauerster/mpb/v8"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -50,8 +49,6 @@ type TargetDBForMonitorHealth interface {
 
 // bool variable is for indicating if a node is down or up
 var nodeStatuses map[string]bool
-var monitorProgress *mpb.Progress
-var monitorBar *mpb.Bar
 
 func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr) error {
 	nodeStatuses = make(map[string]bool)
@@ -83,6 +80,7 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, ski
 		}
 
 		if nodeAlert != "" {
+			//Update the alert information in the metadb key MONIROT_TARGET_HEALTH_KEY
 			err = metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
 				*s = fmt.Sprintf("Alert!\n%s\n", nodeAlert)
 			})
@@ -107,10 +105,7 @@ No node status checks will happen as we put the load on the load balancer IP and
 TODO: see what to be done for   resumption or re-run case how to handle if something is already stored in msr
 */
 func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled bool, skip utils.BoolStr) (string, error) {
-	if skip {
-		return "", nil
-	}
-	if loadBalancerEnabled {
+	if bool(skip) || loadBalancerEnabled {
 		return "", nil
 	}
 	_, currentNodes, err := yb.GetYBServers()
@@ -127,7 +122,7 @@ func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled
 		}
 	}
 	for _, conf := range currentNodes {
-		//Add the node in the main nodeStatused initialised in the starting
+		//Add the node in the main nodeStatuses initialised in the starting
 		//which weren't present the starting and during the run it came back.
 		if !slices.Contains(lo.Keys(nodeStatuses), conf.Host) {
 			nodeStatuses[conf.Host] = true
