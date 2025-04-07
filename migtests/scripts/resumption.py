@@ -198,6 +198,8 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
             print("\nCommand Errors:\n")
             for line in stderr.splitlines():
                 print(line)
+            # If there is any stderr output, treat it as an error and exit.
+            # In the interrupt-retry scenario, we do not expect stderr output. The command should be interrupted without errors.
             sys.exit(1)
 
         # If interrupted, check the exit code
