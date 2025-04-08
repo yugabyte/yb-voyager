@@ -146,7 +146,11 @@ const (
 
 	// DML Issue Types
 	ADVISORY_LOCKS               = "ADVISORY_LOCKS"
-	SYSTEM_COLUMNS               = "SYSTEM_COLUMNS"
+	SYSTEM_COLUMN_XMIN           = "SYSTEM_COLUMN_XMIN"
+	SYSTEM_COLUMN_XMAX           = "SYSTEM_COLUMN_XMAX"
+	SYSTEM_COLUMN_CMIN           = "SYSTEM_COLUMN_CMIN"
+	SYSTEM_COLUMN_CMAX           = "SYSTEM_COLUMN_CMAX"
+	SYSTEM_COLUMN_CTID           = "SYSTEM_COLUMN_CTID"
 	XML_FUNCTIONS                = "XML_FUNCTIONS"
 	FETCH_WITH_TIES              = "FETCH_WITH_TIES"
 	REGEX_FUNCTIONS              = "REGEX_FUNCTIONS"
@@ -273,7 +277,11 @@ const (
 
 	// DMLs Issue Names
 	ADVISORY_LOCKS_ISSUE_NAME               = "Advisory Locks"
-	SYSTEM_COLUMNS_ISSUE_NAME               = "System Columns"
+	SYSTEM_COLUMN_XMIN_ISSUE_NAME           = "System Column - xmin"
+	SYSTEM_COLUMN_XMAX_ISSUE_NAME           = "System Column - xmax"
+	SYSTEM_COLUMN_CMIN_ISSUE_NAME           = "System Column - cmin"
+	SYSTEM_COLUMN_CMAX_ISSUE_NAME           = "System Column - cmax"
+	SYSTEM_COLUMN_CTID_ISSUE_NAME           = "System Column - ctid"
 	XML_FUNCTIONS_ISSUE_NAME                = "XML Functions"
 	REGEX_FUNCTIONS_ISSUE_NAME              = "Regex Functions"
 	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_NAME = "ANY_VALUE() aggregate Function"
@@ -298,7 +306,7 @@ const (
 const (
 	// for DMLs
 	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
-	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns are not yet supported in YugabyteDB."
+	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns like xmin, xmax, cmin, cmax, ctid are not yet supported in YugabyteDB."
 	XML_FUNCTIONS_ISSUE_DESCRIPTION                = "XML functions are not yet supported in YugabyteDB."
 	REGEX_FUNCTIONS_ISSUE_DESCRIPTION              = "Regex functions are not yet supported in YugabyteDB."
 	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION = "any_value function are not supported yet in YugabyteDB."

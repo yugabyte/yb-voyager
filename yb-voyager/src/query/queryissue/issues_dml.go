@@ -38,9 +38,11 @@ func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement st
 	return newQueryIssue(advisoryLocksIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var systemColumnsIssue = issue.Issue{
-	Type:        SYSTEM_COLUMNS,
-	Name:        SYSTEM_COLUMNS_ISSUE_NAME,
+// ------------------------------------------- System Columns Issue ------------------------------------------------
+
+var xminSystemColumnIssue = issue.Issue{
+	Type:        SYSTEM_COLUMN_XMIN,
+	Name:        SYSTEM_COLUMN_XMIN_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_2,
 	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
 	Suggestion:  "",
@@ -48,9 +50,67 @@ var systemColumnsIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
-func NewSystemColumnsIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(systemColumnsIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewXminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(xminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var xmaxSystemColumnIssue = issue.Issue{
+	Type:        SYSTEM_COLUMN_XMAX,
+	Name:        SYSTEM_COLUMN_XMAX_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+}
+
+func NewXmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(xmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var cminSystemColumnIssue = issue.Issue{
+	Type:        SYSTEM_COLUMN_CMIN,
+	Name:        SYSTEM_COLUMN_CMIN_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+}
+
+func NewCminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(cminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var cmaxSystemColumnIssue = issue.Issue{
+	Type:        SYSTEM_COLUMN_CMAX,
+	Name:        SYSTEM_COLUMN_CMAX_ISSUE_NAME,
+	Impact: 	constants.IMPACT_LEVEL_2,
+	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+}
+
+func NewCmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(cmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var ctidSystemColumnIssue = issue.Issue{
+	Type:        SYSTEM_COLUMN_CTID,
+	Name:        SYSTEM_COLUMN_CTID_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_2,
+	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
+	Suggestion:  "",
+	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+}
+
+func NewCtidSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(ctidSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+// -------------------------------------------------------------------------------------------------------------
 
 var xmlFunctionsIssue = issue.Issue{
 	Type:        XML_FUNCTIONS,
