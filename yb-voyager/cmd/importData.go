@@ -914,18 +914,9 @@ func startMonitoringTargetHealth() error {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
-		for {
-			err := displayMonitoringInformation()
-			if err != nil {
-				log.Errorf("error displaying the monitoring information on the console: %v", err)
-			}
-
-			time.Sleep(time.Duration(monitor.MONITOR_HEALTH_FREQUENCY_SECONDS) * time.Second)
-		}
-
-	}()
-	go func() {
-		err := monitor.MonitorTargetHealth(yb, metaDB, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks)
+		err := monitor.MonitorTargetHealth(yb, metaDB, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, func(info string) {
+			displayMonitoringInformationOnTheConsole(info)
+		})
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}
@@ -933,33 +924,21 @@ func startMonitoringTargetHealth() error {
 	return nil
 }
 
-func displayMonitoringInformation() error {
-	var info string
-	_, err := metaDB.GetJsonObject(nil, metadb.MONITOR_TARGET_HEALTH_KEY, &info)
-	if err != nil {
-		return fmt.Errorf("error getting the metadb object for the Monitor target health key: %v", err)
+func displayMonitoringInformationOnTheConsole(info string) {
+	if info == "" {
+		return
 	}
-	if info != "" {
-		info := color.RedString(info)
-		if disablePb {
-			utils.PrintAndLog(info)
+	if disablePb {
+		utils.PrintAndLog(info)
+	} else {
+		log.Warnf("monitoring: %v", info)
+		if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
+			progressReporter.DisplayInformation(info)
 		} else {
-			if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
-				progressReporter.DisplayInformation(info)
-			} else {
-				statsReporter.DisplayInformation(info)
+			statsReporter.DisplayInformation(info)
 
-			}
-		}
-		//Unset the metadb for the informationt that is displayed on the console so that only new information can be picked up directly once it comes in further iterations.
-		err := metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
-			*s = ""
-		})
-		if err != nil {
-			return fmt.Errorf("error updating the metadb object for the Monitor target health key: %v", err)
 		}
 	}
-	return nil
 }
 
 func startAdaptiveParallelism() (bool, error) {

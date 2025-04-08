@@ -50,7 +50,7 @@ type TargetDBForMonitorHealth interface {
 // bool variable is for indicating if a node is down or up
 var nodeStatuses map[string]bool
 
-func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr) error {
+func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayAlertFunc func(alertMsg string)) error {
 	nodeStatuses = make(map[string]bool)
 
 	var err error
@@ -69,7 +69,8 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, ski
 			log.Errorf("error monitoring the node status and adapt: %v", err)
 		}
 
-		err = monitorDiskUsageAndAbort(yb, skipDiskUsageHealthChecks)
+		//skipping the disk usage monitoring for now, util the metrics function changes are made
+		err = monitorDiskUsageAndAbort(yb, true)
 		if err != nil {
 			log.Errorf("error monitoring the disk and memory: %v", err)
 		}
@@ -80,13 +81,8 @@ func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, ski
 		}
 
 		if nodeAlert != "" {
-			//Update the alert information in the metadb key MONIROT_TARGET_HEALTH_KEY
-			err = metadb.UpdateJsonObjectInMetaDB(metaDB, metadb.MONITOR_TARGET_HEALTH_KEY, func(s *string) {
-				*s = fmt.Sprintf("Alert!\n%s\n", nodeAlert)
-			})
-			if err != nil {
-				log.Infof("error updating the health alerts in the metadb: %v", err)
-			}
+			alertMsg := color.RedString(fmt.Sprintf("Alert!\n%s\n", nodeAlert))
+			displayAlertFunc(alertMsg)
 		}
 		time.Sleep(time.Duration(MONITOR_HEALTH_FREQUENCY_SECONDS) * time.Second)
 	}
@@ -102,7 +98,6 @@ the new connections will automatically go to that node -- handled via conn-pool
 3. load balancer on the cluster
 No node status checks will happen as we put the load on the load balancer IP and it will take care of this adaptation automatically
 
-TODO: see what to be done for   resumption or re-run case how to handle if something is already stored in msr
 */
 func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled bool, skip utils.BoolStr) (string, error) {
 	if bool(skip) || loadBalancerEnabled {

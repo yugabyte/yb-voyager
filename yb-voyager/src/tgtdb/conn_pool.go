@@ -298,6 +298,7 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 		if slices.Contains(servers, conn.Config().Host) {
 			log.Infof("Removing the connection for server: %s", conn.Config().Host)
 			conn.Close(context.Background())
+			pool.conns <- nil
 		} else {
 			pool.conns <- conn
 		}
