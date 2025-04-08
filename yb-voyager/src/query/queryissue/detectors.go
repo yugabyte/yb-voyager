@@ -16,6 +16,7 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -140,9 +141,26 @@ func (d *ColumnRefDetector) Detect(msg protoreflect.Message) error {
 
 func (d *ColumnRefDetector) GetIssues() []QueryIssue {
 	var issues []QueryIssue
-	if d.unsupportedSystemColumnsDetected.Cardinality() > 0 {
-		issues = append(issues, NewSystemColumnsIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+
+	// separate issue for each unsupported system column
+	for _, colName := range d.unsupportedSystemColumnsDetected.ToSlice() {
+		switch colName {
+		case "xmin":
+			issues = append(issues, NewXminSystemColumnIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		case "xmax":
+			issues = append(issues, NewXmaxSystemColumnIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		case "cmin":
+			issues = append(issues, NewCminSystemColumnIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		case "cmax":
+			issues = append(issues, NewCmaxSystemColumnIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+		case "ctid":
+			issues = append(issues, NewCtidSystemColumnIssue(DML_QUERY_OBJECT_TYPE, "", d.query))
+
+		default:
+			panic(fmt.Sprintf("unsupported system column %q not handled", colName))
+		}
 	}
+
 	return issues
 }
 
@@ -795,7 +813,7 @@ func (t *TwoPhaseCommitDetector) Detect(msg protoreflect.Message) error {
 		Caveats:
 			Can't detect them from PGSS as the query is coming like this `PREPARE TRANSACTION $1` and parser is failing to parse it.
 			Only detecting in some PLPGSQL cases.
-	
+
 	*/
 	switch transactionStmtNode.Kind {
 	case queryparser.PREPARED_TRANSACTION_KIND, queryparser.COMMIT_PREPARED_TRANSACTION_KIND,
