@@ -1398,6 +1398,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
 			}
+			assessmentIssues = append(assessmentIssues, issue)
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
 			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
@@ -1410,12 +1411,20 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-			convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
-			issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryissue.MinimumVersionsFixedIn)
+			fixed, err := queryissue.IsFixedIn(targetDbVersion)
+			if err != nil {
+				log.Warnf("checking if issue %v is supported: %w", queryissue, err)
+			}
+			if !fixed {
+				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
+				issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryissue.MinimumVersionsFixedIn)
+				assessmentIssues = append(assessmentIssues, issue)
+			}
+
 		default:
 			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
-		assessmentIssues = append(assessmentIssues, issue)
+
 	}
 
 	return assessmentIssues
@@ -1543,11 +1552,17 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-				assessmentReport.AppendIssues(
-					convertAnalyzeSchemaIssueToAssessmentIssue(
-						convertedAnalyzeIssue,
-						queryIssue.MinimumVersionsFixedIn))
+				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+				if err != nil {
+					log.Warnf("checking if issue %v is supported: %w", queryIssue, err)
+				}
+				if !fixed {
+					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+					assessmentReport.AppendIssues(
+						convertAnalyzeSchemaIssueToAssessmentIssue(
+							convertedAnalyzeIssue,
+							queryIssue.MinimumVersionsFixedIn))
+				}
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1586,12 +1601,18 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				} else {
 					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
+				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+				if err != nil {
+					log.Warnf("checking if issue %v is supported: %w", queryIssue, err)
+				}
+				if !fixed {
+					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+					assessmentReport.AppendIssues(
+						convertAnalyzeSchemaIssueToAssessmentIssue(
+							convertedAnalyzeIssue,
+							queryIssue.MinimumVersionsFixedIn))
+				}
 
-				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-				assessmentReport.AppendIssues(
-					convertAnalyzeSchemaIssueToAssessmentIssue(
-						convertedAnalyzeIssue,
-						queryIssue.MinimumVersionsFixedIn))
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION, nil})
