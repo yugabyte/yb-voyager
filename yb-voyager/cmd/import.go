@@ -248,7 +248,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	// TODO: restrict changing of flag value after import data has started
 	// TODO: Detailed description of the flag
-	cmd.Flags().StringVar(&onPrimaryKeyConflict, "on-primary-key-conflict", "",
+	cmd.Flags().StringVar(&onPrimaryKeyConflictAction, "on-primary-key-conflict", "",
 		"Action to take on primary key conflict. Supported values: 'ERROR', 'IGNORE', 'UPDATE'")
 }
 
@@ -447,7 +447,7 @@ func validateTruncateTablesFlag() {
 }
 
 func validateEnableFastPathFlag() {
-	if !enableFastPath && onPrimaryKeyConflict != "" {
+	if !enableFastPath && onPrimaryKeyConflictAction != "" {
 		utils.ErrExit("Error: To use --on-primary-key-conflict, you must also enable --enable-fast-path.")
 	}
 }
@@ -459,14 +459,13 @@ var onPrimaryKeyConflictActions = []string{
 }
 
 func validateOnPrimaryKeyConflictFlag() {
-	if enableFastPath && onPrimaryKeyConflict == "" {
+	if enableFastPath && onPrimaryKeyConflictAction == "" {
 		utils.ErrExit("Error: The --on-primary-key-conflict flag is required when --enable-fast-path is set to true.")
 	}
 
-	if onPrimaryKeyConflict != "" {
-		onPrimaryKeyConflict = strings.ToUpper(onPrimaryKeyConflict)
-		if !slices.Contains(onPrimaryKeyConflictActions, onPrimaryKeyConflict) {
-			// utils.ErrExit("Error: --on-primary-key-conflict flag can only be one of [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+	if onPrimaryKeyConflictAction != "" {
+		onPrimaryKeyConflictAction = strings.ToUpper(onPrimaryKeyConflictAction)
+		if !slices.Contains(onPrimaryKeyConflictActions, onPrimaryKeyConflictAction) {
 			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
