@@ -323,6 +323,23 @@ outer:
 	return nil
 }
 
+// Check if the table has a primary key.
+// TODO: cache this info to avoid querying everytime
+func (pg *TargetPostgreSQL) CheckTableHasPrimaryKey(table *sqlname.NameTuple) bool {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.table_constraints
+	WHERE table_schema = '%s' AND table_name = '%s' AND constraint_type = 'PRIMARY KEY'`,
+		schemaName, tableName)
+
+	var count int
+	err := pg.QueryRow(query).Scan(&count)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", query, pg.tconf.Host, err)
+	}
+
+	return count > 0
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
