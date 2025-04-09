@@ -459,11 +459,11 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, fastPath bool) (int64, error) {
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
-		if fastPath {
+		if nonTxnPath {
 			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args)
 		} else {
 			rowsAffected, err = yb.importBatchWithTxn(conn, batch, args)
