@@ -138,8 +138,12 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		- For the first phase: Can we restrict the user to not change the flag/behaviour among fast/normal path.
 	*/
 
-	fastPath := utils.GetEnvAsBool("YBVOYAGER_YB_COPY_FAST_PATH", false)
-	if importerRole == TARGET_DB_IMPORTER_ROLE && fastPath /* && batchForNonPKTable*/ {
+	// Assuming user won't change the PK once import data is started(for eg: after interruption / before retry)
+	fastPath := bool(enableFastPath) &&
+		importerRole == TARGET_DB_IMPORTER_ROLE &&
+		batch.ForPrimaryKeyTable()
+
+	if fastPath {
 		fti.importBatchViaFastPath(batch)
 	} else {
 		fti.importBatchViaNormalPath(batch)
@@ -159,9 +163,9 @@ func (fti *FileTaskImporter) importBatchViaFastPath(batch *Batch) {
 	if recoverBatch {
 		// TODO: implement recovery logic
 		// TODO2: Make the task picker logic to first pick and import the interrupted task(in progress ones)
-		utils.ErrExit("recovery logic not implemented")
+		utils.ErrExit("fast path recovery logic not implemented yet")
 	} else {
-		fti.importBatchCore(batch)
+		fti.importBatchCore(batch, true)
 	}
 }
 
@@ -173,10 +177,10 @@ func (fti *FileTaskImporter) importBatchViaNormalPath(batch *Batch) {
 		which avoids unique constraint violation and we can skip the batch
 	*/
 	log.Infof("importing batch %q via normal path", batch.FilePath)
-	fti.importBatchCore(batch)
+	fti.importBatchCore(batch, false)
 }
 
-func (fti *FileTaskImporter) importBatchCore(batch *Batch) {
+func (fti *FileTaskImporter) importBatchCore(batch *Batch, fastPath bool) {
 	err := batch.MarkInProgress()
 	if err != nil {
 		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
@@ -188,9 +192,10 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch) {
 
 	var rowsAffected int64
 	sleepIntervalSec := 0
+	log.Infof("start importing batch %q with fastPath=%v", batch.FilePath, fastPath)
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, false)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, fastPath)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
