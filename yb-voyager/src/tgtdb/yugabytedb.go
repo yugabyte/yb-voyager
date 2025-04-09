@@ -550,6 +550,25 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	return res.RowsAffected(), err
 }
 
+func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKeyConflictAction string, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+	/*
+		Steps:
+		1. Check if batch was already imported and not just marked as done
+			If yes, mark it as done and return -1, nil
+		2. Open the batch file
+		3. Read the batch file line by line(row) for INSERT statment
+		4. Prepare the INSERT statement based on PK conflict action
+		5. [Optional] Use PreparedStatement for better performance
+		6. Execute the INSERT statement one by one
+		7. Update the Metadata about the batch imported
+		8. Mark the batch as done (.P -> .D and truncate)
+		9. Return the number of rows imported(wont necessarily be same as the number of rows in the batch)
+		10. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	*/
+
+	return 0, nil
+}
+
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
 	schemaName, tableName := nt.ForCatalogQuery()
 	var result []string
