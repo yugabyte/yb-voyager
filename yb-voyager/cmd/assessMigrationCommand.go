@@ -1413,7 +1413,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 			fixed, err := queryissue.IsFixedIn(targetDbVersion)
 			if err != nil {
-				log.Warnf("checking if issue %v is supported: %w", queryissue, err)
+				log.Warnf("checking if issue %v is supported: %v", queryissue, err)
 			}
 			if !fixed {
 				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
@@ -1554,7 +1554,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
 				if err != nil {
-					log.Warnf("checking if issue %v is supported: %w", queryIssue, err)
+					log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
 				}
 				if !fixed {
 					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
@@ -1603,7 +1603,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				}
 				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
 				if err != nil {
-					log.Warnf("checking if issue %v is supported: %w", queryIssue, err)
+					log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
 				}
 				if !fixed {
 					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
