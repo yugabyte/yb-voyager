@@ -249,9 +249,9 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, fastPath bool) (int64, error) {
-	if fastPath {
-		panic("fastPath is not supported for import batch in Oracle")
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+	if nonTxnPath {
+		panic("non-transactional path for import batch is not supported in Oracle")
 	}
 
 	tdb.Lock()
