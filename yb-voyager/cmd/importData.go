@@ -76,7 +76,7 @@ var progressReporter *ImportDataProgressReporter
 
 // flags only for import data to target
 var enableFastPath utils.BoolStr
-var onPrimaryKeyConflict string
+var onPrimaryKeyConflictAction string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",

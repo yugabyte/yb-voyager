@@ -142,7 +142,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		Assumption: user won't change the PK once import data is started(for eg: after interruption / before retry)
 	*/
 
-	if IsNonTransactionalPath(batch){
+	if IsNonTransactionalPath(batch) {
 		fti.importBatchViaNonTxnPath(batch)
 	} else {
 		fti.importBatchViaTxnPath(batch)
@@ -163,8 +163,8 @@ func (fti *FileTaskImporter) importBatchViaNonTxnPath(batch *Batch) {
 	recoverBatch := batch.IsInterrupted()
 	if recoverBatch {
 		// TODO: implement recovery logic
-		// TODO2: Make the task picker logic to first pick and import the interrupted task(in progress ones)
-		utils.ErrExit("fast path recovery logic not implemented yet")
+		// TODO2: Ensure the task picker logic to first pick and import the interrupted task(in progress ones)
+		fti.importBatchViaRecoverMode(batch, onPrimaryKeyConflictAction)
 	} else {
 		fti.importBatchCore(batch, true)
 	}
@@ -217,6 +217,18 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	if err != nil {
 		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
 	}
+}
+
+func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action int) {
+	/*
+		Recovery mode for batch import
+		In case of recovery(last run imported partial batch):
+		in progress batch(es) will import via INSERT ON CONFLICT DO (ACTION) approach
+		to recover with failure handling for unique constraint violation, if occurs.
+
+		This logic also need to retried for retryable errors for transient database errors
+		If the batch keeps fails after N retries(via recovery mode) then Error out
+	*/
 }
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
@@ -328,7 +340,6 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
 }
-
 
 // returns true if non transaction path can be followed for this batch
 func IsNonTransactionalPath(batch *Batch) bool {
