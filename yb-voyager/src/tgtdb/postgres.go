@@ -373,9 +373,9 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, fastPath bool) (int64, error) {
-	if fastPath {
-		panic("fastPath is not supported for import batch in PostgreSQL")
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+	if nonTxnPath {
+		panic("non-transactional path for import batch is not supported in PostgreSQL")
 	}
 
 	var rowsAffected int64
