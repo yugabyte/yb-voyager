@@ -123,27 +123,26 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	/*
+		Summary:
+
 		Check if the batch is already in progress then we need to recover with failure handling for unique constraint violation
 		Now we can have two paths:
-		1. If non-txn is enabled and allowed for the batch(check PK/non-PK table) [TODO: treat non-PK tables but with unique constraint as PK only?]
-			then use fast path
-		2. Else If non-txn is disabled
-			then use normal path(existing)
+		1. If --enable-fast-path is true and allowed for the batch(check PK/non-PK table)
+			then use non-txn path for COPY
+		2. Else
+			- Use normal path with txn for COPY
 
 		Fast Path - Does everything like normal path but without transaction around COPY command
-		And in case of recovery; the batch will import via INSERT ON CONFLICT DO NOTHING path
+		And in case of recovery; the batch will import via INSERT ON CONFLICT DO NOTHING/UPDATE path
 
 		Case: What if user change the flag/behaviour to use txn/non-txn path at the time of resumption?
 		- Complication comes as we will have to recover the files as per the previous fast path approach, rest of the batches(not created or just created) can continue as asked by the user
 		- For the first phase: Can we restrict the user to not change the flag/behaviour among fast/normal path.
+
+		Assumption: user won't change the PK once import data is started(for eg: after interruption / before retry)
 	*/
 
-	// Assuming user won't change the PK once import data is started(for eg: after interruption / before retry)
-	nonTxnPath := bool(enableFastPath) &&
-		importerRole == TARGET_DB_IMPORTER_ROLE &&
-		batch.ForPrimaryKeyTable()
-
-	if nonTxnPath {
+	if IsNonTransactionalPath(batch){
 		fti.importBatchViaNonTxnPath(batch)
 	} else {
 		fti.importBatchViaTxnPath(batch)
@@ -328,4 +327,17 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
+}
+
+
+// returns true if non transaction path can be followed for this batch
+func IsNonTransactionalPath(batch *Batch) bool {
+	if batch == nil {
+		return false
+	}
+
+	nonTxnPath := bool(enableFastPath) &&
+		importerRole == TARGET_DB_IMPORTER_ROLE &&
+		batch.ForPrimaryKeyTable()
+	return nonTxnPath
 }
