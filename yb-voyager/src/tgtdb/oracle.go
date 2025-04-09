@@ -175,6 +175,23 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
+// Check if the table has a primary key.
+// TODO: cache this info to avoid querying everytime
+func (tdb *TargetOracleDB) CheckTableHasPrimaryKey(table *sqlname.NameTuple) bool {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM ALL_CONSTRAINTS
+	WHERE TABLE_NAME = '%s' AND OWNER = '%s' AND CONSTRAINT_TYPE = 'P'`,
+		tableName, schemaName)
+
+	var cnt int
+	err := tdb.QueryRow(query).Scan(&cnt)
+	if err != nil {
+		utils.ErrExit("run query: %q on target: %s", query, err)
+	}
+
+	return cnt > 0
+}
+
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

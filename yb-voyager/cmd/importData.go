@@ -74,6 +74,9 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
+// only for import data to target
+var enableFastPath utils.BoolStr
+
 var importDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Import data from compatible source database to target database.\n" +
@@ -1346,9 +1349,12 @@ func checkExportDataDoneFlag() {
 }
 
 func init() {
+	// adding child commands to parent import commands
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
+
+	// adding flags to the `import data` and `import data to target` commands
 	registerFlagsForTarget(importDataCmd)
 	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)

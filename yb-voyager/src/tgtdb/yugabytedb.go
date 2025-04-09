@@ -409,6 +409,23 @@ outer:
 	return nil
 }
 
+// Check if the table has a primary key.
+// TODO: cache this info to avoid querying everytime
+func (yb *TargetYugabyteDB) CheckTableHasPrimaryKey(table *sqlname.NameTuple) bool {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT COUNT(*) FROM information_schema.table_constraints
+	WHERE table_schema = '%s' AND table_name = '%s' AND constraint_type = 'PRIMARY KEY'`,
+		schemaName, tableName)
+
+	var count int
+	err := yb.QueryRow(query).Scan(&count)
+	if err != nil {
+		utils.ErrExit("run query %q on target %q: %s", query, yb.tconf.Host, err)
+	}
+
+	return count > 0
+}
+
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -482,6 +499,8 @@ func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args
 		}
 	}()
 
+	// using the conn on which the transaction is executing which should ensure -
+	// all DB operations inside copyBatchCore will be a part of the transaction
 	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args)
 	return rowsAffected, err
 }

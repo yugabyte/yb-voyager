@@ -830,6 +830,12 @@ func (batch *Batch) IsDone() bool {
 	return strings.HasSuffix(batch.FilePath, ".D")
 }
 
+// return true if the batch is for a table with primary key
+func (batch *Batch) ForPrimaryKeyTable() bool {
+	table := batch.GetTableName()
+	return tdb.CheckTableHasPrimaryKey(&table)
+}
+
 func (batch *Batch) MarkInProgress() error {
 	// Rename the file to .P
 	inProgressFilePath := batch.getInProgressFilePath()
