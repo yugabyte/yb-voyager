@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -91,6 +92,8 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
+	validateEnableFastPathFlag()
+	validateOnPrimaryKeyConflictFlag()
 	return nil
 }
 
@@ -238,9 +241,15 @@ func registerImportDataToTargetFlags(cmd *cobra.Command) {
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
-	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false,
+		"Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
 	BoolVar(cmd.Flags(), &enableFastPath, "enable-fast-path", false,
-	"Enable fast path (non-transactional COPY) to improve import performance for colocated tables. Applies only to YugabyteDB target. Not applicable when importing into source/source-replica during fallforward or fallback. (default: false)")
+		"Enable fast path (non-transactional COPY) to improve import performance for colocated tables. Applies only to YugabyteDB target. Not applicable when importing into source/source-replica during fallforward or fallback. (default: false)")
+
+	// TODO: restrict changing of flag value after import data has started
+	// TODO: Detailed description of the flag
+	cmd.Flags().StringVar(&onPrimaryKeyConflict, "on-primary-key-conflict", "",
+		"Action to take on primary key conflict. Supported values: 'ERROR', 'IGNORE', 'UPDATE'")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -434,5 +443,31 @@ func validateParallelismFlags() {
 func validateTruncateTablesFlag() {
 	if truncateTables && !startClean {
 		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
+	}
+}
+
+func validateEnableFastPathFlag() {
+	if !enableFastPath && onPrimaryKeyConflict != "" {
+		utils.ErrExit("Error: To use --on-primary-key-conflict, you must also enable --enable-fast-path.")
+	}
+}
+
+var onPrimaryKeyConflictActions = []string{
+	constants.ON_PRIMARY_KEY_CONFLICT_ERROR,
+	constants.ON_PRIMARY_KEY_CONFLICT_IGNORE,
+	constants.ON_PRIMARY_KEY_CONFLICT_UPDATE,
+}
+
+func validateOnPrimaryKeyConflictFlag() {
+	if enableFastPath && onPrimaryKeyConflict == "" {
+		utils.ErrExit("Error: The --on-primary-key-conflict flag is required when --enable-fast-path is set to true.")
+	}
+
+	if onPrimaryKeyConflict != "" {
+		onPrimaryKeyConflict = strings.ToUpper(onPrimaryKeyConflict)
+		if !slices.Contains(onPrimaryKeyConflictActions, onPrimaryKeyConflict) {
+			// utils.ErrExit("Error: --on-primary-key-conflict flag can only be one of [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+		}
 	}
 }

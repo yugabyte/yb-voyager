@@ -74,8 +74,9 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
-// only for import data to target
+// flags only for import data to target
 var enableFastPath utils.BoolStr
+var onPrimaryKeyConflict string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -90,6 +91,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)

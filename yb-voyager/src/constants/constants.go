@@ -51,3 +51,10 @@ const (
 const (
 	OBFUSCATE_STRING = "XXXXX"
 )
+
+// constants for --on-primary-key-conflict flag values
+const (
+	ON_PRIMARY_KEY_CONFLICT_ERROR = "ERROR"
+	ON_PRIMARY_KEY_CONFLICT_IGNORE = "IGNORE"
+	ON_PRIMARY_KEY_CONFLICT_UPDATE = "UPDATE"
+)
