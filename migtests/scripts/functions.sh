@@ -675,7 +675,7 @@ setup_fallback_environment() {
 
 		# Clean up the temporary file after execution
 		rm -f $TEMP_SCRIPT
-		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
 		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
@@ -788,6 +788,11 @@ assess_migration() {
 		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
 	else
 		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+	fi
+
+	if [ "${TARGET_DB_VERSION}" != "" ]
+	then
+		args="${args} --target-db-version ${TARGET_DB_VERSION}"
 	fi
 	
 	yb-voyager assess-migration ${args} $*
