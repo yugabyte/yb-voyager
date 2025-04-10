@@ -19,7 +19,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -91,7 +90,12 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 		return "", fmt.Errorf("running command with args: %s, error: %s", args, err)
 	}
 	//stdout - CDC Stream ID: <stream_id>
-	streamID := strings.Trim(strings.Split(stdout, ":")[1], " \n")
+	streamID := ""
+	stdoutSplits := strings.Split(stdout, ":")
+	if len(stdoutSplits) > 1 {
+		streamID = strings.Trim(stdoutSplits[1], " \n")
+	}
+
 	err = ybc.metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.YBCDCStreamID = streamID
 	})
@@ -140,11 +144,8 @@ func (ybc *YugabyteDBCDCClient) DeleteStreamID() error {
 }
 
 func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
-	tserverPort := "9100" //TODO: make it internally handled by yb-client
-	if os.Getenv("YB_TSERVER_PORT") != "" {
-		tserverPort = os.Getenv("YB_TSERVER_PORT")
-	}
-	args := fmt.Sprintf("-list_masters -master_addresses %s -tserver_port %s", ybc.ybServers, tserverPort)
+	tserverPort := utils.GetEnvAsInt("YB_TSERVER_PORT", 9100) //TODO: make it internally handled by yb-client
+	args := fmt.Sprintf("-list_masters -master_addresses %s -tserver_port %d", ybc.ybServers, tserverPort)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
