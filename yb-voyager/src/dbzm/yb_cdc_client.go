@@ -155,17 +155,18 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 		return "", fmt.Errorf("running command with args: %s, error: %s", args, err)
 	}
 	//stdout - Master Addresses: <comma_separated_list_addresses>
-	masterAddresses := strings.Trim(strings.Split(stdout, ": ")[1], " \n")
+	masterAddresses := ""
+	stdoutSplits := strings.Split(stdout, ": ")
+	if len(stdoutSplits) > 1 {
+		masterAddresses = strings.Trim(stdoutSplits[1], " \n")
+	}
 	ybc.ybMasterNodes = masterAddresses
 	return masterAddresses, nil
 }
 
 func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
-	tserverPort := "9100" //TODO: make it internally handled by yb-client
-	if os.Getenv("YB_TSERVER_PORT") != "" {
-		tserverPort = os.Getenv("YB_TSERVER_PORT")
-	}
-	args := fmt.Sprintf("-get_num_of_cdc_streams -master_addresses %s -tserver_port %s", ybc.ybServers, tserverPort)
+	tserverPort := utils.GetEnvAsInt("YB_TSERVER_PORT", 9100) //TODO: make it internally handled by yb-client
+	args := fmt.Sprintf("-get_num_of_cdc_streams -master_addresses %s -tserver_port %d", ybc.ybServers, tserverPort)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)
@@ -176,9 +177,13 @@ func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
 		return 0, fmt.Errorf("running command with args: %s, error: %s", args, err)
 	}
 	//stdout - Streams: <num_of_streams>
-	numOfStreams, err := strconv.Atoi(strings.Trim(strings.Split(stdout, ": ")[1], " \n"))
-	if err != nil {
-		return 0, fmt.Errorf("error parsing the output[%v] of cmd with args[%v] : %v", stdout, args, err)
+	numOfStreams := 0
+	stdoutSplits := strings.Split(stdout, ": ")
+	if len(stdoutSplits) > 1 {
+		numOfStreams, err = strconv.Atoi(strings.Trim(stdoutSplits[1], " \n"))
+		if err != nil {
+			return 0, fmt.Errorf("error parsing the output[%v] of cmd with args[%v] : %v", stdout, args, err)
+		}
 	}
 	return numOfStreams, nil
 }

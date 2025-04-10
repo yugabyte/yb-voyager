@@ -531,7 +531,7 @@ func importData(importFileTasks []*ImportFileTask) {
 		}
 	}
 	progressReporter = NewImportDataProgressReporter(bool(disablePb))
-	err = startMonitoringTargetHealth()
+	err = startMonitoringTargetYBHealth()
 	if err != nil {
 		utils.ErrExit("Failed to start monitoring health: %s", err)
 	}
@@ -902,7 +902,7 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 	return taskImporter, nil
 }
 
-func startMonitoringTargetHealth() error {
+func startMonitoringTargetYBHealth() error {
 	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
 		return nil
 	}
@@ -914,7 +914,7 @@ func startMonitoringTargetHealth() error {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
-		err := monitor.MonitorTargetHealth(yb, metaDB, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, func(info string) {
+		err := monitor.MonitorTargetYBHealth(yb, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
 		})
 		if err != nil {

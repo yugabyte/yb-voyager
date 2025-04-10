@@ -27,7 +27,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -50,7 +49,7 @@ type TargetDBForMonitorHealth interface {
 // bool variable is for indicating if a node is down or up
 var nodeStatuses map[string]bool
 
-func MonitorTargetHealth(yb TargetDBForMonitorHealth, metaDB *metadb.MetaDB, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayAlertFunc func(alertMsg string)) error {
+func MonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayAlertFunc func(alertMsg string)) error {
 	nodeStatuses = make(map[string]bool)
 
 	var err error
@@ -97,7 +96,6 @@ the new connections will automatically go to that node -- handled via conn-pool
 
 3. load balancer on the cluster
 No node status checks will happen as we put the load on the load balancer IP and it will take care of this adaptation automatically
-
 */
 func monitorNodesStatusAndAdapt(yb TargetDBForMonitorHealth, loadBalancerEnabled bool, skip utils.BoolStr) (string, error) {
 	if bool(skip) || loadBalancerEnabled {

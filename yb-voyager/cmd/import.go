@@ -357,14 +357,15 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
 			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
 	BoolVar(cmd.Flags(), &skipReplicationChecks, "skip-replication-checks", false,
-		"Skips the monitoring of the replication enabled or not on the target YugabyteDB cluster. "+
-			"By default, voyager will keep monitoring of the replication enabled to keep the cluster stable.")
+		"It is NOT recommended to have any form of replication (CDC/xcluster) running on the target YugabyteDB cluster during import-data. "+
+			"If detected, data import is aborted. Use this flag to turn off the checks and continue importing data.")
 	BoolVar(cmd.Flags(), &skipNodeHealthChecks, "skip-node-health-checks", false,
 		"Skips the monitoring of the Node status checks on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the node status to keep the cluster stable.")
 	BoolVar(cmd.Flags(), &skipDiskUsageHealthChecks, "skip-disk-usage-health-checks", false,
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
+	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 }
 
 func registerFlagsForSourceReplica(cmd *cobra.Command) {

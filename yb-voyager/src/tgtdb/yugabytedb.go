@@ -225,16 +225,12 @@ func (yb *TargetYugabyteDB) PrepareForStreaming() {
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {
-	var tconfs []*TargetConf
-	loadBalancerUsed, confs, err := yb.GetYBServers()
+	loadBalancerUsed, tconfs, err := yb.GetYBServers()
 	if err != nil {
 		return fmt.Errorf("error fetching the yb servers: %v", err)
 	}
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+	if loadBalancerUsed {
 		utils.PrintAndLog(LB_WARN_MSG)
-		tconfs = []*TargetConf{yb.tconf}
-	} else {
-		tconfs = testAndFilterYbServers(confs)
 	}
 	var targetUriList []string
 	for _, tconf := range tconfs {
@@ -873,6 +869,11 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
+	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+		tconfs = []*TargetConf{yb.tconf}
+	} else {
+		tconfs = testAndFilterYbServers(tconfs)
+	}
 	return loadBalancerUsed, tconfs, nil
 }
 
@@ -894,15 +895,9 @@ func getCloneConnectionUri(clone *TargetConf) string {
 }
 
 func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
-	var tconfs []*TargetConf
-	loadBalancerUsed, confs, err := yb.GetYBServers()
+	_, tconfs, err := yb.GetYBServers()
 	if err != nil {
 		log.Errorf("callhome error fetching yb servers: %v", err)
-	}
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		tconfs = []*TargetConf{yb.tconf}
-	} else {
-		tconfs = testAndFilterYbServers(confs)
 	}
 	totalCores, _ := fetchCores(tconfs) // no need to handle error in case we couldn't fine cores
 	return &callhome.TargetDBDetails{
@@ -1508,20 +1503,12 @@ func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string
 
 func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 	query := "SELECT count(slot_name) from pg_replication_slots"
-	rows, err := yb.Query(query)
-	if err != nil {
-		return 0, fmt.Errorf("querying if user is superuser: %w", err)
-	}
-	defer rows.Close()
-
 	var numOfSlots int64
-	if rows.Next() {
-		err = rows.Scan(&numOfSlots)
-		if err != nil {
-			return 0, fmt.Errorf("scanning row for query: %w", err)
-		}
-	} else {
-		return 0, fmt.Errorf("no current user found in pg_roles")
+
+	err := yb.QueryRow(query).Scan(&numOfSlots)
+	if err != nil {
+		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %v", err)
 	}
+
 	return numOfSlots, nil
 }
