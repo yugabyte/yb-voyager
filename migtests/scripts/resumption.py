@@ -162,23 +162,33 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         )
         start_time = time.time()
         interrupted = False
+        chosen_signal = None
 
         while process.poll() is None:
             if allow_interruption and interrupt_after is not None:
                 elapsed_time = time.time() - start_time
                 if elapsed_time > interrupt_after:
-                    print("Interrupting the process (PID: {})...".format(process.pid), flush=True)
+                    # Choose a random signal to send
+                    interrupt_signals = [
+                        signal.SIGTERM,
+                        signal.SIGINT,
+                        signal.SIGKILL,
+                        signal.SIGHUP
+                    ]
+                    chosen_signal = random.choice(interrupt_signals)
+                    print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
+
                     try:
-                        process.terminate()
-                        print("Terminate signal sent to process (PID: {}). Waiting for process to exit...".format(process.pid), flush=True)
+                        process.send_signal(chosen_signal)
+                        print(f"{chosen_signal.name} sent to process (PID: {process.pid}). Waiting for process to exit...", flush=True)
 
                         process.wait(timeout=10)  # Wait for the process to exit
                         print(f"Process (PID: {process.pid}) terminated gracefully with exit code: {process.returncode}", flush=True)
 
                     except subprocess.TimeoutExpired:
-                        print("Process (PID: {}) did not terminate in time. Forcing termination...".format(process.pid), flush=True)
+                        print(f"Process (PID: {process.pid}) did not terminate in time. Forcing termination...", flush=True)
                         process.kill()
-                        print(f"Process (PID: {process.pid}) killed with exit code: {process.returncode}", flush=True)
+                        print(f"Process (PID: {process.pid}) force-killed with exit code: {process.returncode}", flush=True)
 
                     interrupted = True
                     break
@@ -204,8 +214,18 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
 
         # If interrupted, check the exit code
         if interrupted:
-            if process.returncode not in {1, -9, 137}:  # -9 and 137 are SIGKILL variations
-                print(f"Unexpected exit code after interruption: {process.returncode}", flush=True)
+            # These exit codes are considered valid for interrupted processes:
+            # Negative signal numbers (e.g., -SIGKILL, -SIGHUP) indicate termination by a specific signal.
+            # 128 + signal number (e.g., 128 + SIGKILL, 128 + SIGHUP) is the convention for processes terminated by signals.
+            # Exit code 1 is expected for graceful termination by SIGTERM or SIGINT.
+            valid_interrupt_exit_codes = {
+                -signal.SIGKILL, 128 + signal.SIGKILL,
+                -signal.SIGHUP, 128 + signal.SIGHUP,
+                1
+            }
+
+            if process.returncode not in valid_interrupt_exit_codes:
+                print(f"Unexpected exit code after interruption ({chosen_signal.name}): {process.returncode}", flush=True)
                 sys.exit(1)
 
         completed = process.returncode == 0 and not interrupted
