@@ -172,8 +172,7 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
                     interrupt_signals = [
                         signal.SIGTERM,
                         signal.SIGINT,
-                        signal.SIGKILL,
-                        signal.SIGHUP
+                        signal.SIGKILL
                     ]
                     chosen_signal = random.choice(interrupt_signals)
                     print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
@@ -215,12 +214,11 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         # If interrupted, check the exit code
         if interrupted:
             # These exit codes are considered valid for interrupted processes:
-            # Negative signal numbers (e.g., -SIGKILL, -SIGHUP) indicate termination by a specific signal.
-            # 128 + signal number (e.g., 128 + SIGKILL, 128 + SIGHUP) is the convention for processes terminated by signals.
+            # Negative signal numbers (e.g., -SIGKILL) indicate termination by a specific signal.
+            # 128 + signal number (e.g., 128 + SIGKILL) is the convention for processes terminated by signals.
             # Exit code 1 is expected for graceful termination by SIGTERM or SIGINT.
             valid_interrupt_exit_codes = {
                 -signal.SIGKILL, 128 + signal.SIGKILL,
-                -signal.SIGHUP, 128 + signal.SIGHUP,
                 1
             }
 
