@@ -181,6 +181,9 @@ func (fti *FileTaskImporter) importBatchViaTxnPath(batch *Batch) {
 	fti.importBatchCore(batch, false)
 }
 
+// importBatchCore func is used for both txn/non-txn path(depending on the caller)
+// It will do the actual COPY command for the batch in the target DB with retries
+// called from importBatchViaTxnPath and importBatchViaNonTxnPath(non recovery mode)
 func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	err := batch.MarkInProgress()
 	if err != nil {
@@ -219,9 +222,9 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	}
 }
 
-func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action int) {
+func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action string) {
 	/*
-		Recovery mode for batch import
+		Recovery mode for batch import (in-progress batches only)
 		In case of recovery(last run imported partial batch):
 		in progress batch(es) will import via INSERT ON CONFLICT DO (ACTION) approach
 		to recover with failure handling for unique constraint violation, if occurs.
@@ -229,6 +232,37 @@ func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action int)
 		This logic also need to retried for retryable errors for transient database errors
 		If the batch keeps fails after N retries(via recovery mode) then Error out
 	*/
+
+	// Caller ensures only valid target DB type(YugabyteDB) reach here
+	ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("(recovery) target db is not of type TargetYugabyteDB to use for importing batch %q", batch.FilePath)
+	}
+
+	var err error
+	var rowsAffected int64
+	for attempt := 0; attempt < BATCH_RECOVERY_MAX_RETRY_COUNT; attempt++ {
+		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
+		rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, action, fti.importBatchArgsProto, exportDir, tableSchema)
+		if err == nil || ybdb.IsNonRetryableInsertError(err){
+			break
+		}
+
+		log.Warnf("(recovery) import batch %q: %s", batch.FilePath, err)
+		log.Infof("(recovery) sleep for %d seconds before retrying the file %s (attempt %d)",
+			RECOVERY_MODE_SLEEP_SECOND, batch.FilePath, attempt)
+		time.Sleep(time.Duration(RECOVERY_MODE_SLEEP_SECOND) * time.Second)
+	}
+
+	log.Infof("(recovery) %q => %d rows affected", batch.FilePath, rowsAffected)
+	if err != nil {
+		utils.ErrExit("(recovery) import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+	}
+
+	err = batch.MarkDone()
+	if err != nil {
+		utils.ErrExit("(recovery) marking batch as done: %q: %s", batch.FilePath, err)
+	}
 }
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
