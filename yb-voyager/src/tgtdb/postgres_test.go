@@ -128,7 +128,7 @@ func TestPostgresFilterPrimaryKeyColumns(t *testing.T) {
 		{
 			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
 			allColumns:     []string{"id", "name"},
-			expectedPKCols: []string{},
+			expectedPKCols: nil,
 		},
 	}
 
