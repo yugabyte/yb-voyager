@@ -56,7 +56,7 @@ func TestStableReleaseType(t *testing.T) {
 		"2024.1.1.0",
 		"2024.1.0.0",
 		"2024.1.1.1",
-		"2024.2.2.0",
+		"2024.2.2.2",
 	}
 	for _, v := range stableVersionStrings {
 		ybVersion, _ := NewYBVersion(v)
