@@ -294,25 +294,28 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	var conn *pgx.Conn
 	var gotIt bool
 	size := pool.size
-	for i := 0; i < size; i++ {
-		conn, gotIt = <-pool.conns
-		if !gotIt {
-			break
-		}
+	removeConnectionsForConns := func(fnConns chan *pgx.Conn) {
+		for i := 0; i < size; i++ {
+			conn, gotIt = <-fnConns
+			if !gotIt {
+				break
+			}
 
-		if conn == nil {
-			pool.conns <- conn
-			continue
-		}
-		if slices.Contains(servers, conn.Config().Host) {
-			log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
-			conn.Close(context.Background())
-			pool.conns <- nil
-		} else {
-			pool.conns <- conn
+			if conn == nil {
+				fnConns <- conn
+				continue
+			}
+			if slices.Contains(servers, conn.Config().Host) {
+				log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
+				conn.Close(context.Background())
+				fnConns <- nil
+			} else {
+				fnConns <- conn
+			}
 		}
 	}
-
+	removeConnectionsForConns(pool.conns)
+	removeConnectionsForConns(pool.idleConns)
 	return nil
 }
 
