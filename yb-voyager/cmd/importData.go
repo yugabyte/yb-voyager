@@ -914,9 +914,11 @@ func startMonitoringTargetYBHealth() error {
 		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
 	}
 	go func() {
+		//for now not sending any other parameters as not required for monitor usage
+		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", "", "", "", nil)
 		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
-		})
+		}, ybClient, tconf)
 		err := monitorTDBHealth.StartMonitoring()
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)

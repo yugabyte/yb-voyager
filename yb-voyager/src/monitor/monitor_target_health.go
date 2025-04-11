@@ -32,13 +32,13 @@ import (
 )
 
 const (
-	MONITOR_HEALTH_FREQUENCY_SECONDS = 15
+	MONITOR_HEALTH_FREQUENCY_SECONDS = 1//120 // 2 mins interval for monitoring the cluster checks
 	METRIC_FREE_DISK_SPACE           = "free_disk_space"
 	METRIC_TOTAL_DISK_SPACE          = "total_disk_space"
 	FREE_DISK_SPACE_THREASHOLD       = 10
-	REPLICATION_GUARDRAIL_ALERT_MSG  = "It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. If you still wish to proceed with replication, use the --skip-replication-checks true flag to disable the check."
-	NODE_GOES_DOWN_MSG               = "Nodes in the target YugabyteDB cluster are unhealthy, continuing data import using the available healthy nodes. Please check them on the target cluster."
-	NODE_COMES_BACK_UP_MSG           = "Previously unhealthy nodes in the target YugabyteDB cluster have recovered."
+	REPLICATION_GUARDRAIL_ALERT_MSG  = "It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. If you still wish to proceed with replication, use the '--skip-replication-checks true' flag to disable the check."
+	NODE_GOES_DOWN_MSG               = "Nodes in the target YugabyteDB cluster are unhealthy, continuing data import using the available healthy nodes. Please check them on the target cluster"
+	NODE_COMES_BACK_UP_MSG           = "Previously unhealthy nodes in the target YugabyteDB cluster have recovered"
 )
 
 type TargetDBForMonitorHealth interface {
@@ -48,31 +48,41 @@ type TargetDBForMonitorHealth interface {
 	GetClusterMetrics() (map[string]tgtdb.NodeMetrics, error) // node_uuid:metric_name:metric_value
 }
 
+type YugabyteDBClient interface {
+	Init() error
+	SetYBServers(string)
+	SetSSLRootCert(string)
+	GetNumOfReplicationStreams() (int, error)
+}
+
 type MonitorTargetYBHealth struct {
 	// key is the target cluster node and value is bool variable for indicating if a node is down or up
-	nodesStatus          map[string]bool
+	nodesStatus map[string]bool
 	//ybClient instance to fetch streams
-	ybClient             dbzm.YugabyteDBCDCClient
+	ybClient dbzm.YugabyteDBCDCClient
 	//yb tdb instance to query target for monitoring
-	yb                   TargetDBForMonitorHealth
+	yb TargetDBForMonitorHealth
 
 	//Skip booleans as per flags
 	skipNodeCheck        bool
 	skipDiskCheck        bool
 	skipReplicationCheck bool
 
-	//Display function for the printing any msg on the console 
-	displayMsgFunc     func(string)
+	//Display function for the printing any msg on the console
+	displayMsgFunc func(string)
+
+	tconf tgtdb.TargetConf
 }
 
-func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayMsgFunc func(msg string)) MonitorTargetYBHealth {
+func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayMsgFunc func(msg string), ybClient YugabyteDBClient, tconf tgtdb.TargetConf) MonitorTargetYBHealth {
 	return MonitorTargetYBHealth{
 		nodesStatus:          make(map[string]bool),
 		yb:                   yb,
 		skipNodeCheck:        bool(skipNodeHealthChecks),
 		skipDiskCheck:        bool(skipDiskUsageHealthChecks),
 		skipReplicationCheck: bool(skipReplicationChecks),
-		displayMsgFunc:     displayMsgFunc,
+		displayMsgFunc:       displayMsgFunc,
+		tconf:                tconf,
 	}
 }
 
@@ -93,15 +103,6 @@ func (m *MonitorTargetYBHealth) StartMonitoring() error {
 
 	//skipping the disk usage monitoring for now, util the metrics function changes are made
 	m.skipDiskCheck = true
-
-	ybServers := lo.Keys(m.nodesStatus)
-	addresses := strings.Join(ybServers, ":7100,")
-	// no need to specify the empty params as we need to only get num of cdc streams
-	ybClient := dbzm.NewYugabyteDBCDCClient("", addresses, "", "", "", nil)
-	err = ybClient.Init()
-	if err != nil {
-		return fmt.Errorf("failed to initialize YugabyteDB CDC client: %w", err)
-	}
 
 	for {
 		err = m.monitorNodesStatusAndAdapt()
@@ -171,7 +172,7 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 
 	}
 	if len(downNodes) > 0 {
-		downNodeMsg := color.RedString(fmt.Sprintf("ALERT: %s. Unhealthy nodes: %v", NODE_GOES_DOWN_MSG, strings.Join(downNodes, ", ")))
+		downNodeMsg := color.RedString(fmt.Sprintf("ALERT: %s. Unhealthy nodes: %v\n", NODE_GOES_DOWN_MSG, strings.Join(downNodes, ", ")))
 		m.displayMsgFunc(downNodeMsg)
 		err := m.yb.RemoveConnectionsForHosts(downNodes)
 		if err != nil {
@@ -180,7 +181,7 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 		return nil
 	}
 	if len(upNodes) > 0 {
-		upNodeMsg := color.GreenString(fmt.Sprintf("OK: %s. Healthy nodes: %v", NODE_COMES_BACK_UP_MSG, strings.Join(upNodes, ", ")))
+		upNodeMsg := color.GreenString(fmt.Sprintf("OK: %s. Healthy nodes: %v\n", NODE_COMES_BACK_UP_MSG, strings.Join(upNodes, ", ")))
 		m.displayMsgFunc(upNodeMsg)
 	}
 	return nil
@@ -238,12 +239,25 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 	if err != nil {
 		return fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
 	}
+	if numOfSlots > 0 {
+		utils.ErrExit(color.RedString(REPLICATION_GUARDRAIL_ALERT_MSG))
+	}
+
+	err = m.ybClient.Init()
+	if err != nil {
+		return fmt.Errorf("error intialising the yb client : %v", err)
+	}
+	ybServers := lo.Keys(m.nodesStatus)
+	addresses := strings.Join(ybServers, ":7100,")
+
+	m.ybClient.SetYBServers(addresses)
+	m.ybClient.SetSSLRootCert(m.tconf.SSLRootCert)
 
 	numOfStreams, err := m.ybClient.GetNumOfReplicationStreams()
 	if err != nil {
 		return fmt.Errorf("error fetching num of replication streams: %v", err)
 	}
-	if numOfSlots > 0 || numOfStreams > 0 {
+	if numOfStreams > 0 {
 		utils.ErrExit(color.RedString(REPLICATION_GUARDRAIL_ALERT_MSG))
 	}
 	return nil
