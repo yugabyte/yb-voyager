@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strconv"
@@ -459,9 +460,22 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
+var counter = 0
+
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
 	var rowsAffected int64
 	var err error
+
+	// log.Infof("manual exit for testing retry logic non-txn path table name is %s", batch.GetTableName().ForUserQuery())
+	// if batch.GetTableName().ForUserQuery() == `public."customers"` {
+	// 	if counter < 1 {
+	// 		counter++
+	// 	} else {
+	// 		log.Infof("manual exit for testing retry logic non-txn path")
+	// 		utils.ErrExit("manual exit for testing retry logic non-txn path")
+	// 	}
+	// }
+
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if nonTxnPath {
 			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args)
@@ -518,6 +532,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	defer file.Close()
 
 	// 2. setting the schema so that COPY command can acesss the table
+	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
 	yb.setTargetSchema(conn)
 
 	// 3. Check if the split is already imported.
@@ -553,20 +568,84 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKeyConflictAction string, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
 	/*
 		Steps:
-		1. Check if batch was already imported and not just marked as done
-			If yes, mark it as done and return -1, nil
+		1. Check if batch was already imported and just failed to mark as done in last run.
+			If yes, return rows affected; caller will mark it as done.
 		2. Open the batch file
-		3. Read the batch file line by line(row) for INSERT statment
+		3. Read the batch file line by line(row) and build INSERT statment for it
 		4. Prepare the INSERT statement based on PK conflict action
-		5. [Optional] Use PreparedStatement for better performance
+		5. [Optional] Use PreparedStatement Caching on coonPool for better performance
 		6. Execute the INSERT statement one by one
 		7. Update the Metadata about the batch imported
-		8. Mark the batch as done (.P -> .D and truncate)
-		9. Return the number of rows imported(wont necessarily be same as the number of rows in the batch)
-		10. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
+		8. Return the number of rows imported(wont necessarily be same as the number of rows in the batch)
+		9. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
 	*/
 
-	return 0, nil
+	// 1. Check if the split is already imported.
+	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(yb.conn_, batch)
+	if err != nil {
+		return 0, err
+	}
+	if alreadyImported {
+		return rowsAffected, nil
+	}
+
+	// 2. Open the batch file
+	file, err := batch.Open()
+	if err != nil {
+		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+	}
+	defer file.Close()
+
+	// 3.1 Read the batch file line by line(row)
+	// 3.2 Build INSERT statement for it
+	// 4 Prepare the INSERT statement based on PK conflict action
+	rowsAffected = 0
+	insertStmt := args.GetInsertStatementBasedOn(onPrimaryKeyConflictAction)
+	for {
+		line, err := batch.GetNextLine()
+		if err != nil {
+			if err == io.EOF {
+				break
+			}
+			return 0, fmt.Errorf("read line from file %s: %w", batch.GetFilePath(), err)
+		}
+		if line == "" {
+			continue
+		}
+
+		fields := strings.Split(line, args.Delimiter)
+		stmtArgs := make([]interface{}, len(fields))
+		for i, val := range fields {
+			stmtArgs[i] = val
+		}
+
+		// 6. Execute the INSERT statement one by one
+		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+			// TODO: verify if the insertStmt is going as prepared or normal statement
+			_, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
+			if err != nil {
+				return false, fmt.Errorf("insert into target table: %w", err)
+			}
+			return false, nil // Retries are implemented in the caller.
+		})
+		if err != nil {
+			return 0, fmt.Errorf("insert into target table: %w", err)
+		}
+
+		rowsAffected++
+	}
+
+	// 7. Update the Metadata about the batch imported
+	// TODO: Do we use the total sum of rowsAffected from metadata in some logic(import-data-status?)
+	// Because it might not be same as sum total during partial ingestion scenario
+	err = yb.recordEntryInDB(yb.conn_, batch, int64(rowsAffected))
+	if err != nil {
+		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+		return 0, err
+	}
+
+	// 8. returns total number of rows inserted; wont necessarily be same as the number of rows in the batch
+	return rowsAffected, nil
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
@@ -603,6 +682,16 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
 	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
+}
+
+// this function is meant to be used for insert errors during recovery mode
+func (yb *TargetYugabyteDB) IsNonRetryableInsertError(err error) bool {
+	NonRetryInsertErrorsYB := []string{
+		"invalid input syntax",
+		"syntax error at",
+		"Sending too long RPC message",
+	}
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryInsertErrorsYB, err.Error())
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {

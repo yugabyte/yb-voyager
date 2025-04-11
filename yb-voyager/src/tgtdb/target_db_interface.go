@@ -24,6 +24,7 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -74,6 +75,7 @@ const (
 
 type Batch interface {
 	Open() (*os.File, error)
+	GetNextLine() (string, error)
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
@@ -96,6 +98,7 @@ type ImportBatchArgs struct {
 	FilePath     string
 	TableNameTup sqlname.NameTuple
 	Columns      []string
+	PKColumns    []string // TODO: Implement
 
 	FileFormat string
 	HasHeader  bool
@@ -139,8 +142,80 @@ func (args *ImportBatchArgs) GetPGCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) copyOptions() []string {
+/*
+TODOs:
+	1. Handle quoting of identifiers(column/table names) in the insert statement
+	2. Optimise the prepare statment to be cached and reused in connPool (same as for streaming events)
+*/
 
+/*
+GetInsertStatementBasedOn returns the INSERT prepared statement based on the requested conflict action.
+1. ERROR   -> raise error (no ON CONFLICT clause)
+2. IGNORE  -> ON CONFLICT DO NOTHING
+3. UPDATE  -> ON CONFLICT (pk…) DO UPDATE SET non‑pk = EXCLUDED.non‑pk, …
+*/
+func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) string {
+	// TODO: Need to ensure the order of columns in the insert statement is same as the rows in batch file
+
+	// column list for insert statement (col1, col2, col3, ...)
+	columns := strings.Join(args.Columns, ", ")
+
+	// value placeholders for insert statement ($1, $2, $3, ...)
+	valuePlaceHolders := make([]string, len(args.Columns))
+	for i := range args.Columns {
+		valuePlaceHolders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	values := strings.Join(valuePlaceHolders, ", ")
+
+	// base insert statement
+	baseStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`,
+		args.TableNameTup.ForUserQuery(), columns, values)
+
+	switch conflictAction {
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
+		return baseStmt // no additional clause
+
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:
+		// we are dealing with PK conflict only for the target table (not Unique index etc...)
+		conflictTarget := strings.Join(args.PKColumns, ", ")
+
+		return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
+
+	/*
+		Sample Statement:
+			INSERT INTO users (id, name, email) VALUES ($1, $2, $3)
+				ON CONFLICT (id) DO UPDATE
+				SET
+					name = EXCLUDED.name,
+					email = EXCLUDED.email
+	*/
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE:
+		// build conflict target (pk1, pk2, pk3, ...)
+		conflictTarget := strings.Join(args.PKColumns, ", ")
+
+		// build update set clause (col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ...)
+		nonPKColumns := utils.SetDifference(args.Columns, args.PKColumns)
+		if len(nonPKColumns) == 0 {
+			return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
+		}
+
+		updateSet := make([]string, len(nonPKColumns))
+		for i, col := range nonPKColumns {
+			updateSet[i] = fmt.Sprintf("%s = EXCLUDED.%s", col, col)
+		}
+		updateSetClause := strings.Join(updateSet, ", ")
+
+		// build the final insert statement
+		baseStmt = fmt.Sprintf("%s ON CONFLICT (%s) DO UPDATE SET %s", baseStmt, conflictTarget, updateSetClause)
+	default:
+		panic(fmt.Sprintf("Invalid conflict action: %s", conflictAction))
+	}
+
+	utils.PrintAndLog("[debug] Insert statement for action %s: %s\n", conflictAction, baseStmt)
+	return baseStmt
+}
+
+func (args *ImportBatchArgs) copyOptions() []string {
 	options := []string{
 		fmt.Sprintf("FORMAT '%s'", args.FileFormat),
 	}
