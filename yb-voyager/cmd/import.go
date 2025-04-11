@@ -453,9 +453,9 @@ func validateEnableFastPathFlag() {
 }
 
 var onPrimaryKeyConflictActions = []string{
-	constants.ON_PRIMARY_KEY_CONFLICT_ERROR,
-	constants.ON_PRIMARY_KEY_CONFLICT_IGNORE,
-	constants.ON_PRIMARY_KEY_CONFLICT_UPDATE,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
 
 func validateOnPrimaryKeyConflictFlag() {

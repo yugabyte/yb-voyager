@@ -789,8 +789,8 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 	return batch, nil
 }
 
-//============================================================================
-
+// ============================================================================
+// Implementing Batch interface defined in target_db_interface.go
 type Batch struct {
 	Number       int64
 	TableNameTup sqlname.NameTuple
@@ -802,10 +802,27 @@ type Batch struct {
 	RecordCount  int64
 	ByteCount    int64
 	Interrupted  bool
+
+	reader *bufio.Reader
 }
 
 func (batch *Batch) Open() (*os.File, error) {
-	return os.Open(batch.FilePath)
+	file, err := os.Open(batch.FilePath)
+	if err != nil {
+		return nil, err
+	}
+
+	batch.reader = bufio.NewReader(file)
+	return file, err
+}
+
+func (batch *Batch) GetNextLine() (string, error) {
+	// TODO: check the limits/buffer size of the reader
+	line, err := batch.reader.ReadString('\n')
+	if err != nil {
+		return "", err
+	}
+	return line, nil
 }
 
 func (batch *Batch) Delete() error {
