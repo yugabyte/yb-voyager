@@ -25,6 +25,7 @@ import tempfile
 # max_interrupt_seconds: Maximum interval between interrupts.
 # min_restart_wait_seconds: Minimum wait time before resuming.
 # max_restart_wait_seconds: Maximum wait time before resuming.
+# varying_flags: Dictionary containing varying configurations for the import.
 
 import_type = None
 additional_flags = {}
@@ -46,6 +47,7 @@ target_db_password = ''
 target_db_schema = ''
 target_db_name = ''
 data_dir = ''
+varying_flags = {}
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
@@ -64,12 +66,13 @@ def load_config(config_file):
 def initialize_globals(config):
     """Initialize global variables from configuration."""
     global import_type, resumption, row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
-    global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir
+    global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir, varying_flags
 
     resumption = config.get('resumption', {})
     import_type = config.get('import_type', 'file')  # Default to 'file'
     additional_flags = config.get('additional_flags', {})
     file_table_map = config.get('file_table_map', '')
+    varying_flags = config.get("varying_flags", {})
 
     # Resumption settings
     # resumption = config['resumption']
@@ -126,7 +129,7 @@ def prepare_import_data_file_command():
     return args
 
 
-def prepare_import_data_command(config):
+def prepare_import_data_command():
     """
     Prepares the yb-voyager import data command based on the given configuration.
     """
@@ -154,6 +157,21 @@ def prepare_import_data_command(config):
         args.append(value)
 
     return args
+
+def inject_varying_flags(command):
+    global varying_flags
+
+    for flag, setting in varying_flags.items():
+        value_list = setting["value"]
+        if setting["type"] == "range":
+            value = random.randint(value_list[0], value_list[1])
+        elif setting["type"] == "choice":
+            value = random.choice(value_list)
+        else:
+            raise ValueError(f"Unknown type for '{flag}': {setting['type']}")
+        command.extend([flag, str(value)])
+
+    return command
 
 def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
@@ -230,15 +248,21 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         return completed, stdout, stderr
 
 
-def run_and_resume_voyager(command):
+def run_and_resume_voyager(base_command):
     """
     Handles the interruption logic and manages retries for the command.
 
     Args:
-        command (list): The command to execute.
+        base_command (list): The base command to execute.
     """
     for attempt in range(1, max_restarts + 1):
         print(f"\n--- Attempt {attempt} of {max_restarts} ---")
+
+        # Clone base command
+        command = base_command.copy()
+
+        # Inject varying flags on each retry
+        command = inject_varying_flags(command)
 
         # Randomly determine interruption timing
         interruption_time = random.randint(min_interrupt_seconds, max_interrupt_seconds)
@@ -256,6 +280,9 @@ def run_and_resume_voyager(command):
 
     # Final attempt without interruption
     print("\n--- Final attempt to complete the import ---\n", flush=True)
+
+    # Inject final set of varying flags before final run
+    command = inject_varying_flags(base_command.copy())
     completed, stdout, stderr = run_command(command, allow_interruption=False)
 
     if not completed:
@@ -309,7 +336,7 @@ def validate_row_counts():
     else:
         print("\nAll table row counts validated successfully.")
 
-def run_import_with_resumption(config):
+def run_import_with_resumption():
     """
     Runs the import process with resumption logic based on the provided configuration.
 
@@ -320,7 +347,7 @@ def run_import_with_resumption(config):
     if import_type == 'file':
         command = prepare_import_data_file_command()
     elif import_type == 'offline':
-        command = prepare_import_data_command(config)
+        command = prepare_import_data_command()
     else:
         raise ValueError(f"Unsupported import_type: {import_type}")
         sys.exit(1)
@@ -337,7 +364,7 @@ if __name__ == "__main__":
         print(f"Loaded configuration from {args.config_file}")
 
         # Run import process
-        run_import_with_resumption(config)
+        run_import_with_resumption()
 
         # Validate rows
         validate_row_counts()

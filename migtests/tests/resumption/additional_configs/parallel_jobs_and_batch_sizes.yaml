@@ -1,0 +1,12 @@
+
+# Configs which are run with varying values for the flags
+varying_flags:
+  --parallel-jobs:
+    type: range
+    value: [1, 10]
+  --batch-size:
+    type: choice
+    value: [1234, 2500, 10500, 20000]
+  --enable-adaptive-parallelism:
+    type: choice
+    value: [false]
