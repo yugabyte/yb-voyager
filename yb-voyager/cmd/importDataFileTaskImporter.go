@@ -241,11 +241,17 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 }
 
 func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
-	columns, _ := TableToColumnNames.Get(tableNameTup)
-	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
+	unquotedColumns, _ := TableToColumnNames.Get(tableNameTup)
+	columns, err := tdb.QuoteAttributeNames(tableNameTup, unquotedColumns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
+
+	pkColumns, err := tdb.FilterPrimaryKeyColumns(tableNameTup, unquotedColumns)
+	if err != nil {
+		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 
@@ -256,14 +262,15 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
+		TableNameTup:      tableNameTup,
+		Columns:           columns,
+		PrimaryKeyColumns: pkColumns,
+		FileFormat:        fileFormat,
+		Delimiter:         dataFileDescriptor.Delimiter,
+		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:         dataFileDescriptor.QuoteChar,
+		EscapeChar:        dataFileDescriptor.EscapeChar,
+		NullString:        dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto

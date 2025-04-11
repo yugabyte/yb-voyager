@@ -323,6 +323,49 @@ outer:
 	return nil
 }
 
+// FilterPrimaryKeyColumns returns the subset of `columns` that belong to the
+// primary‑key definition of the given table.
+func (pg *TargetPostgreSQL) FilterPrimaryKeyColumns(table sqlname.NameTuple, columns []string) ([]string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+
+	query := fmt.Sprintf(`
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_class      c ON c.oid = i.indrelid
+		JOIN pg_namespace  n ON n.oid = c.relnamespace
+		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+		WHERE n.nspname = '%s'
+			AND c.relname  = '%s'
+			AND i.indisprimary;`, schemaName, tableName)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	pkSet := make(map[string]struct{})
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan PK column: %w", err)
+		}
+		pkSet[col] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	var primaryKeyColumns []string
+	for _, c := range columns {
+		if _, ok := pkSet[c]; ok {
+			primaryKeyColumns = append(primaryKeyColumns, c)
+		}
+	}
+
+	return primaryKeyColumns, nil
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

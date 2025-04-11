@@ -25,6 +25,7 @@ import (
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -86,6 +87,55 @@ func TestCreateVoyagerSchemaPG(t *testing.T) {
 			table := strings.Split(tableName, ".")[1]
 			testutils.CheckTableStructurePG(t, db, BATCH_METADATA_TABLE_SCHEMA, table, expectedColumns)
 		})
+	}
+}
+
+func TestPostgresFilterPrimaryKeyColumns(t *testing.T) {
+	testPostgresTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.foo (
+			id INT,
+			category TEXT,
+			name TEXT,
+			PRIMARY KEY (id, category)
+		);`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+		`CREATE TABLE test_schema.baz (
+			id INT,
+			name TEXT
+		);`,
+	)
+	defer testPostgresTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tests := []struct {
+		table          sqlname.NameTuple
+		allColumns     []string
+		expectedPKCols []string
+	}{
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			allColumns:     []string{"id", "category", "name"},
+			expectedPKCols: []string{"id", "category"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			allColumns:     []string{"id", "name"},
+			expectedPKCols: []string{"id"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			allColumns:     []string{"id", "name"},
+			expectedPKCols: []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		pkCols, err := testPostgresTarget.FilterPrimaryKeyColumns(tt.table, tt.allColumns)
+		assert.NoError(t, err)
+		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
 }
 
