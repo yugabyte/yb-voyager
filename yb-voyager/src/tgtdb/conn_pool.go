@@ -176,7 +176,10 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		retry, err = fn(conn)
 		if err != nil {
 			// On err, drop the connection and clear the prepared statement cache.
-			conn.Close(context.Background())
+			errCloseConn := conn.Close(context.Background())
+			if errCloseConn != nil {
+				log.Warnf("closing the connection: %v", errCloseConn)
+			}
 			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
@@ -292,30 +295,51 @@ so its better to such unused connections  when we got the information that it is
 func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	log.Infof("Checking for connections on host: %s", servers)
 	var conn *pgx.Conn
+	var idleConn *pgx.Conn
 	var gotIt bool
 	size := pool.size
-	removeConnectionsForConns := func(fnConns chan *pgx.Conn) {
-		for i := 0; i < size; i++ {
-			conn, gotIt = <-fnConns
-			if !gotIt {
-				break
-			}
 
-			if conn == nil {
-				fnConns <- conn
-				continue
+	//Remove the connections on the servers from conns if present
+	for i := 0; i < size; i++ {
+		conn, gotIt = <-pool.conns
+		if !gotIt {
+			break
+		}
+
+		if conn == nil {
+			pool.conns <- conn
+			continue
+		}
+		if slices.Contains(servers, conn.Config().Host) {
+			log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
+			err := conn.Close(context.Background())
+			if err != nil {
+				log.Warnf("closing the connection: %v", err)
 			}
-			if slices.Contains(servers, conn.Config().Host) {
-				log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
-				conn.Close(context.Background())
-				fnConns <- nil
-			} else {
-				fnConns <- conn
-			}
+			pool.conns <- nil
+		} else {
+			pool.conns <- conn
 		}
 	}
-	removeConnectionsForConns(pool.conns)
-	removeConnectionsForConns(pool.idleConns)
+
+	//Remove the connections on the servers from idleConns as well if present
+	for i := 0; i < len(pool.idleConns); i++ {
+		idleConn = <-pool.idleConns
+		if idleConn == nil {
+			pool.idleConns <- idleConn
+			continue
+		}
+		if slices.Contains(servers, idleConn.Config().Host) {
+			log.Infof("Removing the connection for server as it is down from idle conns: %s", idleConn.Config().Host)
+			err := idleConn.Close(context.Background())
+			if err != nil {
+				log.Warnf("closing the connection: %v", err)
+			}
+			pool.idleConns <- nil
+		} else {
+			pool.idleConns <- idleConn
+		}
+	}
 	return nil
 }
 

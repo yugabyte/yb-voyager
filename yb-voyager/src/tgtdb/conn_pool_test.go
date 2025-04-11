@@ -27,6 +27,8 @@ import (
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
 func TestBasic(t *testing.T) {
@@ -203,4 +205,26 @@ func TestUpdateConnectionsRandom(t *testing.T) {
 		// idle connections should have the rest.
 		assert.Equal(t, maxSize-expectedFinalSize, len(pool.idleConns))
 	}
+}
+
+func TestRemoveConnectionsForHosts(t *testing.T) {
+	// GIVEN: a conn pool of size 10.
+	size := 10
+
+	connParams := &ConnectionParams{
+		NumConnections:    size,
+		NumMaxConnections: 2*size,
+		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
+		SessionInitScript: []string{},
+	}
+	pool := NewConnectionPool(connParams)
+	assert.Equal(t, size, len(pool.conns))
+	assert.Equal(t, size, len(pool.idleConns))
+
+	host, _, err := testYugabyteDBTarget.GetHostPort()
+	testutils.FatalIfError(t, err)
+	pool.RemoveConnectionsForHosts([]string{host})
+
+	assert.Equal(t, size, len(pool.conns))
+	assert.Equal(t, size, len(pool.idleConns))
 }

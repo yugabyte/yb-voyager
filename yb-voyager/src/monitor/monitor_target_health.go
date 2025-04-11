@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	MONITOR_HEALTH_FREQUENCY_SECONDS = 120 // 2 mins interval for monitoring the cluster checks
+	MONITOR_HEALTH_FREQUENCY_SECONDS = 5 // 2 mins interval for monitoring the cluster checks
 	METRIC_FREE_DISK_SPACE           = "free_disk_space"
 	METRIC_TOTAL_DISK_SPACE          = "total_disk_space"
 	FREE_DISK_SPACE_THREASHOLD       = 10
@@ -169,8 +169,8 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 		if !slices.Contains(lo.Keys(m.nodesStatus), conf.Host) {
 			m.nodesStatus[conf.Host] = true
 		}
-
 	}
+
 	if len(downNodes) > 0 {
 		downNodeMsg := color.RedString(fmt.Sprintf("ALERT: %s. Unhealthy nodes: %v\n", NODE_GOES_DOWN_MSG, strings.Join(downNodes, ", ")))
 		m.displayMsgFunc(downNodeMsg)
