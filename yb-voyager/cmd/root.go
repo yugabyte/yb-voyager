@@ -63,7 +63,7 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		// Bind viper to cobra flags
+		// Initialize the config file
 		err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
@@ -315,8 +315,6 @@ func validateExportDirFlag() {
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
-
-	fmt.Println("Export Dir: ", exportDir)
 }
 
 func GetCommandID(c *cobra.Command) string {
