@@ -105,10 +105,18 @@ main() {
 	import_schema --continue-on-error t
 	run_ysql ${TARGET_DB_NAME} "\dt"
 
+	# Extract the major version of YugabyteDB from the version string
+	target_major_version=$(run_ysql "${TARGET_DB_NAME}" "SELECT version();" | grep -oE 'YB-([0-9]+\.[0-9]+)' | cut -d '-' -f2)
+	echo "Major YugabyteDB Version: $target_major_version"
+
     if [ -f "${EXPORT_DIR}/schema/failed.sql" ]
     then
+		EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed_${target_major_version}.sql"
+		if [ ! -f "$EXPECTED_FAILED_FILE" ]; then
+		    EXPECTED_FAILED_FILE="${TEST_DIR}/expected_files/expected_failed.sql"
+		fi
         #compare the failed.sql to the expected_failed.sql
-        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${TEST_DIR}/expected_files/expected_failed.sql"
+        compare_sql_files "${EXPORT_DIR}/schema/failed.sql" "${EXPECTED_FAILED_FILE}"
         #rename failed.sql
         mv "${EXPORT_DIR}/schema/failed.sql" "${EXPORT_DIR}/schema/failed.sql.bak"
         #replace_files
