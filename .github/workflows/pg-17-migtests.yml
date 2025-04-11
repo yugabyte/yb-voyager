@@ -10,7 +10,7 @@ jobs:
   run-pg-17-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.1.0-b185, 2.20.9.0-b47, 2024.1.4.0-b108, 2.23.1.0-b220]
+        version: [2024.2.2.2-b2, 2.20.9.0-b47, 2024.1.4.0-b108, 2.23.1.0-b220]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
