@@ -92,8 +92,10 @@ func (ybc *YugabyteDBCDCClient) GenerateAndStoreStreamID() (string, error) {
 	//stdout - CDC Stream ID: <stream_id>
 	streamID := ""
 	stdoutSplits := strings.Split(stdout, ":")
-	if len(stdoutSplits) > 1 {
+	if len(stdoutSplits) == 2 {
 		streamID = strings.Trim(stdoutSplits[1], " \n")
+	} else {
+		return "", fmt.Errorf("error expected the stdout to be in format 'CDC Stream ID: <stream_id>' but its not: %s", stdout)
 	}
 
 	err = ybc.metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
@@ -158,8 +160,10 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 	//stdout - Master Addresses: <comma_separated_list_addresses>
 	masterAddresses := ""
 	stdoutSplits := strings.Split(stdout, ": ")
-	if len(stdoutSplits) > 1 {
+	if len(stdoutSplits) == 2 {
 		masterAddresses = strings.Trim(stdoutSplits[1], " \n")
+	} else {
+		return "", fmt.Errorf("error expected the stdout to be in format 'Master Addresses: <comma_separated_list_addresses>' but its not: %s", stdout)
 	}
 	ybc.ybMasterNodes = masterAddresses
 	return masterAddresses, nil
@@ -180,11 +184,13 @@ func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
 	//stdout - Streams: <num_of_streams>
 	numOfStreams := 0
 	stdoutSplits := strings.Split(stdout, ": ")
-	if len(stdoutSplits) > 1 {
+	if len(stdoutSplits) == 2 {
 		numOfStreams, err = strconv.Atoi(strings.Trim(stdoutSplits[1], " \n"))
 		if err != nil {
 			return 0, fmt.Errorf("error parsing the output[%v] of cmd with args[%v] : %v", stdout, args, err)
 		}
+	} else {
+		return 0, fmt.Errorf("error expected the stdout to be in format 'Streams: <num>' but its not: %s", stdout)
 	}
 	return numOfStreams, nil
 }

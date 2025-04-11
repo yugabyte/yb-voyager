@@ -225,13 +225,14 @@ func (yb *TargetYugabyteDB) PrepareForStreaming() {
 }
 
 func (yb *TargetYugabyteDB) InitConnPool() error {
-	loadBalancerUsed, tconfs, err := yb.GetYBServers()
+	loadBalancerUsed, confs, err := yb.GetYBServers()
 	if err != nil {
 		return fmt.Errorf("error fetching the yb servers: %v", err)
 	}
 	if loadBalancerUsed {
 		utils.PrintAndLog(LB_WARN_MSG)
 	}
+	tconfs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, confs)
 	var targetUriList []string
 	for _, tconf := range tconfs {
 		targetUriList = append(targetUriList, tconf.Uri)
@@ -869,12 +870,15 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		}
 		log.Infof("Target DB nodes: %s", strings.Join(hostPorts, ","))
 	}
-	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
-		tconfs = []*TargetConf{yb.tconf}
-	} else {
-		tconfs = testAndFilterYbServers(tconfs)
-	}
 	return loadBalancerUsed, tconfs, nil
+}
+
+func (yb *TargetYugabyteDB) getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed bool, confs []*TargetConf) []*TargetConf {
+	if loadBalancerUsed { // if load balancer is used no need to check direct connectivity
+		return []*TargetConf{yb.tconf}
+	} else {
+		return testAndFilterYbServers(confs)
+	}
 }
 
 func getCloneConnectionUri(clone *TargetConf) string {
@@ -895,13 +899,14 @@ func getCloneConnectionUri(clone *TargetConf) string {
 }
 
 func (yb *TargetYugabyteDB) GetCallhomeTargetDBInfo() *callhome.TargetDBDetails {
-	_, tconfs, err := yb.GetYBServers()
+	loadBalancerUsed, actualTconfs, err := yb.GetYBServers()
 	if err != nil {
 		log.Errorf("callhome error fetching yb servers: %v", err)
 	}
-	totalCores, _ := fetchCores(tconfs) // no need to handle error in case we couldn't fine cores
+	confs := yb.getTargetConfsAsPerLoadBalancerUsed(loadBalancerUsed, actualTconfs)
+	totalCores, _ := fetchCores(confs) // no need to handle error in case we couldn't fine cores
 	return &callhome.TargetDBDetails{
-		NodeCount: len(tconfs),
+		NodeCount: len(actualTconfs),
 		Cores:     totalCores,
 		DBVersion: yb.GetVersion(),
 	}

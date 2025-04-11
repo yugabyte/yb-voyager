@@ -281,6 +281,14 @@ func (pool *ConnectionPool) shuffledConnUriList() []string {
 	return connUriList
 }
 
+/*
+Removing the connections that are not being used by another go routines etc.. 
+from the pool for the host that is down so that we don't try to use that conn further 
+this helps in the scenario -
+where a large number of connections are present in pool for that host then we might be end up 
+using most of those connections only and import will fail in such and we keep on retrying.
+so its better to such unused connections  when we got the information that it is down. 
+*/
 func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	log.Infof("Checking for connections on host: %s", servers)
 	var conn *pgx.Conn
@@ -293,10 +301,11 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 		}
 
 		if conn == nil {
-			break
+			pool.conns <- conn
+			continue
 		}
 		if slices.Contains(servers, conn.Config().Host) {
-			log.Infof("Removing the connection for server: %s", conn.Config().Host)
+			log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
 			conn.Close(context.Background())
 			pool.conns <- nil
 		} else {
