@@ -32,7 +32,7 @@ var V2024_1_0_0 *YBVersion
 var V2024_1_3_1 *YBVersion
 var V2024_2_0_0 *YBVersion
 var V2024_2_1_0 *YBVersion
-var V2024_2_2_0 *YBVersion
+var V2024_2_2_2 *YBVersion
 
 var V2_23_0_0 *YBVersion
 
@@ -58,9 +58,9 @@ func init() {
 		panic("could not create version 2024.2.1.0")
 	}
 
-	V2024_2_2_0, err = NewYBVersion("2024.2.2.1")
+	V2024_2_2_2, err = NewYBVersion("2024.2.2.2")
 	if err != nil {
-		panic("could not create version 2024.2.2.1")
+		panic("could not create version 2024.2.2.2")
 	}
 
 	V2_23_0_0, err = NewYBVersion("2.23.0.0")
@@ -73,5 +73,5 @@ func init() {
 	}
 
 	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
-	LatestStable = V2024_2_2_0
+	LatestStable = V2024_2_2_2
 }
