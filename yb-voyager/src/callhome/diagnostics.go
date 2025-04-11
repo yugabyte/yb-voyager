@@ -97,6 +97,11 @@ type TargetDBDetails struct {
 	Cores     int    `json:"total_cores"`
 }
 
+/*
+Version History
+1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
+1.1: Added a new field as ControlPlaneType 
+*/
 var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type AssessMigrationPhasePayload struct {
@@ -160,6 +165,11 @@ type ExportSchemaPhasePayload struct {
 	ControlPlaneType       string `json:"control_plane_type"`
 }
 
+/*
+Version History
+1.0: Restructed the Issues type to AnalyzeIssueCallhome with only required information 
+1.1: Added a new field as ControlPlaneType 
+*/
 var ANALYZE_PHASE_PAYLOAD_VERSION = "1.1"
 
 // SHOULD NOT REMOVE THESE TWO (issues, database_objects) FIELDS of AnalyzePhasePayload as parsing these specifically here
