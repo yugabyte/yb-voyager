@@ -40,6 +40,7 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
+	FilterPrimaryKeyColumns(table sqlname.NameTuple, columns []string) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
@@ -92,9 +93,10 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 }
 
 type ImportBatchArgs struct {
-	FilePath     string
-	TableNameTup sqlname.NameTuple
-	Columns      []string
+	FilePath          string
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string
 
 	FileFormat string
 	HasHeader  bool
