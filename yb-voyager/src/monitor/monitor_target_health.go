@@ -32,7 +32,7 @@ import (
 )
 
 const (
-	MONITOR_HEALTH_FREQUENCY_SECONDS = 5 // 2 mins interval for monitoring the cluster checks
+	MONITOR_HEALTH_FREQUENCY_SECONDS = 120 // 2 mins interval for monitoring the cluster checks
 	METRIC_FREE_DISK_SPACE           = "free_disk_space"
 	METRIC_TOTAL_DISK_SPACE          = "total_disk_space"
 	FREE_DISK_SPACE_THREASHOLD       = 10
@@ -181,7 +181,7 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 		return nil
 	}
 	if len(upNodes) > 0 {
-		upNodeMsg := color.GreenString(fmt.Sprintf("OK: %s. Healthy nodes: %v\n", NODE_COMES_BACK_UP_MSG, strings.Join(upNodes, ", ")))
+		upNodeMsg := color.GreenString(fmt.Sprintf("OK: %s. Recovered nodes: %v\n", NODE_COMES_BACK_UP_MSG, strings.Join(upNodes, ", ")))
 		m.displayMsgFunc(upNodeMsg)
 	}
 	return nil
