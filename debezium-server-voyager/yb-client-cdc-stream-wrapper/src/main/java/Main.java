@@ -5,6 +5,9 @@ import org.yb.client.YBClient;
 import org.yb.client.ListCDCStreamsResponse;
 import org.yb.client.YBTable;
 import org.yb.master.MasterDdlOuterClass.ListTablesResponsePB.TableInfo;
+import org.yb.client.GetNamespaceInfoResponse;
+import org.yb.CommonTypes.YQLDatabase;
+import org.yb.master.MasterReplicationOuterClass;
 import java.util.Set;   
 import java.util.HashSet;
 import java.util.stream.Collectors;
@@ -54,7 +57,20 @@ public class Main {
             masterAddressesList = masterAddressesList.replace("}", "");
             System.out.println("Master Addresses: " + masterAddressesList);
         } else if (parameters.getNumOfCDCStreams) {
-            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, null, null);
+            String namespaceID = null;
+            if(parameters.dbName != "") {
+                GetNamespaceInfoResponse namespaceInfoResponse =
+                    client.getNamespaceInfo(parameters.dbName, YQLDatabase.YQL_DATABASE_PGSQL);
+                if (namespaceInfoResponse.hasError()) {
+                    throw new RuntimeException(
+                        String.format(
+                            "Error getting namespace details for namespace: %s. Error: %s",
+                            parameters.dbName,
+                            namespaceInfoResponse.errorMessage()));
+                    }
+                namespaceID = namespaceInfoResponse.getNamespaceId();
+            }
+            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, namespaceID, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
             if (cdcStreamsResponse.hasError()) {
               throw new RuntimeException("error getting the num of cdc streams");
             }
