@@ -214,24 +214,30 @@ initConfig initializes the configuration for the given Cobra command.
 	 4. Binds Viper config values to Cobra flags, giving priority to command-line flags over config values.
 	 5. Returns an error if config file reading, validation, or flag binding fails.
 
-	This setup ensures CLI > ENV > Config precedence and allows environment variables
-	prefixed with YB_VOYAGER_ to override config values.
+	This setup ensures CLI > Config precedence
 */
 func initConfig(cmd *cobra.Command) error {
 	v := viper.New()
 
+	// Precedence of which config file to use:
+	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
 		v.SetConfigFile(cfgFile)
+	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
+		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
+		v.SetConfigFile(os.Getenv("YB_VOYAGER_CONFIG_FILE"))
 	} else {
 		// Find home directory.
 		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
+		if err != nil {
+			return err
+		}
 
-		// Search config in home directory with name ".yb-voyager" (without extension).
+		// Search config in home directory with name "yb-voyager-config" (without extension).
 		v.AddConfigPath(home)
+		v.SetConfigName("yb-voyager-config")
 		v.SetConfigType("yaml")
-		v.SetConfigName(".yb-voyager")
 	}
 
 	// If a config file is found, read it in.
@@ -283,7 +289,6 @@ func validateConfigFile(v *viper.Viper) error {
 		presentSections     = make(map[string]bool)
 	)
 
-	fmt.Println("Validating config file...")
 	for _, key := range v.AllKeys() {
 		parts := strings.Split(key, ".")
 		if len(parts) == 1 {
@@ -293,7 +298,10 @@ func validateConfigFile(v *viper.Viper) error {
 			}
 		} else {
 			// Validate section-based keys
-			section, nestedKey := parts[0], parts[1]
+			// The section is the first part of the key, the rest of the parts combined using "." are the nested key
+			// For example: "a.b.c" -> section: "a", nestedKey: "b.c"
+			section := parts[0]
+			nestedKey := strings.Join(parts[1:], ".")
 			presentSections[section] = true
 			if allowedConfigSections[section] == nil {
 				// Unknown section
@@ -340,6 +348,7 @@ func validateConfigFile(v *viper.Viper) error {
 
 		// Return a general error message
 		return fmt.Errorf("found invalid configurations in config file: %s", v.ConfigFileUsed())
+		// TODO: Add a link to a sample config file in the error message
 	}
 
 	return nil
@@ -375,57 +384,55 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if bindErr != nil {
-			return // Stop further execution if an error is already encountered
+		if bindErr != nil || f.Changed {
+			return // Skip already-set flags or if an error occurred
 		}
 
-		if !f.Changed {
-			// Check for <command_path>.<flagname>
-			if v.IsSet(configKeyPrefix + "." + f.Name) {
-				val := v.GetString(configKeyPrefix + "." + f.Name)
-				err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
-				if err != nil {
-					// In case of an error while setting the flag from viper, return the error
-					bindErr = err
-					return
-				}
-			} else if v.IsSet(f.Name) {
-				// Bind the global flag from viper to cmd
-				val := v.GetString(f.Name)
-				err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
-				if err != nil {
-					bindErr = err
-					return
-				}
-			} else if strings.HasPrefix(f.Name, "source-") && v.IsSet("source."+strings.TrimPrefix(f.Name, "source-")) {
-				// Handle source db type flags
-				val := v.GetString("source." + strings.TrimPrefix(f.Name, "source-"))
-				err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
-				if err != nil {
-					bindErr = err
-					return
-				}
-			} else if strings.HasPrefix(f.Name, "oracle-") && v.IsSet("source."+f.Name) {
-				// Handle oracle db type flags, since they are also prefixed with source but are special cases
-				val := v.GetString("source." + f.Name)
-				err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
-				if err != nil {
-					bindErr = err
-					return
-				}
-			} else if strings.HasPrefix(f.Name, "target-") && v.IsSet("target."+strings.TrimPrefix(f.Name, "target-")) {
-				// Handle target db type flags
-				val := v.GetString("target." + strings.TrimPrefix(f.Name, "target-"))
-				err := cmd.Flags().Set(f.Name, fmt.Sprintf("%v", val))
-				if err != nil {
-					bindErr = err
-					return
-				}
-				// fmt.Printf("binding %s from viper to cmd flag: %s=%s\n", "target."+strings.TrimPrefix(f.Name, "target-"), f.Name, val)
+		// Check for <command_path>.<flagname>
+		if v.IsSet(configKeyPrefix + "." + f.Name) {
+			val := v.GetString(configKeyPrefix + "." + f.Name)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				// In case of an error while setting the flag from viper, return the error
+				bindErr = err
+				return
 			}
-			// If the flag is not set in viper, do nothing and leave it as is
-			// This allows the flag to retain its default value or the value set by the user in the command line
+		} else if v.IsSet(f.Name) {
+			// Bind the global flag from viper to cmd
+			val := v.GetString(f.Name)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+		} else if strings.HasPrefix(f.Name, "source-") && v.IsSet("source."+strings.TrimPrefix(f.Name, "source-")) {
+			// Handle source db type flags
+			val := v.GetString("source." + strings.TrimPrefix(f.Name, "source-"))
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+		} else if strings.HasPrefix(f.Name, "oracle-") && v.IsSet("source."+f.Name) {
+			// Handle oracle db type flags, since they are also prefixed with source but are special cases
+			val := v.GetString("source." + f.Name)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+		} else if strings.HasPrefix(f.Name, "target-") && v.IsSet("target."+strings.TrimPrefix(f.Name, "target-")) {
+			// Handle target db type flags
+			val := v.GetString("target." + strings.TrimPrefix(f.Name, "target-"))
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+			// fmt.Printf("binding %s from viper to cmd flag: %s=%s\n", "target."+strings.TrimPrefix(f.Name, "target-"), f.Name, val)
 		}
+		// If the flag is not set in viper, do nothing and leave it as is
+		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
 	if bindErr != nil {

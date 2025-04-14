@@ -68,7 +68,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
-			atexit.Exit(0)
+			atexit.Exit(1)
 		}
 		currentCommand = cmd.CommandPath()
 
@@ -291,6 +291,9 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
+
+	// Hide the config file flag from help
+	cmd.PersistentFlags().MarkHidden("config-file")
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
