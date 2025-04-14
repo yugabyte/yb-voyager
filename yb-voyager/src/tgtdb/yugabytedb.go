@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -39,6 +40,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -495,21 +497,9 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-var counter = 0
-
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
 	var rowsAffected int64
 	var err error
-
-	// log.Infof("manual exit for testing retry logic non-txn path table name is %s", batch.GetTableName().ForUserQuery())
-	// if batch.GetTableName().ForUserQuery() == `public."customers"` {
-	// 	if counter < 1 {
-	// 		counter++
-	// 	} else {
-	// 		log.Infof("manual exit for testing retry logic non-txn path")
-	// 		utils.ErrExit("manual exit for testing retry logic non-txn path")
-	// 	}
-	// }
 
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if nonTxnPath {
@@ -600,23 +590,42 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKeyConflictAction string, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKeyConflictAction string,
+	args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
 	/*
 		Steps:
 		1. Check if batch was already imported and just failed to mark as done in last run.
 			If yes, return rows affected; caller will mark it as done.
 		2. Open the batch file
-		3. Read the batch file line by line(row) and build INSERT statment for it
-		4. Prepare the INSERT statement based on PK conflict action
-		5. [Optional] Use PreparedStatement Caching on coonPool for better performance
-		6. Execute the INSERT statement one by one
-		7. Update the Metadata about the batch imported
+		3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
+		4. [Optional] Use PreparedStatement Caching on coonPool for better performance
+		5. Execute the INSERT statement one by one
+		6. Update the Metadata about the batch imported
+		7. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
 		8. Return the number of rows imported(wont necessarily be same as the number of rows in the batch)
-		9. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
 	*/
 
+	var rowsAffected int64
+	var err error
+	importBatchFn := func(conn *pgx.Conn) (bool, error) {
+		rowsAffected, err = yb.importBatchViaRecoverModeCore(conn, batch, args, onPrimaryKeyConflictAction)
+		if err != nil {
+			return false, err
+		}
+		log.Infof("Imported %d rows from %q", rowsAffected, batch.GetFilePath())
+		return false, nil
+	}
+	err = yb.connPool.WithConn(importBatchFn)
+	if err != nil {
+		return 0, fmt.Errorf("import batch %q: %w", batch.GetFilePath(), err)
+	}
+
+	return rowsAffected, nil
+}
+
+func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, onPrimaryKeyConflictAction string) (int64, error) {
 	// 1. Check if the split is already imported.
-	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(yb.conn_, batch)
+	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
 		return 0, err
 	}
@@ -624,29 +633,27 @@ func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKey
 		return rowsAffected, nil
 	}
 
-	// 2. Open the batch file
-	file, err := batch.Open()
+	// 2. Open the batch file as datafile
+	df, err := batch.OpenDataFile()
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
-	defer file.Close()
+	defer df.Close()
 
-	// 3.1 Read the batch file line by line(row)
-	// 3.2 Build INSERT statement for it
-	// 4 Prepare the INSERT statement based on PK conflict action
+	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
+	var rowsIgnored int64 = 0
 	rowsAffected = 0
 	insertStmt := args.GetInsertStatementBasedOn(onPrimaryKeyConflictAction)
 	for {
-		line, err := batch.GetNextLine()
-		if err != nil {
-			if err == io.EOF {
-				break
-			}
+		line, _, readLinErr := df.NextLine()
+		if readLinErr != nil && readLinErr != io.EOF {
 			return 0, fmt.Errorf("read line from file %s: %w", batch.GetFilePath(), err)
 		}
-		if line == "" {
+		if line == "" && readLinErr != io.EOF { // TODO: rethink if this is even possible(empty line) in the batch file
+			utils.PrintAndLog("[debug] [table=%s | file=%s] empty line\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
 			continue
 		}
+		utils.PrintAndLog("[debug] [table=%s | file=%s] line: %s\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()), line)
 
 		fields := strings.Split(line, args.Delimiter)
 		stmtArgs := make([]interface{}, len(fields))
@@ -654,30 +661,40 @@ func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKey
 			stmtArgs[i] = val
 		}
 
-		// 6. Execute the INSERT statement one by one
-		err = yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-			// TODO: verify if the insertStmt is going as prepared or normal statement
-			_, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
-			if err != nil {
-				return false, fmt.Errorf("insert into target table: %w", err)
-			}
-			return false, nil // Retries are implemented in the caller.
-		})
+		// 5. Execute the INSERT statement one by one
+		res, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
 		if err != nil {
 			return 0, fmt.Errorf("insert into target table: %w", err)
 		}
+		utils.PrintAndLog("[debug] [table=%s | file=%s] INSERT result(rowsAffected): %d\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()), res.RowsAffected())
 
-		rowsAffected++
+		if res.RowsAffected() > 0 {
+			rowsAffected++
+		} else {
+			rowsIgnored++
+		}
+		if readLinErr == io.EOF {
+			log.Infof("reached end of file %s", batch.GetFilePath())
+			utils.PrintAndLog("[debug] [table=%s | file=%s] reached end of file\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
+			break
+		}
 	}
+	utils.PrintAndLog("[debug] [table=%s | file=%s] finished reading file\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
+	log.Infof("total rows inserted for batch %q: %d", batch.GetFilePath(), rowsAffected)
 
-	// 7. Update the Metadata about the batch imported
-	// TODO: Do we use the total sum of rowsAffected from metadata in some logic(import-data-status?)
-	// Because it might not be same as sum total during partial ingestion scenario
-	err = yb.recordEntryInDB(yb.conn_, batch, int64(rowsAffected))
+	// 6. Update the Metadata about the batch imported
+	/*
+		Thought: In case of onPrimaryKeyConflictAction=true total sum of rowsAffected for this batch in metadata can be less than total rows in batch(due to partial ingestion and retries)
+		But things like import-data-status cmd output shouldn't be affected by this (since it count imported row count based on .D files)
+	*/
+	err = yb.recordEntryInDB(conn, batch, int64(rowsAffected))
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 		return 0, err
 	}
+
+	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored", onPrimaryKeyConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 
 	// 8. returns total number of rows inserted; wont necessarily be same as the number of rows in the batch
 	return rowsAffected, nil
