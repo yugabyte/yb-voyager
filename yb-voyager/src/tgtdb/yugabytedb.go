@@ -24,10 +24,10 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -497,6 +497,8 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
+var counter atomic.Uint32
+
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
 	var rowsAffected int64
 	var err error
@@ -649,11 +651,20 @@ func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch 
 		if readLinErr != nil && readLinErr != io.EOF {
 			return 0, fmt.Errorf("read line from file %s: %w", batch.GetFilePath(), err)
 		}
-		if line == "" && readLinErr != io.EOF { // TODO: rethink if this is even possible(empty line) in the batch file
-			utils.PrintAndLog("[debug] [table=%s | file=%s] empty line\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
-			continue
+
+		/*
+			Both the cases are handled:
+			1. line="" + EOF error
+			2. line!=""(last line) + EOF error
+		*/
+		if line == "" { // handles case 1
+			if readLinErr == io.EOF {
+				break
+			} else {
+				// skipping if any empty line (not expected from batch file)
+				continue
+			}
 		}
-		utils.PrintAndLog("[debug] [table=%s | file=%s] line: %s\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()), line)
 
 		fields := strings.Split(line, args.Delimiter)
 		stmtArgs := make([]interface{}, len(fields))
@@ -666,20 +677,17 @@ func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch 
 		if err != nil {
 			return 0, fmt.Errorf("insert into target table: %w", err)
 		}
-		utils.PrintAndLog("[debug] [table=%s | file=%s] INSERT result(rowsAffected): %d\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()), res.RowsAffected())
 
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
 			rowsIgnored++
 		}
-		if readLinErr == io.EOF {
+		if readLinErr == io.EOF { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
-			utils.PrintAndLog("[debug] [table=%s | file=%s] reached end of file\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
 			break
 		}
 	}
-	utils.PrintAndLog("[debug] [table=%s | file=%s] finished reading file\n", batch.GetTableName().ForUserQuery(), filepath.Base(batch.GetFilePath()))
 	log.Infof("total rows inserted for batch %q: %d", batch.GetFilePath(), rowsAffected)
 
 	// 6. Update the Metadata about the batch imported
@@ -724,25 +732,34 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
+const SYNTAX_ERROR = "syntax error at"
+const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
+
 var NonRetryCopyErrors = []string{
-	"invalid input syntax",
-	"violates unique constraint",
-	"syntax error at",
+	INVALID_INPUT_SYNTAX_ERROR,
+	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
+	SYNTAX_ERROR,
 }
 
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
-	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
+	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
 // this function is meant to be used for insert errors during recovery mode
-func (yb *TargetYugabyteDB) IsNonRetryableInsertError(err error) bool {
+func (yb *TargetYugabyteDB) IsNonRetryableInsertError(err error, onPrimaryKeyConflictAction string) bool {
 	NonRetryInsertErrorsYB := []string{
-		"invalid input syntax",
-		"syntax error at",
-		"Sending too long RPC message",
+		INVALID_INPUT_SYNTAX_ERROR,
+		SYNTAX_ERROR,
+		RPC_MSG_LIMIT_ERROR,
 	}
+	if onPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		NonRetryInsertErrorsYB = append(NonRetryInsertErrorsYB, VIOLATES_UNIQUE_CONSTRAINT_ERROR)
+	}
+
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryInsertErrorsYB, err.Error())
 }
 

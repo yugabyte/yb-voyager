@@ -244,7 +244,7 @@ func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action stri
 	for attempt := 0; attempt < BATCH_RECOVERY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, action, fti.importBatchArgsProto, exportDir, tableSchema)
-		if err == nil || ybdb.IsNonRetryableInsertError(err) {
+		if err == nil || ybdb.IsNonRetryableInsertError(err, onPrimaryKeyConflictAction) {
 			break
 		}
 
