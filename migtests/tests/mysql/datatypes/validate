@@ -144,8 +144,10 @@ def migration_completed_checks(tgt):
 	for table_name, row_count in EXPECTED_ROW_COUNT.items():
 		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
 		assert row_count == got_row_count[table_name]
-	
-	EPSILON = 1e-9  # Define a small tolerance for floating-point comparisons
+
+# Define a small tolerance for floating-point comparisons due to loss of precision during aggregation of partial results in distributed (non-colocated) databases.
+# https://github.com/yugabyte/yugabyte-db/issues/25166
+	EPSILON = 1e-9
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {table_name} ---- ")
