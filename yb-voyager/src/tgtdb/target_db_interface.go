@@ -25,6 +25,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -76,7 +77,7 @@ const (
 
 type Batch interface {
 	Open() (*os.File, error)
-	GetNextLine() (string, error)
+	OpenDataFile() (datafile.DataFile, error)
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
@@ -212,7 +213,6 @@ func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) st
 		panic(fmt.Sprintf("Invalid conflict action: %s", conflictAction))
 	}
 
-	utils.PrintAndLog("[debug] Insert statement for action %s: %s\n", conflictAction, baseStmt)
 	return baseStmt
 }
 

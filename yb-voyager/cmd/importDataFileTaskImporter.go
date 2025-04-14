@@ -353,9 +353,14 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
+	// TODO: Implement caching since this is called for every batch
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
+	if err != nil {
+		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.

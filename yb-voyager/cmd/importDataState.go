@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -802,8 +803,6 @@ type Batch struct {
 	RecordCount  int64
 	ByteCount    int64
 	Interrupted  bool
-
-	reader *bufio.Reader
 }
 
 func (batch *Batch) Open() (*os.File, error) {
@@ -811,18 +810,21 @@ func (batch *Batch) Open() (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	batch.reader = bufio.NewReader(file)
 	return file, err
 }
 
-func (batch *Batch) GetNextLine() (string, error) {
-	// TODO: check the limits/buffer size of the reader
-	line, err := batch.reader.ReadString('\n')
+func (batch *Batch) OpenDataFile() (datafile.DataFile, error) {
+	reader, err := dataStore.Open(batch.GetFilePath())
 	if err != nil {
-		return "", err
+		return nil, fmt.Errorf("open datastore %q: %s", batch.GetFilePath(), err)
 	}
-	return line, nil
+
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), reader, dataFileDescriptor)
+	if err != nil {
+		return nil, fmt.Errorf("open datafile %q: %s", batch.GetFilePath(), err)
+	}
+
+	return datafile, err
 }
 
 func (batch *Batch) Delete() error {
