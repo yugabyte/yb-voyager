@@ -192,6 +192,10 @@ func (tdb *TargetOracleDB) CheckTableHasPrimaryKey(table *sqlname.NameTuple) boo
 	return cnt > 0
 }
 
+func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	panic("GetPrimaryKeyColumns not implemented for Oracle")
+}
+
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

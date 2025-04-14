@@ -340,6 +340,41 @@ func (pg *TargetPostgreSQL) CheckTableHasPrimaryKey(table *sqlname.NameTuple) bo
 	return count > 0
 }
 
+// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
+// primary‑key definition of the given table.
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	var primaryKeyColumns []string
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_class      c ON c.oid = i.indrelid
+		JOIN pg_namespace  n ON n.oid = c.relnamespace
+		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+		WHERE n.nspname = '%s'
+			AND c.relname  = '%s'
+			AND i.indisprimary;`, schemaName, tableName)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan PK column: %w", err)
+		}
+		primaryKeyColumns = append(primaryKeyColumns, col)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return primaryKeyColumns, nil
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 

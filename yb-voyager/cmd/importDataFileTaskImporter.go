@@ -244,7 +244,7 @@ func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action stri
 	for attempt := 0; attempt < BATCH_RECOVERY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, action, fti.importBatchArgsProto, exportDir, tableSchema)
-		if err == nil || ybdb.IsNonRetryableInsertError(err){
+		if err == nil || ybdb.IsNonRetryableInsertError(err) {
 			break
 		}
 
@@ -352,6 +352,12 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
+
+	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
+	if err != nil {
+		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 
@@ -362,14 +368,15 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
+		TableNameTup:      tableNameTup,
+		Columns:           columns,
+		PrimaryKeyColumns: pkColumns,
+		FileFormat:        fileFormat,
+		Delimiter:         dataFileDescriptor.Delimiter,
+		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:         dataFileDescriptor.QuoteChar,
+		EscapeChar:        dataFileDescriptor.EscapeChar,
+		NullString:        dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
