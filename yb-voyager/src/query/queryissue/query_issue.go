@@ -57,6 +57,13 @@ var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
 	UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE,
 }
 
+var PerformanceOptimizationIssues = []string{
+	HOTSPOTS_ON_DATE_INDEX,
+	HOTSPOTS_ON_TIMESTAMP_INDEX,
+	RANGE_SHARDING_DATE_INDEX,
+	RANGE_SHARDING_TIMESTAMP_INDEX,
+}
+
 type IssueTypeAndName struct {
 	IssueType string
 	IssueName string
