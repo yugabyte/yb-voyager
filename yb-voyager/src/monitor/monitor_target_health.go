@@ -70,7 +70,7 @@ type MonitorTargetYBHealth struct {
 	displayMsgFunc func(string)
 }
 
-func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, ybClient YugabyteDBClient, tconf tgtdb.TargetConf, displayMsgFunc func(msg string)) MonitorTargetYBHealth {
+func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, ybClient YugabyteDBClient, displayMsgFunc func(msg string)) MonitorTargetYBHealth {
 	return MonitorTargetYBHealth{
 		nodesStatus:          make(map[string]bool),
 		yb:                   yb,

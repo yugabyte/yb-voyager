@@ -245,7 +245,6 @@ func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
 	idx := pool.getNextUriIndex()
 	uri := pool.params.ConnUriList[idx]
-	fmt.Printf("connurilist uri-%s", uri)
 	conn, err := pool.connect(uri)
 	if err != nil {
 		for _, uri := range pool.shuffledConnUriList() {
