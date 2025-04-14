@@ -175,8 +175,8 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
-func (tdb *TargetOracleDB) FilterPrimaryKeyColumns(table sqlname.NameTuple, columns []string) ([]string, error) {
-	panic("FilterPrimaryKeyColumns not implemented for Oracle")
+func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	panic("GetPrimaryKeyColumns not implemented for Oracle")
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {

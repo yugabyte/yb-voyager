@@ -247,7 +247,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
-	pkColumns, err := tdb.FilterPrimaryKeyColumns(tableNameTup, unquotedColumns)
+	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}

@@ -323,11 +323,11 @@ outer:
 	return nil
 }
 
-// FilterPrimaryKeyColumns returns the subset of `columns` that belong to the
+// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
 // primary‑key definition of the given table.
-func (pg *TargetPostgreSQL) FilterPrimaryKeyColumns(table sqlname.NameTuple, columns []string) ([]string, error) {
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	var primaryKeyColumns []string
 	schemaName, tableName := table.ForCatalogQuery()
-
 	query := fmt.Sprintf(`
 		SELECT a.attname
 		FROM pg_index i
@@ -344,23 +344,15 @@ func (pg *TargetPostgreSQL) FilterPrimaryKeyColumns(table sqlname.NameTuple, col
 	}
 	defer rows.Close()
 
-	pkSet := make(map[string]struct{})
 	for rows.Next() {
 		var col string
 		if err := rows.Scan(&col); err != nil {
 			return nil, fmt.Errorf("scan PK column: %w", err)
 		}
-		pkSet[col] = struct{}{}
+		primaryKeyColumns = append(primaryKeyColumns, col)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
-	}
-
-	var primaryKeyColumns []string
-	for _, c := range columns {
-		if _, ok := pkSet[c]; ok {
-			primaryKeyColumns = append(primaryKeyColumns, c)
-		}
 	}
 
 	return primaryKeyColumns, nil

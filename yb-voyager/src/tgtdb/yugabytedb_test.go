@@ -90,7 +90,7 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	}
 }
 
-func TestYugabyteFilterPrimaryKeyColumns(t *testing.T) {
+func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 		`CREATE TABLE test_schema.foo (
@@ -112,28 +112,24 @@ func TestYugabyteFilterPrimaryKeyColumns(t *testing.T) {
 
 	tests := []struct {
 		table          sqlname.NameTuple
-		allColumns     []string
 		expectedPKCols []string
 	}{
 		{
 			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
-			allColumns:     []string{"id", "category", "name"},
 			expectedPKCols: []string{"id", "category"},
 		},
 		{
 			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
-			allColumns:     []string{"id", "name"},
 			expectedPKCols: []string{"id"},
 		},
 		{
 			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
-			allColumns:     []string{"id", "name"},
 			expectedPKCols: nil,
 		},
 	}
 
 	for _, tt := range tests {
-		pkCols, err := testYugabyteDBTarget.FilterPrimaryKeyColumns(tt.table, tt.allColumns)
+		pkCols, err := testYugabyteDBTarget.GetPrimaryKeyColumns(tt.table)
 		assert.NoError(t, err)
 		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
 	}
