@@ -833,7 +833,7 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
 	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_CATEGORY_DESCRIPTION
 
-	assessmentReport.AppendIssues(getAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)...)
+	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
@@ -1379,14 +1379,12 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
-func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
-	var assessmentIssues []AssessmentIssue
-	var issue AssessmentIssue
+func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) {
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 		switch source.DBType {
 		case ORACLE:
-			issue = AssessmentIssue{
+			issue := AssessmentIssue{
 				Category:               UNSUPPORTED_DATATYPES_CATEGORY,
 				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
 				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
@@ -1398,7 +1396,7 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				DocsLink:               "",  // TODO
 				MinimumVersionsFixedIn: nil, // TODO
 			}
-			assessmentIssues = append(assessmentIssues, issue)
+			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
 			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
@@ -1411,23 +1409,25 @@ func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
 			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-			fixed, err := queryissue.IsFixedIn(targetDbVersion)
-			if err != nil {
-				log.Warnf("checking if issue %v is supported: %v", queryissue, err)
-			}
-			if !fixed {
-				convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryissue, "", false, false)
-				issue = convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryissue.MinimumVersionsFixedIn)
-				assessmentIssues = append(assessmentIssues, issue)
-			}
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
 
 		default:
 			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
 		}
 
 	}
+}
 
-	return assessmentIssues
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
+	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+	}
+	if !fixed {
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(issue)
+	}
 }
 
 /*
@@ -1552,17 +1552,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
 				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
-				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
-				if err != nil {
-					log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
-				}
-				if !fixed {
-					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-					assessmentReport.AppendIssues(
-						convertAnalyzeSchemaIssueToAssessmentIssue(
-							convertedAnalyzeIssue,
-							queryIssue.MinimumVersionsFixedIn))
-				}
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1601,17 +1591,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				} else {
 					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
-				fixed, err := queryIssue.IsFixedIn(targetDbVersion)
-				if err != nil {
-					log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
-				}
-				if !fixed {
-					convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
-					assessmentReport.AppendIssues(
-						convertAnalyzeSchemaIssueToAssessmentIssue(
-							convertedAnalyzeIssue,
-							queryIssue.MinimumVersionsFixedIn))
-				}
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 
 			}
 			if len(columns) > 0 {
