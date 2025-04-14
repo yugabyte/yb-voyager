@@ -245,6 +245,7 @@ func (pool *ConnectionPool) isStmtAlreadyPreparedOnConn(connId uint32, ps string
 func (pool *ConnectionPool) createNewConnection() (*pgx.Conn, error) {
 	idx := pool.getNextUriIndex()
 	uri := pool.params.ConnUriList[idx]
+	fmt.Printf("connurilist uri-%s", uri)
 	conn, err := pool.connect(uri)
 	if err != nil {
 		for _, uri := range pool.shuffledConnUriList() {
@@ -303,6 +304,8 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	for i := 0; i < size; i++ {
 		conn, gotIt = <-pool.conns
 		if !gotIt {
+			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy 
+			//or pool doesn't have connections
 			break
 		}
 

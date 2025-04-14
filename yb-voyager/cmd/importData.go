@@ -915,11 +915,15 @@ func startMonitoringTargetYBHealth() error {
 	}
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
-		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", "", "", "", nil)
-		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, func(info string) {
+		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, "", "", nil)
+		err := ybClient.Init()
+		if err != nil {
+			log.Errorf("error intialising the yb client : %v", err)
+		}
+		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, ybClient, tconf, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
-		}, ybClient, tconf)
-		err := monitorTDBHealth.StartMonitoring()
+		})
+		err = monitorTDBHealth.StartMonitoring()
 		if err != nil {
 			log.Errorf("error monitoring the target health: %v", err)
 		}

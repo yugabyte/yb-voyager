@@ -263,5 +263,18 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 	assert.Equal(t, size, len(pool.conns))
 	assert.Equal(t, size, len(pool.idleConns))
 
+	for i := 0; i < size; i++ {
+		conn, gotIt := <-pool.conns
+		assert.True(t, gotIt)
+		assert.Nil(t, conn)
+		pool.conns <- conn
 
+		conn, gotIt = <-pool.idleConns
+		assert.True(t, gotIt)
+		assert.Nil(t, conn)
+		pool.idleConns <- conn
+	}
+	//TODO: add test case for multiple hosts in conn pool for the RemoveConnectionsForHosts;
+	//we need to enhance the test container for starting a container with different host or 
+	//have a configuration for multiple node yb cluster. 
 }
