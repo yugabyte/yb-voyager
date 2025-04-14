@@ -42,6 +42,7 @@ type TargetDB interface {
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
+	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
@@ -95,10 +96,10 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 }
 
 type ImportBatchArgs struct {
-	FilePath     string
-	TableNameTup sqlname.NameTuple
-	Columns      []string
-	PKColumns    []string // TODO: Implement
+	FilePath          string
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string // TODO: Implement
 
 	FileFormat string
 	HasHeader  bool
@@ -177,7 +178,7 @@ func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) st
 
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:
 		// we are dealing with PK conflict only for the target table (not Unique index etc...)
-		conflictTarget := strings.Join(args.PKColumns, ", ")
+		conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
 
 		return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
 
@@ -191,10 +192,10 @@ func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) st
 	*/
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE:
 		// build conflict target (pk1, pk2, pk3, ...)
-		conflictTarget := strings.Join(args.PKColumns, ", ")
+		conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
 
 		// build update set clause (col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ...)
-		nonPKColumns := utils.SetDifference(args.Columns, args.PKColumns)
+		nonPKColumns := utils.SetDifference(args.Columns, args.PrimaryKeyColumns)
 		if len(nonPKColumns) == 0 {
 			return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
 		}

@@ -138,6 +138,51 @@ func TestYugabyteCheckTableHasPrimaryKey(t *testing.T) {
 	}
 }
 
+func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.foo (
+			id INT,
+			category TEXT,
+			name TEXT,
+			PRIMARY KEY (id, category)
+		);`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+		`CREATE TABLE test_schema.baz (
+			id INT,
+			name TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tests := []struct {
+		table          sqlname.NameTuple
+		expectedPKCols []string
+	}{
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			expectedPKCols: []string{"id", "category"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			expectedPKCols: []string{"id"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			expectedPKCols: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		pkCols, err := testYugabyteDBTarget.GetPrimaryKeyColumns(tt.table)
+		assert.NoError(t, err)
+		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
+	}
+}
+
 func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema`,
