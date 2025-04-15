@@ -952,6 +952,18 @@ compare_sql_files() {
 	sed -i -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
 	sed -i -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
 
+	# Replace the PostGIS "extension not available" message with the "could not open control file" message for 2.25
+	sed -i -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
+
+	# Changes required for 2.25 in the mgi schema. We still run Jenkins tests on 2024.2
+	# Commented this for now so that we don't normalize unnecessarily. When we stich the version in Jenkins we can uncomment the below block.
+
+	# # Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
+	# sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
+
+	# # Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
+	# sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
+
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
     
