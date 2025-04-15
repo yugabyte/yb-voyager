@@ -330,8 +330,9 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 		}
 
 		// Check for <command_path>.<flagname>
-		if v.IsSet(configKeyPrefix + "." + f.Name) {
-			val := v.GetString(configKeyPrefix + "." + f.Name)
+		var configKey string
+		if configKey = configKeyPrefix + "." + f.Name; v.IsSet(configKey) {
+			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				// In case of an error while setting the flag from viper, return the error
@@ -340,12 +341,12 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			}
 			overrides = append(overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
-				ConfigKey: configKeyPrefix + "." + f.Name,
+				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if v.IsSet(f.Name) {
+		} else if configKey = f.Name; v.IsSet(configKey) {
 			// Bind the global flag from viper to cmd
-			val := v.GetString(f.Name)
+			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
@@ -353,12 +354,12 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			}
 			overrides = append(overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
-				ConfigKey: f.Name,
+				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(SourceDBConfigPrefix+strings.TrimPrefix(f.Name, SourceDBFlagPrefix)) {
+		} else if configKey = SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix); strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle source db type flags
-			val := v.GetString(SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix))
+			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
@@ -366,12 +367,12 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			}
 			overrides = append(overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
-				ConfigKey: SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix),
+				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(SourceDBConfigPrefix+f.Name) {
+		} else if configKey = SourceDBConfigPrefix + f.Name; strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle oracle db type flags, since they are also prefixed with source but are special cases
-			val := v.GetString(SourceDBConfigPrefix + f.Name)
+			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
@@ -379,12 +380,12 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			}
 			overrides = append(overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
-				ConfigKey: SourceDBConfigPrefix + f.Name,
+				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(TargetDBConfigPrefix+strings.TrimPrefix(f.Name, TargetDBFlagPrefix)) {
+		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle target db type flags
-			val := v.GetString(TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix))
+			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
@@ -392,7 +393,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			}
 			overrides = append(overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
-				ConfigKey: TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix),
+				ConfigKey: configKey,
 				Value:     val,
 			})
 		}
