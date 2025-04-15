@@ -70,7 +70,6 @@ public class Main {
                     }
                 namespaceID = namespaceInfoResponse.getNamespaceId();
             }
-            System.out.println("db name:" + parameters.dbName + "namespaceID:" + namespaceID);
             ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, namespaceID, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
             if (cdcStreamsResponse.hasError()) {
               throw new RuntimeException("error getting the num of cdc streams");
