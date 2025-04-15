@@ -920,7 +920,7 @@ func startMonitoringTargetYBHealth() error {
 		if err != nil {
 			log.Errorf("error intialising the yb client : %v", err)
 		}
-		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, skipDiskUsageHealthChecks, skipReplicationChecks, skipNodeHealthChecks, ybClient, func(info string) {
+		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, bool(skipDiskUsageHealthChecks), bool(skipReplicationChecks), bool(skipNodeHealthChecks), ybClient, func(info string) {
 			displayMonitoringInformationOnTheConsole(info)
 		})
 		err = monitorTDBHealth.StartMonitoring()
