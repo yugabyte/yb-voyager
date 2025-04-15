@@ -213,7 +213,7 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 
 	connParams := &ConnectionParams{
 		NumConnections:    size,
-		NumMaxConnections: 2*size,
+		NumMaxConnections: 2 * size,
 		ConnUriList:       []string{testYugabyteDBTarget.GetConnectionString()},
 		SessionInitScript: []string{},
 	}
@@ -223,8 +223,58 @@ func TestRemoveConnectionsForHosts(t *testing.T) {
 
 	host, _, err := testYugabyteDBTarget.GetHostPort()
 	testutils.FatalIfError(t, err)
+
+	//all nil case
 	pool.RemoveConnectionsForHosts([]string{host})
 
 	assert.Equal(t, size, len(pool.conns))
 	assert.Equal(t, size, len(pool.idleConns))
+
+	//4 conns to host in conns and 2 conns in idleconns
+
+	var conn *pgx.Conn
+	for i := 0; i < 4; i++ {
+		conn, _ = <-pool.conns
+		if conn == nil {
+			conn, err = pool.createNewConnection()
+			testutils.FatalIfError(t, err)
+			pool.conns <- conn
+		} else {
+			pool.conns <- conn
+		}
+	}
+
+	for i := 0; i < 2; i++ {
+		conn, _ = <-pool.idleConns
+		if conn == nil {
+			conn, err = pool.createNewConnection()
+			testutils.FatalIfError(t, err)
+			pool.idleConns <- conn
+		} else {
+			pool.idleConns <- conn
+		}
+	}
+
+	assert.Equal(t, size, len(pool.conns))
+	assert.Equal(t, size, len(pool.idleConns))
+
+	pool.RemoveConnectionsForHosts([]string{host})
+
+	assert.Equal(t, size, len(pool.conns))
+	assert.Equal(t, size, len(pool.idleConns))
+
+	for i := 0; i < size; i++ {
+		conn, gotIt := <-pool.conns
+		assert.True(t, gotIt)
+		assert.Nil(t, conn)
+		pool.conns <- conn
+
+		conn, gotIt = <-pool.idleConns
+		assert.True(t, gotIt)
+		assert.Nil(t, conn)
+		pool.idleConns <- conn
+	}
+	//TODO: add test case for multiple hosts in conn pool for the RemoveConnectionsForHosts;
+	//we need to enhance the test container for starting a container with different host or 
+	//have a configuration for multiple node yb cluster. 
 }

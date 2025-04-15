@@ -303,6 +303,8 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	for i := 0; i < size; i++ {
 		conn, gotIt = <-pool.conns
 		if !gotIt {
+			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy 
+			//or pool doesn't have connections
 			break
 		}
 

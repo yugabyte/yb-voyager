@@ -55,9 +55,6 @@ func NewYugabyteDBCDCClient(exportDir, ybServers, sslRootCert, dbName, tableName
 func (ybc *YugabyteDBCDCClient) SetYBServers(servers string) {
 	ybc.ybServers = servers
 }
-func (ybc *YugabyteDBCDCClient) SetSSLRootCert(sslRootCert string) {
-	ybc.sslRootCert = sslRootCert
-}
 
 func (ybc *YugabyteDBCDCClient) Init() error {
 	err := FindDebeziumDistribution("yugabytedb", true)

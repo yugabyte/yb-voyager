@@ -26,7 +26,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -51,7 +50,6 @@ type TargetDBForMonitorHealth interface {
 type YugabyteDBClient interface {
 	Init() error
 	SetYBServers(string)
-	SetSSLRootCert(string)
 	GetNumOfReplicationStreams() (int, error)
 }
 
@@ -59,7 +57,7 @@ type MonitorTargetYBHealth struct {
 	// key is the target cluster node and value is bool variable for indicating if a node is down or up
 	nodesStatus map[string]bool
 	//ybClient instance to fetch streams
-	ybClient dbzm.YugabyteDBCDCClient
+	ybClient YugabyteDBClient
 	//yb tdb instance to query target for monitoring
 	yb TargetDBForMonitorHealth
 
@@ -70,19 +68,17 @@ type MonitorTargetYBHealth struct {
 
 	//Display function for the printing any msg on the console
 	displayMsgFunc func(string)
-
-	tconf tgtdb.TargetConf
 }
 
-func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks utils.BoolStr, skipReplicationChecks utils.BoolStr, skipNodeHealthChecks utils.BoolStr, displayMsgFunc func(msg string), ybClient YugabyteDBClient, tconf tgtdb.TargetConf) MonitorTargetYBHealth {
+func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks bool, skipReplicationChecks bool, skipNodeHealthChecks bool, ybClient YugabyteDBClient, displayMsgFunc func(msg string)) MonitorTargetYBHealth {
 	return MonitorTargetYBHealth{
 		nodesStatus:          make(map[string]bool),
 		yb:                   yb,
 		skipNodeCheck:        bool(skipNodeHealthChecks),
-		skipDiskCheck:        bool(skipDiskUsageHealthChecks),
+		skipDiskCheck:        true, //skipping the disk usage monitoring for now, until the metrics function changes are made
 		skipReplicationCheck: bool(skipReplicationChecks),
 		displayMsgFunc:       displayMsgFunc,
-		tconf:                tconf,
+		ybClient:             ybClient,
 	}
 }
 
@@ -101,8 +97,10 @@ func (m *MonitorTargetYBHealth) StartMonitoring() error {
 		m.skipNodeCheck = true
 	}
 
-	//skipping the disk usage monitoring for now, util the metrics function changes are made
-	m.skipDiskCheck = true
+	ybServers := lo.Keys(m.nodesStatus)
+	addresses := strings.Join(ybServers, ":7100,")
+
+	m.ybClient.SetYBServers(addresses)
 
 	for {
 		err = m.monitorNodesStatusAndAdapt()
@@ -147,17 +145,17 @@ func (m *MonitorTargetYBHealth) monitorNodesStatusAndAdapt() error {
 	downNodes := make([]string, 0)
 	upNodes := make([]string, 0)
 
-	for node, up := range m.nodesStatus {
-		isNodeLive := lo.ContainsBy(currentNodes, func(t *tgtdb.TargetConf) bool {
+	for node, previousUp := range m.nodesStatus {
+		currentUp := lo.ContainsBy(currentNodes, func(t *tgtdb.TargetConf) bool {
 			return t.Host == node
 		})
-		if up && !isNodeLive {
+		if previousUp && !currentUp {
 			//Node goes down
 			downNodes = append(downNodes, node)
 			m.nodesStatus[node] = false
 		}
 
-		if !up && isNodeLive {
+		if !previousUp && currentUp {
 			//Node comes back up
 			upNodes = append(upNodes, node)
 			m.nodesStatus[node] = true
@@ -235,30 +233,21 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 	if m.skipReplicationCheck {
 		return nil
 	}
+
 	numOfSlots, err := m.yb.NumOfLogicalReplicationSlots()
 	if err != nil {
 		return fmt.Errorf("error fetching logical replication slots for checking if replication enabled - %s", err)
 	}
 	if numOfSlots > 0 {
-		utils.ErrExit(color.RedString(REPLICATION_GUARDRAIL_ALERT_MSG))
+		utils.ErrExit(color.RedString("%s Found replication slot(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfSlots))
 	}
-
-	err = m.ybClient.Init()
-	if err != nil {
-		return fmt.Errorf("error intialising the yb client : %v", err)
-	}
-	ybServers := lo.Keys(m.nodesStatus)
-	addresses := strings.Join(ybServers, ":7100,")
-
-	m.ybClient.SetYBServers(addresses)
-	m.ybClient.SetSSLRootCert(m.tconf.SSLRootCert)
 
 	numOfStreams, err := m.ybClient.GetNumOfReplicationStreams()
 	if err != nil {
 		return fmt.Errorf("error fetching num of replication streams: %v", err)
 	}
 	if numOfStreams > 0 {
-		utils.ErrExit(color.RedString(REPLICATION_GUARDRAIL_ALERT_MSG))
+		utils.ErrExit(color.RedString("%s Found replication stream(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfStreams))
 	}
 	return nil
 }
