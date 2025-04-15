@@ -37,7 +37,8 @@
             "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_sales on sales(bill_date);",
             "Suggestion": "",
-            "GH": "",
+            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
