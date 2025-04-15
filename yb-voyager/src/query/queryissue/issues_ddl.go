@@ -2039,8 +2039,8 @@ var suggestionOnDateIndexesForRangeSharding = issue.Issue{
 	Name:        RANGE_SHARDING_DATE_INDEX_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
-	GH:          "",
-	DocsLink:    "",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
 }
 
 func NewSuggestionOnDateIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -2052,8 +2052,8 @@ var suggestionOnTimestampIndexesForRangeSharding = issue.Issue{
 	Name:        RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
-	GH:          "",
-	DocsLink:    "",
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
 }
 
 func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
