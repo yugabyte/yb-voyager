@@ -179,7 +179,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, error) {
 
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
-		fmt.Println("Using config file:", v.ConfigFileUsed())
+		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
 			return nil, err

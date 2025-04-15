@@ -324,6 +324,8 @@ func validateExportDirFlag() {
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
+
+	fmt.Println("Using export-dir: ", color.BlueString(exportDir))
 }
 
 func GetCommandID(c *cobra.Command) string {
