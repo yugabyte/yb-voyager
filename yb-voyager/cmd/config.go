@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -12,173 +13,98 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
-var allowedGlobalConfigKeys = map[string]bool{
-	"export-dir":            true,
-	"log-level":             true,
-	"send-diagnostics":      true,
-	"run-guardrails-checks": true,
-}
+const (
+	// Flag name prefixes (used in CLI flags)
+	SourceDBFlagPrefix = "source-"
+	TargetDBFlagPrefix = "target-"
+	OracleDBFlagPrefix = "oracle-"
 
-var allowedSourceConfigKeys = map[string]bool{
-	"name":                 true,
-	"db-type":              true,
-	"db-host":              true,
-	"db-port":              true,
-	"db-user":              true,
-	"db-name":              true,
-	"db-password":          true,
-	"db-schema":            true,
-	"ssl-cert":             true,
-	"ssl-mode":             true,
-	"ssl-key":              true,
-	"ssl-ca":               true,
-	"ssl-root-cert":        true,
-	"ssl-crl":              true,
-	"oracle-db-sid":        true,
-	"oracle-home":          true,
-	"oracle-tns-alias":     true,
-	"oracle-cdb-name":      true,
-	"oracle-cdb-sid":       true,
-	"oracle-cdb-tns-alias": true,
-}
+	// Config key prefixes (used in config file keys)
+	SourceDBConfigPrefix = "source."
+	TargetDBConfigPrefix = "target."
+)
 
-var allowedTargetConfigKeys = map[string]bool{
-	"name":          true,
-	"db-host":       true,
-	"db-port":       true,
-	"db-user":       true,
-	"db-password":   true,
-	"db-name":       true,
-	"db-schema":     true,
-	"ssl-cert":      true,
-	"ssl-mode":      true,
-	"ssl-key":       true,
-	"ssl-root-cert": true,
-	"ssl-crl":       true,
-}
+var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+)
 
-var allowedAssessMigrationConfigKeys = map[string]bool{
-	"iops-capture-interval":   true,
-	"target-db-version":       true,
-	"assessment-metadata-dir": true,
-}
+var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"name", "db-type", "db-host", "db-port", "db-user", "db-name", "db-password",
+	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-ca", "ssl-root-cert",
+	"ssl-crl", "oracle-db-sid", "oracle-home", "oracle-tns-alias", "oracle-cdb-name",
+	"oracle-cdb-sid", "oracle-cdb-tns-alias",
+)
 
-var allowedAnalyzeSchemaConfigKeys = map[string]bool{
-	"output-format":     true,
-	"target-db-version": true,
-}
+var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
+	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
+)
 
-var allowedExportSchemaConfigKeys = map[string]bool{
-	"use-orafce":               true,
-	"comments-on-objects":      true,
-	"object-type-list":         true,
-	"exclude-object-type-list": true,
-	"skip-recommendations":     true,
-	"assessment-report-path":   true,
-}
+var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
+)
 
-var allowedExportDataConfigKeys = map[string]bool{
-	"disable-pb":                   true,
-	"exclude-table-list":           true,
-	"table-list":                   true,
-	"exclude-table-list-file-path": true,
-	"table-list-file-path":         true,
-	"parallel-jobs":                true,
-	"export-type":                  true,
-}
+var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"output-format", "target-db-version",
+)
 
-var allowedExportDataFromTargetConfigKeys = map[string]bool{
-	"disable-pb":                   true,
-	"exclude-table-list":           true,
-	"table-list":                   true,
-	"exclude-table-list-file-path": true,
-	"table-list-file-path":         true,
-}
+var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
+	"skip-recommendations", "assessment-report-path",
+)
 
-var allowedImportSchemaConfigKeys = map[string]bool{
-	"continue-on-error":        true,
-	"object-type-list":         true,
-	"exclude-object-type-list": true,
-	"straight-order":           true,
-	"post-snapshot-import":     true,
-	"ignore-exists":            true,
-	"enable-orafce":            true,
-}
+var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"table-list-file-path", "parallel-jobs", "export-type",
+)
 
-var allowedImportDataConfigKeys = map[string]bool{
-	"batch-size":                   true,
-	"parallel-jobs":                true,
-	"enable-adaptive-parallelism":  true,
-	"adaptive-parallelism-max":     true,
-	"disable-pb":                   true,
-	"max-retries":                  true,
-	"exclude-table-list":           true,
-	"table-list":                   true,
-	"exclude-table-list-file-path": true,
-	"table-list-file-path":         true,
-	"enable-upsert":                true,
-	"use-public-ip":                true,
-	"target-endpoints":             true,
-	"truncate-tables":              true,
-}
+var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
+	"table-list-file-path",
+)
 
-var allowedImportDataToSourceConfigKeys = map[string]bool{
-	"parallel-jobs": true,
-	"disable-pb":    true,
-	"max-retries":   true,
-}
+var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
+	"post-snapshot-import", "ignore-exists", "enable-orafce",
+)
 
-var allowedImportDataToSourceReplicaConfigKeys = map[string]bool{
-	"batch-size":      true,
-	"parallel-jobs":   true,
-	"truncate-tables": true,
-	"disable-pb":      true,
-	"max-retries":     true,
-}
+var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	"disable-pb", "max-retries", "exclude-table-list", "table-list",
+	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
+	"target-endpoints", "truncate-tables",
+)
 
-var allowedImportDataFileConfigKeys = map[string]bool{
-	"disable-pb":                  true,
-	"max-retries":                 true,
-	"enable-upsert":               true,
-	"use-public-ip":               true,
-	"target-endpoints":            true,
-	"batch-size":                  true,
-	"parallel-jobs":               true,
-	"enable-adaptive-parallelism": true,
-	"adaptive-parallelism-max":    true,
-	"format":                      true,
-	"delimiter":                   true,
-	"data-dir":                    true,
-	"file-table-map":              true,
-	"has-header":                  true,
-	"escape-char":                 true,
-	"quote-char":                  true,
-	"file-opts":                   true,
-	"null-string":                 true,
-	"truncate-tables":             true,
-}
+var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"parallel-jobs", "disable-pb", "max-retries",
+)
 
-var allowedInitCutoverToTargetConfigKeys = map[string]bool{
-	"prepare-for-fall-back": true,
-	"use-yb-grpc-connector": true,
-}
+var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
+)
 
-var allowedArchiveChangesConfigKeys = map[string]bool{
-	"delete-changes-without-archiving": true,
-	"fs-utilization-threshold":         true,
-	"move-to":                          true,
-}
+var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
+	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
+	"quote-char", "file-opts", "null-string", "truncate-tables",
+)
 
-var allowedEndMigrationConfigKeys = map[string]bool{
-	"backup-schema-files":    true,
-	"backup-data-files":      true,
-	"save-migration-reports": true,
-	"backup-log-files":       true,
-	"backup-dir":             true,
-}
+var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"prepare-for-fall-back", "use-yb-grpc-connector",
+)
+
+var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
+)
+
+var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
+	"backup-dir",
+)
 
 // Define allowed nested sections
-var allowedConfigSections = map[string]map[string]bool{
+var allowedConfigSections = map[string]mapset.Set[string]{
 	"source":                        allowedSourceConfigKeys,
 	"target":                        allowedTargetConfigKeys,
 	"assess-migration":              allowedAssessMigrationConfigKeys,
@@ -204,6 +130,16 @@ var aliasCommandsPrefixes = [][]string{
 	{"import-data", "import-data-to-target"},
 }
 
+// ConfigFlagOverride represents a CLI flag whose value was set from the config file.
+// It captures the flag name, the corresponding config key that supplied the value,
+// and the final value that was applied. This is useful for logging and debugging
+// which flags were influenced by configuration during command execution.
+type ConfigFlagOverride struct {
+	FlagName  string
+	ConfigKey string
+	Value     string
+}
+
 /*
 initConfig initializes the configuration for the given Cobra command.
 
@@ -212,11 +148,12 @@ initConfig initializes the configuration for the given Cobra command.
 	 2. Loads the config file if explicitly provided via --config, or defaults to ~/.yb-voyager.yaml.
 	 3. Reads and validates the configuration file for allowed global keys, sections, and section keys.
 	 4. Binds Viper config values to Cobra flags, giving priority to command-line flags over config values.
-	 5. Returns an error if config file reading, validation, or flag binding fails.
+	 5. Returns a slice of ConfigFlagOverride structs, which represent the flags that were set from the config file.
+	 6. If any error occurs during the process, it returns the error.
 
 	This setup ensures CLI > Config precedence
 */
-func initConfig(cmd *cobra.Command) error {
+func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, error) {
 	v := viper.New()
 
 	// Precedence of which config file to use:
@@ -231,7 +168,7 @@ func initConfig(cmd *cobra.Command) error {
 		// Find home directory.
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		// Search config in home directory with name "yb-voyager-config" (without extension).
@@ -245,23 +182,23 @@ func initConfig(cmd *cobra.Command) error {
 		fmt.Println("Using config file:", v.ConfigFileUsed())
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return err
+			return nil, err
 		}
 	}
 
 	// Validate the config file for allowed keys and sections
 	err := validateConfigFile(v)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	// Bind the config values to the Cobra command flags
-	err = bindCobraFlagsToViper(cmd, v)
+	overrides, err := bindCobraFlagsToViper(cmd, v)
 	if err != nil {
-		return fmt.Errorf("failed to bind cobra flags to viper: %w", err)
+		return nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
 	}
 
-	return nil
+	return overrides, nil
 }
 
 /*
@@ -281,20 +218,19 @@ validateConfigFile checks the loaded configuration for correctness.
 	This helps catch misconfigurations early and provides comprehensive feedback to the user.
 */
 func validateConfigFile(v *viper.Viper) error {
-	var (
-		invalidGlobalKeys   []string
-		invalidSectionKeys  = make(map[string][]string)
-		invalidSections     []string
-		conflictingSections = [][]string{}
-		presentSections     = make(map[string]bool)
-	)
+
+	invalidGlobalKeys := mapset.NewThreadUnsafeSet[string]()
+	invalidSectionKeys := make(map[string]mapset.Set[string])
+	invalidSections := mapset.NewThreadUnsafeSet[string]()
+	conflictingSections := [][]string{}
+	presentSections := mapset.NewThreadUnsafeSet[string]()
 
 	for _, key := range v.AllKeys() {
 		parts := strings.Split(key, ".")
 		if len(parts) == 1 {
 			// Check global level keys
-			if !allowedGlobalConfigKeys[key] {
-				invalidGlobalKeys = append(invalidGlobalKeys, key)
+			if !allowedGlobalConfigKeys.Contains(key) {
+				invalidGlobalKeys.Add(key)
 			}
 		} else {
 			// Validate section-based keys
@@ -302,15 +238,21 @@ func validateConfigFile(v *viper.Viper) error {
 			// For example: "a.b.c" -> section: "a", nestedKey: "b.c"
 			section := parts[0]
 			nestedKey := strings.Join(parts[1:], ".")
-			presentSections[section] = true
-			if allowedConfigSections[section] == nil {
+			presentSections.Add(section)
+
+			allowedKeys, ok := allowedConfigSections[section]
+			if !ok {
 				// Unknown section
-				if !utils.ContainsAnyStringFromSlice(invalidSections, section) {
-					invalidSections = append(invalidSections, section)
-				}
-			} else if !allowedConfigSections[section][nestedKey] {
+				invalidSections.Add(section)
+				continue
+			}
+
+			if !allowedKeys.Contains(nestedKey) {
 				// Invalid key inside a known section
-				invalidSectionKeys[section] = append(invalidSectionKeys[section], nestedKey)
+				if _, exists := invalidSectionKeys[section]; !exists {
+					invalidSectionKeys[section] = mapset.NewThreadUnsafeSet[string]()
+				}
+				invalidSectionKeys[section].Add(nestedKey)
 			}
 		}
 	}
@@ -319,7 +261,7 @@ func validateConfigFile(v *viper.Viper) error {
 	for _, group := range aliasCommandsPrefixes {
 		var used []string
 		for _, sec := range group {
-			if presentSections[sec] {
+			if presentSections.Contains(sec) {
 				used = append(used, sec)
 			}
 		}
@@ -329,21 +271,18 @@ func validateConfigFile(v *viper.Viper) error {
 	}
 
 	// If invalid configurations exist, print them
-	if len(invalidGlobalKeys) > 0 || len(invalidSectionKeys) > 0 || len(invalidSections) > 0 || len(conflictingSections) > 0 {
-		if len(invalidGlobalKeys) > 0 {
-			fmt.Printf("%s %v\n", color.RedString("Invalid global config keys:"), invalidGlobalKeys)
+	if invalidGlobalKeys.Cardinality() > 0 || len(invalidSectionKeys) > 0 || invalidSections.Cardinality() > 0 || len(conflictingSections) > 0 {
+		if invalidGlobalKeys.Cardinality() > 0 {
+			fmt.Printf("%s [%s]\n", color.RedString("Invalid global config keys:"), strings.Join(invalidGlobalKeys.ToSlice(), ", "))
 		}
 		for section, keys := range invalidSectionKeys {
-			printStatement := fmt.Sprintf("Invalid keys in section '%s':", section)
-			fmt.Printf("%s %v\n", color.RedString(printStatement), keys)
+			fmt.Printf("%s [%s]\n", color.RedString(fmt.Sprintf("Invalid keys in section '%s':", section)), strings.Join(keys.ToSlice(), ", "))
 		}
-		if len(invalidSections) > 0 {
-			fmt.Printf("%s %v\n", color.RedString("Invalid sections:"), invalidSections)
+		if invalidSections.Cardinality() > 0 {
+			fmt.Printf("%s [%s]\n", color.RedString("Invalid sections:"), strings.Join(invalidSections.ToSlice(), ", "))
 		}
-		if len(conflictingSections) > 0 {
-			for _, conflict := range conflictingSections {
-				fmt.Printf("%s %v\n", color.RedString("Only one of the following sections can be used:"), conflict)
-			}
+		for _, conflict := range conflictingSections {
+			fmt.Printf("%s [%s]\n", color.RedString("Only one of the following sections can be used:"), strings.Join(conflict, ", "))
 		}
 
 		// Return a general error message
@@ -370,12 +309,14 @@ bindCobraFlagsToViper binds configuration values from a Viper instance to the fl
 	    - Flags starting with "target-" → looks under "target.<flag-suffix>"
 	 4. If a value is found in Viper, the corresponding flag is set with that value.
 	 5. If any error occurs during binding, it stops further processing and returns the error.
+	 6. Also returns a slice of ConfigFlagOverride structs, which represent the flags that were set from the config file. Should only be used if there are no errors.
 
 	This function allows users to configure flags through the config file or environment variables,
 	while still letting command-line input take precedence.
 */
-func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
+func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOverride, error) {
 	var bindErr error
+	var overrides []ConfigFlagOverride
 
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
@@ -397,6 +338,11 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 				bindErr = err
 				return
 			}
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKeyPrefix + "." + f.Name,
+				Value:     val,
+			})
 		} else if v.IsSet(f.Name) {
 			// Bind the global flag from viper to cmd
 			val := v.GetString(f.Name)
@@ -405,41 +351,56 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) error {
 				bindErr = err
 				return
 			}
-		} else if strings.HasPrefix(f.Name, "source-") && v.IsSet("source."+strings.TrimPrefix(f.Name, "source-")) {
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: f.Name,
+				Value:     val,
+			})
+		} else if strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(SourceDBConfigPrefix+strings.TrimPrefix(f.Name, SourceDBFlagPrefix)) {
 			// Handle source db type flags
-			val := v.GetString("source." + strings.TrimPrefix(f.Name, "source-"))
+			val := v.GetString(SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix))
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
 				return
 			}
-		} else if strings.HasPrefix(f.Name, "oracle-") && v.IsSet("source."+f.Name) {
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix),
+				Value:     val,
+			})
+		} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(SourceDBConfigPrefix+f.Name) {
 			// Handle oracle db type flags, since they are also prefixed with source but are special cases
-			val := v.GetString("source." + f.Name)
+			val := v.GetString(SourceDBConfigPrefix + f.Name)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
 				return
 			}
-		} else if strings.HasPrefix(f.Name, "target-") && v.IsSet("target."+strings.TrimPrefix(f.Name, "target-")) {
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: SourceDBConfigPrefix + f.Name,
+				Value:     val,
+			})
+		} else if strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(TargetDBConfigPrefix+strings.TrimPrefix(f.Name, TargetDBFlagPrefix)) {
 			// Handle target db type flags
-			val := v.GetString("target." + strings.TrimPrefix(f.Name, "target-"))
+			val := v.GetString(TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix))
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			// fmt.Printf("binding %s from viper to cmd flag: %s=%s\n", "target."+strings.TrimPrefix(f.Name, "target-"), f.Name, val)
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix),
+				Value:     val,
+			})
 		}
 		// If the flag is not set in viper, do nothing and leave it as is
 		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
-	if bindErr != nil {
-		return bindErr
-	}
-
-	return nil
+	return overrides, bindErr
 }
 
 /*

@@ -64,7 +64,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		// Initialize the config file
-		err := initConfig(cmd)
+		overrides, err := initConfig(cmd)
 		if err != nil {
 			// not using utils.ErrExit as logging is not initialized yet
 			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
@@ -150,6 +150,12 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			setControlPlane(getControlPlaneType())
 		}
+
+		// Log the config file overrides
+		for _, f := range overrides {
+			log.Infof("Flag '%s' set from config key '%s' with value '%s'\n", f.FlagName, f.ConfigKey, f.Value)
+		}
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
