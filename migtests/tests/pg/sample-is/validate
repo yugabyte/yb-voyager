@@ -43,7 +43,19 @@ def migration_completed_checks(tgt):
 
 	fetched_procedures_functions = tgt.fetch_all_procedures("public")
 	print(f"count of fecthed procedures/functions - {len(fetched_procedures_functions)}")
-	assert len(fetched_procedures_functions) == 288
+	tgtVersion = tgt.get_target_version()
+	print(f"target version: {tgtVersion}")
+	
+	# for PG15 merged versions like 2.25, some extensions create more functions/procedures than in earlier versions.
+	# Example hstore
+	# 2024.2: 57 functions / procedures
+	# 2.25: 60 functions / procedures
+	# Thus the change in count.
+
+	if "2.25" in tgtVersion:
+		assert len(fetched_procedures_functions) == 300
+	else:
+		assert len(fetched_procedures_functions) == 288
 
 	get_index_cnt = tgt.get_count_index_on_table("public")
 	for table_name, index_count in EXPECTED_INDEX_COUNT.items():
