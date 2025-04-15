@@ -116,7 +116,7 @@ TABLE_NAME_DATA_MAP = {
 	"foo3": FOO3_DATA
 }
 
-if os.getenv("NON_DOCKERISED_INSTALLATION") != "true":
+if os.getenv("DOCKERISED_INSTALLATION") != "true":
 	EXPECTED.update({
 		"gcs_text": 3,
 		"gcs_csv": 3,
