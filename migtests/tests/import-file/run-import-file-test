@@ -290,6 +290,8 @@ main() {
 	"${TEST_DIR}/validate"
 
 	# End Migration doesn't work in dockerised environment with import data file
+	# https://yugabyte.atlassian.net/browse/DB-16239
+	
 	if [ "${DOCKERISED_INSTALLATION}" != true ] ; then
 		step "End Migration: clearing metainfo about state of migration from everywhere."
 		end_migration --yes
