@@ -156,7 +156,8 @@ GRANT pg_read_all_stats to :voyager_user;
     -- Prompt the user to let them know that ownership of the tables will be transferred to the replication group and proceed only if they confirm
     \echo ''
     \echo 'This script will transfer ownership of all tables in the specified schemas to the specified replication group as required by debezium. User ybvoyager and the original owner of the tables will be added to the replication group.'
-    \prompt 'Proceed? (yes/no): ' proceed
+    -- Only 'yes' or 'no' are valid inputs. 'y' and 'n' are not valid inputs.
+    \prompt 'Proceed with the transfer of ownership? (yes/no): ' proceed
 
     \if :proceed
         \echo 'Proceeding with the transfer of ownership...'
