@@ -528,50 +528,57 @@
 
     </div>
 </body>
+<!--
+  This script tag is placed at before the end of the body tag to ensure the DOM elements is fully loaded
+  before it runs. This is necessary because placing the script in the head would
+  execute it before elements with id #notes-list are available in the DOM, causing it
+  to miss URLs.
+-->
 <script>
     const notesListItems = document.querySelectorAll("#notes-list li");
+
     notesListItems.forEach((li) => {
         const originalText = li.textContent.trim();
         const words = originalText.split(' ');
 
         const hasUrl = words.some(word => word.startsWith('http://') || word.startsWith('https://'));
+        if (!hasUrl) return;
 
-        if (hasUrl) {
-            li.textContent = '';
+        li.textContent = '';
 
-            words.forEach((word, index) => {
-                if (word.startsWith('http://') || word.startsWith('https://')) {
-                    const aTag = document.createElement("a");
+        words.forEach((word, index) => {
+            let url = word;
+            let charThatWillBeRemoved = '';
 
-                    let url = word;
-                    const punctuation = [',', '.', '!', '?', ';', ':'];
-                    if (punctuation.includes(url[url.length - 1])) {
-                        const lastChar = url[url.length - 1];
-                        url = url.substring(0, url.length - 1);
+            const isUrl = url.startsWith('http://') || url.startsWith('https://');
 
-                        aTag.href = url;
-                        aTag.textContent = url;
-                        aTag.classList.add("highlight-link");
-                        aTag.target = "_blank";
-                        li.appendChild(aTag);
-
-                        li.appendChild(document.createTextNode(lastChar));
-                    } else {
-                        aTag.href = url;
-                        aTag.textContent = url;
-                        aTag.classList.add("highlight-link");
-                        aTag.target = "_blank";
-                        li.appendChild(aTag);
-                    }
-                } else {
-                    li.appendChild(document.createTextNode(word));
+            if (isUrl) {
+                const lastChar = url[url.length - 1];
+                const urlCantEndWithTheseChars = [',', '.', '!', '?', ';', ':'];
+                if (urlCantEndWithTheseChars.includes(lastChar)) {
+                    charThatWillBeRemoved = lastChar;
+                    url = url.slice(0, -1);
                 }
 
-                if (index < words.length - 1) {
-                    li.appendChild(document.createTextNode(' '));
+                const aTag = document.createElement("a");
+                aTag.href = url;
+                aTag.textContent = url;
+                aTag.classList.add("highlight-link");
+                aTag.target = "_blank";
+                li.appendChild(aTag);
+
+                if (charThatWillBeRemoved) {
+                    li.appendChild(document.createTextNode(charThatWillBeRemoved));
                 }
-            });
-        }
+            } else {
+                li.appendChild(document.createTextNode(word));
+            }
+
+            if (index < words.length - 1) {
+                li.appendChild(document.createTextNode(' '));
+            }
+        });
     });
+
 </script>
 </html>
