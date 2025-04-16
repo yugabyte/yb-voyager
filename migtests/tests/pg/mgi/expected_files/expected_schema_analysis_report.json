@@ -1346,6 +1346,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1369,6 +1370,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1392,6 +1394,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1415,6 +1418,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1438,6 +1442,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1461,6 +1466,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1484,6 +1490,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1507,6 +1514,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1530,6 +1538,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1553,6 +1562,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1576,6 +1586,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1599,6 +1610,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1622,6 +1634,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1645,6 +1658,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1668,6 +1682,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1691,6 +1706,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1714,6 +1730,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1737,6 +1754,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1760,6 +1778,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1783,6 +1802,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1806,6 +1826,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1829,6 +1850,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1852,6 +1874,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1875,6 +1898,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1898,6 +1922,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1921,6 +1946,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1944,6 +1970,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1967,6 +1994,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1990,6 +2018,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2013,6 +2042,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2036,6 +2066,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2059,6 +2090,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2082,6 +2114,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2105,6 +2138,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2128,6 +2162,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2151,6 +2186,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2174,6 +2210,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2197,6 +2234,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2220,6 +2258,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2243,6 +2282,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2266,6 +2306,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2289,6 +2330,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2312,6 +2354,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2335,6 +2378,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2358,6 +2402,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2381,6 +2426,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2404,6 +2450,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2427,6 +2474,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2450,6 +2498,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2473,6 +2522,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2496,6 +2546,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2519,6 +2570,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2542,6 +2594,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2565,6 +2618,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2588,6 +2642,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2611,6 +2666,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2634,6 +2690,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2657,6 +2714,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2680,6 +2738,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2703,6 +2762,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2726,6 +2786,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2749,6 +2810,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2772,6 +2834,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2795,6 +2858,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2818,6 +2882,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2841,6 +2906,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2864,6 +2930,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2887,6 +2954,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2910,6 +2978,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2933,6 +3002,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2956,6 +3026,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2979,6 +3050,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -3002,6 +3074,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -3025,6 +3098,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {

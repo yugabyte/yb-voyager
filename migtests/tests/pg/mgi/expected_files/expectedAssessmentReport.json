@@ -1063,7 +1063,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "acc_accession_idx_creation_date ON mgd.acc_accession",
 			"SqlStatement": "CREATE INDEX acc_accession_idx_creation_date ON mgd.acc_accession USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1076,7 +1076,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "acc_accession_idx_modification_date ON mgd.acc_accession",
 			"SqlStatement": "CREATE INDEX acc_accession_idx_modification_date ON mgd.acc_accession USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1089,7 +1089,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "acc_accessionreference_idx_creation_date ON mgd.acc_accessionreference",
 			"SqlStatement": "CREATE INDEX acc_accessionreference_idx_creation_date ON mgd.acc_accessionreference USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1102,7 +1102,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference",
 			"SqlStatement": "CREATE INDEX acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1115,7 +1115,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_cellline_idx_creation_date ON mgd.all_allele_cellline",
 			"SqlStatement": "CREATE INDEX all_allele_cellline_idx_creation_date ON mgd.all_allele_cellline USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1128,7 +1128,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline",
 			"SqlStatement": "CREATE INDEX all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1141,7 +1141,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_idx_creation_date ON mgd.all_allele",
 			"SqlStatement": "CREATE INDEX all_allele_idx_creation_date ON mgd.all_allele USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1154,7 +1154,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_idx_modification_date ON mgd.all_allele",
 			"SqlStatement": "CREATE INDEX all_allele_idx_modification_date ON mgd.all_allele USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1167,7 +1167,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_mutation_idx_creation_date ON mgd.all_allele_mutation",
 			"SqlStatement": "CREATE INDEX all_allele_mutation_idx_creation_date ON mgd.all_allele_mutation USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1180,7 +1180,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation",
 			"SqlStatement": "CREATE INDEX all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1193,7 +1193,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_cellline_derivation_idx_creation_date ON mgd.all_cellline_derivation",
 			"SqlStatement": "CREATE INDEX all_cellline_derivation_idx_creation_date ON mgd.all_cellline_derivation USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1206,7 +1206,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation",
 			"SqlStatement": "CREATE INDEX all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1219,7 +1219,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_cellline_idx_creation_date ON mgd.all_cellline",
 			"SqlStatement": "CREATE INDEX all_cellline_idx_creation_date ON mgd.all_cellline USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1232,7 +1232,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_cellline_idx_modification_date ON mgd.all_cellline",
 			"SqlStatement": "CREATE INDEX all_cellline_idx_modification_date ON mgd.all_cellline USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1245,7 +1245,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_variant_idx_creation_date ON mgd.all_variant",
 			"SqlStatement": "CREATE INDEX all_variant_idx_creation_date ON mgd.all_variant USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1258,7 +1258,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_variant_idx_modification_date ON mgd.all_variant",
 			"SqlStatement": "CREATE INDEX all_variant_idx_modification_date ON mgd.all_variant USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1271,7 +1271,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_variant_sequence_idx_creation_date ON mgd.all_variant_sequence",
 			"SqlStatement": "CREATE INDEX all_variant_sequence_idx_creation_date ON mgd.all_variant_sequence USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1284,7 +1284,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence",
 			"SqlStatement": "CREATE INDEX all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1297,7 +1297,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_books_idx_creation_date ON mgd.bib_books",
 			"SqlStatement": "CREATE INDEX bib_books_idx_creation_date ON mgd.bib_books USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1310,7 +1310,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_books_idx_modification_date ON mgd.bib_books",
 			"SqlStatement": "CREATE INDEX bib_books_idx_modification_date ON mgd.bib_books USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1323,7 +1323,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_notes_idx_creation_date ON mgd.bib_notes",
 			"SqlStatement": "CREATE INDEX bib_notes_idx_creation_date ON mgd.bib_notes USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1336,7 +1336,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_notes_idx_modification_date ON mgd.bib_notes",
 			"SqlStatement": "CREATE INDEX bib_notes_idx_modification_date ON mgd.bib_notes USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1349,7 +1349,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_refs_idx_creation_date ON mgd.bib_refs",
 			"SqlStatement": "CREATE INDEX bib_refs_idx_creation_date ON mgd.bib_refs USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1362,7 +1362,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_refs_idx_modification_date ON mgd.bib_refs",
 			"SqlStatement": "CREATE INDEX bib_refs_idx_modification_date ON mgd.bib_refs USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1375,7 +1375,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_relevance_idx_creation_date ON mgd.bib_workflow_relevance",
 			"SqlStatement": "CREATE INDEX bib_workflow_relevance_idx_creation_date ON mgd.bib_workflow_relevance USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1388,7 +1388,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance",
 			"SqlStatement": "CREATE INDEX bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1401,7 +1401,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_status_idx_creation_date ON mgd.bib_workflow_status",
 			"SqlStatement": "CREATE INDEX bib_workflow_status_idx_creation_date ON mgd.bib_workflow_status USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1414,7 +1414,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status",
 			"SqlStatement": "CREATE INDEX bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1427,7 +1427,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_tag_idx_creation_date ON mgd.bib_workflow_tag",
 			"SqlStatement": "CREATE INDEX bib_workflow_tag_idx_creation_date ON mgd.bib_workflow_tag USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1440,7 +1440,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag",
 			"SqlStatement": "CREATE INDEX bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1453,7 +1453,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "go_tracking_idx_completion_date ON mgd.go_tracking",
 			"SqlStatement": "CREATE INDEX go_tracking_idx_completion_date ON mgd.go_tracking USING btree (completion_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1466,7 +1466,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "go_tracking_idx_creation_date ON mgd.go_tracking",
 			"SqlStatement": "CREATE INDEX go_tracking_idx_creation_date ON mgd.go_tracking USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1479,7 +1479,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "go_tracking_idx_modification_date ON mgd.go_tracking",
 			"SqlStatement": "CREATE INDEX go_tracking_idx_modification_date ON mgd.go_tracking USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1492,7 +1492,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair",
 			"SqlStatement": "CREATE INDEX gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1505,7 +1505,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_allelepair_idx_modification_date ON mgd.gxd_allelepair",
 			"SqlStatement": "CREATE INDEX gxd_allelepair_idx_modification_date ON mgd.gxd_allelepair USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1518,7 +1518,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_antibody_idx_creation_date ON mgd.gxd_antibody",
 			"SqlStatement": "CREATE INDEX gxd_antibody_idx_creation_date ON mgd.gxd_antibody USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1531,7 +1531,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_antibody_idx_modification_date ON mgd.gxd_antibody",
 			"SqlStatement": "CREATE INDEX gxd_antibody_idx_modification_date ON mgd.gxd_antibody USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1544,7 +1544,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_antigen_idx_creation_date ON mgd.gxd_antigen",
 			"SqlStatement": "CREATE INDEX gxd_antigen_idx_creation_date ON mgd.gxd_antigen USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1557,7 +1557,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_antigen_idx_modification_date ON mgd.gxd_antigen",
 			"SqlStatement": "CREATE INDEX gxd_antigen_idx_modification_date ON mgd.gxd_antigen USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1570,7 +1570,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_assay_idx_creation_date ON mgd.gxd_assay",
 			"SqlStatement": "CREATE INDEX gxd_assay_idx_creation_date ON mgd.gxd_assay USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1583,7 +1583,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_assay_idx_modification_date ON mgd.gxd_assay",
 			"SqlStatement": "CREATE INDEX gxd_assay_idx_modification_date ON mgd.gxd_assay USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1596,7 +1596,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_genotype_idx_creation_date ON mgd.gxd_genotype",
 			"SqlStatement": "CREATE INDEX gxd_genotype_idx_creation_date ON mgd.gxd_genotype USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1609,7 +1609,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_genotype_idx_modification_date ON mgd.gxd_genotype",
 			"SqlStatement": "CREATE INDEX gxd_genotype_idx_modification_date ON mgd.gxd_genotype USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1622,7 +1622,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment",
 			"SqlStatement": "CREATE INDEX gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1635,7 +1635,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htexperiment_idx_modification_date ON mgd.gxd_htexperiment",
 			"SqlStatement": "CREATE INDEX gxd_htexperiment_idx_modification_date ON mgd.gxd_htexperiment USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1648,7 +1648,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample",
 			"SqlStatement": "CREATE INDEX gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1661,7 +1661,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htrawsample_idx_modification_date ON mgd.gxd_htrawsample",
 			"SqlStatement": "CREATE INDEX gxd_htrawsample_idx_modification_date ON mgd.gxd_htrawsample USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1674,7 +1674,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htsample_idx_creation_date ON mgd.gxd_htsample",
 			"SqlStatement": "CREATE INDEX gxd_htsample_idx_creation_date ON mgd.gxd_htsample USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1687,7 +1687,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_htsample_idx_modification_date ON mgd.gxd_htsample",
 			"SqlStatement": "CREATE INDEX gxd_htsample_idx_modification_date ON mgd.gxd_htsample USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1700,7 +1700,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_index_idx_creation_date ON mgd.gxd_index",
 			"SqlStatement": "CREATE INDEX gxd_index_idx_creation_date ON mgd.gxd_index USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1713,7 +1713,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_index_idx_modification_date ON mgd.gxd_index",
 			"SqlStatement": "CREATE INDEX gxd_index_idx_modification_date ON mgd.gxd_index USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1726,7 +1726,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages",
 			"SqlStatement": "CREATE INDEX gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1739,7 +1739,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "gxd_index_stages_idx_modification_date ON mgd.gxd_index_stages",
 			"SqlStatement": "CREATE INDEX gxd_index_stages_idx_modification_date ON mgd.gxd_index_stages USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1752,7 +1752,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "img_image_idx_creation_date ON mgd.img_image",
 			"SqlStatement": "CREATE INDEX img_image_idx_creation_date ON mgd.img_image USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1765,7 +1765,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "img_image_idx_modification_date ON mgd.img_image",
 			"SqlStatement": "CREATE INDEX img_image_idx_modification_date ON mgd.img_image USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1778,7 +1778,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category",
 			"SqlStatement": "CREATE INDEX mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1791,7 +1791,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mld_expts_idx_creation_date ON mgd.mld_expts",
 			"SqlStatement": "CREATE INDEX mld_expts_idx_creation_date ON mgd.mld_expts USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1804,7 +1804,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mld_expts_idx_modification_date ON mgd.mld_expts",
 			"SqlStatement": "CREATE INDEX mld_expts_idx_modification_date ON mgd.mld_expts USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1817,7 +1817,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mrk_history_idx_creation_date ON mgd.mrk_history",
 			"SqlStatement": "CREATE INDEX mrk_history_idx_creation_date ON mgd.mrk_history USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1830,7 +1830,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mrk_history_idx_event_date ON mgd.mrk_history",
 			"SqlStatement": "CREATE INDEX mrk_history_idx_event_date ON mgd.mrk_history USING btree (event_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1843,7 +1843,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mrk_history_idx_modification_date ON mgd.mrk_history",
 			"SqlStatement": "CREATE INDEX mrk_history_idx_modification_date ON mgd.mrk_history USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1856,7 +1856,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mrk_marker_idx_creation_date ON mgd.mrk_marker",
 			"SqlStatement": "CREATE INDEX mrk_marker_idx_creation_date ON mgd.mrk_marker USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1869,7 +1869,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "mrk_marker_idx_modification_date ON mgd.mrk_marker",
 			"SqlStatement": "CREATE INDEX mrk_marker_idx_modification_date ON mgd.mrk_marker USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1882,7 +1882,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "prb_probe_idx_creation_date ON mgd.prb_probe",
 			"SqlStatement": "CREATE INDEX prb_probe_idx_creation_date ON mgd.prb_probe USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1895,7 +1895,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "prb_probe_idx_modification_date ON mgd.prb_probe",
 			"SqlStatement": "CREATE INDEX prb_probe_idx_modification_date ON mgd.prb_probe USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1908,7 +1908,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "prb_strain_idx_creation_date ON mgd.prb_strain",
 			"SqlStatement": "CREATE INDEX prb_strain_idx_creation_date ON mgd.prb_strain USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1921,7 +1921,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "prb_strain_idx_modification_date ON mgd.prb_strain",
 			"SqlStatement": "CREATE INDEX prb_strain_idx_modification_date ON mgd.prb_strain USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1934,7 +1934,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache",
 			"SqlStatement": "CREATE INDEX seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache USING btree (annotation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1947,7 +1947,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "seq_probe_cache_idx_annotation_date ON mgd.seq_probe_cache",
 			"SqlStatement": "CREATE INDEX seq_probe_cache_idx_annotation_date ON mgd.seq_probe_cache USING btree (annotation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1960,7 +1960,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "seq_sequence_idx_seqrecord_date ON mgd.seq_sequence",
 			"SqlStatement": "CREATE INDEX seq_sequence_idx_seqrecord_date ON mgd.seq_sequence USING btree (seqrecord_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1973,7 +1973,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "voc_evidence_idx_creation_date ON mgd.voc_evidence",
 			"SqlStatement": "CREATE INDEX voc_evidence_idx_creation_date ON mgd.voc_evidence USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1986,7 +1986,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "voc_evidence_idx_modification_date ON mgd.voc_evidence",
 			"SqlStatement": "CREATE INDEX voc_evidence_idx_modification_date ON mgd.voc_evidence USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1999,7 +1999,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "voc_term_idx_creation_date ON mgd.voc_term",
 			"SqlStatement": "CREATE INDEX voc_term_idx_creation_date ON mgd.voc_term USING btree (creation_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -2012,7 +2012,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "voc_term_idx_modification_date ON mgd.voc_term",
 			"SqlStatement": "CREATE INDEX voc_term_idx_modification_date ON mgd.voc_term USING btree (modification_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{

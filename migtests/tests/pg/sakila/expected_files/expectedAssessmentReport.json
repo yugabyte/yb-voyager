@@ -153,7 +153,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental",
 			"SqlStatement": "CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental USING btree (rental_date, inventory_id, customer_id);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{

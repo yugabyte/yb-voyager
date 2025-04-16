@@ -101,7 +101,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "created_idx ON public.osm_changeset",
 			"SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{

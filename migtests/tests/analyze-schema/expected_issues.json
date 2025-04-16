@@ -28,6 +28,7 @@
             "SqlStatement": "CREATE INDEX idx_sales on sales(bill_date);",
             "Suggestion": "",
             "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {

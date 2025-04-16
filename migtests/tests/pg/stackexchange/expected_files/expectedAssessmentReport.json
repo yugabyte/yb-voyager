@@ -221,7 +221,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "badges_date_idx ON public.badges",
 			"SqlStatement": "CREATE INDEX badges_date_idx ON public.badges USING btree (date) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -234,7 +234,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "cmnts_creation_date_idx ON public.comments",
 			"SqlStatement": "CREATE INDEX cmnts_creation_date_idx ON public.comments USING btree (creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -247,7 +247,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "ph_creation_date_idx ON public.posthistory",
 			"SqlStatement": "CREATE INDEX ph_creation_date_idx ON public.posthistory USING btree (creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -260,7 +260,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "posts_creation_date_idx ON public.posts",
 			"SqlStatement": "CREATE INDEX posts_creation_date_idx ON public.posts USING btree (creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -273,7 +273,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "posts_owner_user_id_creation_date_idx ON public.posts",
 			"SqlStatement": "CREATE INDEX posts_owner_user_id_creation_date_idx ON public.posts USING btree (owneruserid, creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -286,7 +286,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "user_created_at_idx ON public.users",
 			"SqlStatement": "CREATE INDEX user_created_at_idx ON public.users USING btree (creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -299,7 +299,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "votes_creation_date_idx ON public.votes",
 			"SqlStatement": "CREATE INDEX votes_creation_date_idx ON public.votes USING btree (creationdate) WITH (fillfactor='100');",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{

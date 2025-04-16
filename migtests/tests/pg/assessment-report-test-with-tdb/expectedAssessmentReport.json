@@ -248,7 +248,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_orders_shipped_date ON public.orders2",
 			"SqlStatement": "CREATE INDEX idx_orders_shipped_date ON public.orders2 USING btree (shipped_date);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -261,7 +261,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_ordersentry_processed_at ON public.ordersentry",
 			"SqlStatement": "CREATE INDEX idx_ordersentry_processed_at ON public.ordersentry USING btree (processed_at);",
-			"DocsLink": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 			"MinimumVersionsFixedIn": null
 		},
 		{

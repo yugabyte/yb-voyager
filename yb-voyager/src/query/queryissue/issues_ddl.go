@@ -2014,7 +2014,7 @@ var hotspotsOnDateIndexes = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
 	GH:          "",
-	DocsLink:    "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
 func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -2027,7 +2027,7 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
 	GH:          "",
-	DocsLink:    "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
 func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
