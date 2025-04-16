@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -116,6 +117,18 @@ func (ora *OracleContainer) GetConnectionString() string {
 	connectString := fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,
 		host, port, config.DBName)
 	return fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, config.User, config.Password, connectString)
+}
+
+func (ora *OracleContainer) GetConnection() (*sql.DB, error) {
+	if ora.container == nil {
+		utils.ErrExit("oracle container is not started: nil")
+	}
+
+	conn, err := sql.Open("godror", ora.GetConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open connection to oracle container: %w", err)
+	}
+	return conn, nil
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {

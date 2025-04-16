@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -121,6 +122,19 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
+}
+
+func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
+	if yb.container == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+
+	connStr := yb.GetConnectionString()
+	conn, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
+	}
+	return conn, nil
 }
 
 func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {

@@ -118,6 +118,19 @@ func (ms *MysqlContainer) GetConnectionString() string {
 		ms.User, ms.Password, host, port, ms.DBName)
 }
 
+func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
+	if ms.container == nil {
+		utils.ErrExit("mysql container is not started: nil")
+	}
+
+	db, err := sql.Open("mysql", ms.GetConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to mysql: %w", err)
+	}
+
+	return db, nil
+}
+
 func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 	if ms == nil {
 		utils.ErrExit("mysql container is not started: nil")
