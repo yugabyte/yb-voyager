@@ -108,7 +108,8 @@ main() {
 	# Backup original config
 	cp config.yaml config.yaml.original
 
-	# Append additional config to config.yaml if specified
+	# If an additional config file is specified, append its contents to config.yaml.
+	# This allows temporary overrides or additions for specific use cases.
 	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
 	    echo "Appending additional config to config.yaml..."
 	    cat "${ADDITIONAL_CONFIG_FILE}" >> config.yaml
@@ -131,7 +132,9 @@ main() {
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}"
 
-	# Restore original config if it was modified
+	# After usage, restore the original config to maintain a clean state.
+	# If we had modified config.yaml, replace it with the original.
+	# If no modifications were made, just clean up the backup.
 	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
 	  mv config.yaml.original config.yaml
 	else
