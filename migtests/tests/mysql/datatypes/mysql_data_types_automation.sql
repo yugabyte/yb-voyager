@@ -22,7 +22,7 @@ insert into fixed_point_types values (0.987546789,0,12397.64563,1264.12);
 drop table if exists floating_point_types;
 create table if not exists floating_point_types(id int,float_type float, double_type double, real_type REAL);
 insert into floating_point_types values (1,0.456,0.12313,0.9);
- insert into floating_point_types values (2,123456.456,0.1246533,1.9);
+insert into floating_point_types values (2,123456.456,0.1246533,1.9);
 insert into floating_point_types values (3,0,0,0);
 insert into floating_point_types values (4,126.156,0.1,1.9999);
 

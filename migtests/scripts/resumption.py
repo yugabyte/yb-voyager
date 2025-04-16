@@ -171,12 +171,15 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
                     try:
                         process.terminate()
                         print("Terminate signal sent to process (PID: {}). Waiting for process to exit...".format(process.pid), flush=True)
-                        process.wait(timeout=10)
-                        print("Process (PID: {}) terminated gracefully.".format(process.pid), flush=True)
+
+                        process.wait(timeout=10)  # Wait for the process to exit
+                        print(f"Process (PID: {process.pid}) terminated gracefully with exit code: {process.returncode}", flush=True)
+
                     except subprocess.TimeoutExpired:
                         print("Process (PID: {}) did not terminate in time. Forcing termination...".format(process.pid), flush=True)
                         process.kill()
-                        print("Process (PID: {}) killed.".format(process.pid), flush=True)
+                        print(f"Process (PID: {process.pid}) killed with exit code: {process.returncode}", flush=True)
+
                     interrupted = True
                     break
             time.sleep(1)  # Avoid busy-waiting
@@ -191,15 +194,23 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
             print("\nCommand Output:\n")
             for line in stdout.splitlines():
                 print(line)
-
         if stderr:
             print("\nCommand Errors:\n")
             for line in stderr.splitlines():
                 print(line)
+            # If there is any stderr output, treat it as an error and exit.
+            # In the interrupt-retry scenario, we do not expect stderr output. The command should be interrupted without errors.
+            sys.exit(1)
+
+        # If interrupted, check the exit code
+        if interrupted:
+            if process.returncode not in {1, -9, 137}:  # -9 and 137 are SIGKILL variations
+                print(f"Unexpected exit code after interruption: {process.returncode}", flush=True)
+                sys.exit(1)
 
         completed = process.returncode == 0 and not interrupted
-
         return completed, stdout, stderr
+
 
 def run_and_resume_voyager(command):
     """

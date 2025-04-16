@@ -23,8 +23,20 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 )
+
+// In cmd package, we have 3 TestMain functions, one for each build tag(unit, integration, integration_voyager_command).
+func TestMain(m *testing.M) {
+	// set logging level to WARN
+	// to avoid info level logs flooding the test output
+	log.SetLevel(log.WarnLevel)
+
+	exitCode := m.Run()
+
+	os.Exit(exitCode)
+}
 
 func TestBasicFileBatchProducer(t *testing.T) {
 	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
@@ -155,7 +167,6 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	batchContents, err = os.ReadFile(batches[1].GetFilePath())
 	assert.NoError(t, err)
 	assert.Equal(t, batch2ExpectedContents, string(batchContents))
-
 
 	batch3ExpectedContents := "id,val\n3, \"mnopq\""
 	assert.Equal(t, int64(1), batches[2].RecordCount)

@@ -745,6 +745,7 @@
 		}
 	],
 	"Notes": [
-		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. \nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
+		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
+		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
 	]
 }

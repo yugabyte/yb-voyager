@@ -801,7 +801,7 @@
                                             <td>
                                                 
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">COMPOUND TRIGGER not supported in YugabyteDB. </pre>
+                                                    <pre style="white-space: pre-wrap; margin:0;">COMPOUND TRIGGER is not supported in YugabyteDB. </pre>
                                                 </div>
                                                 
                                             </td>
@@ -2375,7 +2375,8 @@
             <div>
                 <h4>Notes</h4>
                     <ul>
-                        
+                            <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
                             <li>For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.</li>
                         

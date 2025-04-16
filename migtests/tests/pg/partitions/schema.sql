@@ -4,7 +4,8 @@ CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');
 CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');
 CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');
 
-CREATE TABLE test_partitions_sequences (id serial, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);
+create sequence test_defaul_seq;
+CREATE TABLE test_partitions_sequences (id serial, id1 int DEFAULT nextval('test_defaul_seq'), amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);
 CREATE TABLE test_partitions_sequences_l PARTITION OF test_partitions_sequences FOR VALUES IN ('London');
 CREATE TABLE test_partitions_sequences_s PARTITION OF test_partitions_sequences FOR VALUES IN ('Sydney');
 CREATE TABLE test_partitions_sequences_b PARTITION OF test_partitions_sequences FOR VALUES IN ('Boston');

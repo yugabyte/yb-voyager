@@ -217,12 +217,22 @@ GRANT pg_read_all_stats to :voyager_user;
         EXECUTE format('GRANT CREATE ON DATABASE %I TO %I;', db_name, current_setting('myvars.voyager_user'));
     END $$;
 
-    -- Grant SELECT, INSERT, UPDATE, DELETE on all tables in specified schemas
+    -- Grant SELECT, INSERT, UPDATE, DELETE on all tables and SELECT, UPDATE, USAGE on all sequences in specified schemas
     \if :is_live_migration_fall_back
         \echo ''
         \echo '--- Granting SELECT, INSERT, UPDATE, DELETE on All Tables in Specified Schemas ---'
         SELECT 
             'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+        FROM 
+            information_schema.schemata
+        WHERE 
+            schema_name = ANY(string_to_array(:'schema_list', ','))
+        \gexec
+
+        \echo ''
+        \echo '--- Granting SELECT, UPDATE, USAGE on All Sequences in Specified Schemas ---'
+        SELECT 
+            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 

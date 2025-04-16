@@ -91,9 +91,9 @@
 		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
-			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_HSTORE",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - hstore Datatype",
+			"Description": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: attrs. These columns will be excluded when exporting and importing data in live migration workflows.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "COLUMN",
 			"ObjectName": "public.reports.attrs",
@@ -104,9 +104,9 @@
 		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
-			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
-			"Name": "Unsupported datatype for Live migration with fall-forward/fallback",
-			"Description": "There are some data types in the schema that are not supported by live migration with fall-forward/fall-back. These columns will be excluded when exporting and importing data in live migration workflows.",
+			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_TSVECTOR",
+			"Name": "Unsupported datatype for Live migration with fall-forward/fallback - tsvector Datatype",
+			"Description": "TSVECTOR datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: report_tsv. These columns will be excluded when exporting and importing data in live migration workflows.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "COLUMN",
 			"ObjectName": "public.reports.report_tsv",
@@ -298,6 +298,7 @@
 		}
 	],
 	"Notes": [
+		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
 	]
 }

@@ -363,15 +363,17 @@
 		{
 			"Category": "unsupported_datatypes",
 			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
-			"Type": "datemultirange",
-			"Name": "datemultirange",
-			"Description": "",
+			"Type": "UNSUPPORTED_DATATYPE_DATEMULTIRANGE",
+			"Name": "Unsupported datatype - datemultirange",
+			"Description": "DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: all_event_ranges.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "COLUMN",
 			"ObjectName": "sales.event_analysis_view.all_event_ranges",
 			"SqlStatement": "",
-			"DocsLink": "",
-			"MinimumVersionsFixedIn": null
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
+			"MinimumVersionsFixedIn": {
+				"2.25": "2.25.0.0"
+			}
 		}
 	],
 	"TableIndexStats": [
@@ -545,6 +547,7 @@
 		}
 	],
 	"Notes": [
+		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
 	]
 }

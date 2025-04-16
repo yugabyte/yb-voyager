@@ -173,12 +173,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			ObjectType:          issue.ObjectType,
 		}
 
-		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
-
-		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
-		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
-		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
-		// }
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
+		}
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
@@ -214,6 +212,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
 		SourceConnectivity:             assessmentMetadataDirFlag == "",
 		IopsInterval:                   intervalForCapturingIOPS,
+		ControlPlaneType:               getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
@@ -500,6 +499,9 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalShardedSize:   totalShardedSize,
 		},
 		ConversionIssues: schemaAnalysisReport.Issues,
+		Sizing:           assessmentReport.Sizing,
+		TableIndexStats:  assessmentReport.TableIndexStats,
+		Notes:            assessmentReport.Notes,
 		AssessmentJsonReport: AssessmentReportYugabyteD{
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,
@@ -834,7 +836,7 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
 	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_CATEGORY_DESCRIPTION
 
-	assessmentReport.AppendIssues(getAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)...)
+	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
@@ -998,7 +1000,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, "", queryissue.ALTER_TABLE_DISABLE_RULE, schemaAnalysisReport, true))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, "", queryissue.ALTER_TABLE_CLUSTER_ON, schemaAnalysisReport, true))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, "", queryissue.STORAGE_PARAMETERS, schemaAnalysisReport, true))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, "", UNSUPPORTED_EXTENSION_ISSUE_TYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, "", queryissue.UNSUPPORTED_EXTENSION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, "", queryissue.EXCLUSION_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, "", queryissue.DEFERRABLE_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, "", VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, schemaAnalysisReport, false))
@@ -1351,6 +1353,11 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
+
+		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
+		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
+		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
+
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 
 		switch true {
@@ -1375,26 +1382,55 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
-func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
-	var assessmentIssues []AssessmentIssue
+func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) {
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
-		issue := AssessmentIssue{
-			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:            "",               // TODO
-			Impact:                 constants.IMPACT_LEVEL_3,
-			ObjectType:             constants.COLUMN,
-			ObjectName:             qualifiedColName,
-			DocsLink:               "",  // TODO
-			MinimumVersionsFixedIn: nil, // TODO
-		}
-		assessmentIssues = append(assessmentIssues, issue)
-	}
+		switch source.DBType {
+		case ORACLE:
+			issue := AssessmentIssue{
+				Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Description:            "",               // TODO
+				Impact:                 constants.IMPACT_LEVEL_3,
+				ObjectType:             constants.COLUMN,
+				ObjectName:             qualifiedColName,
+				DocsLink:               "",  // TODO
+				MinimumVersionsFixedIn: nil, // TODO
+			}
+			assessmentReport.AppendIssues(issue)
+		case POSTGRESQL:
+			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
+			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+			if !ok {
+				log.Warnf("failed to get datatype from %s", colInfo.DataType)
+				continue
+			}
 
-	return assessmentIssues
+			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+			// This converted AssessmentIssue is then appended to the assessmentIssues slice
+			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
+
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+		}
+
+	}
+}
+
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
+	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+	}
+	if !fixed {
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(issue)
+	}
 }
 
 /*
@@ -1439,7 +1475,9 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 }
 
 const (
-	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`
+	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
@@ -1454,6 +1492,12 @@ const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but dur
 // TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
+
+	// keep it as the first point in Notes
+	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
+		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
+	}
+
 	switch source.DBType {
 	case ORACLE:
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
@@ -1475,7 +1519,7 @@ func addNotesToAssessmentReport() {
 			}
 		}
 	case POSTGRESQL:
-		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
+		if parserIssueDetector.IsUnloggedTablesIssueFiltered() {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
 		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
@@ -1498,19 +1542,20 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION",
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
+				}
+
+				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+				// This converted AssessmentIssue is then appended to the assessmentIssues slice
+				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1519,19 +1564,38 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigrationWithFForFB {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB",
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1,
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
+				}
+
+				var queryIssue queryissue.QueryIssue
+
+				if colInfo.IsArrayType && colInfo.IsEnumType {
+					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else if colInfo.IsUDTType {
+					queryIssue = queryissue.NewUserDefinedDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else {
+					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				}
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION, nil})

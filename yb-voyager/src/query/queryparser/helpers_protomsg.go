@@ -26,7 +26,6 @@ import (
 
 func GetProtoMessageFromParseTree(parseTree *pg_query.ParseResult) protoreflect.Message {
 	return parseTree.Stmts[0].Stmt.ProtoReflect()
-
 }
 
 func GetMsgFullName(msg protoreflect.Message) string {

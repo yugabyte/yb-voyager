@@ -114,6 +114,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
 	if err != nil {

@@ -65,6 +65,12 @@ main() {
 	step "Grant source database user permissions for live migration"	
 	grant_permissions_for_live_migration
 
+	if [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+		#give fallback permissions for pg before starting as it is required for running snapshot validations where we insert data with ybvoyager user which will not have any usage permissions on sequences.
+		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
+		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	fi
+
 	step "Check the Voyager version installed"
 	yb-voyager version
 
@@ -114,10 +120,6 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
 	else
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
-	fi
-
-	if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true  || "${MOVE_PK_FROM_ALTER_TO_CREATE}" = true ] ; then
-		"${SCRIPTS}/add-pk-from-alter-to-create"
 	fi
 
 	step "Import schema."

@@ -149,6 +149,11 @@ func getCreateFuncStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_Crea
 	return node, ok
 }
 
+func getCreateExtensionStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateExtensionStmt, bool) {
+	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateExtensionStmt)
+	return node, ok
+}
+
 func getCreateTableStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 	return node, ok

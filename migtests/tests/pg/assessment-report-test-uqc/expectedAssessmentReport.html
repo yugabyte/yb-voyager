@@ -2427,7 +2427,7 @@ WHERE array_column IS JSON ARRAY</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-name="datemultirange"
+                        data-name="Unsupported datatype - datemultirange"
                         data-impact="LEVEL_3">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-20', 'arrow-20')">
@@ -2436,7 +2436,7 @@ WHERE array_column IS JSON ARRAY</pre>
                                 &nbsp;&nbsp;
                                 Unsupported Datatypes
                             </td>
-                            <td>datemultirange</td>
+                            <td>Unsupported datatype - datemultirange</td>
                             <td>
                                 
                                     sales.event_analysis_view.all_event_ranges
@@ -2496,8 +2496,7 @@ WHERE array_column IS JSON ARRAY</pre>
                                             <th>Docs Link</th>
                                             <td>
                                                 
-                                                <!-- display N/A if docs link not present -->
-                                                N/A
+                                                <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                 
                                             </td>
                                         </tr>
@@ -2505,13 +2504,21 @@ WHERE array_column IS JSON ARRAY</pre>
                                         <!-- Only show if there is a supported version -->
                                         
                                         
+                                        <tr>
+                                            <th>Supported In (versions)</th>
+                                            <td>
+                                                >=2.25.0.0 (2.25 series)
+                                            </td>
+                                        </tr>
+                                        
 
                                         <tr>
                                             <th>Description</th>
                                             <td>
                                                 
-                                                <!-- display N/A if description not present -->
-                                                    N/A
+                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                    <pre style="white-space: pre-wrap; margin:0;">DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: all_event_ranges.</pre>
+                                                </div>
                                                 
                                             </td>
                                         </tr>
@@ -2532,7 +2539,8 @@ WHERE array_column IS JSON ARRAY</pre>
             <div>
                 <h4>Notes</h4>
                     <ul>
-                        
+                            <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
                             <li><a class="highlight-link" target="_blank"  href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations">Limitations in assessment</a></li>
                         
                     </ul>
