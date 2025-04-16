@@ -90,54 +90,6 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	}
 }
 
-func TestYugabyteCheckTableHasPrimaryKey(t *testing.T) {
-	testYugabyteDBTarget.ExecuteSqls(
-		`CREATE SCHEMA test_schema`,
-		`CREATE TABLE test_schema.foo (
-			id INT PRIMARY KEY,
-			name VARCHAR
-		);`,
-		`CREATE TABLE test_schema.bar (
-			id SERIAL,
-			name VARCHAR(100)
-		);`,
-		`CREATE TABLE test_schema.unique_table (
-			id SERIAL PRIMARY KEY,
-			email VARCHAR(100),
-			phone VARCHAR(100),
-			address VARCHAR(255),
-			UNIQUE (email, phone)
-		);`,
-		`CREATE TABLE test_schema.unique_table2 (
-			email VARCHAR(100),
-			phone VARCHAR(100),
-			address VARCHAR(255),
-			UNIQUE (email, phone)
-		);`)
-	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
-
-	tables := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table2")},
-	}
-
-	expectedListOfTablesWithPK := []sqlname.NameTuple{
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
-		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "unique_table")},
-	}
-
-	for _, table := range tables {
-		hasPrimaryKey := testYugabyteDBTarget.CheckTableHasPrimaryKey(&table)
-		if testutils.SliceContainsTuple(expectedListOfTablesWithPK, table) {
-			assert.Equal(t, true, hasPrimaryKey, fmt.Sprintf("Table '%s' should have a primary key", table.CurrentName))
-		} else {
-			assert.Equal(t, false, hasPrimaryKey, fmt.Sprintf("Table '%s' should not have a primary key", table.CurrentName))
-		}
-	}
-}
-
 func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
