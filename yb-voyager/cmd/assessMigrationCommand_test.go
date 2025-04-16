@@ -60,16 +60,16 @@ func Test_AssessMigration(t *testing.T) {
 	}
 
 	// create table and initial data in it
-	postgresContainer.ExecuteSqls(`
-	CREATE TABLE test_data (
-		id SERIAL PRIMARY KEY,
-		value TEXT
-	);`,
-		`INSERT INTO test_data (value)
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+			id SERIAL PRIMARY KEY,
+			value TEXT
+		);`,
+		`INSERT INTO test_schema.test_data (value)
 	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
-	if err != nil {
-		t.Errorf("Failed to create test table: %v", err)
-	}
+	defer postgresContainer.ExecuteSqls(
+		`DROP SCHEMA test_schema CASCADE;`)
 
 	doDuringCmd := func() {
 		log.Infof("Performing sequential reads on the table")
@@ -79,7 +79,7 @@ DO $$
 DECLARE i INT;
 BEGIN
 	FOR i IN 1..100 LOOP
-		PERFORM COUNT(*) FROM test_data;
+		PERFORM COUNT(*) FROM test_schema.test_data;
 	END LOOP;
 END $$;`)
 		if err != nil {
@@ -87,10 +87,10 @@ END $$;`)
 		}
 	}
 
-	expectedColocatedTables := []string{"public.test_data"}
+	expectedColocatedTables := []string{"test_schema.test_data"}
 	expectedSizingAssessmentReport := migassessment.SizingAssessmentReport{
 		SizingRecommendation: migassessment.SizingRecommendation{
-			ColocatedTables:                 []string{"public.test_data"},
+			ColocatedTables:                 []string{"test_schema.test_data"},
 			ColocatedReasoning:              "Recommended instance type with 4 vCPU and 16 GiB memory could fit 1 objects (1 tables/materialized views and 0 explicit/implicit indexes) with 6.52 MB size and throughput requirement of 10 reads/sec and 0 writes/sec as colocated. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			ShardedTables:                   nil,
 			NumNodes:                        3,
@@ -104,7 +104,7 @@ END $$;`)
 	}
 	expectedTableIndexStats := []migassessment.TableIndexStats{
 		{
-			SchemaName:      "public",
+			SchemaName:      "test_schema",
 			ObjectName:      "test_data",
 			RowCount:        int64Ptr(100000),
 			ColumnCount:     int64Ptr(2),
@@ -116,7 +116,7 @@ END $$;`)
 			SizeInBytes:     int64Ptr(6832128),
 		},
 		{
-			SchemaName:      "public",
+			SchemaName:      "test_schema",
 			ObjectName:      "test_data_pkey",
 			RowCount:        nil,
 			ColumnCount:     int64Ptr(1),
@@ -124,17 +124,18 @@ END $$;`)
 			WritesPerSecond: int64Ptr(0),
 			IsIndex:         true,
 			ObjectType:      "primary key",
-			ParentTableName: stringPtr("public.test_data"),
+			ParentTableName: stringPtr("test_schema.test_data"),
 			SizeInBytes:     int64Ptr(2260992),
 		},
 	}
 
 	// running the command
-	err = testutils.RunVoyagerCommmand(postgresContainer, "assess-migration", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
+		"--source-db-schema", "test_schema", // overriding the flag value
 		"--iops-capture-interval", "10",
 		"--export-dir", exportDir,
 		"--yes",
-	}, doDuringCmd)
+	}, doDuringCmd, false)
 	if err != nil {
 		t.Errorf("Failed to run assess-migration command: %v", err)
 	}
