@@ -51,6 +51,15 @@
             border: 1px solid #ccc;
             padding: 10px;
         }
+        .no-wrap-list li {
+            white-space: nowrap;
+            margin-right: 15px;
+            list-style-type: disc;
+        }
+        .centered-cell {
+            text-align: center;
+            vertical-align: middle;
+        }
         #refer-p {
             font-size: 0.8em; 
             color: inherit; 
@@ -112,32 +121,58 @@
         .rounded-button:hover {
             background-color: #eee;
         }
+        .spaced-words {
+            word-spacing: 0.2em;
+        }
+        .details-row {
+            display: table-row;
+            height: 0;
+            overflow: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .details-content {
+            display: block;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .details-row.show .details-content {
+            max-height: 1000px;
+        }
+        
+
     </style>
     <script>
         function toggleDetails(detailsRowId, arrowId) {
-            var detailsRow = document.getElementById(detailsRowId);
-            var arrow = document.getElementById(arrowId);
-            if (detailsRow.style.display === "none" || detailsRow.style.display === "") {
-                detailsRow.style.display = "table-row"; // Show the row
-                arrow.innerHTML = "&#x25BC;";   // Down arrow
+            let row = document.getElementById(detailsRowId);
+            let arrow = document.getElementById(arrowId);
+            if (row.classList.contains('show')) {
+                row.classList.remove('show');
+                arrow.innerHTML = "&#x25B6;";
             } else {
-                detailsRow.style.display = "none"; // Hide the row
-                arrow.innerHTML = "&#x25B6;"; // Right arrow
+                row.classList.add('show');
+                arrow.innerHTML = "&#x25BC;";
             }
         }
+
         function expandAllIssues() {
-            // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            totalIssues = {{ len .Issues }};
+            let totalIssues = {{ len .Issues }};
             for (let i = 0; i < totalIssues; i++) {
-                document.getElementById('details-' + i).style.display = 'table-row';
-                document.getElementById('arrow-' + i).innerHTML = '&#x25BC;';
+                let row = document.getElementById('details-' + i);
+                let arrow = document.getElementById('arrow-' + i);
+                row.classList.add('show');
+                arrow.innerHTML = "&#x25BC;";
             }
         }
+
         function collapseAllIssues() {
-            totalIssues = {{ len .Issues }};
+            let totalIssues = {{ len .Issues }};
             for (let i = 0; i < totalIssues; i++) {
-                document.getElementById('details-' + i).style.display = 'none';
-                document.getElementById('arrow-' + i).innerHTML = '&#x25B6;';
+                let row = document.getElementById('details-' + i);
+                let arrow = document.getElementById('arrow-' + i);
+                row.classList.remove('show');
+                arrow.innerHTML = "&#x25B6;";
             }
         }
 
@@ -205,19 +240,21 @@
         <p>{{.SchemaSummary.Description}}</p>
         <table>
             <tr>
-                <th>Object Type</th>
-                <th>Total Objects</th>
+                <th class="centered-cell">Object Type</th>
+                <th class="centered-cell">Total Objects</th>
                 <th>Object Names</th>
             </tr>
             {{range .SchemaSummary.DBObjects}}
             <tr>
-                <td>{{.ObjectType}}</td>
-                <td>{{.TotalCount}}</td>
+                <td class="centered-cell">{{.ObjectType}}</td>
+                <td class="centered-cell">{{.TotalCount}}</td>
                 <td>
-                    <div class="scrollable-div">
-                        {{range split .ObjectNames ","}}
-                            {{.}}<br>
-                        {{end}}
+                    <div class="scrollable-div no-wrap-list">
+                        <ul style="margin: 0; padding-left: 1.2em;">
+                            {{range split .ObjectNames ", "}}
+                                <li>{{.}}</li>
+                            {{end}}
+                        </ul>
                     </div>
                 </td>
             </tr>
@@ -230,21 +267,21 @@
                     {{ with .SizingRecommendation }}
                         <table>
                             <tr>
-                                <th>Colocated Tables</th>
-                                <th>Sharded Tables</th>
+                                <th class="centered-cell">Colocated Tables</th>
+                                <th class="centered-cell">Sharded Tables</th>
                             </tr>
                             <tr>
                                 <td>
-                                    <div class="scrollable-div">
+                                    <div class="scrollable-div no-wrap-list">
                                         {{range .ColocatedTables}}
-                                            {{.}}<br>
+                                            <li>{{.}}</li>
                                         {{end}}
                                     </div>
                                 </td>
                                 <td>
-                                    <div class="scrollable-div">
+                                    <div class="scrollable-div no-wrap-list">
                                         {{range .ShardedTables}}
-                                            {{.}}<br>
+                                            <li>{{.}}</li>
                                         {{end}}
                                     </div>
                                 </td>
@@ -253,18 +290,19 @@
                     <h2>Sizing Recommendations</h2>
                         <table>
                             <tr>
-                                <th>Parameter</th>
-                                <th>Recommendation</th>
+                                <th class="centered-cell">Parameter</th>
+                                <th class="centered-cell">Recommendation</th>
                             </tr>
-                            <tr><td>Num of Nodes</td><td>{{ .NumNodes }}</td></tr>
-                            <tr><td>vCPU per instance</td><td>{{ .VCPUsPerInstance }}</td></tr>
-                            <tr><td>Memory per instance(GiB)</td><td>{{ .MemoryPerInstance }}</td></tr>
-                            <tr><td>Optimal select connections per node</td><td>{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
-                            <tr><td>Optimal insert connections per node</td><td>{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
-                            <tr><td>Estimated time taken for data import </td><td>{{ .EstimatedTimeInMinForImport }} min</td></tr>
+                            <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">{{ .NumNodes }}</td></tr>
+                            <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">{{ .VCPUsPerInstance }}</td></tr>
+                            <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">{{ .MemoryPerInstance }}</td></tr>
+                            <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
+                            <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
+                            <tr><td class="centered-cell">Parallel Voyager Jobs</td><td class="centered-cell">{{ .ParallelVoyagerJobs }}</td></tr>
+                            <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">{{ .EstimatedTimeInMinForImport }} min</td></tr>
                         </table>
                     <h3>Reasoning: </h3>
-                    <p>{{ .ColocatedReasoning }}</p>
+                    <p class="spaced-words">{{ .ColocatedReasoning }}</p>
                 {{ end }}
                 {{else}}
                     <p>Could not perform sizing assessment:  {{ .FailureReasoning }}</p>
@@ -278,21 +316,21 @@
                 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
                     <thead>
                         <tr>
-                            <th>Category</th>
-                            <th>Level 1</th>
-                            <th>Level 2</th>
-                            <th>Level 3</th>
-                            <th>Total</th>
+                            <th class="centered-cell">Category</th>
+                            <th class="centered-cell">Level 1</th>
+                            <th class="centered-cell">Level 2</th>
+                            <th class="centered-cell">Level 3</th>
+                            <th class="centered-cell">Total</th>
                         </tr>
                     </thead>
                     <tbody>
                     {{ range $idx, $summary :=  .MigrationComplexityCategorySummary }}
                         <tr>
-                            <td>{{ $summary.Category }}</td>
-                            <td>{{ index $summary.ImpactCounts "LEVEL_1" }}</td>
-                            <td>{{ index $summary.ImpactCounts "LEVEL_2" }}</td>
-                            <td>{{ index $summary.ImpactCounts "LEVEL_3" }}</td>
-                            <td>{{ $summary.TotalIssueCount }}</td>
+                            <td class="centered-cell">{{ $summary.Category }}</td>
+                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_1" }}</td>
+                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_2" }}</td>
+                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_3" }}</td>
+                            <td class="centered-cell">{{ $summary.TotalIssueCount }}</td>
                         </tr>
                     {{- end }}
                     </tbody>
@@ -337,14 +375,14 @@
 
             <thead>
                 <tr style="background-color: #f2f2f2;">
-                    <th style="cursor: pointer;" onclick="sortTableBy('category')">
+                    <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
                         Category <span class="sort-indicator">&#8597</span>
                     </th>
-                    <th style="cursor: pointer;" onclick="sortTableBy('name')">
+                    <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
                         Issue <span class="sort-indicator">&#8597</span>
                     </th>
-                    <th>Object/SQL Preview</th>
-                    <th style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
+                    <th class="centered-cell">Object/SQL Preview</th>
+                    <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
                         Impact <span class="sort-indicator">&#8597</span>
                     </th>
                 </tr>
@@ -358,13 +396,13 @@
                         data-impact="{{ $issue.Impact }}">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
-                            <td>
-                                <span id="arrow-{{ $idx }}" style="display:inline-block;">&#x25B6;</span>
-                                &nbsp;&nbsp;
-                                {{ snakeCaseToTitleCase $issue.Category }}
+                            <td style="display: flex; align-items: center; gap: 0.5em; padding-left: 0.5em;">
+                                <span id="arrow-{{ $idx }}" style="flex-shrink: 0;">&#x25B6;</span>
+                                <span style="word-break: break-word;">{{ snakeCaseToTitleCase $issue.Category }}</span>
                             </td>
-                            <td>{{ $issue.Name }}</td>
-                            <td>
+
+                            <td class="centered-cell">{{ $issue.Name }}</td>
+                            <td class="centered-cell">
                                 {{ if $issue.ObjectName }}
                                     {{ $issue.ObjectName }}
                                 {{ else }}
@@ -372,98 +410,100 @@
                                 {{ end }}
                             </td>
 
-                            <td style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
+                            <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-{{ $idx }}" class="details-row" style="display: none;">
+                        <tr id="details-{{ $idx }}" class="details-row">
                             <td colspan="4">
-                                <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                    <colgroup>
-                                        <col style="width: 25%;">
-                                        <col style="width: 75%;">
-                                    </colgroup>
-                                    <tbody>
-                                        {{ if $issue.CategoryDescription }}
-                                        <tr>
-                                            <th>Category Description</th>
-                                            <td>
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                    {{ $issue.CategoryDescription }}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                        {{ end }}
+                                <div class="details-content">
+                                    <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                        <colgroup>
+                                            <col style="width: 25%;">
+                                            <col style="width: 75%;">
+                                        </colgroup>
+                                        <tbody>
+                                            {{ if $issue.CategoryDescription }}
+                                            <tr>
+                                                <th class="centered-cell">Category Description</th>
+                                                <td>
+                                                    <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                        {{ $issue.CategoryDescription }}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                            {{ end }}
 
-                                        <!-- Only show if ObjectType is present -->
-                                        {{ if $issue.ObjectType }}
-                                        <tr>
-                                            <th>Object Type</th>
-                                            <td>{{ $issue.ObjectType }}</td>
-                                        </tr>
-                                        {{ end }}
+                                            <!-- Only show if ObjectType is present -->
+                                            {{ if $issue.ObjectType }}
+                                            <tr>
+                                                <th class="centered-cell">Object Type</th>
+                                                <td>{{ $issue.ObjectType }}</td>
+                                            </tr>
+                                            {{ end }}
 
-                                        <!-- Only show if ObjectName is present -->
-                                        {{ if $issue.ObjectName }}
-                                        <tr>
-                                            <th>Object Name</th>
-                                            <td>{{ $issue.ObjectName }}</td>
-                                        </tr>
-                                        {{ end }}
+                                            <!-- Only show if ObjectName is present -->
+                                            {{ if $issue.ObjectName }}
+                                            <tr>
+                                                <th class="centered-cell">Object Name</th>
+                                                <td>{{ $issue.ObjectName }}</td>
+                                            </tr>
+                                            {{ end }}
 
-                                        <tr>
-                                            <th>SQL Statement</th>
-                                            <td>
-                                                {{ if $issue.SqlStatement }}
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.SqlStatement }}</pre>
-                                                </div>
-                                                {{ else }}
-                                                <!-- display N/A if Sql Statement not present -->
-                                                N/A
-                                                {{ end }}
-                                            </td>
-                                        </tr>
-
-                                        <tr>
-                                            <th>Docs Link</th>
-                                            <td>
-                                                {{ if $issue.DocsLink }}
-                                                <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
-                                                {{ else }}
-                                                <!-- display N/A if docs link not present -->
-                                                N/A
-                                                {{ end }}
-                                            </td>
-                                        </tr>
-
-                                        <!-- Only show if there is a supported version -->
-                                        {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
-                                        {{ if $verStr }}
-                                        <tr>
-                                            <th>Supported In (versions)</th>
-                                            <td>
-                                                {{ $verStr }}
-                                            </td>
-                                        </tr>
-                                        {{ end }}
-
-                                        <tr>
-                                            <th>Description</th>
-                                            <td>
-                                                {{ if $issue.Description }}
-                                                <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
-                                                    <pre style="white-space: pre-wrap; margin:0;">{{ $issue.Description }}</pre>
-                                                </div>
-                                                {{ else }}
-                                                <!-- display N/A if description not present -->
+                                            <tr>
+                                                <th class="centered-cell">SQL Statement</th>
+                                                <td>
+                                                    {{ if $issue.SqlStatement }}
+                                                    <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                        <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
+                                                    </div>
+                                                    {{ else }}
+                                                    <!-- display N/A if Sql Statement not present -->
                                                     N/A
-                                                {{ end }}
-                                            </td>
-                                        </tr>
+                                                    {{ end }}
+                                                </td>
+                                            </tr>
 
-                                    </tbody>
-                                </table>
+                                            <tr>
+                                                <th class="centered-cell">Docs Link</th>
+                                                <td>
+                                                    {{ if $issue.DocsLink }}
+                                                    <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
+                                                    {{ else }}
+                                                    <!-- display N/A if docs link not present -->
+                                                    N/A
+                                                    {{ end }}
+                                                </td>
+                                            </tr>
+
+                                            <!-- Only show if there is a supported version -->
+                                            {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                                            {{ if $verStr }}
+                                            <tr>
+                                                <th class="centered-cell">Supported In (versions)</th>
+                                                <td>
+                                                    {{ $verStr }}
+                                                </td>
+                                            </tr>
+                                            {{ end }}
+
+                                            <tr>
+                                                <th class="centered-cell">Description</th>
+                                                <td>
+                                                    {{ if $issue.Description }}
+                                                    <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                        <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
+                                                    </div>
+                                                    {{ else }}
+                                                    <!-- display N/A if description not present -->
+                                                        N/A
+                                                    {{ end }}
+                                                </td>
+                                            </tr>
+
+                                        </tbody>
+                                    </table>
+                                </div>
                             </td>
                         </tr>
                     </tbody>
@@ -475,11 +515,10 @@
         {{ end }}
 
         {{if .Notes}}
-            <br>
             <hr>
             <div>
                 <h4>Notes</h4>
-                    <ul>
+                    <ul id="notes-list">
                         {{range .Notes}}
                             <li>{{.}}</li>
                         {{end}}
@@ -489,4 +528,50 @@
 
     </div>
 </body>
+<script>
+    const notesListItems = document.querySelectorAll("#notes-list li");
+    notesListItems.forEach((li) => {
+        const originalText = li.textContent.trim();
+        const words = originalText.split(' ');
+
+        const hasUrl = words.some(word => word.startsWith('http://') || word.startsWith('https://'));
+
+        if (hasUrl) {
+            li.textContent = '';
+
+            words.forEach((word, index) => {
+                if (word.startsWith('http://') || word.startsWith('https://')) {
+                    const aTag = document.createElement("a");
+
+                    let url = word;
+                    const punctuation = [',', '.', '!', '?', ';', ':'];
+                    if (punctuation.includes(url[url.length - 1])) {
+                        const lastChar = url[url.length - 1];
+                        url = url.substring(0, url.length - 1);
+
+                        aTag.href = url;
+                        aTag.textContent = url;
+                        aTag.classList.add("highlight-link");
+                        aTag.target = "_blank";
+                        li.appendChild(aTag);
+
+                        li.appendChild(document.createTextNode(lastChar));
+                    } else {
+                        aTag.href = url;
+                        aTag.textContent = url;
+                        aTag.classList.add("highlight-link");
+                        aTag.target = "_blank";
+                        li.appendChild(aTag);
+                    }
+                } else {
+                    li.appendChild(document.createTextNode(word));
+                }
+
+                if (index < words.length - 1) {
+                    li.appendChild(document.createTextNode(' '));
+                }
+            });
+        }
+    });
+</script>
 </html>
