@@ -422,9 +422,8 @@ const (
 	HOTSPOTS_ON_DATE_INDEX                            = "HOTSPOTS_ON_DATE_INDEX"
 	HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE                 = "Hotspots with range-sharded timestamp indexes"
 	HOTSPOTS_ON_DATE_INDEX_ISSUE                      = "Hotspots with range-sharded date indexes"
-	HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION = `Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
-To address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.
-Implementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.
+	HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION = `Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
+To address this issue and improve query performance, application-level sharding is recommended.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
 	RANGE_SHARDING_DATE_INDEX                               = "RANGE_SHARDING_DATE_INDEX"

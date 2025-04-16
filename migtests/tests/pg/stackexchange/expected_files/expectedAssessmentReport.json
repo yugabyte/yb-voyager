@@ -213,10 +213,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "badges_date_idx ON public.badges",
@@ -226,10 +226,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "cmnts_creation_date_idx ON public.comments",
@@ -239,10 +239,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "ph_creation_date_idx ON public.posthistory",
@@ -252,10 +252,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "posts_creation_date_idx ON public.posts",
@@ -265,10 +265,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "posts_owner_user_id_creation_date_idx ON public.posts",
@@ -278,10 +278,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "user_created_at_idx ON public.users",
@@ -291,10 +291,10 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with range-sharded timestamp indexes",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the sequential nature of these values (e.g., inserting recent timestamps). This sequential pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. This approach involves adding an additional column to the table and indexing both the new column and the timestamp/date column. The additional column is used to distribute data using a hash-based strategy, effectively spreading the load across multiple nodes.\nImplementing this solution requires minor adjustments to queries. In addition to range conditions on the timestamp/date column, the new sharding column should be included in the query filters to benefit from distributed execution.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "votes_creation_date_idx ON public.votes",
@@ -304,7 +304,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -317,7 +317,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -330,7 +330,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -343,7 +343,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -356,7 +356,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -369,7 +369,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -382,7 +382,7 @@
 		},
 		{
 			"Category": "performance_optimizations",
-			"CategoryDescription": "Features of the source database that may not perform optimally on the target YugabyteDB.",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Use range-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
@@ -1873,7 +1873,7 @@
 	],
 	"Notes": [
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
-		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
+		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
 	]
 }

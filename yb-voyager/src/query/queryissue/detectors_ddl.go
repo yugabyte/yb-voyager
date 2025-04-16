@@ -643,10 +643,11 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isHotspotType {
-					queryIssues := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
-					if queryIssues != nil {
-						issues = append(issues, queryIssues...)
+					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
+					if err != nil {
+						return nil, err
 					}
+					issues = append(issues, hotspotIssues...)
 				}
 			} else {
 				colName := param.ColName
@@ -667,10 +668,11 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				if tableHasHotspotTypes {
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
-						queryIssues := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
-						if queryIssues != nil {
-							issues = append(issues, queryIssues...)
+						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
+						if err != nil {
+							return nil, err
 						}
+						issues = append(issues, hotspotIssues...)
 					}
 				}
 			}
@@ -680,21 +682,19 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func reportHotspotsOnIndexes(typeName string, objType string, objName string) []QueryIssue {
+func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case "timestamp", "timestampz":
 		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, ""))
 		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
-		return issues
 	case "date":
 		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, ""))
 		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))
-		return issues
 	default:
-		utils.ErrExit("unexpected type for the Hotspots on range indexes with timestamp/date types")
+		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
 	}
-	return nil
+	return issues, nil
 }
 
 func reportIndexOrConstraintIssuesOnComplexDatatypes(objType string, objName string, typeName string, isPkorUk bool, constraintName string) QueryIssue {
