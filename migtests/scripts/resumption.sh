@@ -2,13 +2,17 @@
 
 set -e
 
-if [ $# -gt 2 ]
-then
-	echo "Usage: $0 TEST_NAME [env.sh]"
-	exit 1
+if [ $# -gt 3 ]; then
+    echo "Usage: $0 TEST_NAME [env.sh] [additional_config_file]"
+    exit 1
+	
 fi
 
 set -x
+
+if [ $# -eq 2 ] && [[ "$2" == *.yaml ]]; then
+    set -- "$1" "" "$2"
+fi
 
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
@@ -40,6 +44,18 @@ fi
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
+
+# Handle optional additional config file ($3)
+if [ -n "$3" ]; then
+    ADDITIONAL_CONFIG_FILE="${TESTS_DIR}/resumption/additional_configs/$3"
+    if [ ! -f "${ADDITIONAL_CONFIG_FILE}" ]; then
+        echo "Error: Additional config file $3 not found in resumption/additional_configs"
+        exit 1
+    fi
+	export ADDITIONAL_CONFIG_FILE
+else
+    echo "No additional config file provided."
+fi
 
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
@@ -89,8 +105,19 @@ main() {
 	  ./generate_config.py
 	fi
 
-	step "Run import with resumptions"
+	# Backup original config
+	cp config.yaml config.yaml.original
 
+	# If an additional config file is specified, append its contents to config.yaml.
+	# This allows temporary overrides or additions for specific use cases.
+	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
+	    echo "Appending additional config to config.yaml..."
+	    cat "${ADDITIONAL_CONFIG_FILE}" >> config.yaml
+	else
+	    echo "No additional config file provided. Skipping append step."
+	fi
+
+	step "Run import with resumptions"
 	${SCRIPTS}/resumption.py config.yaml
 
 	step "Run import-data-status"
@@ -101,9 +128,19 @@ main() {
 
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
-	
+
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}"
+
+	# After usage, restore the original config to maintain a clean state.
+	# If we had modified config.yaml, replace it with the original.
+	# If no modifications were made, just clean up the backup.
+	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
+	  mv config.yaml.original config.yaml
+	else
+	  rm config.yaml.original
+	fi
+
 	if [ -f "${TEST_DIR}/generate_config.py" ]; then
 	  rm config.yaml
 	fi
