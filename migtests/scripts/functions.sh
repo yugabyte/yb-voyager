@@ -392,6 +392,7 @@ import_data() {
 		--disable-pb true
 		--send-diagnostics=false 
 		--max-retries 1
+		--skip-replication-checks true
 		--yes
 		"
 
@@ -463,6 +464,7 @@ import_data_file() {
     --target-db-name ${TARGET_DB_NAME}
     --disable-pb true
     --send-diagnostics=false
+	--skip-replication-checks true
     "
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
