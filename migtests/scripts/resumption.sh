@@ -57,18 +57,6 @@ else
     echo "No additional config file provided."
 fi
 
-
-# if [ -n "$ADDITIONAL_CONFIG_FILE" ]; then
-#     ADDITIONAL_CONFIG_FILE="${TESTS_DIR}/resumption/additional_configs/${ADDITIONAL_CONFIG_FILE}"
-
-#     if [ ! -f "${ADDITIONAL_CONFIG_FILE}" ]; then
-#         echo "Error: Additional config file not found at ${ADDITIONAL_CONFIG_FILE}"
-#         exit 1
-#     fi
-# else
-#     echo "No additional config file provided."
-# fi
-
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}	

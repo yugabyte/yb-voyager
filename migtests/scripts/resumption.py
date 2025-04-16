@@ -25,7 +25,7 @@ import tempfile
 # max_interrupt_seconds: Maximum interval between interrupts.
 # min_restart_wait_seconds: Minimum wait time before resuming.
 # max_restart_wait_seconds: Maximum wait time before resuming.
-# varying_flags: Dictionary containing varying configurations for the import.
+# varying_flags: Flags which are run with varying values on each invocation.
 
 import_type = None
 additional_flags = {}
@@ -75,7 +75,6 @@ def initialize_globals(config):
     varying_flags = config.get("varying_flags", {})
 
     # Resumption settings
-    # resumption = config['resumption']
     max_restarts = resumption.get('max_restarts', 5)
     min_interrupt_seconds = resumption.get('min_interrupt_seconds', 30)
     max_interrupt_seconds = resumption.get('max_interrupt_seconds', 60)
