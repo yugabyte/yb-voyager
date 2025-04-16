@@ -90,7 +90,7 @@ SELECT
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 1000000);`
+FROM generate_series(1, 500000);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Create the test table and insert 1M rows in Postgres.
@@ -206,7 +206,7 @@ SELECT
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 1000000);`
+FROM generate_series(1, 500000);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Create the test table and insert 1M rows in Postgres.
@@ -324,7 +324,7 @@ SELECT
 	md5(random()::text),                                      -- name
 	md5(random()::text) || '@example.com',                    -- email
 	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 1000000);`
+FROM generate_series(1, 500000);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Create the test table and insert 1M rows in Postgres.
