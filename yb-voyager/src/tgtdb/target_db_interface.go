@@ -38,7 +38,6 @@ type TargetDB interface {
 	GetVersion() string
 	CreateVoyagerSchema() error
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
-	CheckTableHasPrimaryKey(tableName *sqlname.NameTuple) bool
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
 	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error)
