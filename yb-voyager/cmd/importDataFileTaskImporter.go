@@ -88,6 +88,16 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
 }
 
+func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
+	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
+}
+
+func (fti *FileTaskImporter) shouldUseNonTransactionalPath() bool {
+	return bool(enableFastPath) &&
+		fti.TableHasPrimaryKey() &&
+		(importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE)
+}
+
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
@@ -142,7 +152,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		Assumption: user won't change the PK once import data is started(for eg: after interruption / before retry)
 	*/
 
-	if IsNonTransactionalPath(batch) {
+	if fti.shouldUseNonTransactionalPath() {
 		fti.importBatchViaNonTxnPath(batch)
 	} else {
 		fti.importBatchViaTxnPath(batch)
@@ -222,6 +232,7 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	}
 }
 
+// importBatchViaRecoverMode func is used for recovery in non transactional path
 func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action string) {
 	/*
 		Recovery mode for batch import (in-progress batches only)
@@ -385,16 +396,4 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto
-}
-
-// returns true if non transaction path can be followed for this batch
-func IsNonTransactionalPath(batch *Batch) bool {
-	if batch == nil {
-		return false
-	}
-
-	nonTxnPath := bool(enableFastPath) &&
-		importerRole == TARGET_DB_IMPORTER_ROLE &&
-		batch.ForPrimaryKeyTable()
-	return nonTxnPath
 }
