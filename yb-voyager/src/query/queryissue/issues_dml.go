@@ -17,6 +17,7 @@ limitations under the License.
 package queryissue
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
@@ -41,72 +42,71 @@ func NewAdvisoryLocksIssue(objectType string, objectName string, sqlStatement st
 // ------------------------------------------- System Columns Issue ------------------------------------------------
 
 var xminSystemColumnIssue = issue.Issue{
-	Type:        SYSTEM_COLUMN_XMIN,
-	Name:        SYSTEM_COLUMN_XMIN_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_2,
-	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
-	Suggestion:  "",
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:       SYSTEM_COLUMN_XMIN,
+	Name:       SYSTEM_COLUMN_XMIN_ISSUE_NAME,
+	Impact:     constants.IMPACT_LEVEL_2,
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewXminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	xminSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "xmin")
 	return newQueryIssue(xminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var xmaxSystemColumnIssue = issue.Issue{
-	Type:        SYSTEM_COLUMN_XMAX,
-	Name:        SYSTEM_COLUMN_XMAX_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_2,
-	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
-	Suggestion:  "",
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:       SYSTEM_COLUMN_XMAX,
+	Name:       SYSTEM_COLUMN_XMAX_ISSUE_NAME,
+	Impact:     constants.IMPACT_LEVEL_2,
+	Suggestion: "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewXmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	xmaxSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "xmax")
 	return newQueryIssue(xmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var cminSystemColumnIssue = issue.Issue{
-	Type:        SYSTEM_COLUMN_CMIN,
-	Name:        SYSTEM_COLUMN_CMIN_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_2,
-	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
-	Suggestion:  "",
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:       SYSTEM_COLUMN_CMIN,
+	Name:       SYSTEM_COLUMN_CMIN_ISSUE_NAME,
+	Impact:     constants.IMPACT_LEVEL_2,
+	Suggestion: "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewCminSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	cminSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "cmin")
 	return newQueryIssue(cminSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var cmaxSystemColumnIssue = issue.Issue{
-	Type:        SYSTEM_COLUMN_CMAX,
-	Name:        SYSTEM_COLUMN_CMAX_ISSUE_NAME,
-	Impact: 	constants.IMPACT_LEVEL_2,
-	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
-	Suggestion:  "",
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:       SYSTEM_COLUMN_CMAX,
+	Name:       SYSTEM_COLUMN_CMAX_ISSUE_NAME,
+	Impact:     constants.IMPACT_LEVEL_2,
+	Suggestion: "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewCmaxSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	cmaxSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "cmax")
 	return newQueryIssue(cmaxSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var ctidSystemColumnIssue = issue.Issue{
-	Type:        SYSTEM_COLUMN_CTID,
-	Name:        SYSTEM_COLUMN_CTID_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_2,
-	Description: SYSTEM_COLUMNS_ISSUE_DESCRIPTION,
-	Suggestion:  "",
-	GH:          "https://github.com/yugabyte/yugabyte-db/issues/24843",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
+	Type:       SYSTEM_COLUMN_CTID,
+	Name:       SYSTEM_COLUMN_CTID_ISSUE_NAME,
+	Impact:     constants.IMPACT_LEVEL_2,
+	Suggestion: "",
+	GH:         "https://github.com/yugabyte/yugabyte-db/issues/24843",
+	DocsLink:   "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#system-columns-is-not-yet-supported",
 }
 
 func NewCtidSystemColumnIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	ctidSystemColumnIssue.Description = fmt.Sprintf(SYSTEM_COLUMNS_ISSUE_DESCRIPTION, "ctid")
 	return newQueryIssue(ctidSystemColumnIssue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 

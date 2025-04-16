@@ -306,7 +306,7 @@ const (
 const (
 	// for DMLs
 	ADVISORY_LOCKS_ISSUE_DESCRIPTION               = "Advisory locks are not yet implemented in YugabyteDB."
-	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System columns like xmin, xmax, cmin, cmax, ctid are not yet supported in YugabyteDB."
+	SYSTEM_COLUMNS_ISSUE_DESCRIPTION               = "System column like '%s' is not yet supported in YugabyteDB."
 	XML_FUNCTIONS_ISSUE_DESCRIPTION                = "XML functions are not yet supported in YugabyteDB."
 	REGEX_FUNCTIONS_ISSUE_DESCRIPTION              = "Regex functions are not yet supported in YugabyteDB."
 	ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_DESCRIPTION = "any_value function are not supported yet in YugabyteDB."
