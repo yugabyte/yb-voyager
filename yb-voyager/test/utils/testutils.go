@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -430,4 +431,79 @@ func CreateNameTupleWithSourceName(s string, defaultSchema string, dbType string
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 	}
+}
+
+// compareTableData queries the specified table from both srcDB and tgtDB, ordered by a given key (e.g. “id”),
+// and then compares every row for an exact match.
+// It returns an error if there’s any difference.
+func CompareTableData(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableName, orderByClause string) error {
+	// Construct the query with an ORDER BY clause for deterministic ordering.
+	query := fmt.Sprintf("SELECT * FROM %s ORDER BY %s", tableName, orderByClause)
+
+	srcRows, err := srcDB.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("querying source table: %w", err)
+	}
+	defer srcRows.Close()
+
+	tgtRows, err := tgtDB.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("querying target table: %w", err)
+	}
+	defer tgtRows.Close()
+
+	// Get the column names from the source.
+	srcCols, err := srcRows.Columns()
+	if err != nil {
+		return fmt.Errorf("getting source columns: %w", err)
+	}
+	tgtCols, err := tgtRows.Columns()
+	if err != nil {
+		return fmt.Errorf("getting target columns: %w", err)
+	}
+	if !reflect.DeepEqual(srcCols, tgtCols) {
+		return fmt.Errorf("column mismatch: source %v vs target %v", srcCols, tgtCols)
+	}
+	colsCount := len(srcCols)
+
+	// Compare rows from each result set.
+	rowNum := 0
+	for srcRows.Next() {
+		rowNum++
+		if !tgtRows.Next() {
+			return fmt.Errorf("target has fewer rows than source; mismatch found at row %d", rowNum)
+		}
+		srcRow, err := scanRow(srcRows, colsCount)
+		if err != nil {
+			return fmt.Errorf("scanning source row %d: %w", rowNum, err)
+		}
+		tgtRow, err := scanRow(tgtRows, colsCount)
+		if err != nil {
+			return fmt.Errorf("scanning target row %d: %w", rowNum, err)
+		}
+		if !reflect.DeepEqual(srcRow, tgtRow) {
+			return fmt.Errorf("row %d mismatch: source %v vs target %v", rowNum, srcRow, tgtRow)
+		}
+	}
+	// If target has extra rows, that's a mismatch.
+	if tgtRows.Next() {
+		return fmt.Errorf("target has more rows than source; extra rows after row %d", rowNum)
+	}
+	return nil
+}
+
+// scanRow reads the current row from rows, returning a slice of interface{} for each column.
+func scanRow(rows *sql.Rows, colCount int) ([]interface{}, error) {
+	values := make([]interface{}, colCount)   // holds the values for each column
+	scanArgs := make([]interface{}, colCount) // holds the pointers to the values
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	// 'scanArgs' hold pointers to each value (just like &name, &age)
+	if err := rows.Scan(scanArgs...); err != nil {
+		return nil, err
+	}
+
+	return values, nil
 }
