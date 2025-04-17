@@ -705,7 +705,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
-	case "timestamp", "timestampz":
+	case "timestamp", "timestamptz":
 		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, ""))
 	case "date":
 		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, ""))
@@ -718,7 +718,7 @@ func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([
 func reportUseRangeShardingIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
-	case "timestamp", "timestampz":
+	case "timestamp", "timestamptz":
 		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
 	case "date":
 		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))

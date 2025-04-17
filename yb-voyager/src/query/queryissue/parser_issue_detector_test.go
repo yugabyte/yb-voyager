@@ -1421,3 +1421,37 @@ func TestCompressionClause(t *testing.T) {
 	}
 
 }
+
+func TestRangeShardingIndexes(t *testing.T) {
+	stmts := []string{
+		`CREATE TABLE test(id int, created_at timestamp with time zone, val text);`,
+		`CREATE INDEX idx_val on test(val); `,
+		`CREATE INDEX idx_id_created_at on test(id, created_at);`,
+		`CREATE INDEX idx_created_at on test(created_at);`,
+		`CREATE INDEX idx_id_created_at1 on test(id, created_at ASC);`,
+	}
+	sqlsWithExpectedIssues := map[string][]QueryIssue{
+		stmts[1]: []QueryIssue{},
+		stmts[2]: []QueryIssue{
+			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at ON test", stmts[2]),
+		},
+		stmts[3]: []QueryIssue{
+			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3]),
+		},
+		stmts[4]: []QueryIssue{},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	err := parserIssueDetector.ParseAndProcessDDL(stmts[0])
+	assert.Nil(t, err)
+	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
+}

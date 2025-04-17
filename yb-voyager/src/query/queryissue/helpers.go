@@ -106,7 +106,7 @@ var UnsupportedIndexDatatypes = []string{
 
 var hotspotRangeIndexesTypes = []string{
 	//Hotspots on Timestamp/date indexes
-	"timestampz",
+	"timestamptz",
 	"timestamp",
 	"date",
 }
