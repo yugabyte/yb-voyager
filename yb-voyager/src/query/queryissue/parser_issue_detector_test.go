@@ -196,7 +196,7 @@ func TestAllIssues(t *testing.T) {
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(sender_id);"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(receiver_id);"),
 			NewXmlFunctionsIssue("DML_QUERY", "", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
-			NewSystemColumnsIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
+			NewXmaxSystemColumnIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
 		},
 		stmt2: []QueryIssue{
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
@@ -218,7 +218,7 @@ func TestAllIssues(t *testing.T) {
 			NewAdvisoryLocksIssue("DML_QUERY", "", stmt6),
 		},
 		stmt7: []QueryIssue{
-			NewSystemColumnsIssue("DML_QUERY", "", stmt7),
+			NewXminSystemColumnIssue("DML_QUERY", "", stmt7),
 		},
 		stmt8: []QueryIssue{
 			NewXmlFunctionsIssue("DML_QUERY", "", stmt8),
@@ -269,12 +269,14 @@ func TestDDLIssues(t *testing.T) {
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
 			NewAdvisoryLocksIssue("MVIEW", "public.sample_data_view", stmt14),
-			NewSystemColumnsIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewCtidSystemColumnIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewXminSystemColumnIssue("MVIEW", "public.sample_data_view", stmt14),
 			NewXmlFunctionsIssue("MVIEW", "public.sample_data_view", stmt14),
 		},
 		stmt15: []QueryIssue{
 			NewAdvisoryLocksIssue("VIEW", "public.orders_view", stmt15),
-			NewSystemColumnsIssue("VIEW", "public.orders_view", stmt15),
+			NewCtidSystemColumnIssue("VIEW", "public.orders_view", stmt15),
+			NewXminSystemColumnIssue("VIEW", "public.orders_view", stmt15),
 			NewXmlFunctionsIssue("VIEW", "public.orders_view", stmt15),
 			//TODO: Add CHECK OPTION issue when we move it from regex to parser logic
 		},
