@@ -209,7 +209,17 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	log.Infof("start importing batch %q with nonTxnPath=%v", batch.FilePath, nonTxnPath)
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, nonTxnPath)
+		if attempt > 0 && nonTxnPath {
+			log.Infof("(recovery) retrying batch %q with nonTxnPath=%v", batch.FilePath, nonTxnPath)
+			// Caller ensures only valid target DB type(YugabyteDB) reach here
+			ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+			if !ok {
+				utils.ErrExit("(recovery) target db is not of type TargetYugabyteDB to use for importing batch %q", batch.FilePath)
+			}
+			rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, onPrimaryKeyConflictAction, &importBatchArgs, exportDir, tableSchema)
+		} else {
+			rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, nonTxnPath)
+		}
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}

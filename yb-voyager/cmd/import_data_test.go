@@ -407,3 +407,9 @@ FROM generate_series(1, 500000);`
 		t.Log("Success: Table data in Postgres and YugabyteDB match exactly.")
 	}
 }
+
+/*
+	Add tests:
+	1. TestImportDataResumptionWithInterruptions_NonTransactionalPath_ForTransientDBErrors 	(retryable errors)
+	2. TestImportDataResumptionWithInterruptions_NonTransactionalPath_SyntaxError			(non-retryable errors)
+*/
