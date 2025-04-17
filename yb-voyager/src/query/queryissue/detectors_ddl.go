@@ -643,11 +643,19 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						"",
 					))
 				} else if isHotspotType && idx == 0 {
+					//If first column is hotspot type then only report hotspot issue
 					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
 					if err != nil {
 						return nil, err
 					}
 					issues = append(issues, hotspotIssues...)
+				} else if isHotspotType && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
+					//If its a hotspot type and ASC DESC clause is not present in definition
+					rangeShardingIssues, err := reportUseRangeShardingIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
+					if err != nil {
+						return nil, err
+					}
+					issues = append(issues, rangeShardingIssues...)
 				}
 			} else {
 				colName := param.ColName
@@ -665,7 +673,9 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						))
 					}
 				}
+				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
 				if tableHasHotspotTypes && idx == 0 {
+					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
 						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
@@ -673,6 +683,17 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 							return nil, err
 						}
 						issues = append(issues, hotspotIssues...)
+					}
+				} else if tableHasHotspotTypes && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
+
+					//column is hotspot type and ASC DESC clause is not present then only report use range-sharding issue
+					rangeShardingType, isRangeShardingType := columnWithHotspotTypes[colName]
+					if isRangeShardingType {
+						rangeShardingIssues, err := reportUseRangeShardingIndexes(rangeShardingType, obj.GetObjectType(), obj.GetObjectName())
+						if err != nil {
+							return nil, err
+						}
+						issues = append(issues, rangeShardingIssues...)
 					}
 				}
 			}
@@ -685,14 +706,25 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
-	case "timestamp", "timestampz":
+	case TIMESTAMP, TIMESTAMPTZ:
 		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, ""))
-		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
-	case "date":
+	case DATE:
 		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, ""))
-		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
+	}
+	return issues, nil
+}
+
+func reportUseRangeShardingIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
+	var issues []QueryIssue
+	switch typeName {
+	case TIMESTAMP, TIMESTAMPTZ:
+		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
+	case DATE:
+		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))
+	default:
+		return issues, fmt.Errorf("unexpected type for the range indexes")
 	}
 	return issues, nil
 }
