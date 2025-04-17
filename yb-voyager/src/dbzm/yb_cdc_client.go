@@ -175,7 +175,7 @@ func (ybc *YugabyteDBCDCClient) ListMastersNodes() (string, error) {
 
 func (ybc *YugabyteDBCDCClient) GetNumOfReplicationStreams() (int, error) {
 	tserverPort := utils.GetEnvAsInt("YB_TSERVER_PORT", 9100) //TODO: make it internally handled by yb-client
-	args := fmt.Sprintf("-get_num_of_cdc_streams -master_addresses %s -tserver_port %d", ybc.ybServers, tserverPort)
+	args := fmt.Sprintf("-get_num_of_cdc_streams -master_addresses %s -tserver_port %d -db_name %s", ybc.ybServers, tserverPort, ybc.dbName)
 
 	if ybc.sslRootCert != "" {
 		args += fmt.Sprintf(" -ssl_cert_file '%s'", ybc.sslRootCert)

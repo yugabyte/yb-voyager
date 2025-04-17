@@ -6,7 +6,7 @@ import org.apache.commons.cli.Options;
 public class CmdLineParams {
     String masterAddresses = "127.0.0.1:7100";
     String tableName = "";
-    String dbName = "yugabyte";
+    String dbName = "";
     String certFilePath = null;
     Boolean toCreate = false;
     String deleteStreamId = null;
