@@ -129,52 +129,55 @@ WHERE title = 'Design Document';`,
 }
 
 func TestColumnRefDetector(t *testing.T) {
-	systemColumnSqls := []string{
-		`SELECT xmin, xmax FROM employees;`,
-		`SELECT * FROM (SELECT * FROM employees WHERE xmin = 100) AS version_info;`,
-		`SELECT * FROM (SELECT xmin, xmax FROM employees) AS version_info;`,
-		`SELECT * FROM employees WHERE xmin = 200;`,
-		`SELECT * FROM employees WHERE 1 = 1 AND xmax = 300;`,
-		`SELECT cmin
-		FROM employees;`,
-		`SELECT cmax
-		FROM employees;`,
-		`SELECT ctid, tableoid, xmin, xmax, cmin, cmax
-		FROM employees;`,
-		`WITH versioned_employees AS (
-            SELECT *, xmin, xmax
-            FROM employees
-        )
-        SELECT ve1.id, ve2.id
-        FROM versioned_employees ve1
-        JOIN versioned_employees ve2 ON ve1.xmin = ve2.xmax
-        WHERE ve1.id <> ve2.id;`,
-		`SELECT e.id, e.name,
-            ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num
-        FROM employees e;`,
-		`SELECT *
-        FROM employees e
-        WHERE e.xmax = (
-            SELECT MAX(xmax)
-            FROM employees
-            WHERE department = e.department
-        );`,
-		`UPDATE employees
-        SET salary = salary * 1.05
-        WHERE department = 'Sales'
-        RETURNING id, xmax;`,
-		`SELECT xmin, COUNT(*)
-        FROM employees
-        GROUP BY xmin
-        HAVING COUNT(*) > 1;`,
+	type testCase struct {
+		sql           string
+		expectedTypes []string // Only types, e.g. SYSTEM_COLUMN_XMIN
 	}
 
-	for _, sql := range systemColumnSqls {
-		issues := getDetectorIssues(t, NewColumnRefDetector(sql), sql)
-
-		assert.Equal(t, 1, len(issues), "Expected 1 issue for SQL: %s", sql)
-		assert.Equal(t, SYSTEM_COLUMNS, issues[0].Type, "Expected System Columns issue for SQL: %s", sql)
+	testCases := []testCase{
+		{`SELECT xmin, xmax FROM employees;`, []string{SYSTEM_COLUMN_XMIN, SYSTEM_COLUMN_XMAX}},
+		{`SELECT * FROM (SELECT * FROM employees WHERE xmin = 100) AS version_info;`, []string{SYSTEM_COLUMN_XMIN}},
+		{`SELECT * FROM (SELECT xmin, xmax FROM employees) AS version_info;`, []string{SYSTEM_COLUMN_XMIN, SYSTEM_COLUMN_XMAX}},
+		{`SELECT * FROM employees WHERE xmin = 200;`, []string{SYSTEM_COLUMN_XMIN}},
+		{`SELECT * FROM employees WHERE 1 = 1 AND xmax = 300;`, []string{SYSTEM_COLUMN_XMAX}},
+		{`SELECT cmin FROM employees;`, []string{SYSTEM_COLUMN_CMIN}},
+		{`SELECT cmax FROM employees;`, []string{SYSTEM_COLUMN_CMAX}},
+		{`SELECT ctid, tableoid, xmin, xmax, cmin, cmax FROM employees;`, []string{SYSTEM_COLUMN_CTID, SYSTEM_COLUMN_XMIN, SYSTEM_COLUMN_XMAX, SYSTEM_COLUMN_CMIN, SYSTEM_COLUMN_CMAX}},
+		{`WITH versioned_employees AS (
+			SELECT *, xmin, xmax
+			FROM employees
+		)
+		SELECT ve1.id, ve2.id
+		FROM versioned_employees ve1
+		JOIN versioned_employees ve2 ON ve1.xmin = ve2.xmax
+		WHERE ve1.id <> ve2.id;`, []string{SYSTEM_COLUMN_XMIN, SYSTEM_COLUMN_XMAX}},
+		{`SELECT e.id, e.name, ROW_NUMBER() OVER (ORDER BY e.ctid) AS row_num FROM employees e;`, []string{SYSTEM_COLUMN_CTID}},
+		{`SELECT * FROM employees e WHERE e.xmax = (
+			SELECT MAX(xmax)
+			FROM employees
+			WHERE department = e.department
+		);`, []string{SYSTEM_COLUMN_XMAX}},
+		{`UPDATE employees
+		SET salary = salary * 1.05
+		WHERE department = 'Sales'
+		RETURNING id, xmax;`, []string{SYSTEM_COLUMN_XMAX}},
+		{`SELECT xmin, COUNT(*) FROM employees GROUP BY xmin HAVING COUNT(*) > 1;`, []string{SYSTEM_COLUMN_XMIN}},
 	}
+
+	for _, tc := range testCases {
+		issues := getDetectorIssues(t, NewColumnRefDetector(tc.sql), tc.sql)
+
+		var detectedTypes []string
+		for _, issue := range issues {
+			detectedTypes = append(detectedTypes, issue.Type)
+		}
+
+		assert.ElementsMatch(t, tc.expectedTypes, detectedTypes,
+			"Mismatched issue types for SQL:\n%s\nExpected: %v\nActual: %v",
+			tc.sql, tc.expectedTypes, detectedTypes,
+		)
+	}
+
 }
 
 func TestRangeTableFuncDetector(t *testing.T) {
@@ -508,55 +511,81 @@ func TestXMLFunctionsDetectors(t *testing.T) {
 
 // Combination of: FuncCallDetector, ColumnRefDetector, XmlExprDetector
 func TestCombinationOfDetectors1(t *testing.T) {
-	combinationSqls := []string{
-		`WITH LockedEmployees AS (
-    SELECT *, pg_advisory_lock(xmin) AS lock_acquired
-    FROM employees
-    WHERE pg_try_advisory_lock(xmin) IS TRUE
-)
-SELECT xmlelement(name "EmployeeData", xmlagg(
-    xmlelement(name "Employee", xmlattributes(id AS "ID"),
-    xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
-FROM LockedEmployees
-WHERE xmax IS NOT NULL;`,
-		`WITH Data AS (
-    SELECT id, name, xmin, xmax,
-           pg_try_advisory_lock(id) AS lock_status,
-           xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
-    FROM projects
-    WHERE xmin > 100 AND xmax < 500
-)
-SELECT x.id, x.xml_info
-FROM Data x
-WHERE x.lock_status IS TRUE;`,
-		`UPDATE employees
-SET salary = salary * 1.1
-WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
-RETURNING id,
-          xmlelement(name "UpdatedEmployee",
-                     xmlattributes(id AS "ID"),
-                     xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+	type testCase struct {
+		sql                string
+		expectedIssueTypes mapset.Set[string]
 	}
-	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
-	for _, sql := range combinationSqls {
+	testCases := []testCase{
+		{
+			sql: `WITH LockedEmployees AS (
+				SELECT *, pg_advisory_lock(xmin) AS lock_acquired
+				FROM employees
+				WHERE pg_try_advisory_lock(xmin) IS TRUE
+			)
+			SELECT xmlelement(name "EmployeeData", xmlagg(
+				xmlelement(name "Employee", xmlattributes(id AS "ID"),
+				xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
+			FROM LockedEmployees
+			WHERE xmax IS NOT NULL;`,
+			expectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
+		},
+		{
+			sql: `WITH Data AS (
+				SELECT id, name, xmin, xmax,
+					   pg_try_advisory_lock(id) AS lock_status,
+					   xmlelement(name "info", xmlforest(name as "name", xmin as "transaction_start", xmax as "transaction_end")) as xml_info
+				FROM projects
+				WHERE xmin > 100 AND xmax < 500
+			)
+			SELECT x.id, x.xml_info
+			FROM Data x
+			WHERE x.lock_status IS TRUE;`,
+			expectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
+		},
+		{
+			sql: `UPDATE employees
+			SET salary = salary * 1.1
+			WHERE pg_try_advisory_xact_lock(ctid) IS TRUE AND department = 'Engineering'
+			RETURNING id,
+					  xmlelement(name "UpdatedEmployee",
+								 xmlattributes(id AS "ID"),
+								 xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
+			expectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_CTID,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
+		},
+	}
+
+	for _, tc := range testCases {
 		detectors := []UnsupportedConstructDetector{
-			NewFuncCallDetector(sql),
-			NewColumnRefDetector(sql),
-			NewXmlExprDetector(sql),
+			NewFuncCallDetector(tc.sql),
+			NewColumnRefDetector(tc.sql),
+			NewXmlExprDetector(tc.sql),
 		}
-		parseResult, err := queryparser.Parse(sql)
+		parseResult, err := queryparser.Parse(tc.sql)
 		assert.NoError(t, err)
 
 		visited := make(map[protoreflect.Message]bool)
-
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
-				log.Debugf("running detector %T", detector)
 				err := detector.Detect(msg)
 				if err != nil {
-					log.Debugf("error in detector %T: %v", detector, err)
-					return fmt.Errorf("error in detectors %T: %w", detector, err)
+					return fmt.Errorf("detector %T failed: %w", detector, err)
 				}
 			}
 			return nil
@@ -570,20 +599,28 @@ RETURNING id,
 		for _, detector := range detectors {
 			allIssues = append(allIssues, detector.GetIssues()...)
 		}
+
 		issueTypesDetected := mapset.NewThreadUnsafeSet[string]()
 		for _, issue := range allIssues {
 			issueTypesDetected.Add(issue.Type)
 		}
 
-		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
+		assert.True(t,
+			tc.expectedIssueTypes.Equal(issueTypesDetected),
+			"Mismatch for SQL:\n%s\nExpected: %v\nActual: %v",
+			tc.sql,
+			tc.expectedIssueTypes.ToSlice(),
+			issueTypesDetected.ToSlice(),
+		)
 	}
 }
 
 func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 	tests := []struct {
-		Sql             string
-		ExpectedObjects []string
-		ExpectedSchemas []string
+		Sql                string
+		ExpectedObjects    []string
+		ExpectedSchemas    []string
+		ExpectedIssueTypes mapset.Set[string]
 	}{
 		{
 			Sql: `WITH LockedEmployees AS (
@@ -596,12 +633,14 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 					xmlforest(name AS "Name", xmin AS "TransactionID", xmax AS "ModifiedID"))))
 				FROM LockedEmployees
 				WHERE xmax IS NOT NULL;`,
-			/*
-				Limitation: limited coverage provided by objectCollector.Collect() right now. Might not detect some cases.
-				xmlelement, xmlforest etc are present under xml_expr node in parse tree not funccall node.
-			*/
 			ExpectedObjects: []string{"pg_advisory_lock", "public.employees", "pg_try_advisory_lock", "xmlagg", "lockedemployees"},
 			ExpectedSchemas: []string{"public", ""},
+			ExpectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
 		},
 		{
 			Sql: `WITH Data AS (
@@ -616,6 +655,12 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 				WHERE x.lock_status IS TRUE;`,
 			ExpectedObjects: []string{"pg_try_advisory_lock", "projects", "data"},
 			ExpectedSchemas: []string{""},
+			ExpectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
 		},
 		{
 			Sql: `UPDATE s1.employees
@@ -625,10 +670,15 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 						xmlforest(name AS "Name", salary AS "NewSalary", xmin AS "TransactionStartID", xmax AS "TransactionEndID"));`,
 			ExpectedObjects: []string{"s1.employees", "pg_try_advisory_xact_lock"},
 			ExpectedSchemas: []string{"s1", ""},
+			ExpectedIssueTypes: mapset.NewThreadUnsafeSet[string]([]string{
+				ADVISORY_LOCKS,
+				SYSTEM_COLUMN_CTID,
+				SYSTEM_COLUMN_XMIN,
+				SYSTEM_COLUMN_XMAX,
+				XML_FUNCTIONS,
+			}...),
 		},
 	}
-
-	expectedIssueTypes := mapset.NewThreadUnsafeSet[string]([]string{ADVISORY_LOCKS, SYSTEM_COLUMNS, XML_FUNCTIONS}...)
 
 	for _, tc := range tests {
 		detectors := []UnsupportedConstructDetector{
@@ -644,11 +694,9 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		objectCollector := queryparser.NewObjectCollector(nil)
 		processor := func(msg protoreflect.Message) error {
 			for _, detector := range detectors {
-				log.Debugf("running detector %T", detector)
 				err := detector.Detect(msg)
 				if err != nil {
-					log.Debugf("error in detector %T: %v", detector, err)
-					return fmt.Errorf("error in detectors %T: %w", detector, err)
+					return fmt.Errorf("error in detector %T: %w", detector, err)
 				}
 			}
 			objectCollector.Collect(msg)
@@ -659,6 +707,7 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 		err = queryparser.TraverseParseTree(parseTreeMsg, visited, processor)
 		assert.NoError(t, err)
 
+		// Gather all issues and detected types
 		var allIssues []QueryIssue
 		for _, detector := range detectors {
 			allIssues = append(allIssues, detector.GetIssues()...)
@@ -668,15 +717,26 @@ func TestCombinationOfDetectors1WithObjectCollector(t *testing.T) {
 			issueTypesDetected.Add(issue.Type)
 		}
 
-		assert.True(t, expectedIssueTypes.Equal(issueTypesDetected), "Expected issue types do not match the detected issue types. Expected: %v, Actual: %v", expectedIssueTypes, issueTypesDetected)
+		// Assert expected issues match actual
+		assert.True(t,
+			tc.ExpectedIssueTypes.Equal(issueTypesDetected),
+			"Issue type mismatch for SQL:\n%s\nExpected: %v\nActual: %v",
+			tc.Sql,
+			tc.ExpectedIssueTypes.ToSlice(),
+			issueTypesDetected.ToSlice(),
+		)
 
+		// Assert collected objects and schemas
 		collectedObjects := objectCollector.GetObjects()
 		collectedSchemas := objectCollector.GetSchemaList()
 
 		assert.ElementsMatch(t, tc.ExpectedObjects, collectedObjects,
-			"Objects list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedObjects, len(tc.ExpectedObjects), collectedObjects, len(collectedObjects))
+			"Objects mismatch for SQL:\n%s\nExpected: %v\nActual: %v",
+			tc.Sql, tc.ExpectedObjects, collectedObjects)
+
 		assert.ElementsMatch(t, tc.ExpectedSchemas, collectedSchemas,
-			"Schema list mismatch for sql [%s]. Expected: %v(len=%d), Actual: %v(len=%d)", tc.Sql, tc.ExpectedSchemas, len(tc.ExpectedSchemas), collectedSchemas, len(collectedSchemas))
+			"Schemas mismatch for SQL:\n%s\nExpected: %v\nActual: %v",
+			tc.Sql, tc.ExpectedSchemas, collectedSchemas)
 	}
 }
 

@@ -33,6 +33,16 @@ type QueryIssue struct {
 	Details      map[string]interface{} // additional details about the issue
 }
 
+func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) QueryIssue {
+	return QueryIssue{
+		Issue:        issue,
+		ObjectType:   objectType,
+		ObjectName:   objectName,
+		SqlStatement: sqlStatement,
+		Details:      details,
+	}
+}
+
 var MigrationCaveatsIssues = []string{
 	ALTER_TABLE_ADD_PK_ON_PARTITIONED_TABLE,
 	FOREIGN_TABLE,
@@ -62,6 +72,14 @@ var PerformanceOptimizationIssues = []string{
 	HOTSPOTS_ON_TIMESTAMP_INDEX,
 	RANGE_SHARDING_DATE_INDEX,
 	RANGE_SHARDING_TIMESTAMP_INDEX,
+}
+
+var UnsupportedSystemColumnsIssueTypes = []string{
+	SYSTEM_COLUMN_XMIN,
+	SYSTEM_COLUMN_XMAX,
+	SYSTEM_COLUMN_CMIN,
+	SYSTEM_COLUMN_CMAX,
+	SYSTEM_COLUMN_CTID,
 }
 
 type IssueTypeAndName struct {
@@ -131,14 +149,4 @@ var IndexOnComplexDatatypesIssues = []IssueTypeAndName{
 	{INDEX_ON_TXID_SNAPSHOT_DATATYPE, INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME},
 	{INDEX_ON_ARRAY_DATATYPE, INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME},
 	{INDEX_ON_USER_DEFINED_DATATYPE, INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME},
-}
-
-func newQueryIssue(issue issue.Issue, objectType string, objectName string, sqlStatement string, details map[string]interface{}) QueryIssue {
-	return QueryIssue{
-		Issue:        issue,
-		ObjectType:   objectType,
-		ObjectName:   objectName,
-		SqlStatement: sqlStatement,
-		Details:      details,
-	}
 }
