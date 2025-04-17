@@ -3,6 +3,7 @@
 <head>
     <title>Migration Assessment Report</title>
     <style>
+        /* General Styles */
         body {
             font-family: Arial, sans-serif;
             margin: 0;
@@ -10,186 +11,300 @@
             background-color: #f4f4f4;
             color: #333;
         }
+
         .wrapper {
             max-width: 70%;
             margin: 20px auto;
             padding: 20px;
             background-color: white;
             border-radius: 8px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
+
         h1, h2, h3 {
             color: #333;
         }
+
+        /* Table Styles */
         table {
             border-collapse: collapse;
             width: 100%;
             margin-top: 20px;
             table-layout: fixed;
+            border-spacing: 0;
         }
+
         th, td {
             border: 1px solid #ddd;
             padding: 8px;
             text-align: left;
-            vertical-align: top; /* Vertically center content in table cells */
+            vertical-align: middle;
             word-wrap: break-word;
             white-space: normal;
+            box-sizing: border-box;
+            margin: 0;
         }
+
         th {
             background-color: #f2f2f2;
         }
-        .formatted_table tr:nth-child(even){background-color: #f9f9f9;}
+
+        .formatted_table tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+
+        /* List Styles */
         ul {
             padding-left: 20px;
         }
+
         li {
             margin: 5px 0;
         }
+
         .scrollable-div {
             max-height: 300px;
             overflow-y: scroll;
             border: 1px solid #ccc;
             padding: 10px;
         }
+
         .no-wrap-list li {
             white-space: nowrap;
             margin-right: 15px;
             list-style-type: disc;
         }
+
+        /* Text and Alignment Styles */
         .centered-cell {
             text-align: center;
             vertical-align: middle;
         }
+
         #refer-p {
-            font-size: 0.8em; 
-            color: inherit; 
+            font-size: 0.8em;
+            color: inherit;
         }
 
         #refer-p a {
-            color: inherit; 
+            color: inherit;
         }
+
         .list_item {
             margin-bottom: 15px;
         }
+
         pre {
-            width: 100%; /* Ensure the pre/code content takes full width of the container */
-            word-wrap: break-word; /* Break long lines into multiple lines */
-            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
-            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
-            word-break: break-all; /* Prevents long words from overflowing */
-            margin: 5px; /* Remove default margins */
-            padding: 5px; /* Remove default padding */
-            font-family: monospace; /* Optional: ensure a monospaced font */
+            width: 100%;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            white-space: pre-wrap;
+            word-break: break-all;
+            margin: 0;
+            padding: 5px;
+            font-family: monospace;
         }
-        .table-highlight thead tr {
-            background-color: #f2f2f2;
-            font-weight: bold;
-            border-bottom: 2px solid #ccc; /* a visual separator from the body */
+
+        /* Highlight Table Styles */
+        .table-highlight {
+            border-collapse: collapse;
+            border-spacing: 0;
         }
+
+        .table-highlight tr {
+            height: auto;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-highlight td, .table-highlight th {
+            height: 100%;
+            min-height: 40px;
+            vertical-align: middle;
+            padding: 8px;
+            box-sizing: border-box;
+            border-bottom: none;
+            margin: 0;
+        }
+
         .summary-row {
             cursor: pointer;
-            border-bottom:2px solid #000;
+            margin: 0;
         }
+
         .details-row {
             background-color: #fafafa;
-            border-bottom:2px solid #ccc;
+            display: table-row;
+            border-top: 1px solid #ddd;
+            margin: 0;
         }
-        /* Container for the top summary + buttons */
+
+        .details-row > td {
+            padding: 0;
+            height: 0;
+            overflow: hidden;
+        }
+
+        /* Details Content Animation */
+        .details-content-wrapper {
+            max-height: 0;
+            overflow: hidden;
+            visibility: hidden;
+            opacity: 0;
+            transition: max-height 0.3s ease-out, opacity 0.3s ease-out, visibility 0s linear 0.3s;
+        }
+
+        .details-row.show .details-content-wrapper {
+            max-height: 1000px;
+            visibility: visible;
+            opacity: 1;
+            transition: max-height 0.3s ease-in, opacity 0.3s ease-in, visibility 0s linear 0s;
+        }
+
+        .details-content {
+            padding: 8px;
+        }
+
+        .table-highlight tbody {
+            border-bottom: 2px solid #000;
+            margin: 0;
+            padding: 0;
+        }
+
+        .table-highlight tbody:last-child {
+            border-bottom: none;
+        }
+
+        /* Header and Button Styles */
         .assessment-issues-header {
-            display: flex;                /* enable flex layout */
-            justify-content: space-between; /* pushes left content to one side, buttons to the other */
-            align-items: center;            /* vertically center items */
-            margin-bottom: 1rem;            /* space before the table */
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
         }
+
         .assessment-issues-header p {
-            margin: 0;        /* remove default paragraph margins or adjust to your liking */
+            margin: 0;
             margin-bottom: 4px;
         }
-        /* Container for the buttons on the right */
+
         .assessment-issues-header .buttons {
-            display: flex;         /* let buttons sit side by side */
-            gap: 5px;              /* small space between them */
+            display: flex;
+            gap: 5px;
         }
+
         .rounded-button {
             padding: 6px 12px;
-            border-radius: 9999px; /* pill shape */
+            border-radius: 9999px;
             border: 1px solid #ccc;
             background-color: #f9f9f9;
             cursor: pointer;
             font-size: 0.9rem;
         }
+
         .rounded-button:hover {
             background-color: #eee;
         }
+
         .spaced-words {
             word-spacing: 0.2em;
         }
-        .details-row {
-            display: table-row;
-            height: 0;
-            overflow: hidden;
-            transition: all 0.3s ease;
+
+        /* Category and Arrow Styles */
+        .category-cell-flex {
+            display: flex;
+            align-items: center;
+            gap: 0.5em;
+            height: 100%;
+            padding-left: 0.5em;
+            box-sizing: border-box;
+            margin: 0;
         }
 
-        .details-content {
-            display: block;
-            max-height: 0;
-            overflow: hidden;
-            transition: max-height 0.3s ease;
+        .arrow-container {
+            width: 1.2em;
+            height: 1.2em;
+            flex-shrink: 0;
+            text-align: center;
+            line-height: 1.2em;
+            font-family: monospace;
         }
-        .details-row.show .details-content {
-            max-height: 1000px;
-        }
-        
-
     </style>
     <script>
+        // Toggle Details Functionality
         function toggleDetails(detailsRowId, arrowId) {
-            let row = document.getElementById(detailsRowId);
-            let arrow = document.getElementById(arrowId);
+            const row = document.getElementById(detailsRowId);
+            const arrow = document.getElementById(arrowId);
             if (row.classList.contains('show')) {
                 row.classList.remove('show');
-                arrow.innerHTML = "&#x25B6;";
+                arrow.innerHTML = "&#9654;"; // Right triangle (&#9654;) for collapsed
             } else {
                 row.classList.add('show');
-                arrow.innerHTML = "&#x25BC;";
+                arrow.innerHTML = "&#9660;"; // Down triangle (&#9660;) for expanded
             }
+            updateButtonVisibility();
         }
 
+        // Expand All Issues
         function expandAllIssues() {
-            let totalIssues = {{ len .Issues }};
+            const totalIssues = {{ len .Issues }};
             for (let i = 0; i < totalIssues; i++) {
-                let row = document.getElementById('details-' + i);
-                let arrow = document.getElementById('arrow-' + i);
-                row.classList.add('show');
-                arrow.innerHTML = "&#x25BC;";
+                const row = document.getElementById('details-' + i);
+                const arrow = document.getElementById('arrow-' + i);
+                if (!row.classList.contains('show')) {
+                    row.classList.add('show');
+                    arrow.innerHTML = "&#9660;"; // Down triangle (&#9660;)
+                }
             }
+            updateButtonVisibility();
         }
 
+        // Collapse All Issues
         function collapseAllIssues() {
-            let totalIssues = {{ len .Issues }};
+            const totalIssues = {{ len .Issues }};
             for (let i = 0; i < totalIssues; i++) {
-                let row = document.getElementById('details-' + i);
-                let arrow = document.getElementById('arrow-' + i);
-                row.classList.remove('show');
-                arrow.innerHTML = "&#x25B6;";
+                const row = document.getElementById('details-' + i);
+                const arrow = document.getElementById('arrow-' + i);
+                if (row.classList.contains('show')) {
+                    row.classList.remove('show');
+                    arrow.innerHTML = "&#9654;"; // Right triangle (&#9654;)
+                }
             }
+            updateButtonVisibility();
         }
 
-        // Keep track of the current sort direction per field, so we can toggle it
+        // Update Button Visibility Based on Row States
+        function updateButtonVisibility() {
+            const totalIssues = {{ len .Issues }};
+            let someExpanded = false;
+            let someCollapsed = false;
+
+            for (let i = 0; i < totalIssues; i++) {
+                const row = document.getElementById('details-' + i);
+                if (row.classList.contains('show')) {
+                    someExpanded = true;
+                } else {
+                    someCollapsed = true;
+                }
+                if (someExpanded && someCollapsed) break;
+            }
+
+            const expandButton = document.getElementById('expandAllButton');
+            const collapseButton = document.getElementById('collapseAllButton');
+            expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
+            collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
+        }
+
+        // Table Sorting Functionality
         let sortState = {
             category: 'asc',
             name: 'asc',
             impact: 'asc'
         };
+
         function sortTableBy(field) {
-            // Grab the table element
             const table = document.querySelector(".table-highlight");
-
-            // Collect all the .issue-pair <tbody> elements
             const issuePairs = Array.from(table.querySelectorAll("tbody.issue-summary-detail-pair"));
-
-            // Determine the current sort direction and flip it
             let currentDirection = sortState[field] || 'asc';
             let newDirection = (currentDirection === 'asc') ? 'desc' : 'asc';
             sortState[field] = newDirection;
@@ -197,122 +312,122 @@
             issuePairs.sort((a, b) => {
                 let aValue = a.dataset[field] || "";
                 let bValue = b.dataset[field] || "";
-
                 if (aValue < bValue) return newDirection === 'asc' ? -1 : 1;
                 if (aValue > bValue) return newDirection === 'asc' ? 1 : -1;
                 return 0;
             });
 
-            // Re-append the sorted <tbody> elements to the table
             issuePairs.forEach(pair => table.appendChild(pair));
-
-            // Update the sort indicator in the table header
             const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
             if (sortIndicator) {
-                sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
+                sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;';
             }
+            updateButtonVisibility();
         }
+
+        // Initialize Button Visibility on Page Load
+        window.onload = updateButtonVisibility;
     </script>
 </head>
 <body>
     <div class="wrapper">
         <h1>Migration Assessment Report</h1>
         <p><strong>Voyager Version:</strong> {{ .VoyagerVersion }}</p>
-        <p><strong>Database Name:</strong> {{.SchemaSummary.DBName}}</p>
-        {{ if .SchemaSummary.SchemaNames}}
+        <p><strong>Database Name:</strong> {{ .SchemaSummary.DBName }}</p>
+        {{ if .SchemaSummary.SchemaNames }}
             <p><strong>Schema Name:</strong>
-            {{range $i, $a := .SchemaSummary.SchemaNames}}
-                {{$a}}&nbsp;
-            {{end}}
+            {{ range $i, $a := .SchemaSummary.SchemaNames }}
+                {{ $a }}
+            {{ end }}
             </p>
-        {{end}}
-        {{with .SchemaSummary.DBVersion}}
-        <p><strong>Database Version:</strong> {{.}}</p>
-        {{end}}
+        {{ end }}
+        {{ with .SchemaSummary.DBVersion }}
+            <p><strong>Database Version:</strong> {{ . }}</p>
+        {{ end }}
 
-        <p><strong>Target YB Version:</strong> {{.TargetDBVersion}} </p>
+        <p><strong>Target YB Version:</strong> {{ .TargetDBVersion }}</p>
 
-        {{if ne .MigrationComplexity "NOT AVAILABLE"}}
+        {{ if ne .MigrationComplexity "NOT AVAILABLE" }}
             <p><strong>Migration Complexity:</strong> {{ .MigrationComplexity }}</p>
-        {{end}}
+        {{ end }}
 
         <h2>Database Objects</h2>
-        <p>{{.SchemaSummary.Description}}</p>
+        <p>{{ .SchemaSummary.Description }}</p>
         <table>
             <tr>
                 <th class="centered-cell">Object Type</th>
                 <th class="centered-cell">Total Objects</th>
                 <th>Object Names</th>
             </tr>
-            {{range .SchemaSummary.DBObjects}}
+            {{ range .SchemaSummary.DBObjects }}
             <tr>
-                <td class="centered-cell">{{.ObjectType}}</td>
-                <td class="centered-cell">{{.TotalCount}}</td>
+                <td class="centered-cell">{{ .ObjectType }}</td>
+                <td class="centered-cell">{{ .TotalCount }}</td>
                 <td>
                     <div class="scrollable-div no-wrap-list">
                         <ul style="margin: 0; padding-left: 1.2em;">
-                            {{range split .ObjectNames ", "}}
-                                <li>{{.}}</li>
-                            {{end}}
+                            {{ range split .ObjectNames ", " }}
+                                <li>{{ . }}</li>
+                            {{ end }}
                         </ul>
                     </div>
                 </td>
             </tr>
-            {{end}}
+            {{ end }}
         </table>
 
-        {{with .Sizing}}
+        {{ with .Sizing }}
             <h2>Sharding Recommendations</h2>
-                {{ if eq .FailureReasoning "" }}
-                    {{ with .SizingRecommendation }}
-                        <table>
-                            <tr>
-                                <th class="centered-cell">Colocated Tables</th>
-                                <th class="centered-cell">Sharded Tables</th>
-                            </tr>
-                            <tr>
-                                <td>
-                                    <div class="scrollable-div no-wrap-list">
-                                        {{range .ColocatedTables}}
-                                            <li>{{.}}</li>
-                                        {{end}}
-                                    </div>
-                                </td>
-                                <td>
-                                    <div class="scrollable-div no-wrap-list">
-                                        {{range .ShardedTables}}
-                                            <li>{{.}}</li>
-                                        {{end}}
-                                    </div>
-                                </td>
-                            </tr>
-                        </table>
+            {{ if eq .FailureReasoning "" }}
+                {{ with .SizingRecommendation }}
+                    <table>
+                        <tr>
+                            <th class="centered-cell">Colocated Tables</th>
+                            <th class="centered-cell">Sharded Tables</th>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    {{ range .ColocatedTables }}
+                                        <li>{{ . }}</li>
+                                    {{ end }}
+                                </div>
+                            </td>
+                            <td>
+                                <div class="scrollable-div no-wrap-list">
+                                    {{ range .ShardedTables }}
+                                        <li>{{ . }}</li>
+                                    {{ end }}
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
                     <h2>Sizing Recommendations</h2>
-                        <table>
-                            <tr>
-                                <th class="centered-cell">Parameter</th>
-                                <th class="centered-cell">Recommendation</th>
-                            </tr>
-                            <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">{{ .NumNodes }}</td></tr>
-                            <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">{{ .VCPUsPerInstance }}</td></tr>
-                            <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">{{ .MemoryPerInstance }}</td></tr>
-                            <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{else}}{{.OptimalSelectConnectionsPerNode }}{{end}}</td></tr>
-                            <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{else}}{{.OptimalInsertConnectionsPerNode}}{{end}}</td></tr>
-                            <tr><td class="centered-cell">Parallel Voyager Jobs</td><td class="centered-cell">{{ .ParallelVoyagerJobs }}</td></tr>
-                            <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">{{ .EstimatedTimeInMinForImport }} min</td></tr>
-                        </table>
-                    <h3>Reasoning: </h3>
+                    <table>
+                        <tr>
+                            <th class="centered-cell">Parameter</th>
+                            <th class="centered-cell">Recommendation</th>
+                        </tr>
+                        <tr><td class="centered-cell">Num of Nodes</td><td class="centered-cell">{{ .NumNodes }}</td></tr>
+                        <tr><td class="centered-cell">vCPU per instance</td><td class="centered-cell">{{ .VCPUsPerInstance }}</td></tr>
+                        <tr><td class="centered-cell">Memory per instance(GiB)</td><td class="centered-cell">{{ .MemoryPerInstance }}</td></tr>
+                        <tr><td class="centered-cell">Optimal select connections per node</td><td class="centered-cell">{{ if eq .OptimalSelectConnectionsPerNode 0 }}--{{ else }}{{ .OptimalSelectConnectionsPerNode }}{{ end }}</td></tr>
+                        <tr><td class="centered-cell">Optimal insert connections per node</td><td class="centered-cell">{{ if eq .OptimalInsertConnectionsPerNode 0 }}--{{ else }}{{ .OptimalInsertConnectionsPerNode }}{{ end }}</td></tr>
+                        <tr><td class="centered-cell">Parallel Voyager Jobs</td><td class="centered-cell">{{ .ParallelVoyagerJobs }}</td></tr>
+                        <tr><td class="centered-cell">Estimated time taken for data import </td><td class="centered-cell">{{ .EstimatedTimeInMinForImport }} min</td></tr>
+                    </table>
+                    <h3>Reasoning:</h3>
                     <p class="spaced-words">{{ .ColocatedReasoning }}</p>
                 {{ end }}
-                {{else}}
-                    <p>Could not perform sizing assessment:  {{ .FailureReasoning }}</p>
+            {{ else }}
+                <p>Could not perform sizing assessment: {{ .FailureReasoning }}</p>
             {{ end }}
-        {{end}}
+        {{ end }}
 
-        {{if and (ne .MigrationComplexity "NOT AVAILABLE") (ne (len .MigrationComplexityExplanation) 0)}}
+        {{ if and (ne .MigrationComplexity "NOT AVAILABLE") (ne (len .MigrationComplexityExplanation) 0) }}
             <h2>Migration Complexity Explanation</h2>
-            {{- if .MigrationComplexityCategorySummary }}
-            <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+            {{ if .MigrationComplexityCategorySummary }}
+                <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
                 <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
                     <thead>
                         <tr>
@@ -324,83 +439,79 @@
                         </tr>
                     </thead>
                     <tbody>
-                    {{ range $idx, $summary :=  .MigrationComplexityCategorySummary }}
-                        <tr>
-                            <td class="centered-cell">{{ $summary.Category }}</td>
-                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_1" }}</td>
-                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_2" }}</td>
-                            <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_3" }}</td>
-                            <td class="centered-cell">{{ $summary.TotalIssueCount }}</td>
-                        </tr>
-                    {{- end }}
+                        {{ range $idx, $summary := .MigrationComplexityCategorySummary }}
+                            <tr>
+                                <td class="centered-cell">{{ $summary.Category }}</td>
+                                <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_1" }}</td>
+                                <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_2" }}</td>
+                                <td class="centered-cell">{{ index $summary.ImpactCounts "LEVEL_3" }}</td>
+                                <td class="centered-cell">{{ $summary.TotalIssueCount }}</td>
+                            </tr>
+                        {{ end }}
                     </tbody>
                 </table>
-            {{- end }}
+            {{ end }}
 
             <p>
-                <strong>Complexity:</strong> {{ .MigrationComplexity }}</br>
+                <strong>Complexity:</strong> {{ .MigrationComplexity }}<br>
                 <strong>Reasoning:</strong> {{ .MigrationComplexityExplanation }}
             </p>
 
             <p>
-            <strong>Impact Levels:</strong></br>
-                Level 1: Resolutions are available with minimal effort.<br/>
-                Level 2: Resolutions are available requiring moderate effort.<br/>
+                <strong>Impact Levels:</strong><br>
+                Level 1: Resolutions are available with minimal effort.<br>
+                Level 2: Resolutions are available requiring moderate effort.<br>
                 Level 3: Resolutions may not be available or are complex.
             </p>
-            {{end}}
+        {{ end }}
 
         <h2>Assessment Issues</h2>
         {{ if .Issues }}
-        <div class="assessment-issues-header">
-            <!-- Left area: text about total issues -->
-            <div>
-                <p><strong>Total Issues: </strong>{{ len .Issues }}</p>
-                <p>Below is a detailed breakdown of each issue.</p>
+            <div class="assessment-issues-header">
+                <div>
+                    <p><strong>Total Issues:</strong> {{ len .Issues }}</p>
+                    <p>Below is a detailed breakdown of each issue.</p>
+                </div>
+                <div class="buttons" id="controlButtons">
+                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues()">Expand All</button>
+                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues()">Collapse All</button>
+                </div>
             </div>
-            <!-- Right area: buttons -->
-            <div class="buttons">
-                <button class="rounded-button" onclick="expandAllIssues()">Expand All</button>
-                <button class="rounded-button" onclick="collapseAllIssues()">Collapse All</button>
-            </div>
-        </div>
-        <table class="table-highlight">
-            <!-- Summary Row Header for the issue -->
-            <colgroup>
-                <col style="width: 20%;"> <!-- Category + arrow -->
-                <col style="width: 20%;"> <!-- Issue Name -->
-                <col style="width: 50%;"> <!-- Object/SQL Preview -->
-                <col style="width: 10%;"> <!-- Impact -->
-            </colgroup>
-
-            <thead>
-                <tr style="background-color: #f2f2f2;">
-                    <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
-                        Category <span class="sort-indicator">&#8597</span>
-                    </th>
-                    <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
-                        Issue <span class="sort-indicator">&#8597</span>
-                    </th>
-                    <th class="centered-cell">Object/SQL Preview</th>
-                    <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
-                        Impact <span class="sort-indicator">&#8597</span>
-                    </th>
-                </tr>
-            </thead>
-
-            <tbody>
+            <table class="table-highlight">
+                <colgroup>
+                    <col style="width: 20%;">
+                    <col style="width: 20%;">
+                    <col style="width: 50%;">
+                    <col style="width: 10%;">
+                </colgroup>
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
+                            Category <span class="sort-indicator">&#8597;</span>
+                        </th>
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
+                            Issue <span class="sort-indicator">&#8597;</span>
+                        </th>
+                        <th class="centered-cell">Object/SQL Preview</th>
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
+                            Impact <span class="sort-indicator">&#8597;</span>
+                        </th>
+                    </tr>
+                </thead>
                 {{ range $idx, $issue := .Issues }}
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
                         data-name="{{ $issue.Name }}"
                         data-impact="{{ $issue.Impact }}">
-                        <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
-                            <td style="display: flex; align-items: center; gap: 0.5em; padding-left: 0.5em;">
-                                <span id="arrow-{{ $idx }}" style="flex-shrink: 0;">&#x25B6;</span>
-                                <span style="word-break: break-word;">{{ snakeCaseToTitleCase $issue.Category }}</span>
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    <div class="arrow-container">
+                                        <span id="arrow-{{ $idx }}">&#9654;</span>
+                                    </div>
+                                    <span style="word-break: break-word;">{{ snakeCaseToTitleCase $issue.Category }}</span>
+                                </div>
                             </td>
-
                             <td class="centered-cell">{{ $issue.Name }}</td>
                             <td class="centered-cell">
                                 {{ if $issue.ObjectName }}
@@ -409,127 +520,109 @@
                                     {{ getSqlPreview $issue.SqlStatement }}
                                 {{ end }}
                             </td>
-
                             <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
                         </tr>
-
-                        <!-- Hidden Details of the Row -->
                         <tr id="details-{{ $idx }}" class="details-row">
                             <td colspan="4">
-                                <div class="details-content">
-                                    <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                        <colgroup>
-                                            <col style="width: 25%;">
-                                            <col style="width: 75%;">
-                                        </colgroup>
-                                        <tbody>
-                                            {{ if $issue.CategoryDescription }}
-                                            <tr>
-                                                <th class="centered-cell">Category Description</th>
-                                                <td>
-                                                    <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                        {{ $issue.CategoryDescription }}
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                            {{ end }}
-
-                                            <!-- Only show if ObjectType is present -->
-                                            {{ if $issue.ObjectType }}
-                                            <tr>
-                                                <th class="centered-cell">Object Type</th>
-                                                <td>{{ $issue.ObjectType }}</td>
-                                            </tr>
-                                            {{ end }}
-
-                                            <!-- Only show if ObjectName is present -->
-                                            {{ if $issue.ObjectName }}
-                                            <tr>
-                                                <th class="centered-cell">Object Name</th>
-                                                <td>{{ $issue.ObjectName }}</td>
-                                            </tr>
-                                            {{ end }}
-
-                                            <tr>
-                                                <th class="centered-cell">SQL Statement</th>
-                                                <td>
-                                                    {{ if $issue.SqlStatement }}
-                                                    <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                        <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
-                                                    </div>
-                                                    {{ else }}
-                                                    <!-- display N/A if Sql Statement not present -->
-                                                    N/A
-                                                    {{ end }}
-                                                </td>
-                                            </tr>
-
-                                            <tr>
-                                                <th class="centered-cell">Docs Link</th>
-                                                <td>
-                                                    {{ if $issue.DocsLink }}
-                                                    <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
-                                                    {{ else }}
-                                                    <!-- display N/A if docs link not present -->
-                                                    N/A
-                                                    {{ end }}
-                                                </td>
-                                            </tr>
-
-                                            <!-- Only show if there is a supported version -->
-                                            {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
-                                            {{ if $verStr }}
-                                            <tr>
-                                                <th class="centered-cell">Supported In (versions)</th>
-                                                <td>
-                                                    {{ $verStr }}
-                                                </td>
-                                            </tr>
-                                            {{ end }}
-
-                                            <tr>
-                                                <th class="centered-cell">Description</th>
-                                                <td>
-                                                    {{ if $issue.Description }}
-                                                    <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                        <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
-                                                    </div>
-                                                    {{ else }}
-                                                    <!-- display N/A if description not present -->
-                                                        N/A
-                                                    {{ end }}
-                                                </td>
-                                            </tr>
-
-                                        </tbody>
-                                    </table>
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                {{ if $issue.CategoryDescription }}
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                {{ $issue.CategoryDescription }}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                {{ end }}
+                                                {{ if $issue.ObjectType }}
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>{{ $issue.ObjectType }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                {{ if $issue.ObjectName }}
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>{{ $issue.ObjectName }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        {{ if $issue.SqlStatement }}
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
+                                                            </div>
+                                                        {{ else }}
+                                                            N/A
+                                                        {{ end }}
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="centered-cell">Docs Link</th>
+                                                    <td>
+                                                        {{ if $issue.DocsLink }}
+                                                            <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
+                                                        {{ else }}
+                                                            N/A
+                                                        {{ end }}
+                                                    </td>
+                                                </tr>
+                                                {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                                                {{ if $verStr }}
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>{{ $verStr }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        {{ if $issue.Description }}
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
+                                                            </div>
+                                                        {{ else }}
+                                                            N/A
+                                                        {{ end }}
+                                                    </td>
+                                                </tr>
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </td>
                         </tr>
                     </tbody>
                 {{ end }}
-            </tbody>
-        </table>
+            </table>
         {{ else }}
-        <p>No issues were found in the assessment.</p>
+            <p>No issues were found in the assessment.</p>
         {{ end }}
 
-        {{if .Notes}}
+        {{ if .Notes }}
             <hr>
             <div>
                 <h4>Notes</h4>
-                    <ul id="notes-list">
-                        {{range .Notes}}
-                            <li>{{.}}</li>
-                        {{end}}
-                    </ul>
+                <ul id="notes-list">
+                    {{ range .Notes }}
+                        <li>{{ . }}</li>
+                    {{ end }}
+                </ul>
             </div>
-        {{end}}
-
+        {{ end }}
     </div>
 </body>
 <!--
-  This script tag is placed at before the end of the body tag to ensure the DOM elements is fully loaded
+  This script tag is placed at after the end of the body tag to ensure the DOM elements is fully loaded
   before it runs. This is necessary because placing the script in the head would
   execute it before elements with id #notes-list are available in the DOM, causing it
   to miss URLs.
@@ -566,19 +659,16 @@
                 aTag.classList.add("highlight-link");
                 aTag.target = "_blank";
                 li.appendChild(aTag);
-
                 if (charThatWillBeRemoved) {
                     li.appendChild(document.createTextNode(charThatWillBeRemoved));
                 }
             } else {
                 li.appendChild(document.createTextNode(word));
             }
-
             if (index < words.length - 1) {
                 li.appendChild(document.createTextNode(' '));
             }
         });
     });
-
 </script>
 </html>
