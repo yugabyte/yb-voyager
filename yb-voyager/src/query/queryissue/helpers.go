@@ -104,11 +104,17 @@ var UnsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
+const (
+	TIMESTAMPTZ = "timestamptz"
+	TIMESTAMP   = "timestamp"
+	DATE        = "date"
+)
+
 var hotspotRangeIndexesTypes = []string{
 	//Hotspots on Timestamp/date indexes
-	"timestamptz",
-	"timestamp",
-	"date",
+	TIMESTAMPTZ,
+	TIMESTAMP,
+	DATE,
 }
 
 var unsupportedRangeAggFunctions = mapset.NewThreadUnsafeSet([]string{

@@ -673,6 +673,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						))
 					}
 				}
+				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
 				if tableHasHotspotTypes && idx == 0 {
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
@@ -705,9 +706,9 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
-	case "timestamp", "timestamptz":
+	case TIMESTAMP, TIMESTAMPTZ:
 		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, ""))
-	case "date":
+	case DATE:
 		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, ""))
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
@@ -718,9 +719,9 @@ func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([
 func reportUseRangeShardingIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
-	case "timestamp", "timestamptz":
+	case TIMESTAMP, TIMESTAMPTZ:
 		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
-	case "date":
+	case DATE:
 		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))
 	default:
 		return issues, fmt.Errorf("unexpected type for the range indexes")

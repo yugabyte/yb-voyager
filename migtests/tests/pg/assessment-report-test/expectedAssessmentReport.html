@@ -3566,7 +3566,7 @@ INHERITS (schema2.parent_table);</pre>
                                             
                                             <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
                                                 <pre style="white-space: pre-wrap; margin:0;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
-To address this issue and improve query performance, application-level sharding is recommended. Ensure that the range-sharding is also configured on this column.  
+To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.  
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
                                             </div>
                                             
@@ -3667,7 +3667,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                             
                                             <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
                                                 <pre style="white-space: pre-wrap; margin:0;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
-To address this issue and improve query performance, application-level sharding is recommended. Ensure that the range-sharding is also configured on this column.  
+To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.  
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
                                             </div>
                                             
