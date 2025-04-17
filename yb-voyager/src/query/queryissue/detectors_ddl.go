@@ -650,7 +650,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 					issues = append(issues, hotspotIssues...)
 				} else if isHotspotType && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
-					//If
+					//If its a hotspot type and ASC DESC clause is not present in definition
 					rangeShardingIssues, err := reportUseRangeShardingIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
 					if err != nil {
 						return nil, err
@@ -685,10 +685,10 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 				} else if tableHasHotspotTypes && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
 
-					//If first column is hotspot type then only report hotspot issue
-					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
-					if isHotspotType {
-						rangeShardingIssues, err := reportUseRangeShardingIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
+					//column is hotspot type and ASC DESC clause is not present then only report use range-sharding issue
+					rangeShardingType, isRangeShardingType := columnWithHotspotTypes[colName]
+					if isRangeShardingType {
+						rangeShardingIssues, err := reportUseRangeShardingIndexes(rangeShardingType, obj.GetObjectType(), obj.GetObjectName())
 						if err != nil {
 							return nil, err
 						}

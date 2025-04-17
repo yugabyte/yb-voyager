@@ -121,5 +121,5 @@ const (
 
 var RangeShardingClauses = []pg_query.SortByDir{
 	ASC_SORTING_ORDER,
-	ASC_SORTING_ORDER,
+	DESC_SORTING_ORDER,
 }
