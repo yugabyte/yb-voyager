@@ -153,6 +153,19 @@ GRANT pg_read_all_stats to :voyager_user;
     \echo '--- Creating Replication Group ---'
     CREATE ROLE :replication_group;
 
+    -- Prompt the user to let them know that ownership of the tables will be transferred to the replication group and proceed only if they confirm
+    \echo ''
+    \echo 'Transferring ownership of all tables in the specified schemas to the specified replication group. The migration user and the original owner of the tables will be added to the replication group.'
+    -- Only 'yes' or 'no' are valid inputs. 'y' and 'n' are not valid inputs.
+    \prompt 'Proceed with the transfer of ownership? (yes/no): ' proceed
+
+    \if :proceed
+        \echo 'Proceeding with the transfer of ownership...'
+    \else
+        \echo 'Aborting the script.'
+        \q
+    \endif
+
     -- Add the original owner of the tables to the group
     \echo ''
     \echo '--- Adding Original Owner to Replication Group ---'

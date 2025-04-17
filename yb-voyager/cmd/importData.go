@@ -41,6 +41,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -68,6 +69,10 @@ var valueConverter dbzm.ValueConverter
 var TableNameToSchema *utils.StructMap[sqlname.NameTuple, map[string]map[string]string]
 var conflictDetectionCache *ConflictDetectionCache
 var targetDBDetails *callhome.TargetDBDetails
+var skipReplicationChecks utils.BoolStr
+var skipNodeHealthChecks utils.BoolStr
+var skipDiskUsageHealthChecks utils.BoolStr
+var progressReporter *ImportDataProgressReporter
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -525,6 +530,11 @@ func importData(importFileTasks []*ImportFileTask) {
 			utils.ErrExit("Failed to start adaptive parallelism: %s", err)
 		}
 	}
+	progressReporter = NewImportDataProgressReporter(bool(disablePb))
+	err = startMonitoringTargetYBHealth()
+	if err != nil {
+		utils.ErrExit("Failed to start monitoring health: %s", err)
+	}
 	if adaptiveParallelismStarted {
 		utils.PrintAndLog("Using 1-%d parallel jobs (adaptive)", tconf.MaxParallelism)
 	} else {
@@ -582,9 +592,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			if err != nil {
 				utils.ErrExit("Failed to get max parallel connections: %s", err)
 			}
-
-			progressReporter := NewImportDataProgressReporter(bool(disablePb))
-
 			if importerRole == TARGET_DB_IMPORTER_ROLE {
 				importDataAllTableMetrics := createInitialImportDataTableMetrics(pendingTasks)
 				controlPlane.UpdateImportedRowCount(importDataAllTableMetrics)
@@ -684,7 +691,6 @@ func importData(importFileTasks []*ImportFileTask) {
 			displayImportedRowCountSnapshot(state, importFileTasks)
 		}
 	}
-
 	fmt.Printf("\nImport data complete.\n")
 
 	switch importerRole {
@@ -894,6 +900,52 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 		}
 	}
 	return taskImporter, nil
+}
+
+func startMonitoringTargetYBHealth() error {
+	if !slices.Contains([]string{TARGET_DB_IMPORTER_ROLE, IMPORT_FILE_ROLE}, importerRole) {
+		return nil
+	}
+	if skipNodeHealthChecks && skipDiskUsageHealthChecks && skipReplicationChecks {
+		return nil
+	}
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		return fmt.Errorf("monitoring health is only supported if target DB is YugabyteDB")
+	}
+	go func() {
+		//for now not sending any other parameters as not required for monitor usage
+		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, "", "", nil)
+		err := ybClient.Init()
+		if err != nil {
+			log.Errorf("error intialising the yb client : %v", err)
+		}
+		monitorTDBHealth := monitor.NewMonitorTargetYBHealth(yb, bool(skipDiskUsageHealthChecks), bool(skipReplicationChecks), bool(skipNodeHealthChecks), ybClient, func(info string) {
+			displayMonitoringInformationOnTheConsole(info)
+		})
+		err = monitorTDBHealth.StartMonitoring()
+		if err != nil {
+			log.Errorf("error monitoring the target health: %v", err)
+		}
+	}()
+	return nil
+}
+
+func displayMonitoringInformationOnTheConsole(info string) {
+	if info == "" {
+		return
+	}
+	if disablePb {
+		utils.PrintAndLog(info)
+	} else {
+		log.Warnf("monitoring: %v", info)
+		if importPhase == dbzm.MODE_SNAPSHOT || importerRole == IMPORT_FILE_ROLE {
+			progressReporter.DisplayInformation(info)
+		} else {
+			statsReporter.DisplayInformation(info)
+
+		}
+	}
 }
 
 func startAdaptiveParallelism() (bool, error) {
