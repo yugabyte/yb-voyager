@@ -68,6 +68,8 @@ type MonitorTargetYBHealth struct {
 
 	//Display function for the printing any msg on the console
 	displayMsgFunc func(string)
+
+	loadBalancerEnabled bool
 }
 
 func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthChecks bool, skipReplicationChecks bool, skipNodeHealthChecks bool, ybClient YugabyteDBClient, displayMsgFunc func(msg string)) MonitorTargetYBHealth {
@@ -85,7 +87,8 @@ func NewMonitorTargetYBHealth(yb TargetDBForMonitorHealth, skipDiskUsageHealthCh
 func (m *MonitorTargetYBHealth) StartMonitoring() error {
 
 	var err error
-	loadBalancerEnabled, servers, err := m.yb.GetYBServers()
+	var servers []*tgtdb.TargetConf
+	m.loadBalancerEnabled, servers, err = m.yb.GetYBServers()
 	if err != nil {
 		return fmt.Errorf("error fetching servers informtion: %v", err)
 	}
@@ -93,7 +96,7 @@ func (m *MonitorTargetYBHealth) StartMonitoring() error {
 		m.nodesStatus[server.Host] = true
 	}
 
-	if loadBalancerEnabled {
+	if m.loadBalancerEnabled {
 		m.skipNodeCheck = true
 	}
 
@@ -241,7 +244,10 @@ func (m *MonitorTargetYBHealth) monitorReplicationOnTarget() error {
 	if numOfSlots > 0 {
 		utils.ErrExit(color.RedString("%s Found replication slot(s): %d.", REPLICATION_GUARDRAIL_ALERT_MSG, numOfSlots))
 	}
-
+	if m.loadBalancerEnabled {
+		//No need to do the ybClient check in this load balancer case or deployements where nodes/ports are not accessible e.g. YBM
+		return nil
+	}
 	numOfStreams, err := m.ybClient.GetNumOfReplicationStreams()
 	if err != nil {
 		return fmt.Errorf("error fetching num of replication streams: %v", err)
