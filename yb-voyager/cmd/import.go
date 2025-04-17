@@ -415,6 +415,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 	}
 
+	// TODO: we might want to lift this restriction for non-transactional COPY (depends on testing of --batch-size flag)
 	if numLinesInASplit > defaultBatchSize {
 		utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
 	}
