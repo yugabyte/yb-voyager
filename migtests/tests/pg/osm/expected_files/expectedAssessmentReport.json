@@ -1,7 +1,7 @@
 {
 	"VoyagerVersion": "IGNORED",
 	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 2 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+	"MigrationComplexityExplanation": "Found 4 Level 1 issue(s), 0 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "test_osm",
@@ -31,7 +31,7 @@
 			{
 				"ObjectType": "INDEX",
 				"TotalCount": 5,
-				"InvalidCount": 1,
+				"InvalidCount": 2,
                 "ObjectNames": "changeset_geom_gist ON public.osm_changeset, created_idx ON public.osm_changeset, tags_idx ON public.osm_changeset, user_id_idx ON public.osm_changeset, user_name_idx ON public.osm_changeset",
 				"Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
 			},
@@ -89,6 +89,32 @@
 			"ObjectName": "postgis",
 			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
 			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
+			"Name": "Hotspots with range-sharded timestamp indexes",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "created_idx ON public.osm_changeset",
+			"SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
+			"Name": "Use range-sharding for indexes on timestamp columns",
+			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "created_idx ON public.osm_changeset",
+			"SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -254,6 +280,7 @@
 	],
 	"Notes": [
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
+		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"
 	]
 }

@@ -633,6 +633,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
 		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES_CATEGORY
+	case slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type):
+		issueType = PERFORMANCE_OPTIMIZATIONS_CATEGORY
 	}
 
 	var constraintIssues = []string{

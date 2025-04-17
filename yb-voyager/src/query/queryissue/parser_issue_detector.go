@@ -44,6 +44,20 @@ type ParserIssueDetector struct {
 	*/
 	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
 
+	/*
+		this will contain the information in this format:
+		public.table1 -> {
+			column1: timestamp | timestampz | date
+			...
+		}
+		schema2.table2 -> {
+			column3: timestamp | timestampz | date
+			...
+		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
+	*/
+	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
+
 	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
 
@@ -71,11 +85,12 @@ type ParserIssueDetector struct {
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnsWithUnsupportedIndexDatatypes: make(map[string]map[string]string),
-		compositeTypes:                       make([]string, 0),
-		enumTypes:                            make([]string, 0),
-		partitionedTablesMap:                 make(map[string]bool),
-		primaryConsInAlter:                   make(map[string]*queryparser.AlterTable),
+		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
+		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
+		compositeTypes:                          make([]string, 0),
+		enumTypes:                               make([]string, 0),
+		partitionedTablesMap:                    make(map[string]bool),
+		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 	}
 }
 
@@ -212,6 +227,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		for _, col := range table.Columns {
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
+			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
 			switch true {
 			case col.IsArrayType:
 				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
@@ -229,6 +245,13 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				if isUDTType { //For UDTs
 					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
 				}
+			case isHotspotType:
+				//For these types like timestamp/date the indexes can create read/write hotspot problem
+				_, ok := p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
+				if !ok {
+					p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()] = make(map[string]string)
+				}
+				p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
 			}
 
 			if col.TypeName == "jsonb" {

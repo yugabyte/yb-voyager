@@ -616,12 +616,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       4. normal index on column with UDTs
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
-	_, ok = d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
-	if ok && index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
-		for _, param := range index.Params {
+	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
+		for idx, param := range index.Params {
 			if param.IsExpression {
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
+				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if param.IsExprCastArrayType {
 					issues = append(issues, NewIndexOnArrayDatatypeIssue(
 						obj.GetObjectType(),
@@ -642,24 +642,58 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						false,
 						"",
 					))
+				} else if isHotspotType && idx == 0 {
+					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
+					if err != nil {
+						return nil, err
+					}
+					issues = append(issues, hotspotIssues...)
 				}
 			} else {
 				colName := param.ColName
-				typeName, ok := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()][colName]
-				if !ok {
-					continue
+				columnWithUnsupportedTypes, tableHasUnsupportedTypes := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
+				columnWithHotspotTypes, tableHasHotspotTypes := d.columnsWithHotspotRangeIndexesDatatypes[index.GetTableName()]
+				if tableHasUnsupportedTypes {
+					typeName, isUnsupportedType := columnWithUnsupportedTypes[colName]
+					if isUnsupportedType {
+						issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
+							obj.GetObjectType(),
+							index.GetObjectName(),
+							typeName,
+							false,
+							"",
+						))
+					}
 				}
-				issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
-					obj.GetObjectType(),
-					index.GetObjectName(),
-					typeName,
-					false,
-					"",
-				))
+				if tableHasHotspotTypes && idx == 0 {
+					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
+					if isHotspotType {
+						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
+						if err != nil {
+							return nil, err
+						}
+						issues = append(issues, hotspotIssues...)
+					}
+				}
 			}
 		}
 	}
 
+	return issues, nil
+}
+
+func reportHotspotsOnIndexes(typeName string, objType string, objName string) ([]QueryIssue, error) {
+	var issues []QueryIssue
+	switch typeName {
+	case "timestamp", "timestampz":
+		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, ""))
+		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, ""))
+	case "date":
+		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, ""))
+		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, ""))
+	default:
+		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
+	}
 	return issues, nil
 }
 

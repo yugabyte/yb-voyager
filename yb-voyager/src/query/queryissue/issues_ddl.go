@@ -2007,3 +2007,55 @@ func NewExtensionsIssue(objectType string, objectName string, sqlStatement strin
 	issue := extensionsIssue
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var hotspotsOnDateIndexes = issue.Issue{
+	Type:        HOTSPOTS_ON_DATE_INDEX,
+	Name:        HOTSPOTS_ON_DATE_INDEX_ISSUE,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+}
+
+func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(hotspotsOnDateIndexes, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var hotspotsOnTimestampIndexes = issue.Issue{
+	Type:        HOTSPOTS_ON_TIMESTAMP_INDEX,
+	Name:        HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+}
+
+func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(hotspotsOnTimestampIndexes, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var suggestionOnDateIndexesForRangeSharding = issue.Issue{
+	Type:        RANGE_SHARDING_DATE_INDEX,
+	Name:        RANGE_SHARDING_DATE_INDEX_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+}
+
+func NewSuggestionOnDateIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(suggestionOnDateIndexesForRangeSharding, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var suggestionOnTimestampIndexesForRangeSharding = issue.Issue{
+	Type:        RANGE_SHARDING_TIMESTAMP_INDEX,
+	Name:        RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
+	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+}
+
+func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
+	return newQueryIssue(suggestionOnTimestampIndexesForRangeSharding, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
