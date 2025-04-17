@@ -108,6 +108,8 @@ const (
 	EXCLUSION_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_EXCLUSION
 	FOREIGN_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_FOREIGN
 	DEFAULT_SORTING_ORDER          = pg_query.SortByDir_SORTBY_DEFAULT
+	ASC_SORTING_ORDER              = pg_query.SortByDir_SORTBY_ASC
+	DESC_SORTING_ORDER             = pg_query.SortByDir_SORTBY_DESC
 	PRIMARY_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_PRIMARY
 	UNIQUE_CONSTR_TYPE             = pg_query.ConstrType_CONSTR_UNIQUE
 	LIST_PARTITION                 = pg_query.PartitionStrategy_PARTITION_STRATEGY_LIST
@@ -116,3 +118,8 @@ const (
 	COMMIT_PREPARED_TRANSACTION_KIND   = pg_query.TransactionStmtKind_TRANS_STMT_COMMIT_PREPARED
 	ROLLBACK_PREPARED_TRANSACTION_KIND = pg_query.TransactionStmtKind_TRANS_STMT_ROLLBACK_PREPARED
 )
+
+var RangeShardingClauses = []pg_query.SortByDir{
+	ASC_SORTING_ORDER,
+	ASC_SORTING_ORDER,
+}
