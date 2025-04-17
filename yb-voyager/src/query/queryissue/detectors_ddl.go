@@ -617,7 +617,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
 	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
-		for _, param := range index.Params {
+		for idx, param := range index.Params {
 			if param.IsExpression {
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
@@ -642,7 +642,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						false,
 						"",
 					))
-				} else if isHotspotType {
+				} else if isHotspotType && idx == 0 {
 					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName())
 					if err != nil {
 						return nil, err
@@ -665,7 +665,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						))
 					}
 				}
-				if tableHasHotspotTypes {
+				if tableHasHotspotTypes && idx == 0 {
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
 						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName())
