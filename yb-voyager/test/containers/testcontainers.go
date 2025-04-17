@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 
@@ -22,6 +23,7 @@ type TestContainer interface {
 	GetHostPort() (string, int, error)
 	GetConfig() ContainerConfig
 	GetConnectionString() string
+	GetConnection() (*sql.DB, error)
 	/*
 		TODOs
 			// Function to run sql script for a specific test case

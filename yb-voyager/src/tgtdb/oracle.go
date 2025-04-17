@@ -175,6 +175,10 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
+func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	panic("GetPrimaryKeyColumns not implemented for Oracle")
+}
+
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -232,7 +236,11 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+	if nonTxnPath {
+		panic("non-transactional path for import batch is not supported in Oracle")
+	}
+
 	tdb.Lock()
 	defer tdb.Unlock()
 

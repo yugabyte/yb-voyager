@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -117,6 +118,21 @@ func (pg *PostgresContainer) GetConnectionString() string {
 	}
 
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s?sslmode=disable", config.User, config.Password, host, port, config.DBName)
+}
+
+func (pg *PostgresContainer) GetConnection() (*sql.DB, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+
+	connStr := pg.GetConnectionString()
+
+	conn, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open connection to postgres: %w", err)
+	}
+
+	return conn, nil
 }
 
 func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
