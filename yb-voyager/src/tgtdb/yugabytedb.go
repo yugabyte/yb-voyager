@@ -488,9 +488,9 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if nonTxnPath {
-			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args)
+			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args, nonTxnPath)
 		} else {
-			rowsAffected, err = yb.importBatchWithTxn(conn, batch, args)
+			rowsAffected, err = yb.importBatchWithTxn(conn, batch, args, nonTxnPath)
 		}
 		return false, err // Retries are now implemented in the caller.
 	}
@@ -498,7 +498,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
+func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (rowsAffected int64, err error) {
 	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
 	ctx := context.Background()
 	var tx pgx.Tx
@@ -525,15 +525,15 @@ func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args
 
 	// using the conn on which the transaction is executing which should ensure -
 	// all DB operations inside copyBatchCore will be a part of the transaction
-	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args)
+	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args, nonTxnPath)
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatchNoTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
-	return yb.copyBatchCore(conn, batch, args)
+func (yb *TargetYugabyteDB) importBatchNoTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (int64, error) {
+	return yb.copyBatchCore(conn, batch, args, nonTxnPath)
 }
 
-func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (int64, error) {
 	// 1. Open the batch file
 	file, err := batch.Open()
 	if err != nil {
@@ -556,7 +556,12 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	// 4. Import the batch using COPY command.
 	var res pgconn.CommandTag
-	copyCommand := args.GetYBCopyStatement()
+	var copyCommand string
+	if nonTxnPath {
+		copyCommand = args.GetYBNonTxnCopyStatement()
+	} else {
+		copyCommand = args.GetYBTxnCopyStatement()
+	}
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {

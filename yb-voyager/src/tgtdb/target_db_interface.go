@@ -111,7 +111,7 @@ type ImportBatchArgs struct {
 	RowsPerTransaction int64
 }
 
-func (args *ImportBatchArgs) GetYBCopyStatement() string {
+func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
 	options := args.copyOptions()
 	options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
 	columns := ""
@@ -124,7 +124,7 @@ func (args *ImportBatchArgs) GetYBCopyStatement() string {
 
 // returns YB COPY statement for fast path
 // To trigger COPY fast path, no transaction and ROWS_PER_TRANSACTION should be used
-func (args *ImportBatchArgs) GetYBFastCopyStatement() string {
+func (args *ImportBatchArgs) GetYBNonTxnCopyStatement() string {
 	options := args.copyOptions()
 	columns := ""
 	if len(args.Columns) > 0 {
