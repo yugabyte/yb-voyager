@@ -45,19 +45,12 @@ EXPECTED = {
 	"foo": len(FOO_DATA),
 	"foo2": len(FOO2_DATA),
 	"foo3": len(FOO3_DATA),
-	"gcs_text": 3,
-	"gcs_csv": 3,
-	"gcs_multitable_t1": 3,
-	"gcs_multitable_t2": 3,
-	"gcs_csv_with_header": 3,
-	"gcs_volume": 1000000,
-	"gcs_quote_escape_char1": 3,
 	"accounts_large": 0,
 	"large_rows_test":5
 }
 
 if os.getenv("RUN_LARGE_IMPORT_DATA_FILE_TEST") == "true":
-    EXPECTED["accounts_large"] = 350000000
+	EXPECTED["accounts_large"] = 350000000
 
 EXPECTED_NON_PUBLIC = {
 	"smsa": 60,
@@ -120,14 +113,27 @@ TABLE_NAME_DATA_MAP = {
 	"test_default_delimiter_csv": TEST_DEFAULT_DELIMITER,
 	"foo": FOO_DATA,
 	"foo2": FOO2_DATA,
-	"foo3": FOO3_DATA,
-	"gcs_text": S3_TEXT_DATA,
-	"gcs_csv": S3_CSV_DATA,
-	"gcs_multitable_t1": S3_T1_DATA,
-	"gcs_multitable_t2": S3_T2_DATA,
-	"gcs_csv_with_header": S3_CSV_WITH_HEADER_DATA,
-	"gcs_quote_escape_char1": T1_TABLE_DATA,
+	"foo3": FOO3_DATA
 }
+
+if os.getenv("DOCKERISED_INSTALLATION") != "true":
+	EXPECTED.update({
+		"gcs_text": 3,
+		"gcs_csv": 3,
+		"gcs_multitable_t1": 3,
+		"gcs_multitable_t2": 3,
+		"gcs_csv_with_header": 3,
+		"gcs_volume": 1000000,
+		"gcs_quote_escape_char1": 3
+	})	
+	TABLE_NAME_DATA_MAP.update({
+		"gcs_text": S3_TEXT_DATA,
+		"gcs_csv": S3_CSV_DATA,
+		"gcs_multitable_t1": S3_T1_DATA,
+		"gcs_multitable_t2": S3_T2_DATA,
+		"gcs_csv_with_header": S3_CSV_WITH_HEADER_DATA,
+		"gcs_quote_escape_char1": T1_TABLE_DATA
+	})
 
 def file_import_done_checks(tgt):
 	fetched_row_cnts = tgt.row_count_of_all_tables()
