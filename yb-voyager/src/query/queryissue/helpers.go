@@ -104,6 +104,13 @@ var UnsupportedIndexDatatypes = []string{
 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
 }
 
+var hotspotRangeIndexesTypes = []string{
+	//Hotspots on Timestamp/date indexes
+	"timestampz",
+	"timestamp",
+	"date",
+}
+
 var unsupportedRangeAggFunctions = mapset.NewThreadUnsafeSet([]string{
 	//range agg function added in PG15 - https://www.postgresql.org/docs/15/functions-aggregate.html#:~:text=Yes-,range_agg,-(%20value%20anyrange
 	"range_agg", "range_intersect_agg",

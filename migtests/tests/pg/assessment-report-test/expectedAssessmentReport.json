@@ -57,9 +57,9 @@
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 28,
-				"InvalidCount": 24,
-				"ObjectNames": "idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx8 ON public.combined_tbl, idx9 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, users_unique_nulls_not_distinct_index_email ON public.users_unique_nulls_not_distinct_index, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1, users_unique_nulls_not_distinct_index_email ON schema2.users_unique_nulls_not_distinct_index"
+				"TotalCount": 30,
+				"InvalidCount": 26,
+				"ObjectNames": "idx_orders_shipped_date ON public.orders2, idx_ordersentry_processed_at ON public.ordersentry, idx1 ON public.combined_tbl, idx2 ON public.combined_tbl, idx3 ON public.combined_tbl, idx4 ON public.combined_tbl, idx5 ON public.combined_tbl, idx6 ON public.combined_tbl, idx7 ON public.combined_tbl, idx8 ON public.combined_tbl, idx9 ON public.combined_tbl, idx_array ON public.documents, idx_box_data ON public.mixed_data_types_table1, idx_box_data_brin ON public.mixed_data_types_table1, idx_citext ON public.citext_type, idx_citext1 ON public.citext_type, idx_citext2 ON public.citext_type, idx_inet ON public.inet_type, idx_inet1 ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_point_data ON public.mixed_data_types_table1, idx_valid ON public.test_jsonb, tsquery_idx ON public.ts_query_table, tsvector_idx ON public.documents, users_unique_nulls_not_distinct_index_email ON public.users_unique_nulls_not_distinct_index, idx_box_data ON schema2.mixed_data_types_table1, idx_box_data_spgist ON schema2.mixed_data_types_table1, idx_point_data ON schema2.mixed_data_types_table1, users_unique_nulls_not_distinct_index_email ON schema2.users_unique_nulls_not_distinct_index"
 			},
 			{
 				"ObjectType": "FUNCTION",
@@ -206,7 +206,7 @@
 				"test_views.view_table1",
 				"test_views.xyz_mview"
 			],
-			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 109 objects (91 tables/materialized views and 18 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
+			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 111 objects (91 tables/materialized views and 20 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 28 objects (5 tables/materialized views and 23 explicit/implicit indexes) with 0.00 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
 				"public.combined_tbl",
 				"public.test_jsonb",
@@ -1962,6 +1962,58 @@
 			"MinimumVersionsFixedIn": null
 		},
 		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "HOTSPOTS_ON_DATE_INDEX",
+			"Name": "Hotspots with range-sharded date indexes",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "idx_orders_shipped_date ON public.orders2",
+			"SqlStatement": "CREATE INDEX idx_orders_shipped_date ON public.orders2 USING btree (shipped_date);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
+			"Name": "Hotspots with range-sharded timestamp indexes",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "idx_ordersentry_processed_at ON public.ordersentry",
+			"SqlStatement": "CREATE INDEX idx_ordersentry_processed_at ON public.ordersentry USING btree (processed_at);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "RANGE_SHARDING_DATE_INDEX",
+			"Name": "Use range-sharding for indexes on date columns",
+			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "idx_orders_shipped_date ON public.orders2",
+			"SqlStatement": "CREATE INDEX idx_orders_shipped_date ON public.orders2 USING btree (shipped_date);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
+			"Name": "Use range-sharding for indexes on timestamp columns",
+			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
+			"ObjectName": "idx_ordersentry_processed_at ON public.ordersentry",
+			"SqlStatement": "CREATE INDEX idx_ordersentry_processed_at ON public.ordersentry USING btree (processed_at);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+			"MinimumVersionsFixedIn": null
+		},
+		{
 			"Category": "migration_caveats",
 			"CategoryDescription": "Migration Caveats highlights the current limitations with the migration workflow.",
 			"Type": "UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_USER_DEFINED",
@@ -3222,6 +3274,30 @@
 			"SizeInBytes": 8192
 		},
 		{
+			"SchemaName": "public",
+			"ObjectName": "idx_ordersentry_processed_at",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "index",
+			"ParentTableName": "public.ordersentry",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_orders_shipped_date",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "index",
+			"ParentTableName": "public.orders2",
+			"SizeInBytes": 8192
+		},
+		{
 			"SchemaName": "test_views",
 			"ObjectName": "view_table1",
 			"RowCount": 11,
@@ -4424,6 +4500,7 @@
 	],
 	"Notes": [
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
+		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>",
 		"There are some Unlogged tables in the schema. They will be created as regular LOGGED tables in YugabyteDB as unlogged tables are not supported."
 	]
