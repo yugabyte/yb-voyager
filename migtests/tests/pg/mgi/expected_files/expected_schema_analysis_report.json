@@ -1352,18 +1352,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "acc_accession_idx_creation_date ON mgd.acc_accession",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX acc_accession_idx_creation_date ON mgd.acc_accession USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "acc_accession_idx_modification_date ON mgd.acc_accession",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX acc_accession_idx_modification_date ON mgd.acc_accession USING btree (modification_date);",
@@ -1371,18 +1359,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "acc_accession_idx_modification_date ON mgd.acc_accession",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX acc_accession_idx_modification_date ON mgd.acc_accession USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1400,18 +1376,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "acc_accessionreference_idx_creation_date ON mgd.acc_accessionreference",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX acc_accessionreference_idx_creation_date ON mgd.acc_accessionreference USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference USING btree (modification_date);",
@@ -1419,18 +1383,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX acc_accessionreference_idx_modification_date ON mgd.acc_accessionreference USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1448,18 +1400,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_allele_cellline_idx_creation_date ON mgd.all_allele_cellline",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_cellline_idx_creation_date ON mgd.all_allele_cellline USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline USING btree (modification_date);",
@@ -1467,18 +1407,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_cellline_idx_modification_date ON mgd.all_allele_cellline USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1496,18 +1424,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_allele_idx_creation_date ON mgd.all_allele",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_idx_creation_date ON mgd.all_allele USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_allele_idx_modification_date ON mgd.all_allele",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_allele_idx_modification_date ON mgd.all_allele USING btree (modification_date);",
@@ -1515,18 +1431,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_allele_idx_modification_date ON mgd.all_allele",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_idx_modification_date ON mgd.all_allele USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1544,18 +1448,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_allele_mutation_idx_creation_date ON mgd.all_allele_mutation",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_mutation_idx_creation_date ON mgd.all_allele_mutation USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation USING btree (modification_date);",
@@ -1563,18 +1455,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_allele_mutation_idx_modification_date ON mgd.all_allele_mutation USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1592,18 +1472,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_cellline_derivation_idx_creation_date ON mgd.all_cellline_derivation",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_cellline_derivation_idx_creation_date ON mgd.all_cellline_derivation USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation USING btree (modification_date);",
@@ -1611,18 +1479,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_cellline_derivation_idx_modification_date ON mgd.all_cellline_derivation USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1640,18 +1496,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_cellline_idx_creation_date ON mgd.all_cellline",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_cellline_idx_creation_date ON mgd.all_cellline USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_cellline_idx_modification_date ON mgd.all_cellline",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_cellline_idx_modification_date ON mgd.all_cellline USING btree (modification_date);",
@@ -1659,18 +1503,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_cellline_idx_modification_date ON mgd.all_cellline",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_cellline_idx_modification_date ON mgd.all_cellline USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1688,18 +1520,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_variant_idx_creation_date ON mgd.all_variant",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_variant_idx_creation_date ON mgd.all_variant USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_variant_idx_modification_date ON mgd.all_variant",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_variant_idx_modification_date ON mgd.all_variant USING btree (modification_date);",
@@ -1707,18 +1527,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_variant_idx_modification_date ON mgd.all_variant",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_variant_idx_modification_date ON mgd.all_variant USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1736,18 +1544,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "all_variant_sequence_idx_creation_date ON mgd.all_variant_sequence",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_variant_sequence_idx_creation_date ON mgd.all_variant_sequence USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence USING btree (modification_date);",
@@ -1755,18 +1551,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX all_variant_sequence_idx_modification_date ON mgd.all_variant_sequence USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1784,18 +1568,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_books_idx_creation_date ON mgd.bib_books",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_books_idx_creation_date ON mgd.bib_books USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_books_idx_modification_date ON mgd.bib_books",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_books_idx_modification_date ON mgd.bib_books USING btree (modification_date);",
@@ -1803,18 +1575,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_books_idx_modification_date ON mgd.bib_books",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_books_idx_modification_date ON mgd.bib_books USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1832,18 +1592,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_notes_idx_creation_date ON mgd.bib_notes",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_notes_idx_creation_date ON mgd.bib_notes USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_notes_idx_modification_date ON mgd.bib_notes",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_notes_idx_modification_date ON mgd.bib_notes USING btree (modification_date);",
@@ -1851,18 +1599,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_notes_idx_modification_date ON mgd.bib_notes",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_notes_idx_modification_date ON mgd.bib_notes USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1880,18 +1616,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_refs_idx_creation_date ON mgd.bib_refs",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_refs_idx_creation_date ON mgd.bib_refs USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_refs_idx_modification_date ON mgd.bib_refs",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_refs_idx_modification_date ON mgd.bib_refs USING btree (modification_date);",
@@ -1899,18 +1623,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_refs_idx_modification_date ON mgd.bib_refs",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_refs_idx_modification_date ON mgd.bib_refs USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1928,18 +1640,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_relevance_idx_creation_date ON mgd.bib_workflow_relevance",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_relevance_idx_creation_date ON mgd.bib_workflow_relevance USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance USING btree (modification_date);",
@@ -1947,18 +1647,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_relevance_idx_modification_date ON mgd.bib_workflow_relevance USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -1976,18 +1664,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_status_idx_creation_date ON mgd.bib_workflow_status",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_status_idx_creation_date ON mgd.bib_workflow_status USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status USING btree (modification_date);",
@@ -1995,18 +1671,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_status_idx_modification_date ON mgd.bib_workflow_status USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2024,18 +1688,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_tag_idx_creation_date ON mgd.bib_workflow_tag",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_tag_idx_creation_date ON mgd.bib_workflow_tag USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag USING btree (modification_date);",
@@ -2043,18 +1695,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX bib_workflow_tag_idx_modification_date ON mgd.bib_workflow_tag USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2072,18 +1712,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "go_tracking_idx_completion_date ON mgd.go_tracking",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX go_tracking_idx_completion_date ON mgd.go_tracking USING btree (completion_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "go_tracking_idx_creation_date ON mgd.go_tracking",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX go_tracking_idx_creation_date ON mgd.go_tracking USING btree (creation_date);",
@@ -2091,18 +1719,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "go_tracking_idx_creation_date ON mgd.go_tracking",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX go_tracking_idx_creation_date ON mgd.go_tracking USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2120,18 +1736,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "go_tracking_idx_modification_date ON mgd.go_tracking",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX go_tracking_idx_modification_date ON mgd.go_tracking USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair USING btree (creation_date);",
@@ -2139,18 +1743,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_allelepair_idx_creation_date ON mgd.gxd_allelepair USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2168,18 +1760,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_allelepair_idx_modification_date ON mgd.gxd_allelepair",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_allelepair_idx_modification_date ON mgd.gxd_allelepair USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_antibody_idx_creation_date ON mgd.gxd_antibody",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_antibody_idx_creation_date ON mgd.gxd_antibody USING btree (creation_date);",
@@ -2187,18 +1767,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_antibody_idx_creation_date ON mgd.gxd_antibody",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_antibody_idx_creation_date ON mgd.gxd_antibody USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2216,18 +1784,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_antibody_idx_modification_date ON mgd.gxd_antibody",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_antibody_idx_modification_date ON mgd.gxd_antibody USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_antigen_idx_creation_date ON mgd.gxd_antigen",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_antigen_idx_creation_date ON mgd.gxd_antigen USING btree (creation_date);",
@@ -2235,18 +1791,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_antigen_idx_creation_date ON mgd.gxd_antigen",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_antigen_idx_creation_date ON mgd.gxd_antigen USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2264,18 +1808,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_antigen_idx_modification_date ON mgd.gxd_antigen",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_antigen_idx_modification_date ON mgd.gxd_antigen USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_assay_idx_creation_date ON mgd.gxd_assay",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_assay_idx_creation_date ON mgd.gxd_assay USING btree (creation_date);",
@@ -2283,18 +1815,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_assay_idx_creation_date ON mgd.gxd_assay",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_assay_idx_creation_date ON mgd.gxd_assay USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2312,18 +1832,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_assay_idx_modification_date ON mgd.gxd_assay",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_assay_idx_modification_date ON mgd.gxd_assay USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_genotype_idx_creation_date ON mgd.gxd_genotype",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_genotype_idx_creation_date ON mgd.gxd_genotype USING btree (creation_date);",
@@ -2331,18 +1839,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_genotype_idx_creation_date ON mgd.gxd_genotype",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_genotype_idx_creation_date ON mgd.gxd_genotype USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2360,18 +1856,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_genotype_idx_modification_date ON mgd.gxd_genotype",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_genotype_idx_modification_date ON mgd.gxd_genotype USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment USING btree (creation_date);",
@@ -2379,18 +1863,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htexperiment_idx_creation_date ON mgd.gxd_htexperiment USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2408,18 +1880,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_htexperiment_idx_modification_date ON mgd.gxd_htexperiment",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htexperiment_idx_modification_date ON mgd.gxd_htexperiment USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample USING btree (creation_date);",
@@ -2427,18 +1887,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htrawsample_idx_creation_date ON mgd.gxd_htrawsample USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2456,18 +1904,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_htrawsample_idx_modification_date ON mgd.gxd_htrawsample",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htrawsample_idx_modification_date ON mgd.gxd_htrawsample USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_htsample_idx_creation_date ON mgd.gxd_htsample",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_htsample_idx_creation_date ON mgd.gxd_htsample USING btree (creation_date);",
@@ -2475,18 +1911,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_htsample_idx_creation_date ON mgd.gxd_htsample",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htsample_idx_creation_date ON mgd.gxd_htsample USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2504,18 +1928,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_htsample_idx_modification_date ON mgd.gxd_htsample",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_htsample_idx_modification_date ON mgd.gxd_htsample USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_index_idx_creation_date ON mgd.gxd_index",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_index_idx_creation_date ON mgd.gxd_index USING btree (creation_date);",
@@ -2523,18 +1935,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_index_idx_creation_date ON mgd.gxd_index",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_index_idx_creation_date ON mgd.gxd_index USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2552,18 +1952,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_index_idx_modification_date ON mgd.gxd_index",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_index_idx_modification_date ON mgd.gxd_index USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages USING btree (creation_date);",
@@ -2571,18 +1959,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_index_stages_idx_creation_date ON mgd.gxd_index_stages USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2600,18 +1976,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "gxd_index_stages_idx_modification_date ON mgd.gxd_index_stages",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX gxd_index_stages_idx_modification_date ON mgd.gxd_index_stages USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "img_image_idx_creation_date ON mgd.img_image",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX img_image_idx_creation_date ON mgd.img_image USING btree (creation_date);",
@@ -2619,18 +1983,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "img_image_idx_creation_date ON mgd.img_image",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX img_image_idx_creation_date ON mgd.img_image USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2648,18 +2000,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "img_image_idx_modification_date ON mgd.img_image",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX img_image_idx_modification_date ON mgd.img_image USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category USING btree (modification_date);",
@@ -2667,18 +2007,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mgi_relationship_category_idx_modification_date ON mgd.mgi_relationship_category USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2696,18 +2024,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "mld_expts_idx_creation_date ON mgd.mld_expts",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mld_expts_idx_creation_date ON mgd.mld_expts USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "mld_expts_idx_modification_date ON mgd.mld_expts",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX mld_expts_idx_modification_date ON mgd.mld_expts USING btree (modification_date);",
@@ -2715,18 +2031,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "mld_expts_idx_modification_date ON mgd.mld_expts",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mld_expts_idx_modification_date ON mgd.mld_expts USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2744,18 +2048,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "mrk_history_idx_creation_date ON mgd.mrk_history",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mrk_history_idx_creation_date ON mgd.mrk_history USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "mrk_history_idx_event_date ON mgd.mrk_history",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX mrk_history_idx_event_date ON mgd.mrk_history USING btree (event_date);",
@@ -2763,18 +2055,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "mrk_history_idx_event_date ON mgd.mrk_history",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mrk_history_idx_event_date ON mgd.mrk_history USING btree (event_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2792,18 +2072,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "mrk_history_idx_modification_date ON mgd.mrk_history",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mrk_history_idx_modification_date ON mgd.mrk_history USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "mrk_marker_idx_creation_date ON mgd.mrk_marker",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX mrk_marker_idx_creation_date ON mgd.mrk_marker USING btree (creation_date);",
@@ -2811,18 +2079,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "mrk_marker_idx_creation_date ON mgd.mrk_marker",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mrk_marker_idx_creation_date ON mgd.mrk_marker USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2840,18 +2096,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "mrk_marker_idx_modification_date ON mgd.mrk_marker",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX mrk_marker_idx_modification_date ON mgd.mrk_marker USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "prb_probe_idx_creation_date ON mgd.prb_probe",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX prb_probe_idx_creation_date ON mgd.prb_probe USING btree (creation_date);",
@@ -2859,18 +2103,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "prb_probe_idx_creation_date ON mgd.prb_probe",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX prb_probe_idx_creation_date ON mgd.prb_probe USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2888,18 +2120,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "prb_probe_idx_modification_date ON mgd.prb_probe",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX prb_probe_idx_modification_date ON mgd.prb_probe USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "prb_strain_idx_creation_date ON mgd.prb_strain",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX prb_strain_idx_creation_date ON mgd.prb_strain USING btree (creation_date);",
@@ -2907,18 +2127,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "prb_strain_idx_creation_date ON mgd.prb_strain",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX prb_strain_idx_creation_date ON mgd.prb_strain USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2936,18 +2144,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "prb_strain_idx_modification_date ON mgd.prb_strain",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX prb_strain_idx_modification_date ON mgd.prb_strain USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache USING btree (annotation_date);",
@@ -2955,18 +2151,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX seq_marker_cache_idx_annotation_date ON mgd.seq_marker_cache USING btree (annotation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -2984,18 +2168,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "seq_probe_cache_idx_annotation_date ON mgd.seq_probe_cache",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX seq_probe_cache_idx_annotation_date ON mgd.seq_probe_cache USING btree (annotation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "seq_sequence_idx_seqrecord_date ON mgd.seq_sequence",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX seq_sequence_idx_seqrecord_date ON mgd.seq_sequence USING btree (seqrecord_date);",
@@ -3003,18 +2175,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "seq_sequence_idx_seqrecord_date ON mgd.seq_sequence",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX seq_sequence_idx_seqrecord_date ON mgd.seq_sequence USING btree (seqrecord_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -3032,18 +2192,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "voc_evidence_idx_creation_date ON mgd.voc_evidence",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX voc_evidence_idx_creation_date ON mgd.voc_evidence USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "voc_evidence_idx_modification_date ON mgd.voc_evidence",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX voc_evidence_idx_modification_date ON mgd.voc_evidence USING btree (modification_date);",
@@ -3051,18 +2199,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "voc_evidence_idx_modification_date ON mgd.voc_evidence",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX voc_evidence_idx_modification_date ON mgd.voc_evidence USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         },
         {
@@ -3080,18 +2216,6 @@
         {
             "IssueType": "performance_optimizations",
             "ObjectType": "INDEX",
-            "ObjectName": "voc_term_idx_creation_date ON mgd.voc_term",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX voc_term_idx_creation_date ON mgd.voc_term USING btree (creation_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
             "ObjectName": "voc_term_idx_modification_date ON mgd.voc_term",
             "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
             "SqlStatement": "CREATE INDEX voc_term_idx_modification_date ON mgd.voc_term USING btree (modification_date);",
@@ -3099,18 +2223,6 @@
             "Suggestion": "",
             "GH": "",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "voc_term_idx_modification_date ON mgd.voc_term",
-            "Reason": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX voc_term_idx_modification_date ON mgd.voc_term USING btree (modification_date);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/mgi/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
             "MinimumVersionsFixedIn": null
         }
     ]
