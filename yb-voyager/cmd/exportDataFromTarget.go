@@ -47,7 +47,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
-		err = verifySSLFlags()
+		err = verifySSLFlags(msr)
 		if err != nil {
 			utils.ErrExit("failed to verify SSL flags: %v", err)
 		}
@@ -80,13 +80,24 @@ func init() {
 		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
-func verifySSLFlags() error {
-	if !lo.Contains([]string{"disable", "require", "verify-ca", "verify-full"}, source.SSLMode) {
-		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
+func verifySSLFlags(msr *metadb.MigrationStatusRecord) error {
+	allowedSSLModes := []string{"disable", "prefer", "allow", "require", "verify-ca", "verify-full"}
+	// the debezium GRPC connector has some limitations because of which prefer and allow are not supported.
+	allowedSSLModesGRPCConnector := []string{"disable", "require", "verify-ca", "verify-full"}
+
+	if msr.UseYBgRPCConnector {
+		if !lo.Contains(allowedSSLModesGRPCConnector, source.SSLMode) {
+			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModesGRPCConnector)
+		}
+		if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
+			return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+		}
+	} else {
+		if !lo.Contains(allowedSSLModes, source.SSLMode) {
+			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
+		}
 	}
-	if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
-		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
-	}
+
 	return nil
 }
 
