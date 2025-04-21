@@ -118,14 +118,22 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
-		if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
-			{
-				fmt.Println("Exiting...")
-				return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+
+	if msr.UseYBgRPCConnector {
+		if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
+			if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
+				{
+					fmt.Println("Exiting...")
+					return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+				}
 			}
 		}
+	} else {
+		source.SSLCertPath = targetConf.SSLCertPath
+		source.SSLKey = targetConf.SSLKey
+		source.SSLRootCert = targetConf.SSLRootCert
 	}
+
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri
