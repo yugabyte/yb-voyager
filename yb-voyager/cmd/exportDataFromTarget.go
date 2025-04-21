@@ -129,6 +129,8 @@ func initSourceConfFromTargetConf() error {
 			}
 		}
 	} else {
+		// TODO: in this case disallow passing target-ssl-mode and target-root-cert via CLI.
+		source.SSLMode = targetConf.SSLMode
 		source.SSLCertPath = targetConf.SSLCertPath
 		source.SSLKey = targetConf.SSLKey
 		source.SSLRootCert = targetConf.SSLRootCert

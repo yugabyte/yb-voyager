@@ -289,11 +289,14 @@ func startExportDataFromTargetIfRequired() {
 		"--table-list", strings.Join(importTableNames, ","),
 		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-		"--target-ssl-mode", tconf.SSLMode,
+
 		"--log-level", config.LogLevel,
 	}
-	if msr.UseYBgRPCConnector && tconf.SSLRootCert != "" {
-		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+	if msr.UseYBgRPCConnector {
+		cmd = append(cmd, "--target-ssl-mode", tconf.SSLMode)
+		if tconf.SSLRootCert != "" {
+			cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
+		}
 	}
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
