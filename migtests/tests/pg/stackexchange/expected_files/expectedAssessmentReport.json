@@ -299,7 +299,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "posts_owner_user_id_creation_date_idx ON public.posts",
 			"SqlStatement": "CREATE INDEX posts_owner_user_id_creation_date_idx ON public.posts USING btree (owneruserid, creationdate) WITH (fillfactor='100');",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
 			"MinimumVersionsFixedIn": null
 		},
 		{

@@ -86,7 +86,7 @@
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/49",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
             "MinimumVersionsFixedIn": null
         },
         {
