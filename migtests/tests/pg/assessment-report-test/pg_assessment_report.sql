@@ -71,6 +71,9 @@ CREATE TABLE orders2 (
     shipped_date DATE
 );
 
+CREATE INDEX idx_orders_shipped_date on public.orders2 (shipped_date);
+
+
 CREATE OR REPLACE FUNCTION prevent_update_shipped_without_date()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -280,6 +283,8 @@ EXECUTE FUNCTION public.check_sales_region();
     processed_at timestamp,
     r INT DEFAULT regexp_count('This is an example. Another example. Example is a common word.', 'example') -- regex functions in default
 );
+
+CREATE INDEX idx_ordersentry_processed_at on public.ordersentry (processed_at);
 
 INSERT INTO public.ordersentry (customer_name, product_name, quantity, price)
 VALUES

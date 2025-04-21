@@ -1,0 +1,93 @@
+[
+    {
+      "table_name": "public.\"Case_Sensitive_Seq\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"bar\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"foo\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"multiple_serial_columns\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"sales_region\"",
+      "status": "DONE",
+      "total_count": 666,
+      "imported_count": 666,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"sequence_check1\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"sequence_check3\"",
+      "status": "DONE",
+      "total_count": 3,
+      "imported_count": 3,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"users\"",
+      "status": "DONE",
+      "total_count": 3,
+      "imported_count": 3,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "schema1.\"multiple_identity_columns\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "schema1.\"sequence_check1\"",
+      "status": "DONE",
+      "total_count": 1,
+      "imported_count": 1,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "schema1.\"sequence_check2\"",
+      "status": "DONE",
+      "total_count": 6,
+      "imported_count": 6,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "schema3.\"foo\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "schema4.\"bar\"",
+      "status": "DONE",
+      "total_count": 2,
+      "imported_count": 2,
+      "percentage_complete": 100
+    }
+  ]

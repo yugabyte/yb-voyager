@@ -1040,6 +1040,9 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 	}))
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.TableListExportedFromSource = minQuotedTableList
+		record.SourceExportedTableListWithLeafPartitions = lo.Map(tableList, func(t sqlname.NameTuple, _ int) string {
+			return t.ForOutput()
+		})
 	})
 	if err != nil {
 		return fmt.Errorf("update migration status record: %v", err)
@@ -1050,6 +1053,7 @@ func storeTableListInMSR(tableList []sqlname.NameTuple) error {
 // =====================================================================
 
 // TODO: consider merging all unsupported field with single AssessmentReport struct member as AssessmentIssue
+// TODO: some of the fields have pointers, to be on safer side, we should convert all pointers fields to the actual type(store copy)
 type AssessmentReport struct {
 	VoyagerVersion                 string                                `json:"VoyagerVersion"`
 	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
@@ -1134,9 +1138,12 @@ Version History
 1.0: Introduced AssessmentIssue field for storing assessment issues in flattened format
 1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
 1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
+1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.2"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.3"
 
+// TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
+// Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
 type AssessMigrationPayload struct {
 	PayloadVersion                 string
 	VoyagerVersion                 string
@@ -1148,7 +1155,10 @@ type AssessMigrationPayload struct {
 	SourceSizeDetails              SourceDBSizeDetails
 	TargetRecommendations          TargetSizingRecommendations
 	ConversionIssues               []utils.AnalyzeSchemaIssue
-	// Depreacted: AssessmentJsonReport is depricated; use the fields directly inside struct
+	Sizing                         *migassessment.SizingAssessmentReport
+	TableIndexStats                *[]migassessment.TableIndexStats
+	Notes                          []string
+	// Depreacted: AssessmentJsonReport is deprecated; use the fields directly inside struct
 	AssessmentJsonReport AssessmentReportYugabyteD
 }
 
@@ -1169,6 +1179,7 @@ type AssessmentIssueYugabyteD struct {
 	Details json.RawMessage `json:"Details,omitempty"`
 }
 
+// To be deprecated in future
 type AssessmentReportYugabyteD struct {
 	VoyagerVersion             string                                `json:"VoyagerVersion"`
 	TargetDBVersion            *ybversion.YBVersion                  `json:"TargetDBVersion"`
@@ -1210,6 +1221,10 @@ type TargetSizingRecommendations struct {
 //====== AssesmentReport struct methods ======//
 
 func ParseJSONToAssessmentReport(reportPath string) (*AssessmentReport, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
 	var report AssessmentReport
 	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
 	if err != nil {

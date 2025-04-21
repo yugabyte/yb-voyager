@@ -11,7 +11,7 @@
             color: #333;
         }
         .wrapper {
-            max-width: 960px;
+            max-width: 70%;
             margin: 20px auto;
             padding: 20px;
             background-color: white;

@@ -97,8 +97,10 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 	payload.MigrationType = LIVE_MIGRATION
 
 	sourceDBDetails := callhome.SourceDBDetails{
-		DBType:    tconf.TargetDBType,
-		DBVersion: targetDBDetails.DBVersion,
+		DBType: tconf.TargetDBType,
+	}
+	if targetDBDetails != nil {
+		sourceDBDetails.DBVersion = targetDBDetails.DBVersion
 	}
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
@@ -108,11 +110,12 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_BACK,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	importDataPayload.Phase = importPhase
 
-	if importPhase != dbzm.MODE_SNAPSHOT {
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
 		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
 		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
 	}

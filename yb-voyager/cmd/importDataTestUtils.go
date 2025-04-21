@@ -41,6 +41,7 @@ func (d *dummyTDB) MaxBatchSizeInBytes() int64 {
 }
 
 type TestTargetDB struct {
+	Tconf tgtdb.TargetConf
 	testcontainers.TestContainer
 	tgtdb.TargetDB
 }
@@ -96,6 +97,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 
 	state := NewImportDataState(lexportDir)
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
+	importerRole = TARGET_DB_IMPORTER_ROLE
 	return ldataDir, lexportDir, state, nil
 }
 

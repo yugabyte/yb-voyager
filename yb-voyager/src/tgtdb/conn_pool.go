@@ -25,6 +25,7 @@ import (
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -175,7 +176,10 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 		retry, err = fn(conn)
 		if err != nil {
 			// On err, drop the connection and clear the prepared statement cache.
-			conn.Close(context.Background())
+			errCloseConn := conn.Close(context.Background())
+			if errCloseConn != nil {
+				log.Warnf("closing the connection: %v", errCloseConn)
+			}
 			pool.Lock()
 			// assuming PID will still be available
 			delete(pool.connIdToPreparedStmtCache, conn.PgConn().PID())
@@ -278,6 +282,67 @@ func (pool *ConnectionPool) shuffledConnUriList() []string {
 		connUriList[i], connUriList[j] = connUriList[j], connUriList[i]
 	})
 	return connUriList
+}
+
+/*
+Removing the connections that are not being used by another go routines etc..
+from the pool for the host that is down so that we don't try to use that conn further
+this helps in the scenario -
+where a large number of connections are present in pool for that host then we might be end up
+using most of those connections only and import will fail in such and we keep on retrying.
+so its better to such unused connections  when we got the information that it is down.
+*/
+func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
+	log.Infof("Checking for connections on host: %s", servers)
+	var conn *pgx.Conn
+	var idleConn *pgx.Conn
+	var gotIt bool
+	size := pool.size
+
+	//Remove the connections on the servers from conns if present
+	for i := 0; i < size; i++ {
+		conn, gotIt = <-pool.conns
+		if !gotIt {
+			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy 
+			//or pool doesn't have connections
+			break
+		}
+
+		if conn == nil {
+			pool.conns <- conn
+			continue
+		}
+		if slices.Contains(servers, conn.Config().Host) {
+			log.Infof("Removing the connection for server as it is down: %s", conn.Config().Host)
+			err := conn.Close(context.Background())
+			if err != nil {
+				log.Warnf("closing the connection: %v", err)
+			}
+			pool.conns <- nil
+		} else {
+			pool.conns <- conn
+		}
+	}
+
+	//Remove the connections on the servers from idleConns as well if present
+	for i := 0; i < len(pool.idleConns); i++ {
+		idleConn = <-pool.idleConns
+		if idleConn == nil {
+			pool.idleConns <- idleConn
+			continue
+		}
+		if slices.Contains(servers, idleConn.Config().Host) {
+			log.Infof("Removing the connection for server as it is down from idle conns: %s", idleConn.Config().Host)
+			err := idleConn.Close(context.Background())
+			if err != nil {
+				log.Warnf("closing the connection: %v", err)
+			}
+			pool.idleConns <- nil
+		} else {
+			pool.idleConns <- idleConn
+		}
+	}
+	return nil
 }
 
 func (pool *ConnectionPool) getNextUriIndex() int {

@@ -79,10 +79,13 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate TableColumnsDataTypes Struct Definition",
 			actualType: reflect.TypeOf(utils.TableColumnsDataTypes{}),
 			expectedType: struct {
-				SchemaName string `json:"SchemaName"`
-				TableName  string `json:"TableName"`
-				ColumnName string `json:"ColumnName"`
-				DataType   string `json:"DataType"`
+				SchemaName  string `json:"SchemaName"`
+				TableName   string `json:"TableName"`
+				ColumnName  string `json:"ColumnName"`
+				DataType    string `json:"DataType"`
+				IsArrayType bool   `json:"-"`
+				IsEnumType  bool   `json:"-"`
+				IsUDTType   bool   `json:"-"`
 			}{},
 		},
 		{
@@ -111,12 +114,11 @@ func TestAssessmentReportStructs(t *testing.T) {
 			name:       "Validate TableIndexStats Struct Definition",
 			actualType: reflect.TypeOf(migassessment.TableIndexStats{}),
 			expectedType: struct {
-				SchemaName      string  `json:"SchemaName"`
-				ObjectName      string  `json:"ObjectName"`
-				RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
-				ColumnCount     *int64  `json:"ColumnCount"`
-				Reads           *int64  `json:"Reads"`
-				Writes          *int64  `json:"Writes"`
+				SchemaName  string `json:"SchemaName"`
+				ObjectName  string `json:"ObjectName"`
+				RowCount    *int64 `json:"RowCount"` // Pointer to allows null values
+				ColumnCount *int64 `json:"ColumnCount"`
+				// TODO: verify if this can be a breaking change
 				ReadsPerSecond  *int64  `json:"ReadsPerSecond"`
 				WritesPerSecond *int64  `json:"WritesPerSecond"`
 				IsIndex         bool    `json:"IsIndex"`
@@ -224,8 +226,6 @@ func TestAssessmentReportJson(t *testing.T) {
 				ObjectName:      "test_table",
 				RowCount:        Int64Ptr(100),
 				ColumnCount:     Int64Ptr(10),
-				Reads:           Int64Ptr(100),
-				Writes:          Int64Ptr(100),
 				ReadsPerSecond:  Int64Ptr(10),
 				WritesPerSecond: Int64Ptr(10),
 				IsIndex:         true,
@@ -371,8 +371,6 @@ func TestAssessmentReportJson(t *testing.T) {
 			"ObjectName": "test_table",
 			"RowCount": 100,
 			"ColumnCount": 10,
-			"Reads": 100,
-			"Writes": 100,
 			"ReadsPerSecond": 10,
 			"WritesPerSecond": 10,
 			"IsIndex": true,

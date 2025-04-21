@@ -331,7 +331,7 @@ func pickBestRecommendation(recommendations map[int]IntermediateRecommendation) 
 	}
 	// If no valid recommendation was found, select the recommendation with the maximum number of cores
 	if !foundRecommendation {
-		finalRecommendation = recs[maxCores]
+		finalRecommendation = recommendations[maxCores]
 		// notify customers to reach out to the Yugabyte customer support team for further assistance
 		finalRecommendation.FailureReasoning = "Unable to determine appropriate sizing recommendation. Reach out to the Yugabyte customer support team at https://support.yugabyte.com for further assistance."
 	}
@@ -371,6 +371,7 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		neededCores :=
 			math.Ceil(float64(cumulativeSelectOpsPerSec)/shardedThroughput.maxSupportedSelectsPerCore.Float64 +
 				float64(cumulativeInsertOpsPerSec)/shardedThroughput.maxSupportedInsertsPerCore.Float64)
+
 		nodesNeeded := math.Ceil(neededCores / shardedThroughput.numCores.Float64)
 		// Assumption: If there are any colocated objects - one node will be utilized as colocated tablet leader.
 		// Add it explicitly.
@@ -379,9 +380,9 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 		}
 
 		// Assumption: minimum required replication is 3, so minimum nodes recommended would be 3.
-		// Choose max of nodes needed and 3
+		// Choose max of nodes needed and 3 and same for neededCores.
 		nodesNeeded = math.Max(nodesNeeded, 3)
-		neededCores = lo.Ternary(neededCores == 0, float64(previousRecommendation.VCPUsPerInstance*3), neededCores)
+		neededCores = math.Max(neededCores, float64(previousRecommendation.VCPUsPerInstance*3))
 
 		// Update recommendation with the number of nodes needed
 		recommendation[int(shardedThroughput.numCores.Float64)] = IntermediateRecommendation{

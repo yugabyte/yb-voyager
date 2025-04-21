@@ -29,6 +29,7 @@ import (
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -234,37 +235,47 @@ func testMultiRangeDatatypeIssue(t *testing.T) {
 	conn, err := getConn()
 	assert.NoError(t, err)
 
-	queries := []string{
-		`CREATE TABLE int_multirange_table (
+	query := `CREATE TABLE int_multirange_table (
 			id SERIAL PRIMARY KEY,
 			value_ranges int4multirange
-		);`,
-		`CREATE TABLE bigint_multirange_table (
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", int4MultirangeDatatypeIssue)
+
+	query = `CREATE TABLE bigint_multirange_table (
 			id SERIAL PRIMARY KEY,
 			value_ranges int8multirange
-		);`,
-		`CREATE TABLE numeric_multirange_table (
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", int8MultirangeDatatypeIssue)
+
+	query = `CREATE TABLE numeric_multirange_table (
 			id SERIAL PRIMARY KEY,
 			price_ranges nummultirange
-		);`,
-		`CREATE TABLE timestamp_multirange_table (
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", numMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE timestamp_multirange_table (
 			id SERIAL PRIMARY KEY,
 			event_times tsmultirange
-		);`,
-		`CREATE TABLE timestamptz_multirange_table (
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", tsMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE timestamptz_multirange_table (
 			id SERIAL PRIMARY KEY,
 			global_event_times tstzmultirange
-		);`,
-		`CREATE TABLE date_multirange_table (
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", tstzMultirangeDatatypeIssue)
+
+	query = `CREATE TABLE date_multirange_table (
 			id SERIAL PRIMARY KEY,
 			project_dates datemultirange
-		);`,
-	}
-
-	for _, query := range queries {
-		_, err = conn.Exec(ctx, query)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", multiRangeDatatypeIssue)
-	}
+		);`
+	_, err = conn.Exec(ctx, query)
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "does not exist", dateMultirangeDatatypeIssue)
 }
 
 func testSecurityInvokerView(t *testing.T) {
@@ -541,40 +552,6 @@ func testCompressionClauseIssue(t *testing.T) {
 }
 
 func testIndexOnComplexDataType(t *testing.T) {
-	// Reference for some of the types https://docs.yugabyte.com/stable/api/ysql/datatypes/ (datatypes with type 1)
-	// var UnsupportedIndexDatatypes = []string{
-	// 	"citext",
-	// 	"tsvector",
-	// 	"tsquery",
-	// 	"jsonb",
-	// 	"inet",
-	// 	"json",
-	// 	"macaddr",
-	// 	"macaddr8",
-	// 	"cidr",
-	// 	"bit",    // for BIT (n)
-	// 	"varbit", // for BIT varying (n)
-	// 	"daterange",
-	// 	"tsrange",
-	// 	"tstzrange",
-	// 	"numrange",
-	// 	"int4range",
-	// 	"int8range",
-	// 	"interval", // same for INTERVAL YEAR TO MONTH and INTERVAL DAY TO SECOND
-	// 	//Below ones are not supported on PG as well with atleast btree access method. Better to have in our list though
-	// 	//Need to understand if there is other method or way available in PG to have these index key [TODO]
-	// 	"circle",
-	// 	"box",
-	// 	"line",
-	// 	"lseg",
-	// 	"point",
-	// 	"pg_lsn",
-	// 	"path",
-	// 	"polygon",
-	// 	"txid_snapshot",
-	// 	// array as well but no need to add it in the list as fetching this type is a different way TODO: handle better with specific types
-	// }
-
 	// We have to create indexes on the tables to check if the index creation is supported or not
 	// We will create indexes on the unsupported datatypes and check if the index creation fails
 
@@ -807,7 +784,6 @@ func testIndexOnComplexDataType(t *testing.T) {
 		}
 
 		_, err = conn.Exec(ctx, testCase.sql)
-		fmt.Println("Query executed: ", testCase.sql)
 		if errMsg == "" { // For the pg_lsn datatype, we are not throwing any error but the operations on it throw error
 			assert.NoError(t, err)
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), errMsg, testCase.Issue)
@@ -819,12 +795,381 @@ func testIndexOnComplexDataType(t *testing.T) {
 	}
 }
 
-func TestDDLIssuesInYBVersion(t *testing.T) {
-	var err error
+func testPKandUKONComplexDataType(t *testing.T) {
+	type testPKandUKOnComplexDataTypeTests struct {
+		sql             string
+		errMsgBase      string
+		errMsgv2_25_0_0 string
+		Issue           issue.Issue
+	}
+
+	testCases := []testPKandUKOnComplexDataTypeTests{
+		{
+			sql:        `CREATE TABLE citext_table_pk (id int, name CITEXT, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE tsvector_table_pk (id int, name TSVECTOR, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnTsVectorDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE tsquery_table_pk (id int, name TSQUERY, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnTsQueryDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE jsonb_table_pk (id int, name JSONB, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'JSONB' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnJsonbDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE inet_table_pk (id int, name INET, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'INET' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnInetDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE json_table_pk (id int, name JSON, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'JSON' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnJsonDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE macaddr_table_pk (id int, name MACADDR, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'MACADDR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnMacaddrDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE macaddr8_table_pk (id int, name MACADDR8, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'MACADDR8' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnMacaddr8DatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE cidr_table_pk (id int, name CIDR, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'CIDR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnCidrDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE bit_table_pk (id int, name BIT(10), PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'BIT' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnBitDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE varbit_table_pk (id int, name VARBIT(10), PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'VARBIT' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnVarbitDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE daterange_table_pk (id int, name DATERANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE tsrange_table_pk (id int, name TSRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE tstzrange_table_pk (id int, name TSTZRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE numrange_table_pk (id int, name NUMRANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE int4range_table_pk (id int, name INT4RANGE, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'INT4RANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnInt4rangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE int8range_table_pk (id int, name INT8RANGE, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE interval_table_pk (id int, name INTERVAL, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'INTERVAL' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnIntervalDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE circle_table_pk (id int, name CIRCLE, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'CIRCLE' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnCircleDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE box_table_pk (id int, name BOX, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'BOX' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnBoxDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE line_table_pk (id int, name LINE, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'LINE' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnLineDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE lseg_table_pk (id int, name LSEG, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'LSEG' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnLsegDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE point_table_pk (id int, name POINT, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'POINT' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnPointDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE path_table_pk (id int, name PATH, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'PATH' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnPathDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE polygon_table_pk (id int, name POLYGON, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'POLYGON' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnPolygonDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE txid_snapshot_table_pk (id int, name TXID_SNAPSHOT, PRIMARY KEY (name));`,
+			errMsgv2_25_0_0: "ERROR: PRIMARY KEY containing column of type 'TXID_SNAPSHOT' not yet supported (SQLSTATE 0A000)",
+			errMsgBase:      "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue,
+		},
+		{
+			sql: `CREATE TYPE my_udt_pk AS (a int, b text);
+			CREATE TABLE udt_table_pk (id int, name my_udt_pk, PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnUserDefinedTypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE pg_lsn_table_pk (id int, name PG_LSN, PRIMARY KEY (name));`,
+			errMsgBase: "", // It is possible to create PK on pg_lsn datatype but operations on it throw error in YB
+			Issue:      primaryOrUniqueConstraintOnPgLsnDatatypeIssue,
+		},
+		// One for array datatype
+		{
+			sql:        `CREATE TABLE array_table_pk (id int, name int[], PRIMARY KEY (name));`,
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'INT4ARRAY' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnArrayDatatypeIssue,
+		},
+
+		// Now Unique Key
+		{
+			sql:        `CREATE TABLE citext_table_uk (id int, name CITEXT, UNIQUE (name));`,
+			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE tsvector_table_uk (id int, name TSVECTOR, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'TSVECTOR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnTsVectorDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE tsquery_table_uk (id int, name TSQUERY, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'TSQUERY' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnTsQueryDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE jsonb_table_uk (id int, name JSONB, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'JSONB' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnJsonbDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE inet_table_uk (id int, name INET, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'INET' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnInetDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE json_table_uk (id int, name JSON, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type json has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnJsonDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE macaddr_table_uk (id int, name MACADDR, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'MACADDR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnMacaddrDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE macaddr8_table_uk (id int, name MACADDR8, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'MACADDR8' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnMacaddr8DatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE cidr_table_uk (id int, name CIDR, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'CIDR' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnCidrDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE bit_table_uk (id int, name BIT(10), UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'BIT' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnBitDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE varbit_table_uk (id int, name VARBIT(10), UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'VARBIT' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnVarbitDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE daterange_table_uk (id int, name DATERANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'DATERANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnDaterangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE tsrange_table_uk (id int, name TSRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTsrangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE tstzrange_table_uk (id int, name TSTZRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'TSTZRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnTstzrangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE numrange_table_uk (id int, name NUMRANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'NUMRANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnNumrangeDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE int4range_table_uk (id int, name INT4RANGE, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'INT4RANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnInt4rangeDatatypeIssue,
+		},
+		{
+			sql:             `CREATE TABLE int8range_table_uk (id int, name INT8RANGE, UNIQUE (name));`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			errMsgv2_25_0_0: "ERROR: INDEX on column of type 'INT8RANGE' not yet supported (SQLSTATE 0A000)",
+			Issue:           primaryOrUniqueConstraintOnInt8rangeDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE interval_table_uk (id int, name INTERVAL, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'INTERVAL' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnIntervalDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE circle_table_uk (id int, name CIRCLE, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type circle has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnCircleDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE box_table_uk (id int, name BOX, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type box has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnBoxDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE line_table_uk (id int, name LINE, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type line has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnLineDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE lseg_table_uk (id int, name LSEG, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type lseg has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnLsegDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE point_table_uk (id int, name POINT, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type point has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnPointDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE path_table_uk (id int, name PATH, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type path has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnPathDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE polygon_table_uk (id int, name POLYGON, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type polygon has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnPolygonDatatypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE txid_snapshot_table_uk (id int, name TXID_SNAPSHOT, UNIQUE (name));`,
+			errMsgBase: "ERROR: data type txid_snapshot has no default operator class for access method \"lsm\" (SQLSTATE 42704)",
+			Issue:      primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue,
+		},
+		{
+			sql: `CREATE TYPE my_udt_uk AS (a int, b text);
+			CREATE TABLE udt_table_uk (id int, name my_udt_uk, UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'user_defined_type' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnUserDefinedTypeIssue,
+		},
+		{
+			sql:        `CREATE TABLE pg_lsn_table_uk (id int, name PG_LSN, UNIQUE (name));`,
+			errMsgBase: "", // It is possible to create UK on pg_lsn datatype but operations on it throw error in YB
+			Issue:      primaryOrUniqueConstraintOnPgLsnDatatypeIssue,
+		},
+		// One for array datatype
+		{
+			sql:        `CREATE TABLE array_table_uk (id int, name int[], UNIQUE (name));`,
+			errMsgBase: "ERROR: INDEX on column of type 'INT4ARRAY' not yet supported (SQLSTATE 0A000)",
+			Issue:      primaryOrUniqueConstraintOnArrayDatatypeIssue,
+		},
+	}
+
+	for _, testCase := range testCases {
+		ctx := context.Background()
+		conn, err := getConn()
+		assert.NoError(t, err)
+
+		var errMsg string
+		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+			errMsg = testCase.errMsgv2_25_0_0
+		} else {
+			errMsg = testCase.errMsgBase
+		}
+
+		_, err = conn.Exec(ctx, testCase.sql)
+		if errMsg == "" { // For the pg_lsn datatype, we are not throwing any error but the operations on it throw error
+			assert.NoError(t, err)
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), errMsg, testCase.Issue)
+		} else {
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, errMsg, testCase.Issue)
+		}
+
+		conn.Close(ctx)
+	}
+}
+
+func testExtensionSupportList(t *testing.T) {
+	conn, err := getConn()
+	assert.NoError(t, err)
+
+	// fetch pg_available_extensions(extension available for installation) and compare with our static list of supported extensions
+	rows, err := conn.Query(context.Background(), "SELECT name FROM pg_available_extensions")
+	assert.NoError(t, err)
+
+	var actualSupportedExtensionOnYB []string
+	for rows.Next() {
+		var name string
+		err := rows.Scan(&name)
+		assert.NoError(t, err)
+		actualSupportedExtensionOnYB = append(actualSupportedExtensionOnYB, name)
+	}
+
+	diff := utils.SetDifference(actualSupportedExtensionOnYB, SupportedExtensionsOnYB)
+	if len(diff) > 0 {
+		t.Errorf("The following extensions are supported in YB Version %s but not in the static list of supported extensions: %v", testYbVersion, diff)
+	}
+}
+
+func GetYBVersionEnv() string {
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
 		panic("YB_VERSION env variable is not set. Set YB_VERSION=2024.1.3.0-b105 for example")
 	}
+	return ybVersion
+}
+
+func TestDDLIssuesInYBVersion(t *testing.T) {
+	var err error
+	ybVersion := GetYBVersionEnv()
 
 	ybVersionWithoutBuild := strings.Split(ybVersion, "-")[0]
 	testYbVersion, err = ybversion.NewYBVersion(ybVersionWithoutBuild)
@@ -902,4 +1247,10 @@ func TestDDLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "index on complex data type", ybVersion), testIndexOnComplexDataType)
 	assert.True(t, success)
 
+	success = t.Run(fmt.Sprintf("%s-%s", "PK and UK on complex data type", ybVersion), testPKandUKONComplexDataType)
+	assert.True(t, success)
+
+	// TODO: enable this as part of this ticket - https://yugabyte.atlassian.net/browse/DB-15825
+	// success = t.Run(fmt.Sprintf("%s-%s", "extension support list", ybVersion), testExtensionSupportList)
+	// assert.True(t, success)
 }

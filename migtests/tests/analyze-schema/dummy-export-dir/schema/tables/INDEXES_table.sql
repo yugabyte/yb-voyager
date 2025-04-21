@@ -109,3 +109,7 @@ CREATE INDEX "idx&_enum2" on test_udt((some_field::non_public.enum_test));
 CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email
     ON users_unique_nulls_not_distinct_index (email)
     NULLS NOT DISTINCT;
+
+-- Indexes on timestamp/date
+CREATE INDEX idx_sales on sales(bill_date);
+

@@ -21,8 +21,13 @@ import (
 )
 
 type Issue struct {
-	Type                   string // (advisory_locks, index_not_supported, etc)
-	Name                   string // for display
+	// Type acts as ID for the issue; should be unique across all issues
+	// for example: UNSUPPORTED_DATATYPE_PG_LSN, UNLOGGED_TABLES, etc
+	// This field is not to be changed frequently; if changed, be careful about impact on callhome and yugabyted
+	Type string
+
+	// readable name for the issue; used in UI, logs or any print statements
+	Name                   string
 	Description            string
 	Impact                 string
 	Suggestion             string

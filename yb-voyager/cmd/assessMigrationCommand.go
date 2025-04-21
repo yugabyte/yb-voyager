@@ -173,12 +173,10 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			ObjectType:          issue.ObjectType,
 		}
 
-		// TODO: object name(for extensions) and other details like datatype/indextype(present in description) for callhome will be covered in next release
-
-		// if issue.Type == UNSUPPORTED_EXTENSION_ISSUE_TYPE {
-		// object name(i.e. extension name here) might be qualified with schema so just taking the last part
-		// 	obfuscatedIssue.ObjectName = strings.Split(issue.ObjectName, ".")[len(strings.Split(issue.ObjectName, "."))-1]
-		// }
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
+		}
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
@@ -214,6 +212,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
 		SourceConnectivity:             assessmentMetadataDirFlag == "",
 		IopsInterval:                   intervalForCapturingIOPS,
+		ControlPlaneType:               getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
@@ -309,6 +308,7 @@ func assessMigration() (err error) {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	migassessment.AssessmentDir = assessmentDir
 	migassessment.SourceDBType = source.DBType
+	migassessment.IntervalForCapturingIops = intervalForCapturingIOPS
 
 	if source.Password == "" {
 		source.Password, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
@@ -499,6 +499,9 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 			TotalShardedSize:   totalShardedSize,
 		},
 		ConversionIssues: schemaAnalysisReport.Issues,
+		Sizing:           assessmentReport.Sizing,
+		TableIndexStats:  assessmentReport.TableIndexStats,
+		Notes:            assessmentReport.Notes,
 		AssessmentJsonReport: AssessmentReportYugabyteD{
 			VoyagerVersion:             assessmentReport.VoyagerVersion,
 			TargetDBVersion:            assessmentReport.TargetDBVersion,
@@ -832,7 +835,7 @@ func generateAssessmentReport() (err error) {
 	assessmentReport.UnsupportedDataTypes = unsupportedDataTypes
 	assessmentReport.UnsupportedDataTypesDesc = DATATYPE_CATEGORY_DESCRIPTION
 
-	assessmentReport.AppendIssues(getAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)...)
+	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
@@ -928,7 +931,9 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 	var minVersionsFixedInSet bool
 
 	for _, analyzeIssue := range schemaAnalysisReport.Issues {
-		if !slices.Contains([]string{UNSUPPORTED_FEATURES_CATEGORY, MIGRATION_CAVEATS_CATEGORY}, analyzeIssue.IssueType) {
+		if slices.Contains([]string{UNSUPPORTED_DATATYPES_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY}, analyzeIssue.IssueType) {
+			//In case the category is Datatypes or PLPGSQL issues, the no need to check for the issue in those as these are reported separately in other places
+			//e.g. fetchUnsupportedPlPgSQLObjects(),fetchColumnsWithUnsupportedDataTypes()
 			continue
 		}
 
@@ -950,14 +955,14 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 			link = analyzeIssue.DocsLink
 			objects = append(objects, objectInfo)
 			issueDescription = analyzeIssue.Reason
-			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, issueDescription, minVersionsFixedIn))
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(analyzeIssue, minVersionsFixedIn))
 		}
 	}
 
 	return UnsupportedFeature{featureName, objects, displayDDLInHTML, link, issueDescription, minVersionsFixedIn}
 }
 
-func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, issueDescription string, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
+func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.AnalyzeSchemaIssue, minVersionsFixedIn map[string]*ybversion.YBVersion) AssessmentIssue {
 	return AssessmentIssue{
 		Category:            analyzeSchemaIssue.IssueType,
 		CategoryDescription: GetCategoryDescription(analyzeSchemaIssue.IssueType),
@@ -966,7 +971,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 
 		// Reason in analyze is equivalent to Description of IssueInstance or AssessmentIssue
 		// and we don't use any Suggestion field in AssessmentIssue. Combination of Description + DocsLink should be enough
-		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, analyzeSchemaIssue.Reason+" "+analyzeSchemaIssue.Suggestion),
+		Description: lo.Ternary(analyzeSchemaIssue.Suggestion == "", analyzeSchemaIssue.Reason, utils.JoinSentences(analyzeSchemaIssue.Reason, analyzeSchemaIssue.Suggestion)),
 
 		Impact:                 analyzeSchemaIssue.Impact,
 		ObjectType:             analyzeSchemaIssue.ObjectType,
@@ -996,76 +1001,74 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DISABLING_TABLE_RULE_FEATURE, "", queryissue.ALTER_TABLE_DISABLE_RULE, schemaAnalysisReport, true))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(CLUSTER_ON_FEATURE, "", queryissue.ALTER_TABLE_CLUSTER_ON, schemaAnalysisReport, true))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(STORAGE_PARAMETERS_FEATURE, "", queryissue.STORAGE_PARAMETERS, schemaAnalysisReport, true))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, "", UNSUPPORTED_EXTENSION_ISSUE_TYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXTENSION_FEATURE, "", queryissue.UNSUPPORTED_EXTENSION, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(EXCLUSION_CONSTRAINT_FEATURE, "", queryissue.EXCLUSION_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(DEFERRABLE_CONSTRAINT_FEATURE, "", queryissue.DEFERRABLE_CONSTRAINTS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(VIEW_CHECK_FEATURE, "", VIEW_WITH_CHECK_OPTION_ISSUE_TYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport, queryissue.UnsupportedIndexDatatypes)...)
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(PK_UK_CONSTRAINT_ON_COMPLEX_DATATYPES_FEATURE, "", queryissue.PK_UK_ON_COMPLEX_DATATYPE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport)...)
+	unsupportedFeatures = append(unsupportedFeatures, getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport)...)
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(UNLOGGED_TABLE_FEATURE, "", queryissue.UNLOGGED_TABLES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REFERENCING_TRIGGER_FEATURE, "", queryissue.REFERENCING_CLAUSE_IN_TRIGGER, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(BEFORE_FOR_EACH_ROW_TRIGGERS_ON_PARTITIONED_TABLE_FEATURE, "", queryissue.BEFORE_ROW_TRIGGER_ON_PARTITIONED_TABLE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ADVISORY_LOCKS_NAME, "", queryissue.ADVISORY_LOCKS, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.XML_FUNCTIONS_NAME, "", queryissue.XML_FUNCTIONS, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SYSTEM_COLUMNS_NAME, "", queryissue.SYSTEM_COLUMNS, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_NAME, "", queryissue.LARGE_OBJECT_FUNCTIONS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ADVISORY_LOCKS_ISSUE_NAME, "", queryissue.ADVISORY_LOCKS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.XML_FUNCTIONS_ISSUE_NAME, "", queryissue.XML_FUNCTIONS, schemaAnalysisReport, false))
+
+	// TODO: test if the issues are getting populated correctly for UnsupportedFeatures struct wrt system columns
+	for _, issueType := range queryissue.UnsupportedSystemColumnsIssueTypes {
+		featureName := "System Columns"
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(featureName, "", issueType, schemaAnalysisReport, false))
+	}
+
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LARGE_OBJECT_FUNCTIONS_ISSUE_NAME, "", queryissue.LARGE_OBJECT_FUNCTIONS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(REGEX_FUNCTIONS_FEATURE, "", queryissue.REGEX_FUNCTIONS, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(FETCH_WITH_TIES_FEATURE, "", queryissue.FETCH_WITH_TIES, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_QUERY_FUNCTIONS_NAME, "", queryissue.JSON_QUERY_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ANY_VALUE_AGGREGATE_FUNCTION_NAME, "", queryissue.ANY_VALUE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_AGGREGATE_FUNCTION_NAME, "", queryissue.RANGE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.DETERMINISTIC_OPTION_WITH_COLLATION_NAME, "", queryissue.DETERMINISTIC_OPTION_WITH_COLLATION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DETERMINISTIC_COLLATION_NAME, "", queryissue.NON_DETERMINISTIC_COLLATION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.UNIQUE_NULLS_NOT_DISTINCT_NAME, "", queryissue.UNIQUE_NULLS_NOT_DISTINCT, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSONB_SUBSCRIPTING_NAME, "", queryissue.JSONB_SUBSCRIPTING, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_NAME, "", queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_TYPE_PREDICATE_NAME, "", queryissue.JSON_TYPE_PREDICATE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.CTE_WITH_MATERIALIZED_CLAUSE_NAME, "", queryissue.CTE_WITH_MATERIALIZED_CLAUSE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DECIMAL_INTEGER_LITERAL_NAME, "", queryissue.NON_DECIMAL_INTEGER_LITERAL, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
-
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_QUERY_FUNCTIONS_ISSUE_NAME, "", queryissue.JSON_QUERY_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_CONSTRUCTOR_FUNCTION_ISSUE_NAME, "", queryissue.JSON_CONSTRUCTOR_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.ANY_VALUE_AGGREGATE_FUNCTION_ISSUE_NAME, "", queryissue.ANY_VALUE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_AGGREGATE_FUNCTION_ISSUE_NAME, "", queryissue.RANGE_AGGREGATE_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SECURITY_INVOKER_VIEWS_ISSUE_NAME, "", queryissue.SECURITY_INVOKER_VIEWS, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.DETERMINISTIC_OPTION_WITH_COLLATION_ISSUE_NAME, "", queryissue.DETERMINISTIC_OPTION_WITH_COLLATION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DETERMINISTIC_COLLATION_ISSUE_NAME, "", queryissue.NON_DETERMINISTIC_COLLATION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.UNIQUE_NULLS_NOT_DISTINCT_ISSUE_NAME, "", queryissue.UNIQUE_NULLS_NOT_DISTINCT, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSONB_SUBSCRIPTING_ISSUE_NAME, "", queryissue.JSONB_SUBSCRIPTING, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_NAME, "", queryissue.FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.JSON_TYPE_PREDICATE_ISSUE_NAME, "", queryissue.JSON_TYPE_PREDICATE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.SQL_BODY_IN_FUNCTION_ISSUE_NAME, "", queryissue.SQL_BODY_IN_FUNCTION, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.CTE_WITH_MATERIALIZED_CLAUSE_ISSUE_NAME, "", queryissue.CTE_WITH_MATERIALIZED_CLAUSE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NON_DECIMAL_INTEGER_LITERAL_ISSUE_NAME, "", queryissue.NON_DECIMAL_INTEGER_LITERAL, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_SHARDING_DATE_INDEX_ISSUE_NAME, "", queryissue.RANGE_SHARDING_DATE_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME, "", queryissue.RANGE_SHARDING_TIMESTAMP_INDEX, schemaAnalysisReport, false))
+	
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
 	}), nil
 }
 
-func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport, unsupportedIndexDatatypes []string) []UnsupportedFeature {
+func getPKandUKOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
+	log.Infof("fetching unsupported features for PK/UK on complex datatypes...")
+	unsupportedFeatures := make([]UnsupportedFeature, 0)
+
+	for _, issueTypeAndName := range queryissue.PkOrUkOnComplexDatatypesIssues {
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(issueTypeAndName.IssueName, "", issueTypeAndName.IssueType, schemaAnalysisReport, false))
+	}
+
+	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
+		return len(f.Objects) > 0
+	})
+}
+
+func getIndexesOnComplexTypeUnsupportedFeature(schemaAnalysisReport utils.SchemaReport) []UnsupportedFeature {
 	// TODO: include MinimumVersionsFixedIn
 	log.Infof("fetching unsupported features for Index on complex datatypes...")
 	unsupportedFeatures := make([]UnsupportedFeature, 0)
 
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CITEXT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CITEXT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSVECTOR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSVECTOR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSQUERY_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSQUERY_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_JSONB_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_JSONB_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INET_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INET_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_JSON_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_JSON_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_MACADDR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_MACADDR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_MACADDR8_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_MACADDR8_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CIDR_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CIDR_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_BIT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_BIT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_VARBIT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_VARBIT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_DATERANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_DATERANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TSTZRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TSTZRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_NUMRANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_NUMRANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INT4RANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INT4RANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INT8RANGE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INT8RANGE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_INTERVAL_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_INTERVAL_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_CIRCLE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_CIRCLE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_BOX_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_BOX_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_LINE_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_LINE_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_LSEG_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_LSEG_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_POINT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_POINT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_PG_LSN_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_PG_LSN_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_PATH_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_PATH_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_POLYGON_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_POLYGON_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_TXID_SNAPSHOT_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_ARRAY_DATATYPE, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME, "", queryissue.INDEX_ON_USER_DEFINED_DATATYPE, schemaAnalysisReport, false))
+	for _, issueTypeAndName := range queryissue.IndexOnComplexDatatypesIssues {
+		unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(issueTypeAndName.IssueName, "", issueTypeAndName.IssueType, schemaAnalysisReport, false))
+	}
+
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
 	})
@@ -1204,20 +1207,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				SqlStatement: issue.SqlStatement,
 			})
 			docsLink = issue.DocsLink
-
-			assessmentReport.AppendIssues(AssessmentIssue{
-				Category:               UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY),
-				Type:                   issue.Type,
-				Name:                   issue.Name,
-				Impact:                 issue.Impact,
-				Description:            issue.Reason,
-				ObjectType:             issue.ObjectType,
-				ObjectName:             issue.ObjectName,
-				SqlStatement:           issue.SqlStatement,
-				DocsLink:               issue.DocsLink,
-				MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
-			})
+			assessmentReport.AppendIssues(convertAnalyzeSchemaIssueToAssessmentIssue(issue, issue.MinimumVersionsFixedIn))
 		}
 		feature := UnsupportedFeature{
 			FeatureName:            issueName,
@@ -1374,6 +1364,11 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		isArrayDatatype := strings.HasSuffix(allColumnsDataTypes[i].DataType, "[]")                                                                       //if type is array
 		isEnumDatatype := utils.ContainsAnyStringFromSlice(parserIssueDetector.GetEnumTypes(), strings.TrimSuffix(allColumnsDataTypes[i].DataType, "[]")) //is ENUM type
 		isArrayOfEnumsDatatype := isArrayDatatype && isEnumDatatype
+
+		allColumnsDataTypes[i].IsArrayType = isArrayDatatype
+		allColumnsDataTypes[i].IsEnumType = isEnumDatatype
+		allColumnsDataTypes[i].IsUDTType = isUDTDatatype
+
 		isUnsupportedDatatypeInLiveWithFFOrFB := isUnsupportedDatatypeInLiveWithFFOrFBList || isUDTDatatype || isArrayOfEnumsDatatype
 
 		switch true {
@@ -1398,26 +1393,55 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 	return unsupportedDataTypes, unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB, nil
 }
 
-func getAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) []AssessmentIssue {
-	var assessmentIssues []AssessmentIssue
+func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.TableColumnsDataTypes) {
 	for _, colInfo := range unsupportedDatatypes {
 		qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
-		issue := AssessmentIssue{
-			Category:               UNSUPPORTED_DATATYPES_CATEGORY,
-			CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
-			Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
-			Description:            "",               // TODO
-			Impact:                 constants.IMPACT_LEVEL_3,
-			ObjectType:             constants.COLUMN,
-			ObjectName:             qualifiedColName,
-			DocsLink:               "",  // TODO
-			MinimumVersionsFixedIn: nil, // TODO
-		}
-		assessmentIssues = append(assessmentIssues, issue)
-	}
+		switch source.DBType {
+		case ORACLE:
+			issue := AssessmentIssue{
+				Category:               UNSUPPORTED_DATATYPES_CATEGORY,
+				CategoryDescription:    GetCategoryDescription(UNSUPPORTED_DATATYPES_CATEGORY),
+				Type:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Name:                   colInfo.DataType, // TODO: maybe name it like "unsupported datatype - geometry"
+				Description:            "",               // TODO
+				Impact:                 constants.IMPACT_LEVEL_3,
+				ObjectType:             constants.COLUMN,
+				ObjectName:             qualifiedColName,
+				DocsLink:               "",  // TODO
+				MinimumVersionsFixedIn: nil, // TODO
+			}
+			assessmentReport.AppendIssues(issue)
+		case POSTGRESQL:
+			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
+			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+			if !ok {
+				log.Warnf("failed to get datatype from %s", colInfo.DataType)
+				continue
+			}
 
-	return assessmentIssues
+			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+			// This converted AssessmentIssue is then appended to the assessmentIssues slice
+			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
+
+		default:
+			panic(fmt.Sprintf("invalid source db type %q", source.DBType))
+		}
+
+	}
+}
+
+func checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue queryissue.QueryIssue) {
+	fixed, err := queryIssue.IsFixedIn(targetDbVersion)
+	if err != nil {
+		log.Warnf("checking if issue %v is supported: %v", queryIssue, err)
+	}
+	if !fixed {
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(queryIssue, "", false, false)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, queryIssue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(issue)
+	}
 }
 
 /*
@@ -1462,7 +1486,11 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 }
 
 const (
-	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default. 
+	RANGE_SHARDED_INDEXES_RECOMMENDATION = `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
+By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`
+	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
+For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations`
+	ORACLE_PARTITION_DEFAULT_COLOCATION = `For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.
 To manually modify the schema, please refer: <a class="highlight-link" href="https://github.com/yugabyte/yb-voyager/issues/1581">https://github.com/yugabyte/yb-voyager/issues/1581</a>.`
 
 	ORACLE_UNSUPPPORTED_PARTITIONING = `Reference and System Partitioned tables are created as normal tables, but are not considered for target cluster sizing recommendations.`
@@ -1477,6 +1505,17 @@ const FOREIGN_TABLE_NOTE = `There are some Foreign tables in the schema, but dur
 // TODO: fix notes handling for html tags just for html and not for json
 func addNotesToAssessmentReport() {
 	log.Infof("adding notes to assessment report")
+
+	// keep it as the first point in Notes
+	if len(assessmentReport.Sizing.SizingRecommendation.ColocatedTables) > 0 {
+		assessmentReport.Notes = append(assessmentReport.Notes, COLOCATED_TABLE_RECOMMENDATION_CAVEAT)
+	}
+	for _, dbObj := range schemaAnalysisReport.SchemaSummary.DBObjects {
+		if dbObj.ObjectType == "INDEX" && dbObj.TotalCount > 0 {
+			assessmentReport.Notes = append(assessmentReport.Notes, RANGE_SHARDED_INDEXES_RECOMMENDATION)
+			break
+		}
+	}
 	switch source.DBType {
 	case ORACLE:
 		partitionSqlFPath := filepath.Join(assessmentMetadataDir, "schema", "partitions", "partition.sql")
@@ -1498,7 +1537,7 @@ func addNotesToAssessmentReport() {
 			}
 		}
 	case POSTGRESQL:
-		if parserIssueDetector.IsUnloggedTablesIssueFiltered {
+		if parserIssueDetector.IsUnloggedTablesIssueFiltered() {
 			assessmentReport.Notes = append(assessmentReport.Notes, UNLOGGED_TABLE_NOTE)
 		}
 		assessmentReport.Notes = append(assessmentReport.Notes, REPORTING_LIMITATIONS_NOTE)
@@ -1521,19 +1560,20 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigration) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigration {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION,
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1, // Caveat - we don't know the migration is offline/online;
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
+				}
+
+				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
+				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
+				// This converted AssessmentIssue is then appended to the assessmentIssues slice
+				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_DESCRIPTION, nil})
@@ -1542,19 +1582,38 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 		if len(unsupportedDataTypesForLiveMigrationWithFForFB) > 0 {
 			columns := make([]ObjectInfo, 0)
 			for _, colInfo := range unsupportedDataTypesForLiveMigrationWithFForFB {
-				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType)})
+				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
+				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				assessmentReport.AppendIssues(AssessmentIssue{
-					Category:            MIGRATION_CAVEATS_CATEGORY,
-					CategoryDescription: GetCategoryDescription(MIGRATION_CAVEATS_CATEGORY),
-					Type:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB,
-					Name:                queryissue.UNSUPPORTED_DATATYPE_LIVE_MIGRATION_WITH_FF_FB_ISSUE_NAME,
-					Impact:              constants.IMPACT_LEVEL_1,
-					Description:         UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION,
-					ObjectType:          constants.COLUMN,
-					ObjectName:          fmt.Sprintf("%s.%s.%s (%s)", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName, colInfo.DataType), // TODO (fix): adding datatype here is temporary fix
-					DocsLink:            UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK,
-				})
+				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
+				if !ok {
+					log.Warnf("failed to get datatype from %s", colInfo.DataType)
+					continue
+				}
+
+				var queryIssue queryissue.QueryIssue
+
+				if colInfo.IsArrayType && colInfo.IsEnumType {
+					queryIssue = queryissue.NewArrayOfEnumDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else if colInfo.IsUDTType {
+					queryIssue = queryissue.NewUserDefinedDatatypeIssue(
+						constants.COLUMN,
+						qualifiedColName,
+						"",
+						datatype,
+						colInfo.ColumnName,
+					)
+				} else {
+					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				}
+				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
+
 			}
 			if len(columns) > 0 {
 				migrationCaveats = append(migrationCaveats, UnsupportedFeature{UNSUPPORTED_DATATYPES_LIVE_WITH_FF_FB_CAVEAT_FEATURE, columns, false, UNSUPPORTED_DATATYPE_LIVE_MIGRATION_DOC_LINK, UNSUPPORTED_DATATYPES_FOR_LIVE_MIGRATION_WITH_FF_FB_DESCRIPTION, nil})

@@ -50,8 +50,6 @@ type TableIndexStats struct {
 	ObjectName      string  `json:"ObjectName"`
 	RowCount        *int64  `json:"RowCount"` // Pointer to allows null values
 	ColumnCount     *int64  `json:"ColumnCount"`
-	Reads           *int64  `json:"Reads"`
-	Writes          *int64  `json:"Writes"`
 	ReadsPerSecond  *int64  `json:"ReadsPerSecond"`
 	WritesPerSecond *int64  `json:"WritesPerSecond"`
 	IsIndex         bool    `json:"IsIndex"`
@@ -125,8 +123,6 @@ func InitAssessmentDB() error {
 			object_name         TEXT,
 			row_count           INTEGER,
 			column_count		INTEGER,
-			reads               INTEGER,
-			writes              INTEGER,
 			reads_per_second	INTEGER,
 			writes_per_second	INTEGER,
 			is_index            BOOLEAN,
@@ -134,6 +130,7 @@ func InitAssessmentDB() error {
 			parent_table_name   TEXT,
 			size_in_bytes       INTEGER,
 			PRIMARY KEY(schema_name, object_name));`, TABLE_INDEX_STATS),
+		// to store pgss output for unsupported query constructs detection
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			queryid			BIGINT,
 			query		TEXT);`, DB_QUERIES_SUMMARY),
@@ -209,14 +206,12 @@ func (adb *AssessmentDB) BulkInsert(table string, records [][]string) error {
 }
 
 const (
-	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	InsertTableStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
 	SELECT 
 		trc.schema_name,
 		trc.table_name AS object_name,
 		trc.row_count,
 		tcc.column_count,
-		tii.seq_reads AS reads,
-		tii.row_writes AS writes,
 		NULL AS reads_per_second,
 		NULL as writes_per_second,
 		0 AS is_index,
@@ -231,14 +226,12 @@ const (
 	WHERE otm.object_type NOT IN ('%s', '%s');`
 
 	// No insertion into 'column_count' for indexes
-	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads, writes, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
+	InsertIndexStats = `INSERT INTO %s (schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes)
 	SELECT 
 		itm.index_schema AS schema_name,
 		itm.index_name AS object_name,
 		NULL AS row_count,
 		tcc.column_count,
-		tii.seq_reads AS reads,
-		tii.row_writes AS writes,
 		NULL AS reads_per_second,
 		NULL as writes_per_second,
 		1 AS is_index,
@@ -257,14 +250,14 @@ const (
 		initial.schema_name,
 		initial.object_name,
 		initial.object_type,
-		(final.seq_reads - initial.seq_reads) / 120 AS seq_reads_per_second,
-		(final.row_writes - initial.row_writes) / 120 AS row_writes_per_second
+		(final.seq_reads - initial.seq_reads) / %d AS seq_reads_per_second, -- iops capture interval(default: 120)
+		(final.row_writes - initial.row_writes) / %d AS row_writes_per_second
 	FROM
 		%s AS initial
 	JOIN
 		%s AS final ON initial.schema_name = final.schema_name
-								  AND initial.object_name = final.object_name
-								  AND final.measurement_type = 'final'
+									AND initial.object_name = final.object_name
+									AND final.measurement_type = 'final'
 	WHERE
 		initial.measurement_type = 'initial';`
 
@@ -273,16 +266,16 @@ const (
 		reads_per_second = (SELECT seq_reads_per_second
 							FROM read_write_rates
 							WHERE read_write_rates.schema_name = table_index_stats.schema_name
-							  AND read_write_rates.object_name = table_index_stats.object_name),
+								AND read_write_rates.object_name = table_index_stats.object_name),
 		writes_per_second = (SELECT row_writes_per_second
-							 FROM read_write_rates
-							 WHERE read_write_rates.schema_name = table_index_stats.schema_name
-							   AND read_write_rates.object_name = table_index_stats.object_name)
+								FROM read_write_rates
+									WHERE read_write_rates.schema_name = table_index_stats.schema_name
+									AND read_write_rates.object_name = table_index_stats.object_name)
 	WHERE EXISTS (
 		SELECT 1
 		FROM read_write_rates
 		WHERE read_write_rates.schema_name = table_index_stats.schema_name
-		  AND read_write_rates.object_name = table_index_stats.object_name
+			AND read_write_rates.object_name = table_index_stats.object_name
 	);`
 )
 
@@ -297,8 +290,15 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 
 	switch SourceDBType {
 	case constants.POSTGRESQL:
+		var createTempTableForIops string
+		if IntervalForCapturingIops == 0 { // considering value as 0 to avoid division by zero
+			createTempTableForIops = fmt.Sprintf(CreateTempTable, 1, 1, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS)
+		} else {
+			createTempTableForIops = fmt.Sprintf(CreateTempTable, IntervalForCapturingIops, IntervalForCapturingIops, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS)
+		}
+
 		statements = append(statements,
-			fmt.Sprintf(CreateTempTable, TABLE_INDEX_IOPS, TABLE_INDEX_IOPS),
+			createTempTableForIops,
 			UpdateStatsWithRates)
 	case constants.ORACLE:
 		// already accounted
@@ -318,8 +318,8 @@ func (adb *AssessmentDB) PopulateMigrationAssessmentStats() error {
 
 func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	log.Infof("fetching all stats info from %q table", TABLE_INDEX_STATS)
-	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads, writes, 
-       reads_per_second, writes_per_second, is_index, object_type, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
+	query := fmt.Sprintf(`SELECT schema_name, object_name, row_count, column_count, reads_per_second, writes_per_second, 
+	is_index, object_type, parent_table_name, size_in_bytes FROM %s;`, TABLE_INDEX_STATS)
 	rows, err := adb.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error querying all stats-%s: %w", query, err)
@@ -329,17 +329,15 @@ func (adb *AssessmentDB) FetchAllStats() (*[]TableIndexStats, error) {
 	var stats []TableIndexStats
 	for rows.Next() {
 		var stat TableIndexStats
-		var rowCount, columnCount, reads, writes, readsPerSecond, writesPerSecond, sizeInBytes sql.NullInt64
+		var rowCount, columnCount, readsPerSecond, writesPerSecond, sizeInBytes sql.NullInt64
 		var parentTableName sql.NullString
-		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &reads, &writes,
-			&readsPerSecond, &writesPerSecond, &stat.IsIndex, &stat.ObjectType, &parentTableName, &sizeInBytes); err != nil {
+		if err := rows.Scan(&stat.SchemaName, &stat.ObjectName, &rowCount, &columnCount, &readsPerSecond, &writesPerSecond,
+			&stat.IsIndex, &stat.ObjectType, &parentTableName, &sizeInBytes); err != nil {
 			return nil, fmt.Errorf("error scanning row: %w", err)
 		}
 
 		stat.RowCount = lo.Ternary(rowCount.Valid, &rowCount.Int64, nil)
 		stat.ColumnCount = lo.Ternary(columnCount.Valid, &columnCount.Int64, nil)
-		stat.Reads = lo.Ternary(reads.Valid, &reads.Int64, nil)
-		stat.Writes = lo.Ternary(writes.Valid, &writes.Int64, nil)
 		stat.ReadsPerSecond = lo.Ternary(readsPerSecond.Valid, &readsPerSecond.Int64, nil)
 		stat.WritesPerSecond = lo.Ternary(writesPerSecond.Valid, &writesPerSecond.Int64, nil)
 		stat.ParentTableName = lo.Ternary(parentTableName.Valid, &parentTableName.String, nil)

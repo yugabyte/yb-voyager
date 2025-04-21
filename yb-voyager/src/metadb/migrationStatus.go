@@ -11,30 +11,42 @@ import (
 )
 
 type MigrationStatusRecord struct {
-	MigrationUUID               string            `json:"MigrationUUID"`
-	VoyagerVersion              string            `json:"VoyagerVersion"`
-	ExportType                  string            `json:"ExportType"`
-	ArchivingEnabled            bool              `json:"ArchivingEnabled"`
-	FallForwardEnabled          bool              `json:"FallForwardEnabled"`
-	FallbackEnabled             bool              `json:"FallbackEnabled"`
-	UseYBgRPCConnector          bool              `json:"UseYBgRPCConnector"`
-	TargetDBConf                *tgtdb.TargetConf `json:"TargetDBConf"`
-	SourceReplicaDBConf         *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
-	SourceDBAsTargetConf        *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
-	TableListExportedFromSource []string          `json:"TableListExportedFromSource"`
-	SourceDBConf                *srcdb.Source     `json:"SourceDBConf"`
+	MigrationUUID                             string            `json:"MigrationUUID"`
+	VoyagerVersion                            string            `json:"VoyagerVersion"`
+	ExportType                                string            `json:"ExportType"`
+	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`
+	FallForwardEnabled                        bool              `json:"FallForwardEnabled"`
+	FallbackEnabled                           bool              `json:"FallbackEnabled"`
+	UseYBgRPCConnector                        bool              `json:"UseYBgRPCConnector"`
+	TargetDBConf                              *tgtdb.TargetConf `json:"TargetDBConf"`
+	SourceReplicaDBConf                       *tgtdb.TargetConf `json:"SourceReplicaDBConf"`
+	SourceDBAsTargetConf                      *tgtdb.TargetConf `json:"SourceDBAsTargetConf"`
+	TableListExportedFromSource               []string          `json:"TableListExportedFromSource"`
+	SourceExportedTableListWithLeafPartitions []string          `json:"SourceExportedTableListWithLeafPartitions"` // will be same as `TableListExportedFromSource` for Oracle and MySQL but will have leaf partitions in case of PG
+	TargetExportedTableListWithLeafPartitions []string          `json:"TargetExportedTableListWithLeafPartitions"` // will be the table list for export data from target with leaf partitions
 
-	CutoverToTargetRequested                        bool `json:"CutoverToTargetRequested"`
+	SourceDBConf *srcdb.Source `json:"SourceDBConf"`
+
+	//All the cutover requested flags by initiate cutover command
+	CutoverToTargetRequested        bool `json:"CutoverToTargetRequested"`
+	CutoverToSourceRequested        bool `json:"CutoverToSourceRequested"`
+	CutoverToSourceReplicaRequested bool `json:"CutoverToSourceReplicaRequested"`
+
+	//All the cutover detected by importer flags (marked when the cutover event is recieved by the importer)
+	CutoverDetectedByTargetImporter        bool `json:"CutoverDetectedByTargetImporter"`
+	CutoverDetectedBySourceImporter        bool `json:"CutoverDetectedBySourceImporter"`
+	CutoverDetectedBySourceReplicaImporter bool `json:"CutoverDetectedBySourceReplicaImporter"`
+
+	//All the cutover processed by importer/exporter flags - indicating that the cutover is completed by that command.
 	CutoverProcessedBySourceExporter                bool `json:"CutoverProcessedBySourceExporter"`
-	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
-	ExportFromTargetFallForwardStarted              bool `json:"ExportFromTargetFallForwardStarted"`
-	CutoverToSourceReplicaRequested                 bool `json:"CutoverToSourceReplicaRequested"`
-	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
-	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
-	ExportFromTargetFallBackStarted                 bool `json:"ExportFromTargetFallBackStarted"`
-	CutoverToSourceRequested                        bool `json:"CutoverToSourceRequested"`
 	CutoverToSourceProcessedByTargetExporter        bool `json:"CutoverToSourceProcessedByTargetExporter"`
+	CutoverToSourceReplicaProcessedByTargetExporter bool `json:"CutoverToSourceReplicaProcessedByTargetExporter"`
+	CutoverProcessedByTargetImporter                bool `json:"CutoverProcessedByTargetImporter"`
+	CutoverToSourceReplicaProcessedBySRImporter     bool `json:"CutoverToSourceReplicaProcessedBySRImporter"`
 	CutoverToSourceProcessedBySourceImporter        bool `json:"CutoverToSourceProcessedBySourceImporter"`
+
+	ExportFromTargetFallForwardStarted bool `json:"ExportFromTargetFallForwardStarted"`
+	ExportFromTargetFallBackStarted    bool `json:"ExportFromTargetFallBackStarted"`
 
 	ExportSchemaDone                bool `json:"ExportSchemaDone"`
 	ExportDataDone                  bool `json:"ExportDataDone"` // to be interpreted as export of snapshot data from source is complete
@@ -56,6 +68,9 @@ type MigrationStatusRecord struct {
 
 	ImportDataFileFlagFileTableMapping string `json:"ImportDataFileFlagFileTableMapping"` // Import data file command's file_table_mapping flag
 	ImportDataFileFlagDataDir          string `json:"ImportDataFileFlagDataDir"`          // Import data file command's data-dir flag
+
+	SourceColumnToSequenceMapping map[string]string `json:"SourceColumnToSequenceMapping"`
+	TargetColumnToSequenceMapping map[string]string `json:"TargetColumnToSequenceMapping"`
 }
 
 const MIGRATION_STATUS_KEY = "migration_status"

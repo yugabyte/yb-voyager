@@ -23,6 +23,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -49,6 +50,14 @@ var exportDataFromTargetCmd = &cobra.Command{
 		err = verifySSLFlags()
 		if err != nil {
 			utils.ErrExit("failed to verify SSL flags: %v", err)
+		}
+		if source.SSLRootCert != "" {
+			err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+				record.TargetDBConf.SSLRootCert = source.SSLRootCert
+			})
+			if err != nil {
+				utils.ErrExit("error updating migration status record: %v", err)
+			}
 		}
 		err = initSourceConfFromTargetConf()
 		if err != nil {
@@ -126,9 +135,10 @@ func packAndSendExportDataFromTargetPayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = EXPORT_DATA_FROM_TARGET_PHASE
 	exportDataPayload := callhome.ExportDataPhasePayload{
-		ParallelJobs: int64(source.NumConnections),
-		StartClean:   bool(startClean),
-		Error:        callhome.SanitizeErrorMsg(errorMsg),
+		ParallelJobs:     int64(source.NumConnections),
+		StartClean:       bool(startClean),
+		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	exportDataPayload.Phase = exportPhase

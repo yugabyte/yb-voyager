@@ -10,6 +10,8 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-22.04
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
     steps:
     - uses: actions/checkout@v3
 
@@ -22,6 +24,16 @@ jobs:
       run: |
         cd yb-voyager
         go build -v ./...
+
+    - name: Verify Build Tags in Test Files
+      run: |
+        MISSING_TAGS=$(grep -L '//go:build' $(find . -type f -name '*_test.go' | grep -v vendor) || true)
+        if [[ -n "$MISSING_TAGS" ]]; then
+          echo "The following test files are missing a build tag: "
+          echo "$MISSING_TAGS"
+          echo "Ensure all test files have a build tag. If a new build tag is introduced, make sure to update the workflow to trigger the tests for that build tag."
+          exit 1
+        fi
 
     - name: Test
       run: |

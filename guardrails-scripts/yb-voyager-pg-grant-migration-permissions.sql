@@ -153,6 +153,19 @@ GRANT pg_read_all_stats to :voyager_user;
     \echo '--- Creating Replication Group ---'
     CREATE ROLE :replication_group;
 
+    -- Prompt the user to let them know that ownership of the tables will be transferred to the replication group and proceed only if they confirm
+    \echo ''
+    \echo 'Transferring ownership of all tables in the specified schemas to the specified replication group. The migration user and the original owner of the tables will be added to the replication group.'
+    -- Only 'yes' or 'no' are valid inputs. 'y' and 'n' are not valid inputs.
+    \prompt 'Proceed with the transfer of ownership? (yes/no): ' proceed
+
+    \if :proceed
+        \echo 'Proceeding with the transfer of ownership...'
+    \else
+        \echo 'Aborting the script.'
+        \q
+    \endif
+
     -- Add the original owner of the tables to the group
     \echo ''
     \echo '--- Adding Original Owner to Replication Group ---'
@@ -217,12 +230,22 @@ GRANT pg_read_all_stats to :voyager_user;
         EXECUTE format('GRANT CREATE ON DATABASE %I TO %I;', db_name, current_setting('myvars.voyager_user'));
     END $$;
 
-    -- Grant SELECT, INSERT, UPDATE, DELETE on all tables in specified schemas
+    -- Grant SELECT, INSERT, UPDATE, DELETE on all tables and SELECT, UPDATE, USAGE on all sequences in specified schemas
     \if :is_live_migration_fall_back
         \echo ''
         \echo '--- Granting SELECT, INSERT, UPDATE, DELETE on All Tables in Specified Schemas ---'
         SELECT 
             'GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
+        FROM 
+            information_schema.schemata
+        WHERE 
+            schema_name = ANY(string_to_array(:'schema_list', ','))
+        \gexec
+
+        \echo ''
+        \echo '--- Granting SELECT, UPDATE, USAGE on All Sequences in Specified Schemas ---'
+        SELECT 
+            'GRANT SELECT, UPDATE, USAGE ON ALL SEQUENCES IN SCHEMA ' || schema_name || ' TO ' || :'voyager_user' || ';'
         FROM 
             information_schema.schemata
         WHERE 

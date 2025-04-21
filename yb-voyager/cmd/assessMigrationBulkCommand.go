@@ -81,6 +81,7 @@ func packAndSendAssessMigrationBulkPayload(status string, errorMsg string) {
 	assessMigBulkPayload := callhome.AssessMigrationBulkPhasePayload{
 		FleetConfigCount: len(bulkAssessmentDBConfigs),
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType: getControlPlaneType(),
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessMigBulkPayload)

@@ -22,6 +22,7 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
@@ -58,6 +59,14 @@ func NewObjectName(dbType, defaultSchemaName, schemaName, tableName string) *Obj
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
 	return result
+}
+
+func NewObjectNameWithQualifiedName(dbType, defaultSchemaName, objName string) *ObjectName {
+	parts := strings.Split(objName, ".")
+	if len(parts) != 2 {
+		panic(fmt.Sprintf("invalid qualified name: %s", objName))
+	}
+	return NewObjectName(dbType, defaultSchemaName, parts[0], unquote(parts[1], dbType))
 }
 
 func (nv *ObjectName) String() string {
@@ -172,6 +181,20 @@ func SetDifferenceNameTuples(a, b []NameTuple) []NameTuple {
 	var res []NameTuple
 	for _, x := range a {
 		if !m[x.String()] {
+			res = append(res, x)
+		}
+	}
+	return res
+}
+
+func SetDifferenceNameTuplesWithKey(a, b []NameTuple) []NameTuple {
+	m := make(map[string]bool)
+	for _, x := range b {
+		m[x.ForKey()] = true
+	}
+	var res []NameTuple
+	for _, x := range a {
+		if !m[x.ForKey()] {
 			res = append(res, x)
 		}
 	}

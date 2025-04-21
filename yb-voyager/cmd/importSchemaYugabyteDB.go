@@ -33,6 +33,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+const CONTINUE_ON_ERROR_IGNORE_EXIST_MSG = "If you wish to ignore the errors and continue, use the '--continue-on-error true' flag. If you wish to ignore 'already exists' errors, use the '--ignore-exist true' flag."
+
 var deferredSqlStmts []sqlInfo
 var finalFailedSqlStmts []string
 
@@ -227,7 +229,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), sqlInfo.fileName)
 				finalFailedSqlStmts = append(finalFailedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				return err
+				return fmt.Errorf("%w\n%s", err, color.YellowString(CONTINUE_ON_ERROR_IGNORE_EXIST_MSG))
 			}
 		}
 		return nil

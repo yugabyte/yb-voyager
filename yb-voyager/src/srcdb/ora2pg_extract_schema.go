@@ -102,43 +102,7 @@ func ora2pgExtractSchema(source *Source, exportDir string, schemaDir string) {
 				utils.ErrExit("failed to remove redundant alter table during export schema: %v", err.Error())
 			}
 		}
-	}
-	if source.DBType == "oracle" {
-		if err := ora2pgAssessmentReport(source, configFilePath, schemaDir); err != nil {
-			utils.ErrExit("failed to save ora2pg oracle assessment report during export schema: %v", err.Error())
-		}
-	}
-}
 
-func ora2pgAssessmentReport(source *Source, configFilePath string, schemaDir string) error {
-	// ora2pg_report_cmd="ora2pg -t show_report --estimate_cost -c $OUTPUT_FILE_PATH --dump_as_sheet > $assessment_metadata_dir/schema/ora2pg_report.csv"
-	reportCommand := exec.Command("ora2pg", "-t", "show_report", "--estimate_cost", "-c", configFilePath, "--dump_as_sheet")
-	outfile, err := os.Create(filepath.Join(schemaDir, "ora2pg_report.csv"))
-	if err != nil {
-		return fmt.Errorf("creating file: %w", err)
+		fmt.Println() // for formatting the output in the console
 	}
-	defer outfile.Close()
-	var errbuf bytes.Buffer
-	reportCommand.Stdout = outfile
-	reportCommand.Stderr = &errbuf
-	reportCommand.Env = append(os.Environ(), "ORA2PG_PASSWD="+source.Password)
-
-	log.Info("Executing command to get ora2pg report: ", reportCommand.String())
-	err = reportCommand.Start()
-	if err != nil {
-		return fmt.Errorf("starting ora2pg command: %w", err)
-	}
-
-	err = reportCommand.Wait()
-	if err != nil {
-		return fmt.Errorf("waiting for ora2pg command exit: %w", err)
-	}
-	if errbuf.String() != "" {
-		log.Errorf(`ora2pg STDERR in getting assessment report : "%s"`, errbuf.String())
-	}
-
-	if strings.Contains(strings.ToLower(errbuf.String()), "error") {
-		return fmt.Errorf("error in stdout of ora2pg assessment report: %s", errbuf.String())
-	}
-	return nil
 }

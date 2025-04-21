@@ -196,7 +196,7 @@ func TestAllIssues(t *testing.T) {
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(sender_id);"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(receiver_id);"),
 			NewXmlFunctionsIssue("DML_QUERY", "", "SELECT id, xpath('/person/name/text()', data) AS name FROM test_xml_type;"),
-			NewSystemColumnsIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
+			NewXmaxSystemColumnIssue("DML_QUERY", "", "SELECT * FROM employees e WHERE e.xmax = (SELECT MAX(xmax) FROM employees WHERE department = e.department);"),
 		},
 		stmt2: []QueryIssue{
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
@@ -218,7 +218,7 @@ func TestAllIssues(t *testing.T) {
 			NewAdvisoryLocksIssue("DML_QUERY", "", stmt6),
 		},
 		stmt7: []QueryIssue{
-			NewSystemColumnsIssue("DML_QUERY", "", stmt7),
+			NewXminSystemColumnIssue("DML_QUERY", "", stmt7),
 		},
 		stmt8: []QueryIssue{
 			NewXmlFunctionsIssue("DML_QUERY", "", stmt8),
@@ -245,7 +245,7 @@ func TestAllIssues(t *testing.T) {
 	stmtsWithExpectedIssues[stmt2] = modifiedIssuesforPLPGSQL(stmtsWithExpectedIssues[stmt2], "FUNCTION", "process_order")
 
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -269,21 +269,23 @@ func TestDDLIssues(t *testing.T) {
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
 			NewAdvisoryLocksIssue("MVIEW", "public.sample_data_view", stmt14),
-			NewSystemColumnsIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewCtidSystemColumnIssue("MVIEW", "public.sample_data_view", stmt14),
+			NewXminSystemColumnIssue("MVIEW", "public.sample_data_view", stmt14),
 			NewXmlFunctionsIssue("MVIEW", "public.sample_data_view", stmt14),
 		},
 		stmt15: []QueryIssue{
 			NewAdvisoryLocksIssue("VIEW", "public.orders_view", stmt15),
-			NewSystemColumnsIssue("VIEW", "public.orders_view", stmt15),
+			NewCtidSystemColumnIssue("VIEW", "public.orders_view", stmt15),
+			NewXminSystemColumnIssue("VIEW", "public.orders_view", stmt15),
 			NewXmlFunctionsIssue("VIEW", "public.orders_view", stmt15),
 			//TODO: Add CHECK OPTION issue when we move it from regex to parser logic
 		},
 		stmt16: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "public.xml_data_example", stmt16),
-			NewPrimaryOrUniqueConsOnUnsupportedIndexTypesIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
+			NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "daterange", "xml_data_example_d_key"),
 			NewMultiColumnListPartition("TABLE", "public.xml_data_example", stmt16),
 			NewInsufficientColumnInPKForPartition("TABLE", "public.xml_data_example", stmt16, []string{"name"}),
-			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "description"),
+			NewXMLDatatypeIssue("TABLE", "public.xml_data_example", stmt16, "XML", "description"),
 		},
 		stmt17: []QueryIssue{
 			NewXmlFunctionsIssue("TABLE", "invoices", stmt17),
@@ -292,7 +294,7 @@ func TestDDLIssues(t *testing.T) {
 			NewXmlFunctionsIssue("INDEX", "idx_invoices ON invoices", stmt18),
 		},
 		stmt19: []QueryIssue{
-			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "raster"),
+			NewLODatatypeIssue("TABLE", "test_lo_default", stmt19, "LARGE OBJECT", "raster"),
 			NewLOFuntionsIssue("TABLE", "test_lo_default", stmt19, []string{"lo_import"}),
 		},
 		stmt20: []QueryIssue{
@@ -319,7 +321,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 	}
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -476,7 +478,7 @@ $$ LANGUAGE plpgsql;
 		sqls[4]: []QueryIssue{
 			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_put(fd, convert_to(new_data, 'UTF8'));", []string{"lo_put"}),
 			NewLOFuntionsIssue("DML_QUERY", "", "SELECT lo_close(fd);", []string{"lo_close"}),
-			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "raster"),
+			NewLODatatypeIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", "LARGE OBJECT", "raster"),
 			NewLOFuntionsIssue("TABLE", "test_large_objects", "CREATE TABLE IF NOT EXISTS test_large_objects(id INT, raster lo DEFAULT lo_import(3242));", []string{"lo_import"}),
 		},
 		sqls[5]: []QueryIssue{
@@ -784,7 +786,7 @@ FROM test_jsonb1;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for _, stmt := range ddlSqls {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
@@ -1024,7 +1026,7 @@ REFERENCES schema1.abc (id);
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for _, stmt := range requiredDDLs {
-		err := parserIssueDetector.ParseRequiredDDLs(stmt)
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
@@ -1420,4 +1422,38 @@ func TestCompressionClause(t *testing.T) {
 		}
 	}
 
+}
+
+func TestRangeShardingIndexes(t *testing.T) {
+	stmts := []string{
+		`CREATE TABLE test(id int, created_at timestamp with time zone, val text);`,
+		`CREATE INDEX idx_val on test(val); `,
+		`CREATE INDEX idx_id_created_at on test(id, created_at);`,
+		`CREATE INDEX idx_created_at on test(created_at);`,
+		`CREATE INDEX idx_id_created_at1 on test(id, created_at ASC);`,
+	}
+	sqlsWithExpectedIssues := map[string][]QueryIssue{
+		stmts[1]: []QueryIssue{},
+		stmts[2]: []QueryIssue{
+			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at ON test", stmts[2]),
+		},
+		stmts[3]: []QueryIssue{
+			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3]),
+		},
+		stmts[4]: []QueryIssue{},
+	}
+	parserIssueDetector := NewParserIssueDetector()
+	err := parserIssueDetector.ParseAndProcessDDL(stmts[0])
+	assert.Nil(t, err)
+	for stmt, expectedIssues := range sqlsWithExpectedIssues {
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
+		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		for _, expectedIssue := range expectedIssues {
+			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
+				return cmp.Equal(expectedIssue, queryIssue)
+			})
+			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+		}
+	}
 }

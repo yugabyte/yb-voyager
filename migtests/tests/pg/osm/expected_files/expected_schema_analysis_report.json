@@ -29,7 +29,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 5,
-                "InvalidCount": 1,
+                "InvalidCount": 2,
                 "ObjectNames": "changeset_geom_gist ON public.osm_changeset, created_idx ON public.osm_changeset, tags_idx ON public.osm_changeset, user_id_idx ON public.osm_changeset, user_name_idx ON public.osm_changeset",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
@@ -58,7 +58,7 @@
             "IssueType": "unsupported_datatypes",
             "ObjectType": "TABLE",
             "ObjectName": "public.osm_changeset",
-            "Reason": "PostGIS datatypes are not yet supported in YugabyteDB. Affected column: geom and type: geometry.",
+            "Reason": "GEOMETRY datatype is not yet supported in YugabyteDB. Affected column: geom.",
             "SqlStatement": "CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326), CONSTRAINT osm_changeset_pkey PRIMARY KEY (id)) WITH (colocation=false);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql",
             "Suggestion": "",
@@ -67,10 +67,22 @@
             "MinimumVersionsFixedIn": null
         },
         {
+            "IssueType": "performance_optimizations",
+            "ObjectType": "INDEX",
+            "ObjectName": "created_idx ON public.osm_changeset",
+            "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
+            "SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
+            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql",
+            "Suggestion": "",
+            "GH": "",
+            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+            "MinimumVersionsFixedIn": null
+        },
+        {
             "IssueType": "migration_caveats",
             "ObjectType": "TABLE",
             "ObjectName": "public.osm_changeset",
-            "Reason": "Datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags and type: public.hstore. These columns will be excluded when exporting and importing data in live migration workflows.",
+            "Reason": "HSTORE datatype not yet supported by voyager in live migration with fall-forward/fallback. Affected column: tags. These columns will be excluded when exporting and importing data in live migration workflows.",
             "SqlStatement": "CREATE TABLE public.osm_changeset (id bigint NOT NULL, user_id bigint, created_at timestamp, min_lat numeric(10, 7), max_lat numeric(10, 7), min_lon numeric(10, 7), max_lon numeric(10, 7), closed_at timestamp, open boolean, num_changes int, user_name varchar(255), tags public.hstore, geom public.geometry(polygon, 4326), CONSTRAINT osm_changeset_pkey PRIMARY KEY (id)) WITH (colocation=false);",
             "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/table.sql",
             "Suggestion": "",

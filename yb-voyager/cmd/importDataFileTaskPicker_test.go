@@ -1,3 +1,5 @@
+//go:build unit
+
 /*
 Copyright (c) YugabyteDB, Inc.
 
@@ -1222,4 +1224,921 @@ func TestColocatedAwareRandomTaskPickerResumable(t *testing.T) {
 	assert.True(t, picker.HasMoreTasks())
 	// only two shoudl be inprogress even though previously 3 were in progress.
 	assert.Equal(t, 2, len(picker.inProgressTasks))
+}
+
+func TestColocatedCappedRandomTaskPickerSingleTaskSharded(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 1 task, 1 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(1, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return the task
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Equal(t, shardedTask1, task)
+	}
+
+	// 1 task, 3 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return the task
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Equal(t, shardedTask1, task)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(shardedTask1)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+}
+
+func TestColocatedCappedRandomTaskPickerSingleTaskColocated(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 1 task, 1 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return the task
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Equal(t, colocatedTask1, task)
+	}
+
+	// 1 task, 3 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(3, 3, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return the task
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Equal(t, colocatedTask1, task)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(colocatedTask1)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksSharded(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task1 as done
+	err = picker.MarkTaskAsDone(shardedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either shardedTask2 or shardedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask2 || task == shardedTask3, "task: %v, shardedTask2: %v, shardedTask3: %v", task, shardedTask2, shardedTask3)
+	}
+
+	// mark shardedTask2, shardedTask3 as done
+	err = picker.MarkTaskAsDone(shardedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(shardedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksColocated(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task1 as done
+	err = picker.MarkTaskAsDone(colocatedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either colocatedTask2 or colocatedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask2 || task == colocatedTask3, "task: %v, colocatedTask2: %v, colocatedTask3: %v", task, colocatedTask2, colocatedTask3)
+	}
+
+	// mark colocatedTask2, colocatedTask3 as done
+	err = picker.MarkTaskAsDone(colocatedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(colocatedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksColocatedAndSharded(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(5, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 4)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 5)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 6)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 6 tasks, 10 max sharded tasks in progress, 10 max colocated tasks in progress
+	colocatedBatchImportQueue := make(chan func(), 10*2)
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, colocatedBatchImportQueue, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	pickedTasks := make(map[*ImportFileTask]bool)
+	for i := 0; i < 6; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		pickedTasks[task] = true
+	}
+
+	// all 6 tasks should have been picked
+	assert.Len(t, pickedTasks, 6)
+
+	// since colocatedBatchImportQueue is empty, hereafter, all tasks should be colocated
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// now, fill up colocatedBatchImportQueue. then all tasks being picked should be sharded
+	for i := 0; i < 20; i++ {
+		colocatedBatchImportQueue <- func() {}
+	}
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// 6 tasks, 2 max sharded tasks in progress, 2 max colocated tasks in progress
+	colocatedBatchImportQueue = make(chan func(), 2*2)
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, colocatedBatchImportQueue, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	pickedTasks = make(map[*ImportFileTask]bool)
+	colocatedTaskPickCount := 0
+	shardedTaskPickCount := 0
+	for i := 0; i < 4; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		pickedTasks[task] = true
+		if task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 {
+			colocatedTaskPickCount++
+		} else {
+			shardedTaskPickCount++
+		}
+	}
+
+	// 4 tasks should have been picked, 2 of each type
+	assert.Len(t, pickedTasks, 4)
+	assert.Equal(t, 2, colocatedTaskPickCount)
+	assert.Equal(t, 2, shardedTaskPickCount)
+
+	// since colocatedBatchImportQueue is empty, hereafter, all tasks should be colocated and amongst the ones already picked.
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+		assert.Truef(t, pickedTasks[task], "task: %v, pickedTasks: %v", task, pickedTasks)
+	}
+
+	// now, fill up colocatedBatchImportQueue. then all tasks being picked should be sharded
+	for i := 0; i < 4; i++ {
+		colocatedBatchImportQueue <- func() {}
+	}
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+		assert.Truef(t, pickedTasks[task], "task: %v, pickedTasks: %v", task, pickedTasks)
+	}
+
+	// mark both colocated picked tasks as done
+	for task := range pickedTasks {
+		if task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3 {
+			err = picker.MarkTaskAsDone(task)
+			assert.NoError(t, err)
+		}
+	}
+	// empty queue
+	for i := 0; i < 4; i++ {
+		_ = <-colocatedBatchImportQueue
+	}
+	// now only one new colocated task should be picked.
+	newColocatedTask, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Truef(t, newColocatedTask == colocatedTask1 || newColocatedTask == colocatedTask2 || newColocatedTask == colocatedTask3, "task: %v, expected tasks = %v", newColocatedTask, tasks)
+	assert.False(t, pickedTasks[newColocatedTask])
+
+	// now mark the new task as done
+	err = picker.MarkTaskAsDone(newColocatedTask)
+	assert.NoError(t, err)
+
+	// now, there should only be two of the picked sharded tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+		assert.Truef(t, pickedTasks[task], "task: %v, pickedTasks: %v", task, pickedTasks)
+	}
+
+	// mark both sharded picked tasks as done
+	for task := range pickedTasks {
+		if task == shardedTask1 || task == shardedTask2 || task == shardedTask3 {
+			err = picker.MarkTaskAsDone(task)
+			assert.NoError(t, err)
+		}
+	}
+	// should be one new sharded task
+	newShardedTask, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.Truef(t, newShardedTask == shardedTask1 || newShardedTask == shardedTask2 || newShardedTask == shardedTask3, "task: %v, expected tasks = %v", newShardedTask, tasks)
+	assert.False(t, pickedTasks[newShardedTask])
+
+	// now mark the new task as done
+	err = picker.MarkTaskAsDone(newShardedTask)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableColocated(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated1", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated1", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask1 || task == colocatedTask2 || task == colocatedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(colocatedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either colocatedTask2 or colocatedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == colocatedTask2 || task == colocatedTask3, "task: %v, colocatedTask2: %v, colocatedTask3: %v", task, colocatedTask2, colocatedTask3)
+	}
+
+	// mark colocatedTask2, colocatedTask3 as done
+	err = picker.MarkTaskAsDone(colocatedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(colocatedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 1; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickerMultipleTasksSameTableSharded(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded1", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded1", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// mark task as done
+	err = picker.MarkTaskAsDone(shardedTask1)
+	assert.NoError(t, err)
+
+	// now, next task should be either shardedTask2 or shardedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask2 || task == shardedTask3, "task: %v, shardedTask2: %v, shardedTask3: %v", task, shardedTask2, shardedTask3)
+	}
+
+	// mark shardedTask2, shardedTask3 as done
+	err = picker.MarkTaskAsDone(shardedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(shardedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+
+	// 3 tasks 2 max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(2, 2, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return two of the tasks
+	pickerTask1, err := picker.Pick()
+	assert.NoError(t, err)
+	pickedTask2, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask2)
+
+	// now, picker should always return one of the two tasks, because 2 max tasks in progress
+	for i := 0; i < 1; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickerTask1 || task == pickedTask2, "task: %v, pickerTask1: %v, pickedTask2: %v", task, pickerTask1, pickedTask2)
+	}
+
+	// mark pickerTask1 as done
+	err = picker.MarkTaskAsDone(pickerTask1)
+	assert.NoError(t, err)
+
+	pickedTask3, err := picker.Pick()
+	assert.NoError(t, err)
+	assert.NotEqual(t, pickerTask1, pickedTask3)
+	assert.NotEqual(t, pickedTask2, pickedTask3)
+
+	// now, picker should always return one of pickedTask2, pickedTask3
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == pickedTask2 || task == pickedTask3, "task: %v, pickedTask2: %v, pickedTask3: %v", task, pickedTask2, pickedTask3)
+	}
+
+	// mark pickedTask2, pickedTask3 as done
+	err = picker.MarkTaskAsDone(pickedTask2)
+	assert.NoError(t, err)
+	err = picker.MarkTaskAsDone(pickedTask3)
+	assert.NoError(t, err)
+
+	// now, there should be no more tasks
+	assert.False(t, picker.HasMoreTasks())
+	_, err = picker.Pick()
+	assert.Error(t, err)
+}
+
+func TestColocatedCappedRandomTaskPickeResumable(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, colocatedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.colocated1", 1)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.colocated2", 2)
+	testutils.FatalIfError(t, err)
+	_, colocatedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.colocated3", 3)
+	testutils.FatalIfError(t, err)
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 4)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 5)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 6)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		colocatedTask1,
+		colocatedTask2,
+		colocatedTask3,
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		colocatedTables: []sqlname.NameTuple{
+			colocatedTask1.TableNameTup,
+			colocatedTask2.TableNameTup,
+			colocatedTask3.TableNameTup,
+		},
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 5 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// pick 4 tasks and start the process.
+	task1, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp1, err := NewFileBatchProducer(task1, state)
+	batch1, err := fbp1.NextBatch()
+	assert.NoError(t, err)
+	batch1.MarkInProgress()
+
+	task2, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp2, err := NewFileBatchProducer(task2, state)
+	batch2, err := fbp2.NextBatch()
+	assert.NoError(t, err)
+	batch2.MarkInProgress()
+
+	task3, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp3, err := NewFileBatchProducer(task3, state)
+	batch3, err := fbp3.NextBatch()
+	assert.NoError(t, err)
+	batch3.MarkInProgress()
+
+	task4, err := picker.Pick()
+	assert.NoError(t, err)
+	fbp4, err := NewFileBatchProducer(task4, state)
+	batch4, err := fbp4.NextBatch()
+	assert.NoError(t, err)
+	batch4.MarkInProgress()
+
+	// simulate restart. now, those 4 tasks should be in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	assert.Equal(t, 4, len(picker.inProgressTasks()))
+
+	// simulate restart with a smaller no. of max tasks in progress
+	picker, err = NewColocatedCappedRandomTaskPicker(1, 1, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+	// only two shoudl be inprogress even though previously 4 were in progress.
+	assert.Equal(t, 2, len(picker.inProgressTasks()))
+	assert.Equal(t, 1, len(picker.inProgressColocatedTasks))
+	assert.Equal(t, 1, len(picker.inProgressShardedTasks))
+}
+
+func TestColocatedCappedRandomTaskPickerWaitForTasksBatchesTobeImported(t *testing.T) {
+	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(3, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+
+	_, shardedTask1, err := createFileAndTask(lexportDir, "file1", ldataDir, "public.sharded1", 1)
+	testutils.FatalIfError(t, err)
+	_, shardedTask2, err := createFileAndTask(lexportDir, "file2", ldataDir, "public.sharded2", 2)
+	testutils.FatalIfError(t, err)
+	_, shardedTask3, err := createFileAndTask(lexportDir, "file3", ldataDir, "public.sharded3", 3)
+	testutils.FatalIfError(t, err)
+
+	tasks := []*ImportFileTask{
+		shardedTask1,
+		shardedTask2,
+		shardedTask3,
+	}
+	dummyYb := &dummyYb{
+		shardedTables: []sqlname.NameTuple{
+			shardedTask1.TableNameTup,
+			shardedTask2.TableNameTup,
+			shardedTask3.TableNameTup,
+		},
+	}
+	tdb = dummyYb
+	tableTypes, err := getTableTypes(tasks)
+	testutils.FatalIfError(t, err)
+
+	// 3 tasks, 10 max tasks in progress
+	picker, err := NewColocatedCappedRandomTaskPicker(10, 10, tasks, state, dummyYb, nil, tableTypes)
+	testutils.FatalIfError(t, err)
+	assert.True(t, picker.HasMoreTasks())
+
+	// no matter how many times we call Pick therefater,
+	// it should return one of the tasks
+	for i := 0; i < 100; i++ {
+		task, err := picker.Pick()
+		assert.NoError(t, err)
+		assert.Truef(t, task == shardedTask1 || task == shardedTask2 || task == shardedTask3, "task: %v, expected tasks = %v", task, tasks)
+	}
+
+	// Even though no task importer has been created for any of the tasks,
+	// WaitForTasksBatchesTobeImported should not fail. It should assume that tasks
+	// are not yet done yet.
+	err = picker.WaitForTasksBatchesTobeImported()
+	assert.NoError(t, err)
 }

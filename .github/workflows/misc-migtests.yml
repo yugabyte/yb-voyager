@@ -10,6 +10,9 @@ jobs:
   run-misc-migration-tests:
     runs-on: ubuntu-22.04
     
+    env:
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
+
     services:
         postgres:
           image: postgres:17
@@ -49,11 +52,12 @@ jobs:
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 
-      - name: Install python3 and psycopg2
+      - name: Install python3, psycopg2 and bs4
         run: |
           sudo apt install -y python3
           sudo apt install -y libpq-dev
           sudo apt install python3-psycopg2
+          pip3 install bs4 # Install BeautifulSoup4 module for HTML report validation
 
       #TODO Remove the install PG 17 command once we do that in installer script 
       - name: Run installer script to setup voyager
@@ -75,6 +79,9 @@ jobs:
 
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
+
+      - name: "TEST: Assessment Report Test with  2.25.0.0 target-db-version"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-with-tdb
       
       - name: "TEST: Assessment Report Test (Schema list UQC)"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test-uqc
@@ -92,7 +99,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         if: ${{ !cancelled() }}
         run: |
-          versions=("2024.2.1.0-b185" "2.20.9.0-b47" "2024.1.4.0-b108" "2.23.1.0-b220")
+          versions=("2024.2.2.2-b2" "2.20.9.0-b47" "2024.1.4.0-b108" "2.25.0.0-b489")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 

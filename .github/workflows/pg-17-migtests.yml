@@ -10,7 +10,7 @@ jobs:
   run-pg-17-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.1.0-b185, 2.20.9.0-b47, 2024.1.4.0-b108, 2.23.1.0-b220]
+        version: [2024.2.2.2-b2, 2.20.9.0-b47, 2024.1.4.0-b108, 2.25.0.0-b489]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -19,6 +19,7 @@ jobs:
 
     env:
       BETA_FAST_DATA_EXPORT: ${{ matrix.BETA_FAST_DATA_EXPORT }}
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
     runs-on: ubuntu-22.04
     services:
       postgres:
@@ -164,6 +165,10 @@ jobs:
       - name: "TEST: pg-sequences"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sequences
+
+      - name: "TEST: pg-sequences with table list"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-test.sh pg/sequences env-with-table-list.sh
 
       - name: "TEST: pg-indexes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}

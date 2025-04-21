@@ -886,16 +886,19 @@ func TestPickBestRecommendation_PickLastMaxCoreRecommendationWhenNoneCanSupport(
 		4: {
 			VCPUsPerInstance: 4,
 			NumNodes:         10,
+			CoresNeeded:      12,
 			FailureReasoning: "has some failure reasoning",
 		},
 		8: {
 			VCPUsPerInstance: 8,
 			NumNodes:         3,
+			CoresNeeded:      24,
 			FailureReasoning: "has some failure reasoning",
 		},
 		16: {
 			VCPUsPerInstance: 16,
 			NumNodes:         3,
+			CoresNeeded:      48,
 			FailureReasoning: "has some failure reasoning",
 		},
 	}

@@ -109,6 +109,7 @@ const (
 	UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY = "unsupported_query_constructs"
 	UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY  = "unsupported_plpgsql_objects"
 	MIGRATION_CAVEATS_CATEGORY            = "migration_caveats"
+	PERFORMANCE_OPTIMIZATIONS_CATEGORY    = "performance_optimizations"
 	REPORT_UNSUPPORTED_QUERY_CONSTRUCTS   = "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"
 
 	HTML = "html"
@@ -183,8 +184,10 @@ const (
 	MIGRATION_CAVEATS_CATEGORY_DESCRIPTION            = "Migration Caveats highlights the current limitations with the migration workflow."
 	UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY_DESCRIPTION = "Source database queries not supported in YugabyteDB, identified by scanning system tables."
 	UNSUPPPORTED_PLPGSQL_OBJECT_CATEGORY_DESCRIPTION  = "Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block"
-	SCHEMA_SUMMARY_DESCRIPTION                        = "Objects that will be created on the target YugabyteDB."
-	SCHEMA_SUMMARY_DESCRIPTION_ORACLE                 = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
+	PERFORMANCE_OPTIMIZATIONS_CATEGORY_DESCRIPTION    = "Recommendations to source schema or queries to optimize performance on YugabyteDB."
+
+	SCHEMA_SUMMARY_DESCRIPTION        = "Objects that will be created on the target YugabyteDB."
+	SCHEMA_SUMMARY_DESCRIPTION_ORACLE = SCHEMA_SUMMARY_DESCRIPTION + " Some of the index and sequence names might be different from those in the source database."
 
 	//Unsupported Features
 
@@ -258,6 +261,8 @@ func GetCategoryDescription(category string) string {
 		return UNSUPPPORTED_PLPGSQL_OBJECT_CATEGORY_DESCRIPTION
 	case MIGRATION_CAVEATS_CATEGORY: // or constants.MIGRATION_CAVEATS (identical)
 		return MIGRATION_CAVEATS_CATEGORY_DESCRIPTION
+	case PERFORMANCE_OPTIMIZATIONS_CATEGORY:
+		return PERFORMANCE_OPTIMIZATIONS_CATEGORY_DESCRIPTION
 	default:
 		utils.ErrExit("ERROR unsupported assessment issue category %q", category)
 	}
