@@ -292,7 +292,7 @@ func startExportDataFromTargetIfRequired() {
 		"--target-ssl-mode", tconf.SSLMode,
 		"--log-level", config.LogLevel,
 	}
-	if tconf.SSLRootCert != "" {
+	if msr.UseYBgRPCConnector && tconf.SSLRootCert != "" {
 		cmd = append(cmd, "--target-ssl-root-cert", tconf.SSLRootCert)
 	}
 	if utils.DoNotPrompt {
