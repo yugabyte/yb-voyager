@@ -292,7 +292,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "RANGE_SHARDING_TIMESTAMP_INDEX",
+			"Type": "HASH_SHARDING_TIMESTAMP_INDEX",
 			"Name": "Hash-sharding for indexes on timestamp columns",
 			"Description": "Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.\nTo address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.\nNote that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB. Affected column: creationdate",
 			"Impact": "LEVEL_1",
