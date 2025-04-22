@@ -5581,7 +5581,7 @@ INHERITS (schema2.parent_table);</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="performance_optimizations"
-                        data-name="Hotspots with range-sharded date indexes"
+                        data-name="Hotspots with indexes on date as first column"
                         data-impact="LEVEL_1">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-44', 'arrow-44')">
@@ -5590,7 +5590,7 @@ INHERITS (schema2.parent_table);</pre>
                                 &nbsp;&nbsp;
                                 Performance Optimizations
                             </td>
-                            <td>Hotspots with range-sharded date indexes</td>
+                            <td>Hotspots with indexes on date as first column</td>
                             <td>
                                 
                                     idx_orders_shipped_date ON public.orders2
@@ -5667,7 +5667,7 @@ INHERITS (schema2.parent_table);</pre>
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
                                                     <pre style="white-space: pre-wrap; margin:0;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
 To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
-Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: shipped_date</pre>
                                                 </div>
                                                 
                                             </td>
@@ -5681,7 +5681,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="performance_optimizations"
-                        data-name="Hotspots with range-sharded timestamp indexes"
+                        data-name="Hotspots with indexes on timestamp as first column"
                         data-impact="LEVEL_1">
                         <!-- Summary Row -->
                         <tr class="summary-row" onclick="toggleDetails('details-45', 'arrow-45')">
@@ -5690,7 +5690,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                 &nbsp;&nbsp;
                                 Performance Optimizations
                             </td>
-                            <td>Hotspots with range-sharded timestamp indexes</td>
+                            <td>Hotspots with indexes on timestamp as first column</td>
                             <td>
                                 
                                     idx_ordersentry_processed_at ON public.ordersentry
@@ -5767,7 +5767,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                                 <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
                                                     <pre style="white-space: pre-wrap; margin:0;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
 To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
-Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: processed_at</pre>
                                                 </div>
                                                 
                                             </td>
