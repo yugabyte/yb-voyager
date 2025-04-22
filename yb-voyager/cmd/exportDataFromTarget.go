@@ -108,7 +108,6 @@ func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error
 			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
 		}
 		if cmd.Flags().Changed("target-ssl-mode") || cmd.Flags().Changed("target-ssl-root-cert") {
-			fmt.Printf("target-ssl-root-cert: %s, target-ssl-mode: %s\n", source.SSLRootCert, source.SSLMode)
 			// in logical replication connnector, passing ssl root cert / ssl mode in export-data-from-target is not supported.
 			// It will automatically be picked up from the target db conf stored in MSR.
 			return fmt.Errorf("target-ssl-mode and target-ssl-root-cert are not supported for 'export data from target' When using logical replication conector." +
