@@ -70,8 +70,8 @@ var UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues = []string{
 var PerformanceOptimizationIssues = []string{
 	HOTSPOTS_ON_DATE_INDEX,
 	HOTSPOTS_ON_TIMESTAMP_INDEX,
-	RANGE_SHARDING_DATE_INDEX,
-	RANGE_SHARDING_TIMESTAMP_INDEX,
+	HASH_SHARDING_DATE_INDEX,
+	HASH_SHARDING_TIMESTAMP_INDEX,
 }
 
 var UnsupportedSystemColumnsIssueTypes = []string{
