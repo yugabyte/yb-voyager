@@ -426,17 +426,17 @@ const (
 
 	HOTSPOTS_ON_TIMESTAMP_INDEX                       = "HOTSPOTS_ON_TIMESTAMP_INDEX"
 	HOTSPOTS_ON_DATE_INDEX                            = "HOTSPOTS_ON_DATE_INDEX"
-	HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE                 = "Hotspots with range-sharded timestamp indexes"
-	HOTSPOTS_ON_DATE_INDEX_ISSUE                      = "Hotspots with range-sharded date indexes"
+	HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE                 = "Hotspots with indexes on timestamp as first column"
+	HOTSPOTS_ON_DATE_INDEX_ISSUE                      = "Hotspots with indexes on date as first column"
 	HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION = `Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
 To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
-	RANGE_SHARDING_DATE_INDEX                               = "RANGE_SHARDING_DATE_INDEX"
-	RANGE_SHARDING_DATE_INDEX_ISSUE_NAME                    = "Use range-sharding for indexes on date columns"
-	RANGE_SHARDING_TIMESTAMP_INDEX                          = "RANGE_SHARDING_TIMESTAMP_INDEX"
-	RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME               = "Use range-sharding for indexes on timestamp columns"
-	RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES = `Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.
+	HASH_SHARDING_DATE_INDEX                               = "HASH_SHARDING_DATE_INDEX"
+	HASH_SHARDING_DATE_INDEX_ISSUE_NAME                    = "Hash-sharding for indexes on date columns"
+	HASH_SHARDING_TIMESTAMP_INDEX                          = "HASH_SHARDING_TIMESTAMP_INDEX"
+	HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME               = "Hash-sharding for indexes on timestamp columns"
+	HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES = `Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.
 To address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.
 Note that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
 )
