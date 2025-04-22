@@ -48,7 +48,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
-		err = verifySSLFlags(msr)
+		err = verifySSLFlags(cmd, msr)
 		if err != nil {
 			utils.ErrExit("failed to verify SSL flags: %v", err)
 		}
@@ -91,7 +91,7 @@ Therefore, we allow users to override the ssl root cert in export-data-from-targ
 
 For logical-replication connecter, all SSL modes are supported.
 */
-func verifySSLFlags(msr *metadb.MigrationStatusRecord) error {
+func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error {
 	allowedSSLModes := []string{constants.DISABLE, constants.PREFER, constants.ALLOW, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
 	// the debezium GRPC connector has some limitations because of which prefer and allow are not supported.
 	allowedSSLModesGRPCConnector := []string{constants.DISABLE, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
@@ -107,7 +107,8 @@ func verifySSLFlags(msr *metadb.MigrationStatusRecord) error {
 		if !lo.Contains(allowedSSLModes, source.SSLMode) {
 			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
 		}
-		if source.SSLRootCert != "" || source.SSLMode != "" {
+		if cmd.Flags().Changed("target-ssl-mode") || cmd.Flags().Changed("target-ssl-root-cert") {
+			fmt.Printf("target-ssl-root-cert: %s, target-ssl-mode: %s\n", source.SSLRootCert, source.SSLMode)
 			// in logical replication connnector, passing ssl root cert / ssl mode in export-data-from-target is not supported.
 			// It will automatically be picked up from the target db conf stored in MSR.
 			return fmt.Errorf("target-ssl-mode and target-ssl-root-cert are not supported for 'export data from target' When using logical replication conector." +
