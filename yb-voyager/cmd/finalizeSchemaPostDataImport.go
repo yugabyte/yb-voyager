@@ -18,8 +18,8 @@ package cmd
 import "github.com/spf13/cobra"
 
 // This command serves as an alias for yb-voyager import schema --post-snapshot-import
-var postDataImportFinalizeSchemaCmd = &cobra.Command{
-	Use:   "post-data-import-finalize-schema",
+var finalizeSchemaPostDataImportCmd = &cobra.Command{
+	Use:   "finalize-schema-post-data-import",
 	Short: "Finalize schema after data import is complete.",
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
@@ -30,12 +30,12 @@ var postDataImportFinalizeSchemaCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(postDataImportFinalizeSchemaCmd)
-	registerCommonGlobalFlags(postDataImportFinalizeSchemaCmd)
-	registerCommonImportFlags(postDataImportFinalizeSchemaCmd)
-	registerTargetDBConnFlags(postDataImportFinalizeSchemaCmd)
-	BoolVar(postDataImportFinalizeSchemaCmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
+	rootCmd.AddCommand(finalizeSchemaPostDataImportCmd)
+	registerCommonGlobalFlags(finalizeSchemaPostDataImportCmd)
+	registerCommonImportFlags(finalizeSchemaPostDataImportCmd)
+	registerTargetDBConnFlags(finalizeSchemaPostDataImportCmd)
+	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
 		"ignore errors if object already exists (default false)")
-	BoolVar(postDataImportFinalizeSchemaCmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
+	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
 		"Refreshes the materialised views on target during post snapshot import phase (default false)")
 }

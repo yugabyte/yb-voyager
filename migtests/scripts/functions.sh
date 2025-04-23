@@ -388,7 +388,7 @@ import_schema() {
 		yb-voyager import schema ${args} $*
 }
 
-post_data_import_finalize_schema() {
+finalize-schema-post-data-import() {
 	args="--export-dir ${EXPORT_DIR} 
 		--target-db-host ${TARGET_DB_HOST} 
 		--target-db-port ${TARGET_DB_PORT} 
@@ -404,7 +404,7 @@ post_data_import_finalize_schema() {
 			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
 		fi
 
-		yb-voyager post-data-import-finalize-schema ${args} $*
+		yb-voyager finalize-schema-post-data-import ${args} $*
 }
 
 import_data() {
