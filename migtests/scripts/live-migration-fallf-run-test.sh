@@ -202,7 +202,7 @@ main() {
 	sleep 60
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	finalize-schema-post-data-import --refresh-mviews true
+	finalize_schema_post_data_import --refresh-mviews true
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {

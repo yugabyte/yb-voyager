@@ -164,7 +164,7 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	finalize-schema-post-data-import --refresh-mviews=true
+	finalize_schema_post_data_import --refresh-mviews=true
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
