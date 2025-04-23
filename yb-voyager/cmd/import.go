@@ -258,6 +258,11 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"Refreshes the materialised views on target during post snapshot import phase (default false)")
 	BoolVar(cmd.Flags(), &enableOrafce, "enable-orafce", true,
 		"enable Orafce extension on target(if source db type is Oracle)")
+
+	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
+	// Not removing these flags and just hiding them for backward compatibility.
+	cmd.Flags().MarkHidden("post-snapshot-import")
+	cmd.Flags().MarkHidden("refresh-mviews")
 }
 
 func validateTargetPortRange() {
