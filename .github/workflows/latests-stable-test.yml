@@ -11,8 +11,6 @@ jobs:
     runs-on: ubuntu-22.04
 
     env:
-      # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
-      YB_VERSION: "2024.2.1.2-b2" # Latest stable version
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
       YB_VOYAGER_SEND_DIAGNOSTICS: 0
 
