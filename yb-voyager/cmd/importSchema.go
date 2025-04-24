@@ -66,6 +66,7 @@ var importSchemaCmd = &cobra.Command{
 				"Please use the finalize-schema-post-data-import command instead.\n" +
 				"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n"
 				// The link here needs to be modified to the correct link for the finalize-schema-post-data-import command documentation
+				// Jira Task: https://yugabyte.atlassian.net/browse/DB-16384?atlOrigin=eyJpIjoiM2FjN2MxODVmYzIzNDc5MDkzNDUwNjY5YTgyMzRiMTAiLCJwIjoiaiJ9
 			utils.PrintAndLog(color.YellowString(msg))
 		}
 
