@@ -170,8 +170,9 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	// fetch yb versions with available experiment data
-	experimentDbAvailableYbVersions, ybVersionIdToUse, err := loadYbVersionsWithAvailableData(experimentDB)
+	// fetch yb versions with available experiment data, use default version if experiment data of supported release is
+	// not available
+	experimentDbAvailableYbVersions, ybVersionIdToUse, err := loadYbVersionsWithExperimentData(experimentDB)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load yb versions: %v", err)
 		return fmt.Errorf("failed to load yb versions: %w", err)
@@ -844,6 +845,7 @@ Parameters:
 
 	experimentDB: A pointer to the experiment database.
 	tableName: colocated or sharded table
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
   - A slice of ExpDataThroughput structs containing the fetched throughput information.
@@ -982,13 +984,15 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
 	[]ExpDataLoadTime: A slice containing the fetched load time information.
 	error: Error if any.
 */
-func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int, tableType string, ybVersionIdToUse int64) ([]ExpDataLoadTime, error) {
+func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int,
+	tableType string, ybVersionIdToUse int64) ([]ExpDataLoadTime, error) {
 	selectQuery := fmt.Sprintf(`
 		SELECT csv_size_gb, 
 			   migration_time_secs, 
@@ -1030,13 +1034,15 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
 	[]ExpDataShardedLoadTimeIndexImpact: A slice containing the fetched load time information based on number of indexes.
 	error: Error if any.
 */
-func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeIndexImpact, error) {
+func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeIndexImpact, error) {
 	selectQuery := fmt.Sprintf(`
 		SELECT number_of_indexes, 
 			   multiplication_factor_sharded,
@@ -1078,6 +1084,7 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
@@ -1557,8 +1564,16 @@ func fetchObjectNames(dbObjects []SourceDBMetadata) []string {
 	return objectNames
 }
 
-// function to load yb versions with available experiment data
-func loadYbVersionsWithAvailableData(experimentDB *sql.DB) ([]ExperimentDataAvailableYbVersion, int64, error) {
+/*
+loadYbVersionsWithExperimentData fetches all versions of yugabyte for which experiment data is available.
+It retrieves various limits such as maximum colocated database size, number of cores, memory per core, etc.
+
+Returns:
+  - A slice of ExperimentDataAvailableYbVersion with all supported yb versions with experiment data.
+  - A default yugabyte version id to use in case no supported yb version data is available.
+  - An error if there was any issue during the data retrieval process.
+*/
+func loadYbVersionsWithExperimentData(experimentDB *sql.DB) ([]ExperimentDataAvailableYbVersion, int64, error) {
 	var experimentDataAvailableYbVersions []ExperimentDataAvailableYbVersion
 	var defaultVersionId int64 = 0
 	query := `SELECT yb_version_id, yb_version, is_default FROM experiment_data_yb_versions ORDER BY yb_version_id`
@@ -1573,6 +1588,7 @@ func loadYbVersionsWithAvailableData(experimentDB *sql.DB) ([]ExperimentDataAvai
 			log.Warnf("failed to close the result set for query [%v]", query)
 		}
 	}()
+
 	for rows.Next() {
 		var id int64
 		var v string
@@ -1599,13 +1615,19 @@ func loadYbVersionsWithAvailableData(experimentDB *sql.DB) ([]ExperimentDataAvai
 	}
 
 	// return fetched available versions
-	//if len(experimentDataAvailableYbVersions) == 0 && defaultVersionId != 0 {
-	//	return nil, defaultVersionId, nil
-	//}
 	return experimentDataAvailableYbVersions, defaultVersionId, nil
 }
 
-// Helper function to compute absolute difference between two versions
+/*
+versionDifference Helper function to compute absolute difference between two versions
+
+Parameters:
+  - a: base version for comparison.
+  - b: version to compare
+
+Returns:
+  - difference between given versions.
+*/
 func versionDifference(a, b *ybversion.YBVersion) int {
 	result := a.Version.Compare(b.Version)
 	if result < 0 {
@@ -1614,12 +1636,21 @@ func versionDifference(a, b *ybversion.YBVersion) int {
 	return result
 }
 
-// Helper function to find the closest yb version
-func findClosestVersion(target *ybversion.YBVersion, availableVersions []ExperimentDataAvailableYbVersion) int64 {
+/*
+findClosestVersion Helper function to find the closest yb version
+
+Parameters:
+  - targetDbVersion: given target yugabyte database version
+  - availableVersions: slice of available yugabyte versions which has experiment data available.
+
+Returns:
+  - returns the version id(index from experiment table) of the closest version to use for given target yb version.
+*/
+func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions []ExperimentDataAvailableYbVersion) int64 {
 	closest := &availableVersions[0]
-	minDiff := versionDifference(target, availableVersions[0].expDataYbVersion)
+	minDiff := versionDifference(targetDbVersion, availableVersions[0].expDataYbVersion)
 	for i := 1; i < len(availableVersions); i++ {
-		diff := versionDifference(target, availableVersions[i].expDataYbVersion)
+		diff := versionDifference(targetDbVersion, availableVersions[i].expDataYbVersion)
 		if diff < minDiff {
 			minDiff = diff
 			closest = &availableVersions[i]
