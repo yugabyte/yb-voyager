@@ -59,6 +59,16 @@ var importSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		// If the flags --post-snapshot-import or --refresh-mviews are set and the command is import schema, then throw a warning that these flags are deprecated
+		// and instead use the finalize-schema-post-data-import command.
+		if (cmd.Flags().Changed("post-snapshot-import") || cmd.Flags().Changed("refresh-mviews")) && cmd.Name() == "schema" {
+			msg := "\nWarning: The flags --post-snapshot-import and --refresh-mviews are deprecated. " +
+				"Please use the finalize-schema-post-data-import command instead.\n" +
+				"For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n"
+				// The link here needs to be modified to the correct link for the finalize-schema-post-data-import command documentation
+			utils.PrintAndLog(color.YellowString(msg))
+		}
+
 		tconf.ImportMode = true
 		err := importSchema()
 		if err != nil {
