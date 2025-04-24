@@ -81,7 +81,7 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path",
 	// environment variables keys
-	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
+	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -106,7 +106,6 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
-	"ybvoyager-use-task-picker-for-import",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -114,7 +113,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
-	"max-batch-size-bytes", "ybvoyager-use-task-picker-for-import",
+	"max-batch-size-bytes",
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -123,7 +122,9 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables",
 	// environment variables keys
-	"csv-reader-max-buffer-size-bytes",
+	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
+	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
+	"min-available-memory-threshold", "max-batch-size-bytes", "ybvoyager-use-task-picker-for-import",
 )
 
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -177,7 +178,7 @@ type ConfigFlagOverride struct {
 	Value     string
 }
 
-type ConfigEnvVarSet struct {
+type EnvVarSetViaConfig struct {
 	EnvVar    string
 	ConfigKey string
 	Value     string
@@ -196,7 +197,7 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
-func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []ConfigEnvVarSet, map[string]string, error) {
+func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
 
 	// Precedence of which config file to use:
@@ -241,12 +242,12 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []ConfigEnvVarSet, ma
 		return nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
 	}
 
-	envVarsSet, envVarsAlreadySet, err := bindEnvVarsToViper(cmd, v)
+	envVarsSetViaConfig, envVarsAlreadyExported, err := bindEnvVarsToViper(cmd, v)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
 
-	return overrides, envVarsSet, envVarsAlreadySet, nil
+	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
 // map of string environment variable names to their config keys
@@ -284,9 +285,14 @@ var confParamEnvVarPairs = map[string]string{
 	"export-data-from-target.yb-master-port":          "YB_MASTER_PORT",
 	"export-data-from-target.queue-segment-max-bytes": "QUEUE_SEGMENT_MAX_BYTES",
 	"export-data-from-target.debezium-dist-dir":       "DEBEZIUM_DIST_DIR",
-	"export-data-from-target.beta-fast-data-export":   "BETA_FAST_DATA_EXPORT",
 
-	"import-data-file.csv-reader-max-buffer-size-bytes": "CSV_READER_MAX_BUFFER_SIZE_BYTES",
+	"import-data-file.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
+	"import-data-file.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
+	"import-data-file.max-cpu-threshold":                           "MAX_CPU_THRESHOLD",
+	"import-data-file.adaptive-parallelism-frequency-seconds":      "ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS",
+	"import-data-file.min-available-memory-threshold":              "MIN_AVAILABLE_MEMORY_THRESHOLD",
+	"import-data-file.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+	"import-data-file.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
@@ -308,6 +314,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-to-target.adaptive-parallelism-frequency-seconds":      "ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS",
 	"import-data-to-target.min-available-memory-threshold":              "MIN_AVAILABLE_MEMORY_THRESHOLD",
 	"import-data-to-target.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+	"import-data-to-target.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
 	"import-data-to-source-replica.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS",
@@ -315,8 +322,6 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-to-source-replica.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
 	"import-data-to-source-replica.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
 	"import-data-to-source-replica.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
-	"import-data-to-source.ybvoyager-use-task-picker-for-import":                "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
-	"import-data-to-source-replica.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
 	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS",
 	"import-data-to-source.event-channel-size":           "EVENT_CHANNEL_SIZE",
@@ -355,15 +360,15 @@ Note:
   - They can be used freely within os.Getenv calls, but cannot be accessed via `echo $VAR` after CLI exits.
 */
 
-func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigEnvVarSet, map[string]string, error) {
+func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfig, map[string]string, error) {
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
 	// Replace spaces with hyphens
 	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
 	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
 
-	var envVarsSet []ConfigEnvVarSet
-	envVarsAlreadySet := make(map[string]string)
+	var envVarsSetViaConfig []EnvVarSetViaConfig
+	envVarsAlreadyExported := make(map[string]string)
 
 	// Iterate over known config-to-env-var mappings and set env vars
 	// only if:
@@ -382,7 +387,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigEnvVarSet, 
 
 			// Skip if env var already exported
 			if existingVal, exists := os.LookupEnv(envVar); exists {
-				envVarsAlreadySet[envVar] = existingVal
+				envVarsAlreadyExported[envVar] = existingVal
 				continue
 			}
 
@@ -392,7 +397,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigEnvVarSet, 
 				if err := os.Setenv(envVar, val); err != nil {
 					return nil, nil, fmt.Errorf("failed to set environment variable %s: %w", envVar, err)
 				}
-				envVarsSet = append(envVarsSet, ConfigEnvVarSet{
+				envVarsSetViaConfig = append(envVarsSetViaConfig, EnvVarSetViaConfig{
 					EnvVar:    envVar,
 					ConfigKey: confKey,
 					Value:     val,
@@ -401,7 +406,7 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigEnvVarSet, 
 		}
 	}
 
-	return envVarsSet, envVarsAlreadySet, nil
+	return envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
 /*
