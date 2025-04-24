@@ -60,7 +60,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 				utils.ErrExit("error updating migration status record: %v", err)
 			}
 		}
-		err = initSourceConfFromTargetConf()
+		err = initSourceConfFromTargetConf(cmd)
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
@@ -107,18 +107,12 @@ func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error
 		if !lo.Contains(allowedSSLModes, source.SSLMode) {
 			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
 		}
-		if cmd.Flags().Changed("target-ssl-mode") || cmd.Flags().Changed("target-ssl-root-cert") {
-			// in logical replication connnector, passing ssl root cert / ssl mode in export-data-from-target is not supported.
-			// It will automatically be picked up from the target db conf stored in MSR.
-			return fmt.Errorf("target-ssl-mode and target-ssl-root-cert are not supported for 'export data from target' When using logical replication conector." +
-				" The values for these flags will automatically be picked up from those used in `import data to target. Restart 'export data from target' without these flags")
-		}
 	}
 
 	return nil
 }
 
-func initSourceConfFromTargetConf() error {
+func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("get migration status record: %v", err)
@@ -149,11 +143,17 @@ func initSourceConfFromTargetConf() error {
 		}
 	} else {
 		// no limitations when using logical replication connector. All values are read from target-db-conf.
-		// user is not allowed to override the ssl cert and ssl mode in export-data-from-target.
-		source.SSLMode = targetConf.SSLMode
-		source.SSLCertPath = targetConf.SSLCertPath
+		// by default, unless overriden by the user.
+		// target-ssl-mode and target-ssl-root-cert are only available in the CLI because
+		// of limitations of grpc connector. In future, these flags will be removed.
+		if !cmd.Flags().Changed("target-ssl-mode") {
+			source.SSLMode = targetConf.SSLMode
+		}
+		if !cmd.Flags().Changed("target-ssl-root-cert") {
+			source.SSLRootCert = targetConf.SSLRootCert
+		}
 		source.SSLKey = targetConf.SSLKey
-		source.SSLRootCert = targetConf.SSLRootCert
+		source.SSLCertPath = targetConf.SSLCertPath
 	}
 
 	source.SSLCRL = targetConf.SSLCRL
