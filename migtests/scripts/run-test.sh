@@ -164,7 +164,13 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	finalize_schema_post_data_import --refresh-mviews=true
+	# Run either finalize_schema_post_data_import or import_schema based on a random condition until we support both the ways
+	if [ $((RANDOM % 2)) -eq 0 ]; then
+		finalize_schema_post_data_import --refresh-mviews=true
+	else
+		import_schema --post-snapshot-import=true --refresh-mviews=true
+	fi
+
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
