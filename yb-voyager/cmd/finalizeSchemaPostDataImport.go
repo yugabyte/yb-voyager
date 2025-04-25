@@ -24,6 +24,7 @@ var finalizeSchemaPostDataImportCmd = &cobra.Command{
 	Long:  ``,
 	Run: func(cmd *cobra.Command, args []string) {
 		flagPostSnapshotImport = true
+
 		importSchemaCmd.PreRun(cmd, args)
 		importSchemaCmd.Run(cmd, args)
 	},
