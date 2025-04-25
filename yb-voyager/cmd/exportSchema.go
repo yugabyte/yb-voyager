@@ -34,6 +34,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var skipRecommendations utils.BoolStr
@@ -59,8 +60,61 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
+		// TODO: check if assessment is already done
+		// If assessment is not done explicity; make sure the invoked command is not setting that
+
+		// TODO2: Only do this in case of PG
+
+		// find common flags between assess and export schema
+		commonFlagsNames := utils.CommonFlagNames(cmd, assessMigrationCmd)
+
+		var assessFlagsWithValues []string
+		for _, name := range commonFlagsNames {
+			flag := cmd.Flags().Lookup(name)
+			if flag == nil {
+				continue
+			}
+
+			if flag.Changed {
+				assessFlagsWithValues = append(assessFlagsWithValues, fmt.Sprintf("--%s=%s", name, flag.Value.String()))
+			}
+		}
+
+		assessFlagsWithValues = append(assessFlagsWithValues,
+			"--iops-capture-interval=2",
+			fmt.Sprintf("--target-db2-version=%s", ybversion.LatestStable.String()),
+			"--yes",
+			// "--run-guardrails-checks=false",  ??
+		)
+		utils.PrintAndLog("\n[debug] Running assessment before export schema with flags: %s\n", strings.Join(assessFlagsWithValues, "\t"))
+
+		// assessMigrationCmd.SetArgs(assessFlagsWithValues)
+		var err error
+		// err = assessMigrationCmd.Execute()
+		// if err != nil {
+		// 	log.Infof("failed to run assessment before export schema: %v", err)
+		// 	// TODO: send something to callhome in error case?
+		// }
+
+		// Silence any built-in error/usage printing so bad flags don’t spam you.
+		assessMigrationCmd.SilenceErrors = true
+		assessMigrationCmd.SilenceUsage = true
+
+		// Parse the flag list – this actually populates assessMigrationCmd.Flags()
+		if err := assessMigrationCmd.Flags().Parse(assessFlagsWithValues); err != nil {
+			// ignore unknown flags or parse errors
+			utils.PrintAndLog("[debug] failed to parse flags for assess-migration: %v, ignoring...", err)
+		}
+
+		if assessMigrationCmd.PreRun != nil {
+			assessMigrationCmd.PreRun(assessMigrationCmd, nil)
+		}
+
+		// call Run with an empty args slice (args value will came from flags)
+		assessMigrationCmd.Run(assessMigrationCmd, nil)
+
 		source.ApplyExportSchemaObjectListFilter()
-		err := exportSchema()
+		err = exportSchema()
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
@@ -258,10 +312,10 @@ func init() {
 		"enable export of comments associated with database objects (default false)")
 
 	exportSchemaCmd.Flags().StringVar(&source.StrExportObjectTypeList, "object-type-list", "",
-		"comma separated list of objects to export. ")
+		"comma separated list of object types to export. ")
 
 	exportSchemaCmd.Flags().StringVar(&source.StrExcludeObjectTypeList, "exclude-object-type-list", "",
-		"comma separated list of objects to exclude from export. ")
+		"comma separated list of object types to exclude from export. ")
 
 	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")

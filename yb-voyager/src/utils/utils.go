@@ -33,10 +33,13 @@ import (
 	"syscall"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -884,4 +887,21 @@ func SliceLastElement[T any](slice []T) (T, bool) {
 		return zeroValue, false
 	}
 	return slice[len(slice)-1], true
+}
+
+// Return the list of flag names common to two cobra commands.
+func CommonFlagNames(cmdA, cmdB *cobra.Command) []string {
+	var common []string
+	namesA := mapset.NewThreadUnsafeSet[string]()
+
+	cmdA.Flags().VisitAll(func(f *pflag.Flag) { // visits irrespective flag set or not
+		namesA.Add(f.Name)
+	})
+
+	cmdB.Flags().VisitAll(func(f *pflag.Flag) {
+		if namesA.Contains(f.Name) {
+			common = append(common, f.Name)
+		}
+	})
+	return common
 }
