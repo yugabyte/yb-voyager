@@ -86,7 +86,11 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
-	"post-snapshot-import", "ignore-exists", "enable-orafce",
+	"ignore-exists", "enable-orafce",
+)
+
+var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"continue-on-error", "ignore-exists", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -142,24 +146,25 @@ var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 // Define allowed nested sections
 var allowedConfigSections = map[string]mapset.Set[string]{
-	"source":                        allowedSourceConfigKeys,
-	"source-replica":                allowedSourceReplicaConfigKeys,
-	"target":                        allowedTargetConfigKeys,
-	"assess-migration":              allowedAssessMigrationConfigKeys,
-	"analyze-schema":                allowedAnalyzeSchemaConfigKeys,
-	"export-schema":                 allowedExportSchemaConfigKeys,
-	"export-data":                   allowedExportDataConfigKeys,
-	"export-data-from-source":       allowedExportDataConfigKeys,
-	"export-data-from-target":       allowedExportDataFromTargetConfigKeys,
-	"import-schema":                 allowedImportSchemaConfigKeys,
-	"import-data":                   allowedImportDataConfigKeys,
-	"import-data-to-target":         allowedImportDataConfigKeys,
-	"import-data-to-source":         allowedImportDataToSourceConfigKeys,
-	"import-data-to-source-replica": allowedImportDataToSourceReplicaConfigKeys,
-	"import-data-file":              allowedImportDataFileConfigKeys,
-	"initiate-cutover-to-target":    allowedInitCutoverToTargetConfigKeys,
-	"archive-changes":               allowedArchiveChangesConfigKeys,
-	"end-migration":                 allowedEndMigrationConfigKeys,
+	"source":                           allowedSourceConfigKeys,
+	"source-replica":                   allowedSourceReplicaConfigKeys,
+	"target":                           allowedTargetConfigKeys,
+	"assess-migration":                 allowedAssessMigrationConfigKeys,
+	"analyze-schema":                   allowedAnalyzeSchemaConfigKeys,
+	"export-schema":                    allowedExportSchemaConfigKeys,
+	"export-data":                      allowedExportDataConfigKeys,
+	"export-data-from-source":          allowedExportDataConfigKeys,
+	"export-data-from-target":          allowedExportDataFromTargetConfigKeys,
+	"import-schema":                    allowedImportSchemaConfigKeys,
+	"finalize-schema-post-data-import": allowedFinalizeSchemaPostDataImportConfigKeys,
+	"import-data":                      allowedImportDataConfigKeys,
+	"import-data-to-target":            allowedImportDataConfigKeys,
+	"import-data-to-source":            allowedImportDataToSourceConfigKeys,
+	"import-data-to-source-replica":    allowedImportDataToSourceReplicaConfigKeys,
+	"import-data-file":                 allowedImportDataFileConfigKeys,
+	"initiate-cutover-to-target":       allowedInitCutoverToTargetConfigKeys,
+	"archive-changes":                  allowedArchiveChangesConfigKeys,
+	"end-migration":                    allowedEndMigrationConfigKeys,
 }
 
 // Define mutually exclusive section groups
