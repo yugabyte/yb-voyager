@@ -2017,8 +2017,12 @@ var hotspotsOnDateIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(hotspotsOnDateIndexes, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnDateIndexes
+	if colName != "" {
+		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var hotspotsOnTimestampIndexes = issue.Issue{
@@ -2030,32 +2034,44 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(hotspotsOnTimestampIndexes, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnTimestampIndexes
+	if colName != "" {
+		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var suggestionOnDateIndexesForRangeSharding = issue.Issue{
-	Type:        RANGE_SHARDING_DATE_INDEX,
-	Name:        RANGE_SHARDING_DATE_INDEX_ISSUE_NAME,
+	Type:        HASH_SHARDING_DATE_INDEX,
+	Name:        HASH_SHARDING_DATE_INDEX_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
+	Description: HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
 }
 
-func NewSuggestionOnDateIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(suggestionOnDateIndexesForRangeSharding, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewSuggestionOnDateIndexesForRangeSharding(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := suggestionOnDateIndexesForRangeSharding
+	if colName != "" {
+		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
 var suggestionOnTimestampIndexesForRangeSharding = issue.Issue{
-	Type:        RANGE_SHARDING_TIMESTAMP_INDEX,
-	Name:        RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME,
+	Type:        HASH_SHARDING_TIMESTAMP_INDEX,
+	Name:        HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: RANGE_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
+	Description: HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
 	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-timestamp-column-should-be-imported-as-asc-range-index-to-avoid-sequential-scans",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
 }
 
-func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectName string, sqlStatement string) QueryIssue {
-	return newQueryIssue(suggestionOnTimestampIndexesForRangeSharding, objectType, objectName, sqlStatement, map[string]interface{}{})
+func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := suggestionOnTimestampIndexesForRangeSharding
+	if colName != "" {
+		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
