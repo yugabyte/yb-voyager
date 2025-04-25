@@ -202,12 +202,7 @@ main() {
 	sleep 60
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	# Run either finalize_schema_post_data_import or import_schema based on a random condition until we support both the ways
-	if [ $((RANDOM % 2)) -eq 0 ]; then
-		finalize_schema_post_data_import --refresh-mviews true
-	else
-		import_schema --post-snapshot-import true --refresh-mviews true
-	fi
+	finalize_schema_post_data_import --refresh-mviews true
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {
