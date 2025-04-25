@@ -439,6 +439,10 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES = `Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.
 To address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.
 Note that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
+
+	REDUNDANT_INDEXES="REDUNDANT_INDEXES"
+	REDUNDANT_INDEXES_ISSUE_NAME="Redundant index"
+	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be safely removed as the there is already an existing index for this index. Remove this index from the schema."
 )
 
 // Object types

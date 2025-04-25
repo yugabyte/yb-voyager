@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -470,6 +471,17 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	}
 
 	return result, nil
+}
+
+func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
+	//TODO: Sort out the redundant indexes so that no redundant index should be an exisiting index
+	var issues []QueryIssue
+	for _, redundantIndex := range redundantIndexes {
+		redundantIndexObjectName := fmt.Sprintf("%s ON %s.%s", redundantIndex.RedundantIndexName, redundantIndex.RedundantSchemaName, redundantIndex.RedundantTableName)
+		existingIndexObjectName := fmt.Sprintf("%s ON %s.%s", redundantIndex.ExistingIndexName, redundantIndex.ExistingSchemaName, redundantIndex.ExistingTableName)
+		issues = append(issues, NewRedundantIndexIssue(INDEX_OBJECT_TYPE, redundantIndexObjectName, redundantIndex.RedundantIndexDDL, existingIndexObjectName))
+	}
+	return issues
 }
 
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {

@@ -145,6 +145,17 @@ type TableColumnsDataTypes struct {
 	IsUDTType   bool   `json:"-"`
 }
 
+type RedundantIndexesInfo struct {
+	RedundantSchemaName string
+	RedundantTableName  string
+	RedundantIndexName  string
+	ExistingSchemaName  string
+	ExistingTableName   string
+	ExistingIndexName   string
+	RedundantIndexDDL   string
+	ExistingIndexDDL    string
+}
+
 type UnsupportedQueryConstruct struct {
 	ConstructTypeName      string
 	Query                  string
