@@ -591,6 +591,55 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
 		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	}
+	checkRedundantIndexes()
+}
+
+func checkRedundantIndexes() {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+	if !msr.MigrationAssessmentDone {
+		return
+	}
+
+	//Only considering the case where assessment is run in this migration
+	//If not via assess-migration but there is going a change where internally in the export-schema we will assessment so we should have this information 
+	//most of the time.
+	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	if !utils.FileOrFolderExists(assessmentReportPath) {
+		log.Infof("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
+		return
+	}
+
+	log.Infof("parsing assessment report json file for redundant indexes")
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	if err != nil {
+		utils.ErrExit("error parsing json report file %q: %w", assessmentReportPath, err)
+	}
+	assessmentIssues := report.Issues
+	redundantIndexIssues := lo.Filter(assessmentIssues, func(i AssessmentIssue, _ int) bool {
+		return i.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY && i.Name == queryissue.REDUNDANT_INDEXES_ISSUE_NAME
+	})
+	for _, redundantIndexIssue := range redundantIndexIssues {
+		indexObjectName := redundantIndexIssue.ObjectName
+		if slices.Contains(summaryMap["INDEX"].objSet, indexObjectName) {
+			//If the index is present in exported schema then only report the issue
+			//In case of iterations where manually user has removed the index we shouldn't report the issue
+			analyzeRedundantIssue := utils.AnalyzeSchemaIssue{
+				IssueType:              redundantIndexIssue.Category,
+				ObjectType:             redundantIndexIssue.ObjectType,
+				ObjectName:             indexObjectName,
+				Reason:                 redundantIndexIssue.Description,
+				Type:                   queryissue.REDUNDANT_INDEXES,
+				Name:                   redundantIndexIssue.Name,
+				SqlStatement:           redundantIndexIssue.SqlStatement,
+				DocsLink:               redundantIndexIssue.DocsLink,
+				MinimumVersionsFixedIn: redundantIndexIssue.MinimumVersionsFixedIn,
+			}
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeRedundantIssue)
+		}
+	}
 }
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
