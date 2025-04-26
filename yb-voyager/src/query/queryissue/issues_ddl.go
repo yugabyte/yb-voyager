@@ -2084,10 +2084,10 @@ var redundantIndexesIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
 }
 
-func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, exisitingIndexName string) QueryIssue {
+func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string) QueryIssue {
 	issue := redundantIndexesIssue
-	if exisitingIndexName != "" {
-		issue.Description = fmt.Sprintf("%s Existing Index: %s", issue.Description, exisitingIndexName)
+	if existingDDL != "" {
+		issue.Description = fmt.Sprintf("%s\nExisting Index SQL Statement: %s", issue.Description, existingDDL)
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }

@@ -474,12 +474,36 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 }
 
 func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
-	//TODO: Sort out the redundant indexes so that no redundant index should be an exisiting index
-	var issues []QueryIssue
+
+	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
+
+	resolvedRedundantIndexInfo := func(redundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+		for {
+			nextRedundantIndexInfo, ok := redundantIndexToInfo[redundantIndexInfo.GetExistingIndexObjectName()]
+			if !ok {
+				return redundantIndexInfo
+			}
+			redundantIndexInfo = nextRedundantIndexInfo
+		}
+	}
 	for _, redundantIndex := range redundantIndexes {
-		redundantIndexObjectName := fmt.Sprintf("%s ON %s.%s", redundantIndex.RedundantIndexName, redundantIndex.RedundantSchemaName, redundantIndex.RedundantTableName)
-		existingIndexObjectName := fmt.Sprintf("%s ON %s.%s", redundantIndex.ExistingIndexName, redundantIndex.ExistingSchemaName, redundantIndex.ExistingTableName)
-		issues = append(issues, NewRedundantIndexIssue(INDEX_OBJECT_TYPE, redundantIndexObjectName, redundantIndex.RedundantIndexDDL, existingIndexObjectName))
+		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+	}
+	for _, redundantIndex := range redundantIndexes {
+		resolvedIndexInfo := resolvedRedundantIndexInfo(redundantIndex)
+		if resolvedIndexInfo.GetExistingIndexObjectName() != redundantIndex.GetExistingIndexObjectName() {
+			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
+			redundantIndex.ExistingIndexName = resolvedIndexInfo.ExistingIndexName
+			redundantIndex.ExistingSchemaName = resolvedIndexInfo.ExistingSchemaName
+			redundantIndex.ExistingTableName = resolvedIndexInfo.ExistingTableName
+			redundantIndex.ExistingIndexDDL = resolvedIndexInfo.ExistingIndexDDL
+			redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+		}
+	}
+	var issues []QueryIssue
+	for _, redundantIndexInfo := range redundantIndexToInfo {
+		issues = append(issues, NewRedundantIndexIssue(INDEX_OBJECT_TYPE, redundantIndexInfo.GetRedundantIndexObjectName(),
+			redundantIndexInfo.RedundantIndexDDL, redundantIndexInfo.ExistingIndexDDL))
 	}
 	return issues
 }
