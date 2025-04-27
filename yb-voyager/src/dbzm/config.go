@@ -282,6 +282,13 @@ var yugabyteSSLRootCertTemplate = `
 debezium.source.database.sslrootcert=%s
 `
 
+var yugabyteLogicalReplicationSSLTemplate = `
+debezium.source.database.sslmode=%s
+debezium.source.database.sslrootcert=%s
+debezium.source.database.sslcert=%s
+debezium.source.database.sslkey=%s
+`
+
 func (c *Config) String() string {
 	dataDir := filepath.Join(c.ExportDir, "data")
 	offsetFileName := fmt.Sprintf("offsets.%s.dat", c.ExporterRole)
@@ -369,6 +376,12 @@ func (c *Config) String() string {
 			if c.PublicationName != "" {
 				conf = conf + fmt.Sprintf(yugabyteLogicalReplicationPublicationNameTemplate, c.PublicationName)
 			}
+			sslConf := fmt.Sprintf(yugabyteLogicalReplicationSSLTemplate,
+				c.SSLMode,
+				c.SSLRootCert,
+				c.SSLCertPath,
+				c.SSLKey)
+			conf = conf + sslConf
 		} else {
 			conf = fmt.Sprintf(yugabyteConfigTemplate,
 				quarkusLogPort,
@@ -392,12 +405,13 @@ func (c *Config) String() string {
 				c.MetadataDBPath,
 				c.RunId,
 				c.ExporterRole)
+			sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
+			if c.SSLRootCert != "" {
+				sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
+			}
+			conf = conf + sslConf
 		}
-		sslConf := fmt.Sprintf(yugabyteSSLModeTemplate, c.SSLMode)
-		if c.SSLRootCert != "" {
-			sslConf += fmt.Sprintf(yugabyteSSLRootCertTemplate, c.SSLRootCert)
-		}
-		conf = conf + sslConf
+
 		//TODO test SSL for other methods for yugabytedb
 		if c.TransactionOrdering {
 			conf = conf + yugabyteSrcTransactionOrderingConfigTemplate

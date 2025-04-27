@@ -26,6 +26,10 @@ const (
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+	// environment variables keys
+	"control-plane-type", "yugabyted-db-conn-string", "java-home",
+	"local-call-home-service-host", "local-call-home-service-port",
+	"yb-tserver-port", "tns-admin",
 )
 
 var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -35,6 +39,13 @@ var allowedSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"oracle-cdb-sid", "oracle-cdb-tns-alias",
 )
 
+var allowedSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"name", "db-host", "db-port", "db-user", "db-name", "db-password",
+	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert",
+	"ssl-crl", "db-sid",
+	"oracle-home", "oracle-tns-alias",
+)
+
 var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"name", "db-host", "db-port", "db-user", "db-password", "db-name",
 	"db-schema", "ssl-cert", "ssl-mode", "ssl-key", "ssl-root-cert", "ssl-crl",
@@ -42,25 +53,35 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
+	// environment variables keys
+	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"output-format", "target-db-version",
+	// environment variables keys
+	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-recommendations", "assessment-report-path",
+	// environment variables keys
+	"ybvoyager-skip-merge-constraints-transformation",
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
+	// environment variables keys
+	"queue-segment-max-bytes", "debezium-dist-dir", "beta-fast-data-export",
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path",
+	// environment variables keys
+	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -73,14 +94,26 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables",
+	// environment variables keys
+	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
+	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
+	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
+	"ybvoyager-use-task-picker-for-import",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"parallel-jobs", "disable-pb", "max-retries",
+	// environment variables keys
+	"num-event-channels", "event-channel-size", "max-events-per-batch",
+	"max-interval-between-batches", "max-batch-size-bytes",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
+	// environment variables keys
+	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
+	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
+	"max-batch-size-bytes",
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -88,6 +121,10 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables",
+	// environment variables keys
+	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
+	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
+	"min-available-memory-threshold", "max-batch-size-bytes", "ybvoyager-use-task-picker-for-import",
 )
 
 var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -106,6 +143,7 @@ var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 // Define allowed nested sections
 var allowedConfigSections = map[string]mapset.Set[string]{
 	"source":                        allowedSourceConfigKeys,
+	"source-replica":                allowedSourceReplicaConfigKeys,
 	"target":                        allowedTargetConfigKeys,
 	"assess-migration":              allowedAssessMigrationConfigKeys,
 	"analyze-schema":                allowedAnalyzeSchemaConfigKeys,
@@ -140,6 +178,12 @@ type ConfigFlagOverride struct {
 	Value     string
 }
 
+type EnvVarSetViaConfig struct {
+	EnvVar    string
+	ConfigKey string
+	Value     string
+}
+
 /*
 initConfig initializes the configuration for the given Cobra command.
 
@@ -153,7 +197,7 @@ initConfig initializes the configuration for the given Cobra command.
 
 	This setup ensures CLI > Config precedence
 */
-func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, error) {
+func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
 
 	// Precedence of which config file to use:
@@ -168,7 +212,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, error) {
 		// Find home directory.
 		home, err := os.UserHomeDir()
 		if err != nil {
-			return nil, err
+			return nil, nil, nil, err
 		}
 
 		// Search config in home directory with name "yb-voyager-config" (without extension).
@@ -182,23 +226,187 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, error) {
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, err
+			return nil, nil, nil, err
 		}
 	}
 
 	// Validate the config file for allowed keys and sections
 	err := validateConfigFile(v)
 	if err != nil {
-		return nil, err
+		return nil, nil, nil, err
 	}
 
 	// Bind the config values to the Cobra command flags
 	overrides, err := bindCobraFlagsToViper(cmd, v)
 	if err != nil {
-		return nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
+		return nil, nil, nil, fmt.Errorf("failed to bind cobra flags to viper: %w", err)
 	}
 
-	return overrides, nil
+	envVarsSetViaConfig, envVarsAlreadyExported, err := bindEnvVarsToViper(cmd, v)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
+	}
+
+	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
+}
+
+// map of string environment variable names to their config keys
+var confParamEnvVarPairs = map[string]string{
+	"control-plane-type":           "CONTROL_PLANE_TYPE",
+	"yugabyted-db-conn-string":     "YUGABYTED_DB_CONN_STRING",
+	"java-home":                    "JAVA_HOME",
+	"local-call-home-service-host": "LOCAL_CALL_HOME_SERVICE_HOST",
+	"local-call-home-service-port": "LOCAL_CALL_HOME_SERVICE_PORT",
+	"yb-tserver-port":              "YB_TSERVER_PORT",
+	"tns-admin":                    "TNS_ADMIN",
+	"send-diagnostics":             "YB_VOYAGER_SEND_DIAGNOSTICS",
+
+	"source.db-password": "SOURCE_DB_PASSWORD",
+
+	"target.db-password": "TARGET_DB_PASSWORD",
+
+	"source-replica.db-password": "SOURCE_REPLICA_DB_PASSWORD",
+
+	"assess-migration.report-unsupported-query-constructs": "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS",
+	"assess-migration.report-unsupported-plpgsql-objects":  "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS",
+
+	"analyze-schema.report-unsupported-plpgsql-objects": "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS",
+
+	"export-schema.ybvoyager-skip-merge-constraints-transformation": "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS",
+
+	"export-data.queue-segment-max-bytes": "QUEUE_SEGMENT_MAX_BYTES",
+	"export-data.debezium-dist-dir":       "DEBEZIUM_DIST_DIR",
+	"export-data.beta-fast-data-export":   "BETA_FAST_DATA_EXPORT",
+
+	"export-data-from-source.queue-segment-max-bytes": "QUEUE_SEGMENT_MAX_BYTES",
+	"export-data-from-source.debezium-dist-dir":       "DEBEZIUM_DIST_DIR",
+	"export-data-from-source.beta-fast-data-export":   "BETA_FAST_DATA_EXPORT",
+
+	"export-data-from-target.yb-master-port":          "YB_MASTER_PORT",
+	"export-data-from-target.queue-segment-max-bytes": "QUEUE_SEGMENT_MAX_BYTES",
+	"export-data-from-target.debezium-dist-dir":       "DEBEZIUM_DIST_DIR",
+
+	"import-data-file.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
+	"import-data-file.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
+	"import-data-file.max-cpu-threshold":                           "MAX_CPU_THRESHOLD",
+	"import-data-file.adaptive-parallelism-frequency-seconds":      "ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS",
+	"import-data-file.min-available-memory-threshold":              "MIN_AVAILABLE_MEMORY_THRESHOLD",
+	"import-data-file.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+	"import-data-file.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
+
+	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
+	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
+	"import-data.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
+	"import-data.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
+	"import-data.max-cpu-threshold":                           "MAX_CPU_THRESHOLD",
+	"import-data.adaptive-parallelism-frequency-seconds":      "ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS",
+	"import-data.min-available-memory-threshold":              "MIN_AVAILABLE_MEMORY_THRESHOLD",
+	"import-data.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+	"import-data.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
+
+	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
+	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
+	"import-data-to-target.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
+	"import-data-to-target.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
+	"import-data-to-target.max-cpu-threshold":                           "MAX_CPU_THRESHOLD",
+	"import-data-to-target.adaptive-parallelism-frequency-seconds":      "ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS",
+	"import-data-to-target.min-available-memory-threshold":              "MIN_AVAILABLE_MEMORY_THRESHOLD",
+	"import-data-to-target.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+	"import-data-to-target.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
+
+	"import-data-to-source-replica.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
+	"import-data-to-source-replica.num-event-channels":                          "NUM_EVENT_CHANNELS",
+	"import-data-to-source-replica.event-channel-size":                          "EVENT_CHANNEL_SIZE",
+	"import-data-to-source-replica.max-events-per-batch":                        "MAX_EVENTS_PER_BATCH",
+	"import-data-to-source-replica.max-interval-between-batches":                "MAX_INTERVAL_BETWEEN_BATCHES",
+	"import-data-to-source-replica.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
+
+	"import-data-to-source.num-event-channels":           "NUM_EVENT_CHANNELS",
+	"import-data-to-source.event-channel-size":           "EVENT_CHANNEL_SIZE",
+	"import-data-to-source.max-events-per-batch":         "MAX_EVENTS_PER_BATCH",
+	"import-data-to-source.max-interval-between-batches": "MAX_INTERVAL_BETWEEN_BATCHES",
+	"import-data-to-source.max-batch-size-bytes":         "MAX_BATCH_SIZE_BYTES",
+}
+
+/*
+bindEnvVarsToViper sets up environment variables based on the resolved Viper config for a given Cobra command.
+
+It identifies config keys relevant to the command being executed, checks whether they are already exported as
+environment variables, and sets them only if not already present. This enables legacy parts of the codebase
+that use os.Getenv to still benefit from values defined in the config file.
+
+Resolution precedence:
+  - If the environment variable is already set in the shell, it is respected and not overridden.
+  - If the environment variable is unset but the config file defines the key, it is set using os.Setenv.
+  - If neither is set, the environment variable is not set at all.
+
+Config key matching logic:
+  - For command-scoped keys: the config key must be prefixed with <command-path> (e.g., "export-data.table-list").
+  - For global keys (like "export-dir"), config keys without a dot are always allowed.
+  - Keys scoped under sections like "source.", "source-replica.", or "target." are also accepted globally.
+
+Alias support:
+  - If a command like "export data from source" is executed, it will internally map to a config prefix
+    like "export-data" or "export-data-from-source", depending on what exists in the config file.
+	The config params will be used according to the resolved prefix by this logic.
+
+Returns:
+  - A map of environment variables that were set via os.Setenv, useful for diagnostics or logging.
+
+Note:
+  - These environment variables are scoped to the Go process only and are not visible to the parent shell.
+  - They can be used freely within os.Getenv calls, but cannot be accessed via `echo $VAR` after CLI exits.
+*/
+
+func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfig, map[string]string, error) {
+	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
+	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
+	// Replace spaces with hyphens
+	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
+	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
+
+	var envVarsSetViaConfig []EnvVarSetViaConfig
+	envVarsAlreadyExported := make(map[string]string)
+
+	// Iterate over known config-to-env-var mappings and set env vars
+	// only if:
+	// - the config key is relevant to this command (matches configKeyPrefix or known sections like source./target.)
+	// - the env var is not already exported in the shell
+	// - the config key is explicitly set in the config file (non-empty value)
+	// This ensures the correct config values are surfaced to os.Getenv consumers,
+	// without overriding environment variables that the user has already exported.
+	for confKey, envVar := range confParamEnvVarPairs {
+		// Proceed if key is relevant to this command (has correct prefix) or is global
+		if strings.HasPrefix(confKey, configKeyPrefix+".") ||
+			strings.HasPrefix(confKey, "source.") ||
+			strings.HasPrefix(confKey, "source-replica.") ||
+			strings.HasPrefix(confKey, "target.") ||
+			len(strings.Split(confKey, ".")) == 1 {
+
+			// Skip if env var already exported
+			if existingVal, exists := os.LookupEnv(envVar); exists {
+				envVarsAlreadyExported[envVar] = existingVal
+				continue
+			}
+
+			val := v.GetString(confKey)
+			// Set the env var only if Viper has a non-empty value
+			if val != "" {
+				if err := os.Setenv(envVar, val); err != nil {
+					return nil, nil, fmt.Errorf("failed to set environment variable %s: %w", envVar, err)
+				}
+				envVarsSetViaConfig = append(envVarsSetViaConfig, EnvVarSetViaConfig{
+					EnvVar:    envVar,
+					ConfigKey: confKey,
+					Value:     val,
+				})
+			}
+		}
+	}
+
+	return envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
 /*

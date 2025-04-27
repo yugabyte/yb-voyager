@@ -1,0 +1,42 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import "github.com/spf13/cobra"
+
+// This command serves as an alias for yb-voyager import schema --post-snapshot-import
+var finalizeSchemaPostDataImportCmd = &cobra.Command{
+	Use:   "finalize-schema-post-data-import",
+	Short: "Finalize schema after data import is complete.",
+	Long:  ``,
+	Run: func(cmd *cobra.Command, args []string) {
+		flagPostSnapshotImport = true
+
+		importSchemaCmd.PreRun(cmd, args)
+		importSchemaCmd.Run(cmd, args)
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(finalizeSchemaPostDataImportCmd)
+	registerCommonGlobalFlags(finalizeSchemaPostDataImportCmd)
+	registerCommonImportFlags(finalizeSchemaPostDataImportCmd)
+	registerTargetDBConnFlags(finalizeSchemaPostDataImportCmd)
+	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &tconf.IgnoreIfExists, "ignore-exist", false,
+		"ignore errors if object already exists (default false)")
+	BoolVar(finalizeSchemaPostDataImportCmd.Flags(), &flagRefreshMViews, "refresh-mviews", false,
+		"Refreshes the materialised views on target during post snapshot import phase (default false)")
+}

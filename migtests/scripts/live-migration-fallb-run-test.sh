@@ -177,8 +177,8 @@ main() {
 	sleep 60 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import true --refresh-mviews=true
-
+	finalize_schema_post_data_import --refresh-mviews=true
+	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'true' || {
 			tail_log_file "yb-voyager-import-data.log"

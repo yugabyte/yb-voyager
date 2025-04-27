@@ -388,6 +388,25 @@ import_schema() {
 		yb-voyager import schema ${args} $*
 }
 
+finalize_schema_post_data_import() {
+	args="--export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME}	
+		--yes
+		--send-diagnostics=false
+		"
+	
+		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+		then
+			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+		fi
+
+		yb-voyager finalize-schema-post-data-import ${args} $*
+}
+
 import_data() {
 	args="
 	 --export-dir ${EXPORT_DIR} 
