@@ -116,7 +116,6 @@ func TestCallhomeStructs(t *testing.T) {
 				OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
 				OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
 				EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
-				ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 			}{},
 		},
 		{

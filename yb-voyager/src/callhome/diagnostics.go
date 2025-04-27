@@ -100,7 +100,7 @@ type TargetDBDetails struct {
 /*
 Version History
 1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
-1.1: Added a new field as ControlPlaneType 
+1.1: Added a new field as ControlPlaneType
 */
 var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.1"
 
@@ -139,7 +139,6 @@ type SizingCallhome struct {
 	OptimalSelectConnectionsPerNode int64   `json:"optimal_select_connections_per_node"`
 	OptimalInsertConnectionsPerNode int64   `json:"optimal_insert_connections_per_node"`
 	EstimatedTimeInMinForImport     float64 `json:"estimated_time_in_min_for_import"`
-	ParallelVoyagerJobs             float64 `json:"parallel_voyager_jobs"`
 }
 
 type ObjectSizingStats struct {
@@ -167,8 +166,8 @@ type ExportSchemaPhasePayload struct {
 
 /*
 Version History
-1.0: Restructed the Issues type to AnalyzeIssueCallhome with only required information 
-1.1: Added a new field as ControlPlaneType 
+1.0: Restructed the Issues type to AnalyzeIssueCallhome with only required information
+1.1: Added a new field as ControlPlaneType
 */
 var ANALYZE_PHASE_PAYLOAD_VERSION = "1.1"
 
