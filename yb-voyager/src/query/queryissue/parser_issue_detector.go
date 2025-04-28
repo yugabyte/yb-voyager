@@ -477,13 +477,25 @@ func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.R
 
 	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
 
-	resolvedRedundantIndexInfo := func(redundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+	//This function helps in resolving the existing index in cases where existing index is also a redundant index on some other index
+	//So in such cases we need to report the main existing index.
+	/*
+		e.g. INDEX idx1 on t(id); INDEX idx2 on t(id, id1); INDEX idx3 on t(id, id1,id2);
+		redundant index coming from the script can have
+		Redundant - idx1, Existing idx2
+		Redundant - idx2, Existing idx3
+		So in this case we need to report it like
+		Redundant - idx1, Existing idx3
+		Redundant - idx2, Existing idx3
+	*/
+	resolvedRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
 		for {
-			nextRedundantIndexInfo, ok := redundantIndexToInfo[redundantIndexInfo.GetExistingIndexObjectName()]
+			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
+			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
 			if !ok {
-				return redundantIndexInfo
+				return currRedundantIndexInfo
 			}
-			redundantIndexInfo = nextRedundantIndexInfo
+			currRedundantIndexInfo = nextRedundantIndexInfo
 		}
 	}
 	for _, redundantIndex := range redundantIndexes {
@@ -491,7 +503,9 @@ func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.R
 	}
 	for _, redundantIndex := range redundantIndexes {
 		resolvedIndexInfo := resolvedRedundantIndexInfo(redundantIndex)
-		if resolvedIndexInfo.GetExistingIndexObjectName() != redundantIndex.GetExistingIndexObjectName() {
+		resolvedExistingIndex := resolvedIndexInfo.GetExistingIndexObjectName()
+		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
+		if resolvedExistingIndex != currentExistingIndex {
 			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
 			redundantIndex.ExistingIndexName = resolvedIndexInfo.ExistingIndexName
 			redundantIndex.ExistingSchemaName = resolvedIndexInfo.ExistingSchemaName

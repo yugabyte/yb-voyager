@@ -603,8 +603,8 @@ func checkRedundantIndexes() {
 	}
 
 	//Only considering the case where assessment is run in this migration
-	//If not via assess-migration but there is going a change where internally in the export-schema we will assessment so we should have this information 
-	//most of the time.
+	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
+	//so we should have this information most of the time.
 	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		log.Infof("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
