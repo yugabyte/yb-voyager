@@ -210,13 +210,21 @@ func exportSchema() error {
 }
 
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
-	if ok, _ := IsMigrationAssessmentDone(metaDB); ok {
-		log.Infof("Migration assessment is already done, skipping running assess-migration command.")
-		return nil
-	} else if source.DBType != POSTGRESQL {
-		log.Infof("Skipping running assess-migration command as source DB type is not PostgreSQL.")
+	if source.DBType != POSTGRESQL {
+		log.Infof("Skipping running assess-migration command from export schema as source DB type is not PostgreSQL.")
 		return nil
 	}
+
+	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
+		log.Infof("Migration assessment is already done, skipping running assess-migration command.")
+		return nil
+	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+		log.Infof("Migration assessment is already done via export schema, skipping running assess-migration command.")
+		return nil
+	}
+
+	// Note: have to maintain it in metaDB, can't rely on in-memory var to cover multiple runs scenario
+	isAssessmentInvokedFromExportSchema = true
 
 	// Q: should we be setting the MigrationAssessmentDone flag if command is not run explicitly?
 
@@ -244,7 +252,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	// Note: specify --yes at the end to override as user can specify '--yes=false' in exportSchemaCmd
 	assessFlagsWithValues = append(assessFlagsWithValues,
-		"--iops-capture-interval", "2", // any small duration is better than 0
+		"--iops-capture-interval", "0", // TODO: any small but significant duration will be better than 0
 		"--target-db-version", ybversion.LatestStable.String(),
 		"--yes",
 	)
@@ -398,6 +406,16 @@ func applyMigrationAssessmentRecommendations() error {
 		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
 		return nil
 	} else if source.DBType == MYSQL {
+		return nil
+	}
+
+	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		return fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+	}
+
+	if !bool(skipRecommendations) && assessViaExportSchema {
+		utils.PrintAndLog("no recommendations to apply: run `assess-migration` command to generate recommendations")
 		return nil
 	}
 

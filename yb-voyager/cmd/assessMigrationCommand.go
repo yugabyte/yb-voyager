@@ -51,14 +51,15 @@ import (
 )
 
 var (
-	assessmentMetadataDir            string
-	assessmentMetadataDirFlag        string
-	assessmentReport                 AssessmentReport
-	assessmentDB                     *migassessment.AssessmentDB
-	intervalForCapturingIOPS         int64
-	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
-	referenceOrTablePartitionPresent = false
-	pgssEnabledForAssessment         = false
+	assessmentMetadataDir               string
+	assessmentMetadataDirFlag           string
+	assessmentReport                    AssessmentReport
+	assessmentDB                        *migassessment.AssessmentDB
+	intervalForCapturingIOPS            int64
+	assessMigrationSupportedDBTypes     = []string{POSTGRESQL, ORACLE}
+	referenceOrTablePartitionPresent    = false
+	pgssEnabledForAssessment            = false
+	isAssessmentInvokedFromExportSchema = true
 )
 
 var sourceConnectionFlags = []string{
@@ -441,7 +442,11 @@ func fetchSourceInfo() {
 
 func SetMigrationAssessmentDoneInMSR() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.MigrationAssessmentDone = true
+		if isAssessmentInvokedFromExportSchema {
+			record.MigrationAssessmentDoneViaExportSchema = true
+		} else {
+			record.MigrationAssessmentDone = true
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
@@ -449,9 +454,10 @@ func SetMigrationAssessmentDoneInMSR() error {
 	return nil
 }
 
-func IsMigrationAssessmentDone(metaDBInstance *metadb.MetaDB) (bool, error) {
-	if metaDBInstance == nil {
-		return false, fmt.Errorf("metaDBInstance is nil")
+func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, error) {
+	if !metaDBIsCreated(exportDir) {
+		// Note: caller should handle this case if they want to treat it as an error or not
+		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
 	}
 
 	record, err := metaDBInstance.GetMigrationStatusRecord()
@@ -459,6 +465,22 @@ func IsMigrationAssessmentDone(metaDBInstance *metadb.MetaDB) (bool, error) {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
 	}
 	return record.MigrationAssessmentDone, nil
+}
+
+func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
+	if !metaDBIsCreated(exportDir) {
+		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr == nil {
+		return false, nil
+	}
+
+	return msr.MigrationAssessmentDoneViaExportSchema, nil
 }
 
 func ClearMigrationAssessmentDone() error {
