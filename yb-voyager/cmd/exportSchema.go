@@ -226,8 +226,6 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// Note: have to maintain it in metaDB, can't rely on in-memory var to cover multiple runs scenario
 	isAssessmentInvokedFromExportSchema = true
 
-	// Q: should we be setting the MigrationAssessmentDone flag if command is not run explicitly?
-
 	var assessFlagsWithValues []string
 	commonFlags := utils.GetCommonFlags(exportSchemaCmd, assessMigrationCmd)
 	for _, flag := range commonFlags {
@@ -250,7 +248,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		}
 	}
 
-	// Note: specify --yes at the end to override as user can specify '--yes=false' in exportSchemaCmd
+	// Append --yes=true at the end to override any --yes=false if set in export schema cmd
 	assessFlagsWithValues = append(assessFlagsWithValues,
 		"--iops-capture-interval", "0", // TODO: any small but significant duration will be better than 0
 		"--target-db-version", ybversion.LatestStable.String(),
@@ -259,10 +257,10 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	utils.PrintAndLog("\n[debug] Running assessment before export schema with flags: %s\n", strings.Join(assessFlagsWithValues, "\t"))
 
-	// Silence any built-in error will be handled by the caller(here exportSchemaCmd)
+	// Silence any built-in error; will be handled by the caller(exportSchemaCmd)
 	assessMigrationCmd.SilenceErrors = true
 
-	// bring in all persistent flags(--export-dir, --yes) so Parse can recognize them
+	// bring in all persistent flags(--export-dir, --yes) so Parse() can recognize them
 	assessMigrationCmd.Flags().AddFlagSet(assessMigrationCmd.PersistentFlags())
 
 	// Parse the flag list – this actually populates assessMigrationCmd.Flags()
