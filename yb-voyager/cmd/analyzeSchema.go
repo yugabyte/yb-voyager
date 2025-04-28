@@ -591,7 +591,6 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
 		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
 	}
-	checkRedundantIndexes()
 }
 
 func checkRedundantIndexes() {
@@ -637,6 +636,7 @@ func checkRedundantIndexes() {
 				DocsLink:               redundantIndexIssue.DocsLink,
 				MinimumVersionsFixedIn: redundantIndexIssue.MinimumVersionsFixedIn,
 			}
+			summaryMap["INDEX"].invalidCount[indexObjectName] = true
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeRedundantIssue)
 		}
 	}
@@ -1198,6 +1198,7 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
 	analyzeSchemaInternal(msr.SourceDBConf, true)
+	checkRedundantIndexes()
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
