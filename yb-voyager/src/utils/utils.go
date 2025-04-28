@@ -33,7 +33,6 @@ import (
 	"syscall"
 	"time"
 
-	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
@@ -889,19 +888,22 @@ func SliceLastElement[T any](slice []T) (T, bool) {
 	return slice[len(slice)-1], true
 }
 
-// Return the list of flag names common to two cobra commands.
-func CommonFlagNames(cmdA, cmdB *cobra.Command) []string {
-	var common []string
-	namesA := mapset.NewThreadUnsafeSet[string]()
-
-	cmdA.Flags().VisitAll(func(f *pflag.Flag) { // visits irrespective flag set or not
-		namesA.Add(f.Name)
-	})
-
-	cmdB.Flags().VisitAll(func(f *pflag.Flag) {
-		if namesA.Contains(f.Name) {
-			common = append(common, f.Name)
+// GetCommonFlags returns the list of *pflag.Flag that are registered
+// on both cmdA and cmdB.
+func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
+	var common []*pflag.Flag
+	cmdA.Flags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.Flags().Lookup(f.Name) != nil {
+			common = append(common, f)
 		}
 	})
+
+	// also return common persistent flags like --export-dir --yes
+	cmdA.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.PersistentFlags().Lookup(f.Name) != nil {
+			common = append(common, f)
+		}
+	})
+
 	return common
 }

@@ -60,58 +60,18 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		// TODO: check if assessment is already done
-		// If assessment is not done explicity; make sure the invoked command is not setting that
-
-		// TODO2: Only do this in case of PG
-
-		// find common flags between assess and export schema
-		commonFlagsNames := utils.CommonFlagNames(cmd, assessMigrationCmd)
-
-		var assessFlagsWithValues []string
-		for _, name := range commonFlagsNames {
-			flag := cmd.Flags().Lookup(name)
-			if flag == nil {
-				continue
-			}
-
-			if flag.Changed {
-				assessFlagsWithValues = append(assessFlagsWithValues, fmt.Sprintf("--%s=%s", name, flag.Value.String()))
-			}
+		err := runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
+		if err != nil {
+			fmt.Printf("[debug] failed to run assess-migration command before export schema: %v\n", err)
+			log.Warnf("failed to run assess-migration command before export schema: %v", err)
 		}
 
-		assessFlagsWithValues = append(assessFlagsWithValues,
-			"--iops-capture-interval=2",
-			fmt.Sprintf("--target-db2-version=%s", ybversion.LatestStable.String()),
-			"--yes",
-			// "--run-guardrails-checks=false",  ??
-		)
-		utils.PrintAndLog("\n[debug] Running assessment before export schema with flags: %s\n", strings.Join(assessFlagsWithValues, "\t"))
+		// TODO: restrict export schema from apply assessment recommendations if assessment is ran as export schema
+		// How: What if user explicity provide the flag to apply recommendations
+		// Maybe not set the MSR as the assessment done as part of this fullproof; for real report a actual run is required
 
-		// assessMigrationCmd.SetArgs(assessFlagsWithValues)
-		var err error
-		// err = assessMigrationCmd.Execute()
-		// if err != nil {
-		// 	log.Infof("failed to run assessment before export schema: %v", err)
-		// 	// TODO: send something to callhome in error case?
-		// }
-
-		// Silence any built-in error/usage printing so bad flags don’t spam you.
-		assessMigrationCmd.SilenceErrors = true
-		assessMigrationCmd.SilenceUsage = true
-
-		// Parse the flag list – this actually populates assessMigrationCmd.Flags()
-		if err := assessMigrationCmd.Flags().Parse(assessFlagsWithValues); err != nil {
-			// ignore unknown flags or parse errors
-			utils.PrintAndLog("[debug] failed to parse flags for assess-migration: %v, ignoring...", err)
-		}
-
-		if assessMigrationCmd.PreRun != nil {
-			assessMigrationCmd.PreRun(assessMigrationCmd, nil)
-		}
-
-		// call Run with an empty args slice (args value will came from flags)
-		assessMigrationCmd.Run(assessMigrationCmd, nil)
+		// TODO: think of resumability what if there is a assessment report from last run's export schema
+		// i.e. start clean behaviour with the new
 
 		source.ApplyExportSchemaObjectListFilter()
 		err = exportSchema()
@@ -246,6 +206,66 @@ func exportSchema() error {
 
 	exportSchemaCompleteEvent := createExportSchemaCompletedEvent()
 	controlPlane.ExportSchemaCompleted(&exportSchemaCompleteEvent)
+	return nil
+}
+
+func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
+	if ok, _ := IsMigrationAssessmentDone(metaDB); ok {
+		log.Infof("Migration assessment is already done, skipping running assess-migration command.")
+		return nil
+	} else if source.DBType != POSTGRESQL {
+		log.Infof("Skipping running assess-migration command as source DB type is not PostgreSQL.")
+		return nil
+	}
+
+	// Q: should we be setting the MigrationAssessmentDone flag if command is not run explicitly?
+
+	var assessFlagsWithValues []string
+	commonFlags := utils.GetCommonFlags(exportSchemaCmd, assessMigrationCmd)
+	for _, flag := range commonFlags {
+		// don't pass start-clean flag to assess-migration command here
+		if flag.Name == "start-clean" || !flag.Changed {
+			continue
+		}
+
+		// bool flags: --flag=value
+		// everything else: --flag value
+		if flag.Value.Type() == "bool" {
+			assessFlagsWithValues = append(assessFlagsWithValues,
+				fmt.Sprintf("--%s=%s", flag.Name, flag.Value.String()),
+			)
+		} else {
+			assessFlagsWithValues = append(assessFlagsWithValues,
+				"--"+flag.Name,
+				flag.Value.String(),
+			)
+		}
+	}
+
+	// Note: specify --yes at the end to override as user can specify '--yes=false' in exportSchemaCmd
+	assessFlagsWithValues = append(assessFlagsWithValues,
+		"--iops-capture-interval", "2", // any small duration is better than 0
+		"--target-db-version", ybversion.LatestStable.String(),
+		"--yes",
+	)
+
+	utils.PrintAndLog("\n[debug] Running assessment before export schema with flags: %s\n", strings.Join(assessFlagsWithValues, "\t"))
+
+	// Silence any built-in error will be handled by the caller(here exportSchemaCmd)
+	assessMigrationCmd.SilenceErrors = true
+
+	// bring in all persistent flags(--export-dir, --yes) so Parse can recognize them
+	assessMigrationCmd.Flags().AddFlagSet(assessMigrationCmd.PersistentFlags())
+
+	// Parse the flag list – this actually populates assessMigrationCmd.Flags()
+	if err := assessMigrationCmd.Flags().Parse(assessFlagsWithValues); err != nil {
+		return fmt.Errorf("failed to parse flags for assess-migration: %w", err)
+	}
+
+	// calling PreRun/Run function with the right command as function arg
+	assessMigrationCmd.PreRun(assessMigrationCmd, nil)
+	assessMigrationCmd.Run(assessMigrationCmd, nil)
+
 	return nil
 }
 
