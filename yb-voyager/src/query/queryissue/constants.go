@@ -442,7 +442,7 @@ Note that range sharding is currently enabled by default only in PostgreSQL comp
 
 	REDUNDANT_INDEXES="REDUNDANT_INDEXES"
 	REDUNDANT_INDEXES_ISSUE_NAME="Redundant index"
-	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be safely removed as there is already an existing index for this same or stronger set of keys and options. Remove this index from the schema."
+	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
 )
 
 // Object types
