@@ -24,6 +24,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -86,6 +87,16 @@ func TestInitAssessmentDB(t *testing.T) {
 		DB_QUERIES_SUMMARY: {
 			"queryid": {Type: "BIGINT"},
 			"query":   {Type: "TEXT"},
+		},
+		REDUNDANT_INDEXES: {
+			"redundant_schema_name": {Type: "TEXT", PrimaryKey: 1},
+			"redundant_table_name": {Type: "TEXT", PrimaryKey: 2},
+			"redundant_index_name": {Type: "TEXT", PrimaryKey: 3},
+			"existing_schema_name": {Type: "TEXT"},
+			"existing_table_name": {Type: "TEXT"},
+			"existing_index_name": {Type: "TEXT"},
+			"redundant_ddl": {Type: "TEXT"},
+			"existing_ddl": {Type: "TEXT"},
 		},
 	}
 
