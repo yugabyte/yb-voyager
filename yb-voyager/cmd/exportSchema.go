@@ -101,21 +101,15 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get migration UUID during export schema: %w", err)
 	}
 
-	err = runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
-	if err != nil {
-		log.Warnf("failed to run assess-migration command before export schema: %v", err)
-	}
-
-	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
-	// Check connection with source database.
-	err = source.DB().Connect()
-	if err != nil {
-		log.Errorf("failed to connect to the source db: %s", err)
-		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
-	}
-	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
+		// Check connection with source database.
+		err = source.DB().Connect()
+		if err != nil {
+			log.Errorf("failed to connect to the source db: %s", err)
+			return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
+		}
+
 		// Check source database version.
 		log.Info("checking source DB version")
 		err = source.DB().CheckSourceDBVersion(exportType)
@@ -130,8 +124,24 @@ func exportSchema(cmd *cobra.Command) error {
 		} else if len(binaryCheckIssues) > 0 {
 			return fmt.Errorf("\n%s\n%s", color.RedString("\nMissing dependencies for export schema:"), strings.Join(binaryCheckIssues, "\n"))
 		}
+
+		source.DB().Disconnect() // connect again after assessment
 	}
 
+	err = runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
+	if err != nil {
+		log.Warnf("failed to run assess-migration command before export schema: %v", err)
+	}
+
+	err = source.DB().Connect()
+	if err != nil {
+		log.Errorf("failed to connect to the source db: %s", err)
+		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
+	}
+	defer source.DB().Disconnect() // final disconnect
+
+
+	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
