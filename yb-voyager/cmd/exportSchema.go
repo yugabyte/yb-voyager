@@ -60,27 +60,15 @@ var exportSchemaCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		err := runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
-		if err != nil {
-			log.Warnf("failed to run assess-migration command before export schema: %v", err)
-		}
-
-		// TODO: restrict export schema from apply assessment recommendations if assessment is ran as export schema
-		// How: What if user explicity provide the flag to apply recommendations
-		// Maybe not set the MSR as the assessment done as part of this fullproof; for real report a actual run is required
-
-		// TODO: think of resumability what if there is a assessment report from last run's export schema
-		// i.e. start clean behaviour with the new
-
 		source.ApplyExportSchemaObjectListFilter()
-		err = exportSchema()
+		err := exportSchema(cmd)
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
 	},
 }
 
-func exportSchema() error {
+func exportSchema(cmd *cobra.Command) error {
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
@@ -111,7 +99,12 @@ func exportSchema() error {
 		return fmt.Errorf("failed to get migration UUID during export schema: %w", err)
 	}
 
-	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
+	err = runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
+	if err != nil {
+		log.Warnf("failed to run assess-migration command before export schema: %v", err)
+	}
+
+	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
 	// Check connection with source database.
 	err = source.DB().Connect()
 	if err != nil {
@@ -278,8 +271,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// ------ shield export schema command from panic ------
 	defer func() {
 		if r := recover(); r != nil {
-			// Q: do we need a single line info for user if assessment fails
-			log.Warnf("assess-migration panicked: %v (continuing export-schema)", r)
+			utils.PrintAndLog("failed to assess the schema: %v, continuing...\n", r)
 		}
 	}()
 

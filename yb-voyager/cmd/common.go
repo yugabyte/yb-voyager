@@ -1460,8 +1460,8 @@ func PackAndSendCallhomePayloadOnExit() {
 
 	var errorMsg string
 	var status string
-	if utils.ErrExitErr != nil {
-		errorMsg = utils.ErrExitErr.Error()
+	if utils.LastExitErr != nil {
+		errorMsg = utils.LastExitErr.Error()
 		status = ERROR
 	} else {
 		status = EXIT
