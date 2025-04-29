@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"io"
 	"math"
 	"net/http"
@@ -28,6 +27,8 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 
 	"github.com/samber/lo"
 

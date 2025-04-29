@@ -261,7 +261,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
-		utils.PrintAndLog("failed to assess the schema: %v, continuing with export schema", err)
+		utils.PrintAndLog("failed to assess the schema: %v, continuing with export schema...", err)
 		log.Warnf("assess migration cmd stderr: %s", stderrBuf.String())
 	}
 
