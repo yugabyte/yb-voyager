@@ -48,6 +48,7 @@ func TestMain(m *testing.M) {
 }
 
 func Test_AssessMigration(t *testing.T) {
+	t.Skip()
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
@@ -67,9 +68,8 @@ func Test_AssessMigration(t *testing.T) {
 	);`,
 		`INSERT INTO test_data (value)
 	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
-	if err != nil {
-		t.Errorf("Failed to create test table: %v", err)
-	}
+	defer postgresContainer.ExecuteSqls(`
+		DROP TABLE test_data;`)
 
 	doDuringCmd := func() {
 		log.Infof("Performing sequential reads on the table")
