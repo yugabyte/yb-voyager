@@ -62,7 +62,6 @@ var exportSchemaCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
 		if err != nil {
-			fmt.Printf("[debug] failed to run assess-migration command before export schema: %v\n", err)
 			log.Warnf("failed to run assess-migration command before export schema: %v", err)
 		}
 
@@ -174,8 +173,6 @@ func exportSchema() error {
 		}
 	}
 
-	nudgeUserToRunAssessment()
-
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
 
@@ -211,15 +208,15 @@ func exportSchema() error {
 
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
 	if source.DBType != POSTGRESQL {
-		log.Infof("Skipping running assess-migration command from export schema as source DB type is not PostgreSQL.")
+		log.Infof("skipping running assess-migration command from export schema as source DB type is not PostgreSQL.")
 		return nil
 	}
 
 	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
-		log.Infof("Migration assessment is already done, skipping running assess-migration command.")
+		log.Infof("migration assessment is already done, skipping running assess-migration command.")
 		return nil
 	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
-		log.Infof("Migration assessment is already done via export schema, skipping running assess-migration command.")
+		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
 		return nil
 	}
 
@@ -252,14 +249,18 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		}
 	}
 
-	// Append --yes=true at the end to override any --yes=false if set in export schema cmd
+	// Append --yes=true(irrespective) at the end to override any --yes=false if set in export schema cmd
 	assessFlagsWithValues = append(assessFlagsWithValues,
 		"--iops-capture-interval", "0", // TODO: any small but significant duration will be better than 0
 		"--target-db-version", ybversion.LatestStable.String(),
-		"--yes",
+		"--yes", // need to be restored
 	)
 
-	utils.PrintAndLog("\n[debug] Running assessment before export schema with flags: %s\n", strings.Join(assessFlagsWithValues, "\t"))
+	// snapshot the global variable DoNotPrompt to restore it later
+	prevDoNotPrompt := utils.DoNotPrompt
+	defer func() {
+		utils.DoNotPrompt = prevDoNotPrompt
+	}()
 
 	// Silence any built-in error; will be handled by the caller(exportSchemaCmd)
 	assessMigrationCmd.SilenceErrors = true
@@ -275,7 +276,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// ------ shield export schema command from panic ------
 	defer func() {
 		if r := recover(); r != nil {
-			fmt.Printf("[debug] assess-migration panicked: %v (continuing export-schema)\n", r)
+			// Q: do we need a single line info for user if assessment fails
 			log.Warnf("assess-migration panicked: %v (continuing export-schema)", r)
 		}
 	}()
@@ -284,27 +285,6 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	assessMigrationCmd.PreRun(assessMigrationCmd, nil)
 	assessMigrationCmd.Run(assessMigrationCmd, nil)
 
-	return nil
-}
-
-func nudgeUserToRunAssessment() error {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return fmt.Errorf("failed to get migration status record: %w", err)
-	}
-
-	if msr.MigrationAssessmentDone {
-		return nil
-	}
-	if source.DBType != POSTGRESQL {
-		// At this point, we are only interested in nudging postgres users to run assessment
-		// because it is far more advanced and useful for them.
-		return nil
-	}
-	if !utils.AskPrompt("It is recommended to run assess-migration before exporting schema. https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/assess-migration/ \n" +
-		"Do you want to continue anyway without running assess-migration") {
-		utils.ErrExit("Aborting...")
-	}
 	return nil
 }
 

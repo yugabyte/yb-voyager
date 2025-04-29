@@ -35,7 +35,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -82,7 +81,6 @@ var assessMigrationCmd = &cobra.Command{
 	Long:  fmt.Sprintf("Assess the migration from source (%s) database to YugabyteDB.", strings.Join(assessMigrationSupportedDBTypes, ", ")),
 
 	PreRun: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("[debug] assess-migration command PreRun: %s\n", cmd.CommandPath())
 		CreateMigrationProjectIfNotExists(source.DBType, exportDir)
 		err := retrieveMigrationUUID()
 		if err != nil {
@@ -114,15 +112,6 @@ var assessMigrationCmd = &cobra.Command{
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("[debug] assess-migration command Run: %s\n", cmd.CommandPath())
-		cmd.Flags().VisitAll(func(f *pflag.Flag) {
-			fmt.Printf("[debug] --%s=%s  (changed? %v)\n",
-				f.Name,
-				f.Value.String(),
-				f.Changed,
-			)
-		})
-
 		err := assessMigration()
 		if err != nil {
 			utils.ErrExit("%s", err)
@@ -444,8 +433,10 @@ func SetMigrationAssessmentDoneInMSR() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		if isAssessmentInvokedFromExportSchema {
 			record.MigrationAssessmentDoneViaExportSchema = true
+			record.MigrationAssessmentDone = false
 		} else {
 			record.MigrationAssessmentDone = true
+			record.MigrationAssessmentDoneViaExportSchema = false
 		}
 	})
 	if err != nil {
