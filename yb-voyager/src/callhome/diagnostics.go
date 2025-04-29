@@ -101,8 +101,9 @@ type TargetDBDetails struct {
 Version History
 1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
 1.1: Added a new field as ControlPlaneType
+1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.1"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.2"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
