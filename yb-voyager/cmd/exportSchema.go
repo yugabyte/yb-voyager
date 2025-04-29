@@ -265,7 +265,9 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// Silence any built-in error; will be handled by the caller(exportSchemaCmd)
 	assessMigrationCmd.SilenceErrors = true
 
-	// bring in all persistent flags(--export-dir, --yes) so Parse() can recognize them
+	// Merge persistent flags (e.g. --export-dir, --yes) into the local set.
+	// Cobra’s Execute() normally does this for you, but since we’re manually parsing,
+	// we must add them so flags like --yes get recognized.
 	assessMigrationCmd.Flags().AddFlagSet(assessMigrationCmd.PersistentFlags())
 
 	// Parse the flag list – this actually populates assessMigrationCmd.Flags()
