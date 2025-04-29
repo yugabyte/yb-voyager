@@ -598,13 +598,13 @@ func checkRedundantIndexes() {
 	if err != nil {
 		utils.ErrExit("error getting migration status record: %v", err)
 	}
-	if !msr.MigrationAssessmentDone {
+	if !msr.MigrationAssessmentDone { //TODO: add the case to handle if assessment is run in export schema
 		return
 	}
 
 	if msr.SourceDBConf.DBType != POSTGRESQL {
 		return
-	} 
+	}
 
 	//Only considering the case where assessment is run in this migration
 	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
@@ -625,8 +625,19 @@ func checkRedundantIndexes() {
 		return i.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY && i.Name == queryissue.REDUNDANT_INDEXES_ISSUE_NAME
 	})
 	for _, redundantIndexIssue := range redundantIndexIssues {
+		//this is the Unquoted object name
 		indexObjectName := redundantIndexIssue.ObjectName
-		if slices.Contains(summaryMap["INDEX"].objSet, indexObjectName) {
+		//this is to create a proper objectname with Quotes if required to do the check in the objSet of Index if its present or not.
+		splits := strings.Split(indexObjectName, " ON ")
+		indexName := splits[0]
+		qualifiedTableName := ""
+		if len(splits) > 1 {
+			qualifiedTableName = splits[1]
+		}
+		tableObjectName := sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "", qualifiedTableName)
+		indexSQlObjectName := sqlname.NewObjectName(POSTGRESQL, "", tableObjectName.SchemaName, indexName)
+		qualifiedIndexName := fmt.Sprintf(`%s ON %s`, indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+		if slices.Contains(summaryMap["INDEX"].objSet, qualifiedIndexName) {
 			//If the index is present in exported schema then only report the issue
 			//In case of iterations where manually user has removed the index we shouldn't report the issue
 			analyzeRedundantIssue := utils.AnalyzeSchemaIssue{
@@ -640,8 +651,10 @@ func checkRedundantIndexes() {
 				DocsLink:               redundantIndexIssue.DocsLink,
 				MinimumVersionsFixedIn: redundantIndexIssue.MinimumVersionsFixedIn,
 			}
-			summaryMap["INDEX"].invalidCount[indexObjectName] = true
+			summaryMap["INDEX"].invalidCount[qualifiedIndexName] = true
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeRedundantIssue)
+		} else {
+			log.Infof("skipping the redundant index from assessment issues as not found in exported schema - %s, qualified index used to check - %s", indexObjectName, qualifiedIndexName)
 		}
 	}
 }
