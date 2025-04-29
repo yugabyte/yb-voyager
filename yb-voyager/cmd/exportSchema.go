@@ -223,6 +223,10 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		return nil
 	}
 
+	// Temporarily override utils.ErrExit with panic so it doesn’t kill the export schema command.
+	utils.SetExitHook(func(code int) { panic(fmt.Sprintf("exit %d", code)) })
+	defer utils.SetExitHook(nil) // restore when we’re done
+
 	// Note: have to maintain it in metaDB, can't rely on in-memory var to cover multiple runs scenario
 	isAssessmentInvokedFromExportSchema = true
 
@@ -267,6 +271,14 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	if err := assessMigrationCmd.Flags().Parse(assessFlagsWithValues); err != nil {
 		return fmt.Errorf("failed to parse flags for assess-migration: %w", err)
 	}
+
+	// ------ shield export schema command from panic ------
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Printf("[debug] assess-migration panicked: %v (continuing export-schema)\n", r)
+			log.Warnf("assess-migration panicked: %v (continuing export-schema)", r)
+		}
+	}()
 
 	// calling PreRun/Run function with the right command as function arg
 	assessMigrationCmd.PreRun(assessMigrationCmd, nil)

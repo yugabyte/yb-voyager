@@ -24,14 +24,34 @@ import (
 	"github.com/tebeka/atexit"
 )
 
-var ErrExitErr error
+var (
+	// ErrExitErr holds the last error passed to ErrExit (unchanged) - used for final status to callhome
+	ErrExitErr error
 
-var ErrExit = func(formatString string, args ...interface{}) {
-	ErrExitErr = fmt.Errorf(formatString, args...)
-	formatString = strings.Replace(formatString, "%w", "%s", -1)
-	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
-	log.Errorf(formatString+"\n", args...)
-	atexit.Exit(1)
+	// exitHook is what ErrExit calls to terminate.
+	// Default = atexit.Exit, but you can override it.
+	exitHook = atexit.Exit
+)
+
+// SetExitHook lets callers replace the termination behaviour.
+// Pass nil to restore the default (atexit.Exit).
+func SetExitHook(h func(code int)) {
+	if h == nil {
+		exitHook = atexit.Exit
+	} else {
+		exitHook = h
+	}
+}
+
+// ErrExit prints the formatted error and then terminates via exitHook.
+func ErrExit(format string, args ...interface{}) {
+	ErrExitErr = fmt.Errorf(format, args...)
+
+	format = strings.Replace(format, "%w", "%s", -1)
+	fmt.Fprintf(os.Stderr, format+"\n", args...)
+	log.Errorf(format+"\n", args...)
+
+	exitHook(1)
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {
