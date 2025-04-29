@@ -59,7 +59,7 @@ var (
 	assessMigrationSupportedDBTypes     = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent    = false
 	pgssEnabledForAssessment            = false
-	isAssessmentInvokedFromExportSchema = true
+	isAssessmentInvokedFromExportSchema = false
 )
 
 var sourceConnectionFlags = []string{
