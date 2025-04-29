@@ -602,6 +602,10 @@ func checkRedundantIndexes() {
 		return
 	}
 
+	if msr.SourceDBConf.DBType != POSTGRESQL {
+		return
+	} 
+
 	//Only considering the case where assessment is run in this migration
 	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
 	//so we should have this information most of the time.

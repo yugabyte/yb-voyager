@@ -873,6 +873,9 @@ func generateAssessmentReport() (err error) {
 }
 
 func addAssessmentIssuesForRedundantIndexes() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
 	query := fmt.Sprintf(`SELECT redundant_schema_name,redundant_table_name,redundant_index_name,
 	existing_schema_name,existing_table_name,existing_index_name,
 	redundant_ddl,existing_ddl from %s`,
