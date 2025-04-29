@@ -95,6 +95,7 @@ var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[st
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables",

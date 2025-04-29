@@ -25,13 +25,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-// Helper to reset cmd state
-func resetAssessMigrationCmd() {
-	assessMigrationCmd.Run = func(cmd *cobra.Command, args []string) {}
-	assessMigrationCmd.PreRun = func(cmd *cobra.Command, args []string) {}
+// Helper functions
+func resetCmd(cmd *cobra.Command) {
+	cmd.Run = func(cmd *cobra.Command, args []string) {}
+	cmd.PreRun = func(cmd *cobra.Command, args []string) {}
+	cmd.PostRun = func(cmd *cobra.Command, args []string) {}
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {}
 }
 
@@ -52,11 +54,18 @@ func setupExportDir(t *testing.T) string {
 	return exportDir
 }
 
-func TestAssessMigrationConfigBinding_SuccessCases(t *testing.T) {
-	tmpExportDir := setupExportDir(t)
-	defer os.RemoveAll(tmpExportDir)
+type testContext struct {
+	tmpExportDir string
+	configFile   string
+}
 
-	resetAssessMigrationCmd()
+////////////////////////////// Assess Migration Tests //////////////////////////////
+
+func setupAssessMigrationContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(assessMigrationCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -72,41 +81,126 @@ assess-migration:
   iops-capture-interval: 20
   target-db-version: 2.19.0.0
   assessment-metadata-dir: /tmp/assessment-metadata
+  report-unsupported-query-constructs: true
+  report-unsupported-plpgsql-objects: true
 `, tmpExportDir)
 
 	configFile, configDir := setupConfigFile(t, configContent)
-	defer os.RemoveAll(configDir)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
 
-	rootCmd.SetArgs([]string{"assess-migration", "--config-file", configFile})
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestAssessMigration_ConfigFileBinding(t *testing.T) {
+	ctx := setupAssessMigrationContext(t)
+
+	rootCmd.SetArgs([]string{
+		"assess-migration",
+		"--config-file", ctx.configFile,
+	})
+
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir)
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 
 	// Assertions on source config
-	assert.Equal(t, "test_db", source.DBName)
-	assert.Equal(t, "test_user", source.User)
-	assert.Equal(t, "localhost", source.Host)
-	assert.Equal(t, "public", source.Schema)
-	assert.Equal(t, "postgresql", source.DBType)
-	assert.Equal(t, 5432, source.Port)
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
 
 	// Assertions on assess-migration config
-	assert.Equal(t, int64(20), intervalForCapturingIOPS)
-	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag)
-	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag)
+	assert.Equal(t, int64(20), intervalForCapturingIOPS, "intervalForCapturingIOPS should match the config")
+	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should match the config")
+	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should match the config")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"), "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS should match the config value")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should match the config value")
 }
 
-func TestAssessMigrationConfigBinding_CLIOverridesConfig(t *testing.T) {
-	exportDir := setupExportDir(t)
-	defer os.RemoveAll(exportDir)
+func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
+	// Test whether CLI overrides config
+	ctx := setupAssessMigrationContext(t)
 
-	resetAssessMigrationCmd()
+	rootCmd.SetArgs([]string{
+		"assess-migration",
+		"--config-file", ctx.configFile,
+		"--iops-capture-interval", "50",
+		"--target-db-version", "2024.1.1.0",
+		"--assessment-metadata-dir", "/tmp/new-assessment-metadata",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+
+	// Assertions on assess-migration config
+	assert.Equal(t, int64(50), intervalForCapturingIOPS, "intervalForCapturingIOPS should be overridden by CLI")
+	assert.Equal(t, "2024.1.1.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should be overridden by CLI")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"), "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS should match the config")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should match the config")
+}
+
+func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
+	// Test whether env vars overrides config
+	ctx := setupAssessMigrationContext(t)
+
+	os.Setenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS", "false")
+	os.Setenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", "false")
+	rootCmd.SetArgs([]string{
+		"assess-migration",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+
+	// Assertions on assess-migration config
+	assert.Equal(t, int64(20), intervalForCapturingIOPS, "intervalForCapturingIOPS should match the config")
+	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should match the config")
+	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should match the config")
+	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"), "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS should be overridden by env var")
+	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should be overridden by env var")
+}
+
+////////////////////////////// Export Schema Tests ////////////////////////////////
+
+func setupExportSchemaContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(exportSchemaCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
-
 source:
   db-type: postgresql
   db-name: test_db
@@ -114,37 +208,206 @@ source:
   db-schema: public
   db-host: localhost
   db-port: 5432
-
-assess-migration:
-  iops-capture-interval: 10
-  target-db-version: 2.19.0.0
-  assessment-metadata-dir: /tmp/assessment-metadata
-`, exportDir)
-
+export-schema:
+  use-orafce: true
+  comments-on-objects: true
+  object-type-list: table,index,view
+  exclude-object-type-list: materialized_view
+  skip-recommendations: false
+  assessment-report-path: /tmp/assessment-report
+  ybvoyager-skip-merge-constraints-transformation: true
+`, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
-	defer os.RemoveAll(configDir) // <- Clean after test finishes
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupExportSchemaContext(t)
 
 	rootCmd.SetArgs([]string{
-		"assess-migration",
-		"--config-file", configFile,
-		"--iops-capture-interval", "50", // CLI override
+		"export", "schema",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(true), source.UseOrafce, "UseOrafce should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.CommentsOnObjects, "CommentsOnObjects should match the config")
+	assert.Equal(t, "table,index,view", source.StrExportObjectTypeList, "Export object type list should match the config")
+	assert.Equal(t, "materialized_view", source.StrExcludeObjectTypeList, "Exclude object type list should match the config")
+	assert.Equal(t, utils.BoolStr(false), skipRecommendations, "Skip recommendations should match the config")
+	assert.Equal(t, "/tmp/assessment-report", assessmentReportPath, "Assessment report path should match the config")
+	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should match the config")
+}
+
+func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupExportSchemaContext(t)
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"export", "schema",
+		"--config-file", ctx.configFile,
+		"--use-orafce", "false",
+		"--comments-on-objects", "false",
+		"--object-type-list", "table,view",
+		"--exclude-object-type-list", "materialized_view,index",
+		"--skip-recommendations", "true",
+		"--assessment-report-path", "/tmp/new-assessment-report",
 	})
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 
-	// Assert that CLI wins
-	assert.Equal(t, int64(50), intervalForCapturingIOPS)
-	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag)                    // CLI does not override this
-	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag) // CLI does not override this
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(false), source.UseOrafce, "UseOrafce should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), source.CommentsOnObjects, "CommentsOnObjects should be overridden by CLI")
+	assert.Equal(t, "table,view", source.StrExportObjectTypeList, "Export object type list should be overridden by CLI")
+	assert.Equal(t, "materialized_view,index", source.StrExcludeObjectTypeList, "Exclude object type list should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), skipRecommendations, "Skip recommendations should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-assessment-report", assessmentReportPath, "Assessment report path should be overridden by CLI")
+	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should match the config")
 }
 
-func TestAssessMigrationConfigBinding_MissingFields(t *testing.T) {
-	exportDir := setupExportDir(t)
-	defer os.RemoveAll(exportDir)
+func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupExportSchemaContext(t)
+	// Test whether env vars overrides config
+	os.Setenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", "true")
+	rootCmd.SetArgs([]string{
+		"export", "schema",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
 
-	resetAssessMigrationCmd()
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(true), source.UseOrafce, "UseOrafce should match the config")
+	assert.Equal(t, utils.BoolStr(true), source.CommentsOnObjects, "CommentsOnObjects should match the config")
+	assert.Equal(t, "table,index,view", source.StrExportObjectTypeList, "Export object type list should match the config")
+	assert.Equal(t, "materialized_view", source.StrExcludeObjectTypeList, "Exclude object type list should match the config")
+	assert.Equal(t, utils.BoolStr(false), skipRecommendations, "Skip recommendations should match the config")
+	assert.Equal(t, "/tmp/assessment-report", assessmentReportPath, "Assessment report path should match the config")
+	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should be overridden by env var")
+}
 
-	// No assess-migration section at all
+////////////////////////////// Analyze Schema Tests ////////////////////////////////
+
+func setupAnalyzeSchemaContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(analyzeSchemaCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+analyze-schema:
+  output-format: json
+  target-db-version: 2024.1.1.0
+  report-unsupported-plpgsql-objects: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestAnalyzeSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupAnalyzeSchemaContext(t)
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on analyze-schema config
+	assert.Equal(t, "json", analyzeSchemaReportFormat, "Output format should match the config")
+	assert.Equal(t, "2024.1.1.0", targetDbVersionStrFlag, "Target DB version should match the config")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should match the config value")
+}
+
+func TestAnalyzeSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupAnalyzeSchemaContext(t)
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", ctx.configFile,
+		"--output-format", "yaml",
+		"--target-db-version", "2024.2.0.0",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on analyze-schema config
+	assert.Equal(t, "yaml", analyzeSchemaReportFormat, "Output format should be overridden by CLI")
+	assert.Equal(t, "2024.2.0.0", targetDbVersionStrFlag, "Target DB version should be overridden by CLI")
+	assert.Equal(t, "true", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should match the config value")
+}
+
+func TestAnalyzeSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupAnalyzeSchemaContext(t)
+
+	// Test whether env vars overrides config
+	os.Setenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", "false")
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on analyze-schema config
+	assert.Equal(t, "json", analyzeSchemaReportFormat, "Output format should match the config")
+	assert.Equal(t, "2024.1.1.0", targetDbVersionStrFlag, "Target DB version should match the config")
+	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should be overridden by env var")
+}
+
+////////////////////////////// Export Data Tests ////////////////////////////////
+
+func setupExportDataFromSourceContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(exportDataFromSrcCmd)
+
 	configContent := fmt.Sprintf(`
 export-dir: %s
 source:
@@ -154,47 +417,1029 @@ source:
   db-schema: public
   db-host: localhost
   db-port: 5432
-`, exportDir)
-
+export-data-from-source:
+  disable-pb: true
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  parallel-jobs: 4
+  export-type: snapshot-and-changes
+  queue-segment-max-bytes: 10485760
+  debezium-dist-dir: /tmp/debezium
+  beta-fast-data-export: true
+`, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
-	defer os.RemoveAll(configDir)
-
-	rootCmd.SetArgs([]string{"assess-migration", "--config-file", configFile})
-	err := rootCmd.Execute()
-
-	require.NoError(t, err)                               // No error because defaults apply
-	assert.Equal(t, int64(120), intervalForCapturingIOPS) // default value from your cmd.Flags()
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
 }
 
-func TestAssessMigrationConfigBinding_WrongSectionsIgnored(t *testing.T) {
-	exportDir := setupExportDir(t)
-	defer os.RemoveAll(exportDir)
+func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupExportDataFromSourceContext(t)
 
-	resetAssessMigrationCmd()
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "source",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
+	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
+	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
+}
+func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupExportDataFromSourceContext(t)
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "source",
+		"--config-file", ctx.configFile,
+		"--disable-pb", "false",
+		"--exclude-table-list", "table5,table6",
+		"--table-list", "table7,table8",
+		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
+		"--table-list-file-path", "/tmp/new-table-list.txt",
+		"--parallel-jobs", "8",
+		"--export-type", "snapshot-only",
+	})
 
-	// Wrong section
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should be overridden by CLI")
+	assert.Equal(t, "table7,table8", source.TableList, "Table list should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-table-list.txt", tableListFilePath, "Table list file path should be overridden by CLI")
+	assert.Equal(t, 8, source.NumConnections, "Parallel jobs should be overridden by CLI")
+	assert.Equal(t, "snapshot-only", exportType, "Export type should be overridden by CLI")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should be overridden by env var")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should be overridden by env var")
+	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should be overridden by env var")
+}
+
+func TestExportDataFromSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupExportDataFromSourceContext(t)
+	// Test whether env vars overrides config
+	os.Setenv("QUEUE_SEGMENT_MAX_BYTES", "20971520")
+	os.Setenv("DEBEZIUM_DIST_DIR", "/tmp/new-debezium")
+	os.Setenv("BETA_FAST_DATA_EXPORT", "false")
+
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "source",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
+	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, "20971520", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should be overridden by env var")
+	assert.Equal(t, "/tmp/new-debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should be overridden by env var")
+	assert.Equal(t, "false", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should be overridden by env var")
+}
+
+func TestExportDataFromSourceAliasHandling(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	// Run command export data from source but the config section is export-data
+	resetCmd(exportDataFromSrcCmd)
+
 	configContent := fmt.Sprintf(`
 export-dir: %s
+source:
+  db-type: postgresql
+  db-name: test_db
+  db-user: test_user
+  db-schema: public
+  db-host: localhost
+  db-port: 5432
 export-data:
-  table-list: a,b,c
-`, exportDir)
-
+  disable-pb: true
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  parallel-jobs: 4
+  export-type: snapshot-and-changes
+  queue-segment-max-bytes: 10485760
+  debezium-dist-dir: /tmp/debezium
+  beta-fast-data-export: true
+`, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	defer os.RemoveAll(configDir)
-
-	rootCmd.SetArgs([]string{"assess-migration", "--config-file", configFile})
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "source",
+		"--config-file", configFile,
+	})
 	err := rootCmd.Execute()
-
 	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
+	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
+	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
 
-	// Nothing should be set from wrong section
-	assert.Equal(t, int64(120), intervalForCapturingIOPS) // default
-	assert.Equal(t, "", targetDbVersionStrFlag)
+	// Now reverse. Run command export data but the config section is export-data-from-source
+	resetCmd(exportDataCmd)
+	configContent = fmt.Sprintf(`
+export-dir: %s
+source:
+  db-type: postgresql
+  db-name: test_db
+  db-user: test_user
+  db-schema: public
+  db-host: localhost
+  db-port: 5432
+export-data-from-source:
+  disable-pb: true
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  parallel-jobs: 4
+  export-type: snapshot-and-changes
+  queue-segment-max-bytes: 10485760
+  debezium-dist-dir: /tmp/debezium
+  beta-fast-data-export: true
+`, tmpExportDir)
+	configFile, configDir = setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+	rootCmd.SetArgs([]string{
+		"export", "data",
+		"--config-file", configFile,
+	})
+
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on source config
+	assert.Equal(t, "test_db", source.DBName, "Source DB name should match the config")
+	assert.Equal(t, "test_user", source.User, "Source user should match the config")
+	assert.Equal(t, "localhost", source.Host, "Source host should match the config")
+	assert.Equal(t, "public", source.Schema, "Source schema should match the config")
+	assert.Equal(t, "postgresql", source.DBType, "Source DB type should match the config")
+	assert.Equal(t, 5432, source.Port, "Source port should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, 4, source.NumConnections, "Parallel jobs should match the config")
+	assert.Equal(t, "snapshot-and-changes", exportType, "Export type should match the config")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
+	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
 }
 
-func TestAssessMigrationConfigBinding_AliasHandling(t *testing.T) {
-	// For now this is dummy, because assess-migration has no alias currently
-	// If you add alias like ["assess-schema"], update here
+////////////////////////////// Import Schema Tests ////////////////////////////////
 
-	t.Skip("No alias support yet for assess-migration")
+func setupImportSchemaContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(importSchemaCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+import-schema:
+  continue-on-error: true
+  object-type-list: table,index,view
+  exclude-object-type-list: materialized_view
+  straight-order: true
+  ignore-exist: true
+  enable-orafce: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestImportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupImportSchemaContext(t)
+
+	rootCmd.SetArgs([]string{
+		"import", "schema",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-schema config
+	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
+	assert.Equal(t, "table,index,view", tconf.ImportObjects, "Object type list should match the config")
+	assert.Equal(t, "materialized_view", tconf.ExcludeImportObjects, "Exclude object type list should match the config")
+	assert.Equal(t, utils.BoolStr(true), importObjectsInStraightOrder, "Straight order flag should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exist flag should match the config")
+	assert.Equal(t, utils.BoolStr(true), enableOrafce, "Enable orafce flag should match the config")
+}
+
+func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupImportSchemaContext(t)
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"import", "schema",
+		"--config-file", ctx.configFile,
+		"--continue-on-error", "false",
+		"--object-type-list", "table,view",
+		"--exclude-object-type-list", "materialized_view,index",
+		"--straight-order", "false",
+		"--ignore-exist", "false",
+		"--enable-orafce", "false",
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-schema config
+	assert.Equal(t, utils.BoolStr(false), tconf.ContinueOnError, "Continue on error should be overridden by CLI")
+	assert.Equal(t, "table,view", tconf.ImportObjects, "Object type list should be overridden by CLI")
+	assert.Equal(t, "materialized_view,index", tconf.ExcludeImportObjects, "Exclude object type list should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), importObjectsInStraightOrder, "Straight order flag should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.IgnoreIfExists, "Ignore exist flag should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), enableOrafce, "Enable orafce flag should be overridden by CLI")
+}
+
+///////////////////////////// Import Data Tests ////////////////////////////////
+
+func setupImportDataContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(importDataCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+import-data:
+  batch-size: 1000
+  parallel-jobs: 4
+  enable-adaptive-parallelism: true
+  adaptive-parallelism-max: 10
+  skip-replication-checks: true
+  disable-pb: true
+  max-retries: 3
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  enable-upsert: true
+  use-public-ip: true
+  target-endpoints: endpoint1,endpoint2
+  truncate-tables: true
+  ybvoyager-max-colocated-batches-in-progress: 5
+  num-event-channels: 8
+  event-channel-size: 10000
+  max-events-per-batch: 5000
+  max-interval-between-batches: 2
+  max-cpu-threshold: 80
+  adaptive-parallelism-frequency-seconds: 30
+  min-available-memory-threshold: 1000000000
+  max-batch-size-bytes: 10485760
+  ybvoyager-use-task-picker-for-import: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupImportDataContext(t)
+
+	rootCmd.SetArgs([]string{
+		"import", "data",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
+	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
+	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+}
+
+func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupImportDataContext(t)
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"import", "data",
+		"--config-file", ctx.configFile,
+		"--batch-size", "2000",
+		"--parallel-jobs", "8",
+		"--enable-adaptive-parallelism", "false",
+		"--adaptive-parallelism-max", "5",
+		"--skip-replication-checks", "false",
+		"--disable-pb", "false",
+		"--max-retries", "5",
+		"--exclude-table-list", "table5,table6",
+		"--table-list", "table7,table8",
+		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
+		"--table-list-file-path", "/tmp/new-table-list.txt",
+		"--enable-upsert", "false",
+		"--use-public-ip", "false",
+		"--target-endpoints", "endpoint3,endpoint4",
+		"--truncate-tables", "false",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
+	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
+	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), skipReplicationChecks, "Skip replication checks should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should be overridden by CLI")
+	assert.Equal(t, "table5,table6", tconf.ExcludeTableList, "Exclude table list for importing data should be overridden by CLI")
+	assert.Equal(t, "table7,table8", tconf.TableList, "Table list for importing data should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should be overridden by CLI")
+	assert.Equal(t, "/tmp/new-table-list.txt", tableListFilePath, "Table list file path for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.EnableUpsert, "Enable upsert for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.UsePublicIP, "Use public IP for importing data should be overridden by CLI")
+	assert.Equal(t, "endpoint3,endpoint4", tconf.TargetEndpoints, "Target endpoints for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+}
+
+func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupImportDataContext(t)
+	// Test whether env vars overrides config
+	os.Setenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", "10")
+	os.Setenv("NUM_EVENT_CHANNELS", "16")
+	os.Setenv("EVENT_CHANNEL_SIZE", "20000")
+	os.Setenv("MAX_EVENTS_PER_BATCH", "10000")
+	os.Setenv("MAX_INTERVAL_BETWEEN_BATCHES", "5")
+	os.Setenv("MAX_CPU_THRESHOLD", "90")
+	os.Setenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", "60")
+	os.Setenv("MIN_AVAILABLE_MEMORY_THRESHOLD", "2000000000")
+	os.Setenv("MAX_BATCH_SIZE_BYTES", "20971520")
+	os.Setenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", "false")
+
+	rootCmd.SetArgs([]string{
+		"import", "data",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the env var")
+	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
+	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "10", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the env var")
+	assert.Equal(t, "16", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the env var")
+	assert.Equal(t, "20000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the env var")
+	assert.Equal(t, "10000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the env var")
+	assert.Equal(t, "5", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the env var")
+	assert.Equal(t, "90", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the env var")
+	assert.Equal(t, "60", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the env var")
+	assert.Equal(t, "2000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the env var")
+	assert.Equal(t, "20971520", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the env var")
+	assert.Equal(t, "false", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the env var")
+}
+
+func TestImportDataToTargetAliasHandling(t *testing.T) {
+	// Import data to target has alias "import-data"
+	// Setup config file for import-data and run import data to target command
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(importDataToTargetCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+import-data:
+  batch-size: 1000
+  parallel-jobs: 4
+  enable-adaptive-parallelism: true
+  adaptive-parallelism-max: 10
+  skip-replication-checks: true
+  disable-pb: true
+  max-retries: 3
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  enable-upsert: true
+  use-public-ip: true
+  target-endpoints: endpoint1,endpoint2
+  truncate-tables: true
+  ybvoyager-max-colocated-batches-in-progress: 5
+  num-event-channels: 8
+  event-channel-size: 10000
+  max-events-per-batch: 5000
+  max-interval-between-batches: 2
+  max-cpu-threshold: 80
+  adaptive-parallelism-frequency-seconds: 30
+  min-available-memory-threshold: 1000000000
+  max-batch-size-bytes: 10485760
+  ybvoyager-use-task-picker-for-import: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "target",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
+	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
+	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+
+	// Setup config file for import data to targer and run command import data
+	tmpExportDir = setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+	resetCmd(importDataCmd)
+	configContent = fmt.Sprintf(`
+export-dir: %s
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+import-data-to-target:
+  batch-size: 1000
+  parallel-jobs: 4
+  enable-adaptive-parallelism: true
+  adaptive-parallelism-max: 10
+  skip-replication-checks: true
+  disable-pb: true
+  max-retries: 3
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  enable-upsert: true
+  use-public-ip: true
+  target-endpoints: endpoint1,endpoint2
+  truncate-tables: true
+  ybvoyager-max-colocated-batches-in-progress: 5
+  num-event-channels: 8
+  event-channel-size: 10000
+  max-events-per-batch: 5000
+  max-interval-between-batches: 2
+  max-cpu-threshold: 80
+  adaptive-parallelism-frequency-seconds: 30
+  min-available-memory-threshold: 1000000000
+  max-batch-size-bytes: 10485760
+  ybvoyager-use-task-picker-for-import: true
+`, tmpExportDir)
+	configFile, configDir = setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"import", "data",
+		"--config-file", configFile,
+	})
+
+	err = rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
+	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
+	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+
+}
+
+///////////////////////////// Import Data File Tests ////////////////////////////////
+
+func setupImportDataFileContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+	// var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
+	// 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
+	// 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
+	// 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
+	// 	"quote-char", "file-opts", "null-string", "truncate-tables",
+	// 	// environment variables keys
+	// 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
+	// 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
+	// 	"min-available-memory-threshold", "max-batch-size-bytes", "ybvoyager-use-task-picker-for-import",
+	// )
+
+	resetCmd(importDataFileCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+import-data-file:
+  batch-size: 1000
+  parallel-jobs: 4
+  enable-adaptive-parallelism: true
+  adaptive-parallelism-max: 10
+  disable-pb: true
+  max-retries: 3
+  enable-upsert: true
+  use-public-ip: true
+  target-endpoints: endpoint1,endpoint2
+  format: csv
+  delimiter: ","
+  data-dir: /path/to/data/dir
+  file-table-map: table1,file1.csv;table2,file2.csv
+  has-header: true
+  escape-char: "\\"
+  quote-char: '"'
+  file-opts: option1=value1;option2=value2
+  null-string: "\\N"
+  truncate-tables: true
+  csv-reader-max-buffer-size-bytes: 10485760
+  ybvoyager-max-colocated-batches-in-progress: 5
+  max-cpu-threshold: 80
+  adaptive-parallelism-frequency-seconds: 30
+  min-available-memory-threshold: 1000000000
+  max-batch-size-bytes: 10485760
+  ybvoyager-use-task-picker-for-import: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupImportDataFileContext(t)
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "file",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data-file config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, "csv", fileFormat, "Format for importing data should match the config")
+	assert.Equal(t, ",", delimiter, "Delimiter for importing data should match the config")
+	assert.Equal(t, "/path/to/data/dir", dataDir, "Data directory for importing data should match the config")
+	assert.Equal(t, "table1,file1.csv;table2,file2.csv", fileTableMapping, "File table map for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), hasHeader, "Has header for importing data should match the config")
+	assert.Equal(t, "\\", escapeChar, "Escape character for importing data should match the config")
+	assert.Equal(t, "\"", quoteChar, "Quote character for importing data should match the config")
+	assert.Equal(t, "option1=value1;option2=value2", fileOpts, "File options for importing data should match the config")
+	assert.Equal(t, "\\N", nullString, "Null string for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+}
+
+func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupImportDataFileContext(t)
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"import", "data", "file",
+		"--config-file", ctx.configFile,
+		"--batch-size", "2000",
+		"--parallel-jobs", "8",
+		"--enable-adaptive-parallelism", "false",
+		"--adaptive-parallelism-max", "5",
+		"--disable-pb", "false",
+		"--max-retries", "5",
+		"--enable-upsert", "false",
+		"--use-public-ip", "false",
+		"--target-endpoints", "endpoint3,endpoint4",
+		"--format", "json",
+		"--delimiter", ";",
+		"--data-dir", "/tmp/data-dir",
+		"--file-table-map", "table5,file5.json;table6,file6.json",
+		"--has-header", "false",
+		"--escape-char", "\\\\",
+		"--quote-char", "'",
+		"--file-opts", "option3=value3;option4=value4",
+		"--null-string", "\\N2",
+		"--truncate-tables", "false",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
+	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
+	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.EnableUpsert, "Enable upsert for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.UsePublicIP, "Use public IP for importing data should be overridden by CLI")
+	assert.Equal(t, "endpoint3,endpoint4", tconf.TargetEndpoints, "Target endpoints for importing data should be overridden by CLI")
+	assert.Equal(t, "json", fileFormat, "Format for importing data should be overridden by CLI")
+	assert.Equal(t, ";", delimiter, "Delimiter for importing data should be overridden by CLI")
+	assert.Equal(t, "/tmp/data-dir", dataDir, "Data directory for importing data should be overridden by CLI")
+	assert.Equal(t, "table5,file5.json;table6,file6.json", fileTableMapping, "File table map for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), hasHeader, "Has header for importing data should be overridden by CLI")
+	assert.Equal(t, "\\\\", escapeChar, "Escape character for importing data should be overridden by CLI")
+	assert.Equal(t, "'", quoteChar, "Quote character for importing data should be overridden by CLI")
+	assert.Equal(t, "option3=value3;option4=value4", fileOpts, "File options for importing data should be overridden by CLI")
+	assert.Equal(t, "\\N2", nullString, "Null string for importing data should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
+	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should be overridden by CLI")
+	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
+	assert.Equal(t, "30", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the config")
+	assert.Equal(t, "1000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+	assert.Equal(t, "true", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the config")
+}
+
+func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupImportDataFileContext(t)
+	// Test whether env vars overrides config
+	os.Setenv("CSV_READER_MAX_BUFFER_SIZE_BYTES", "20971520")
+	os.Setenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", "10")
+	os.Setenv("MAX_CPU_THRESHOLD", "90")
+	os.Setenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", "60")
+	os.Setenv("MIN_AVAILABLE_MEMORY_THRESHOLD", "2000000000")
+	os.Setenv("MAX_BATCH_SIZE_BYTES", "20971520")
+	os.Setenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", "false")
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "file",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on import-data-file config
+	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
+	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
+	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
+	assert.Equal(t, "csv", fileFormat, "Format for importing data should match the config")
+	assert.Equal(t, ",", delimiter, "Delimiter for importing data should match the config")
+	assert.Equal(t, "/path/to/data/dir", dataDir, "Data directory for importing data should match the config")
+	assert.Equal(t, "table1,file1.csv;table2,file2.csv", fileTableMapping, "File table map for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), hasHeader, "Has header for importing data should match the config")
+	assert.Equal(t, "\\", escapeChar, "Escape character for importing data should match the config")
+	assert.Equal(t, "\"", quoteChar, "Quote character for importing data should match the config")
+	assert.Equal(t, "option1=value1;option2=value2", fileOpts, "File options for importing data should match the config")
+	assert.Equal(t, "\\N", nullString, "Null string for importing data should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, "20971520", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the env var")
+	assert.Equal(t, "10", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the env var")
+	assert.Equal(t, "90", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the env var")
+	assert.Equal(t, "60", os.Getenv("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS"), "Adaptive parallelism frequency seconds for importing data should match the env var")
+	assert.Equal(t, "2000000000", os.Getenv("MIN_AVAILABLE_MEMORY_THRESHOLD"), "Min available memory threshold for importing data should match the env var")
+	assert.Equal(t, "20971520", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the env var")
+	assert.Equal(t, "false", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the env var")
 }
