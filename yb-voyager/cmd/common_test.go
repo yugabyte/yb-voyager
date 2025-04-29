@@ -72,7 +72,6 @@ func TestAssessmentReportStructs(t *testing.T) {
 				OptimalSelectConnectionsPerNode int64
 				OptimalInsertConnectionsPerNode int64
 				EstimatedTimeInMinForImport     float64
-				ParallelVoyagerJobs             float64
 			}{},
 		},
 		{
@@ -214,7 +213,6 @@ func TestAssessmentReportJson(t *testing.T) {
 				OptimalSelectConnectionsPerNode: 10,
 				OptimalInsertConnectionsPerNode: 10,
 				EstimatedTimeInMinForImport:     10,
-				ParallelVoyagerJobs:             10,
 			},
 			FailureReasoning: "Test failure reasoning",
 		},
@@ -359,8 +357,7 @@ func TestAssessmentReportJson(t *testing.T) {
 			"MemoryPerInstance": 16,
 			"OptimalSelectConnectionsPerNode": 10,
 			"OptimalInsertConnectionsPerNode": 10,
-			"EstimatedTimeInMinForImport": 10,
-			"ParallelVoyagerJobs": 10
+			"EstimatedTimeInMinForImport": 10
 		},
 		"FailureReasoning": "Test failure reasoning"
 	},
