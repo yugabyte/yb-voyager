@@ -25,8 +25,8 @@ import (
 )
 
 var (
-	// ErrExitErr holds the last error passed to ErrExit (unchanged) - used for final status to callhome
-	ErrExitErr error
+	// LastExitErr holds the last error passed to ErrExit() function - used to decide final status to callhome
+	LastExitErr error
 
 	// exitHook is what ErrExit calls to terminate.
 	// Default = atexit.Exit, but you can override it.
@@ -45,7 +45,7 @@ func SetExitHook(h func(code int)) {
 
 // ErrExit prints the formatted error and then terminates via exitHook.
 func ErrExit(format string, args ...interface{}) {
-	ErrExitErr = fmt.Errorf(format, args...)
+	LastExitErr = fmt.Errorf(format, args...)
 
 	format = strings.Replace(format, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, format+"\n", args...)
