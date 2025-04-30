@@ -156,12 +156,10 @@ import-data-to-target:
 
 	// Now verify that one string array contains only 'export-data' and 'export-data-from-source'
 	assert.Len(t, validationErr.ConflictingSections[0], 2, "Expected the conflicting sections array to contain exactly two sections")
-	assert.Contains(t, validationErr.ConflictingSections[0], "export-data", "Expected 'export-data' to be in the conflicting sections")
-	assert.Contains(t, validationErr.ConflictingSections[0], "export-data-from-source", "Expected 'export-data-from-source' to be in the conflicting sections")
+	assert.ElementsMatch(t, validationErr.ConflictingSections[0], []string{"export-data", "export-data-from-source"}, "Expected 'export-data' and 'export-data-from-source' to be in the conflicting sections")
 	// Now verify that the other string array contains only 'import-data' and 'import-data-to-target'
 	assert.Len(t, validationErr.ConflictingSections[1], 2, "Expected the conflicting sections array to contain exactly two sections")
-	assert.Contains(t, validationErr.ConflictingSections[1], "import-data", "Expected 'import-data' to be in the conflicting sections")
-	assert.Contains(t, validationErr.ConflictingSections[1], "import-data-to-target", "Expected 'import-data-to-target' to be in the conflicting sections")
+	assert.ElementsMatch(t, validationErr.ConflictingSections[1], []string{"import-data", "import-data-to-target"}, "Expected 'import-data' and 'import-data-to-target' to be in the conflicting sections")
 
 	// Ensure that all other sets are empty
 	assert.Empty(t, validationErr.InvalidGlobalKeys, "Expected InvalidGlobalKeys to be empty")
