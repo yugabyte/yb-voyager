@@ -621,7 +621,7 @@ func checkRedundantIndexes() error {
 	log.Infof("parsing assessment report json file for redundant indexes")
 	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
-		fmt.Errorf("error parsing json report file %q: %w", assessmentReportPath, err)
+		return fmt.Errorf("error parsing json report file %q: %w", assessmentReportPath, err)
 	}
 	assessmentIssues := report.Issues
 	redundantIndexIssues := lo.Filter(assessmentIssues, func(i AssessmentIssue, _ int) bool {
