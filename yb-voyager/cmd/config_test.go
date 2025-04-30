@@ -18,9 +18,8 @@ limitations under the License.
 package cmd
 
 import (
-	"bytes"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"testing"
 
@@ -36,6 +35,9 @@ import (
 )
 
 // Helper functions
+
+// The function resetCmdAndEnvVars needs to be run before running the config file tests
+// as env vars can have some values set to them in the test env.
 func resetCmdAndEnvVars(cmd *cobra.Command) {
 	cmd.Run = func(cmd *cobra.Command, args []string) {}
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {}
@@ -49,6 +51,10 @@ func resetCmdAndEnvVars(cmd *cobra.Command) {
 	}
 }
 
+// The flags and the variables related to them need to be reset to their default values
+// after running each test case. This is needed to ensure that the stale state does not
+// get carried over to the next test case. Hence, it is run separetely from resetCmdAndEnvVars
+// after the test case is run.
 func resetFlags(cmd *cobra.Command) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		f.Value.Set(f.DefValue)
@@ -98,45 +104,31 @@ func setupViperFromYAML(t *testing.T, yamlContent string) *viper.Viper {
 	return v
 }
 
-func captureOutput(t *testing.T, f func()) string {
-	t.Helper()
-
-	// Save original stdout
-	origStdout := os.Stdout
-
-	r, w, err := os.Pipe()
-	require.NoError(t, err)
-
-	os.Stdout = w
-
-	outC := make(chan string)
-	go func() {
-		var buf bytes.Buffer
-		_, _ = io.Copy(&buf, r)
-		outC <- buf.String()
-	}()
-
-	// Run test code
-	f()
-
-	// Close and restore stdout
-	_ = w.Close()
-	os.Stdout = origStdout
-
-	return <-outC
-}
-
 func TestValidateConfig_InvalidGlobalKeyOutput(t *testing.T) {
-	yaml := `bad-global-key: true`
+	yaml := `
+bad-global-key: true
+bad-global-key2: false
+export-dir: /tmp/export
+`
 	v := setupViperFromYAML(t, yaml)
 
-	output := captureOutput(t, func() {
-		err := validateConfigFile(v)
-		assert.Contains(t, err.Error(), "found invalid configurations in config file:")
-		require.Error(t, err)
-	})
+	err := validateConfigFile(v)
 
-	assert.Contains(t, output, "Invalid global config keys: [bad-global-key]")
+	// Check for expected error type (ValidationError)
+	var validationErr *ConfigValidationError
+	require.Error(t, err, "Expected an error for invalid global key")
+	require.True(t, errors.As(err, &validationErr), "Expected error of type *ValidationError")
+
+	// Now verify that the invalid global key is included in the ValidationError
+	assert.True(t, validationErr.InvalidGlobalKeys.Contains("bad-global-key"), "Expected 'bad-global-key' to be in InvalidGlobalKeys")
+	assert.True(t, validationErr.InvalidGlobalKeys.Contains("bad-global-key2"), "Expected 'bad-global-key2' to be in InvalidGlobalKeys")
+	// Also make sure that this is the only key in InvalidGlobalKeys
+	assert.Equal(t, 2, validationErr.InvalidGlobalKeys.Cardinality(), "Expected InvalidGlobalKeys to contain exactly one key")
+
+	// Ensure that all other sets are empty
+	assert.Empty(t, validationErr.InvalidSectionKeys, "Expected InvalidSectionKeys to be empty")
+	assert.Empty(t, validationErr.InvalidSections, "Expected InvalidSections to be empty")
+	assert.Empty(t, validationErr.ConflictingSections, "Expected ConflictingSections to be empty")
 }
 
 func TestValidateConfig_ConflictingAliasSectionsOutput(t *testing.T) {
@@ -145,31 +137,63 @@ export-data:
   table-list: a,b
 export-data-from-source:
   table-list: x,y
+import-data:
+  table-list: c,d
+import-data-to-target:
+  table-list: e,f
 `
 	v := setupViperFromYAML(t, yaml)
 
-	output := captureOutput(t, func() {
-		err := validateConfigFile(v)
-		assert.Contains(t, err.Error(), "found invalid configurations in config file:")
-		require.Error(t, err)
-	})
+	err := validateConfigFile(v)
 
-	assert.Contains(t, output, "Only one of the following sections can be used: [export-data, export-data-from-source]")
+	// Check for expected error type (ValidationError)
+	var validationErr *ConfigValidationError
+	require.Error(t, err, "Expected an error for conflicting sections")
+	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
+
+	// Now verify that exactly one conflicting sections array contains 'export-data' and 'export-data-from-source'
+	assert.Len(t, validationErr.ConflictingSections, 2, "Expected exactly two conflicting sections array")
+
+	// Now verify that one string array contains only 'export-data' and 'export-data-from-source'
+	assert.Len(t, validationErr.ConflictingSections[0], 2, "Expected the conflicting sections array to contain exactly two sections")
+	assert.Contains(t, validationErr.ConflictingSections[0], "export-data", "Expected 'export-data' to be in the conflicting sections")
+	assert.Contains(t, validationErr.ConflictingSections[0], "export-data-from-source", "Expected 'export-data-from-source' to be in the conflicting sections")
+	// Now verify that the other string array contains only 'import-data' and 'import-data-to-target'
+	assert.Len(t, validationErr.ConflictingSections[1], 2, "Expected the conflicting sections array to contain exactly two sections")
+	assert.Contains(t, validationErr.ConflictingSections[1], "import-data", "Expected 'import-data' to be in the conflicting sections")
+	assert.Contains(t, validationErr.ConflictingSections[1], "import-data-to-target", "Expected 'import-data-to-target' to be in the conflicting sections")
+
+	// Ensure that all other sets are empty
+	assert.Empty(t, validationErr.InvalidGlobalKeys, "Expected InvalidGlobalKeys to be empty")
+	assert.Empty(t, validationErr.InvalidSectionKeys, "Expected InvalidSectionKeys to be empty")
+	assert.Empty(t, validationErr.InvalidSections, "Expected InvalidSections to be empty")
 }
 
 func TestValidateConfig_InvalidSectionOutput(t *testing.T) {
 	yaml := `
 bad-section:
   something: true
+bad-section2:
+  another-thing: false
 `
 	v := setupViperFromYAML(t, yaml)
-	output := captureOutput(t, func() {
-		err := validateConfigFile(v)
-		assert.Contains(t, err.Error(), "found invalid configurations in config file:")
-		require.Error(t, err)
-	})
-	assert.Contains(t, output, "Invalid sections: [bad-section]")
 
+	err := validateConfigFile(v)
+
+	// Check for expected error type (ValidationError)
+	var validationErr *ConfigValidationError
+	require.Error(t, err, "Expected an error for invalid section")
+	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
+
+	// Now verify that the invalid sections are included in the ValidationError
+	assert.Equal(t, 2, validationErr.InvalidSections.Cardinality(), "Expected InvalidSections to contain exactly two sections")
+	assert.True(t, validationErr.InvalidSections.Contains("bad-section"), "Expected 'bad-section' to be in InvalidSections")
+	assert.True(t, validationErr.InvalidSections.Contains("bad-section2"), "Expected 'bad-section2' to be in InvalidSections")
+
+	// Ensure that all other sets are empty
+	assert.Empty(t, validationErr.InvalidGlobalKeys, "Expected InvalidGlobalKeys to be empty")
+	assert.Empty(t, validationErr.InvalidSectionKeys, "Expected InvalidSectionKeys to be empty")
+	assert.Empty(t, validationErr.ConflictingSections, "Expected ConflictingSections to be empty")
 }
 
 func TestValidateConfig_InvalidNestedKeyOutput(t *testing.T) {
@@ -177,14 +201,28 @@ func TestValidateConfig_InvalidNestedKeyOutput(t *testing.T) {
 source:
   db-user: postgres
   invalid-key: value
+target:
+  db-user: yugabyte
+  invalid-key: value
+  invalid-key2: value
 `
 	v := setupViperFromYAML(t, yaml)
-	output := captureOutput(t, func() {
-		err := validateConfigFile(v)
-		assert.Contains(t, err.Error(), "found invalid configurations in config file:")
-		require.Error(t, err)
-	})
-	assert.Contains(t, output, "Invalid keys in section 'source': [invalid-key]")
+	err := validateConfigFile(v)
+
+	// Check for expected error type (ValidationError)
+	var validationErr *ConfigValidationError
+	require.Error(t, err, "Expected an error for invalid nested key")
+	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
+
+	// Now verify that the invalid nested keys are included in the ValidationError
+	assert.Len(t, validationErr.InvalidSectionKeys, 2, "Expected InvalidSectionKeys to contain two sections")
+
+	assert.True(t, validationErr.InvalidSectionKeys["source"].Contains("invalid-key"), "Expected 'invalid-key' to be in source InvalidSectionKeys")
+	assert.Equal(t, 1, validationErr.InvalidSectionKeys["source"].Cardinality(), "Expected source InvalidSectionKeys to contain exactly one key")
+
+	assert.True(t, validationErr.InvalidSectionKeys["target"].Contains("invalid-key"), "Expected 'invalid-key' to be in target InvalidSectionKeys")
+	assert.True(t, validationErr.InvalidSectionKeys["target"].Contains("invalid-key2"), "Expected 'invalid-key2' to be in target InvalidSectionKeys")
+	assert.Equal(t, 2, validationErr.InvalidSectionKeys["target"].Cardinality(), "Expected target InvalidSectionKeys to contain exactly one key")
 }
 
 func TestValidateConfig_ValidConfigOutput(t *testing.T) {
@@ -201,11 +239,8 @@ assess-migration:
   iops-capture-interval: 30
 `
 	v := setupViperFromYAML(t, yaml)
-	output := captureOutput(t, func() {
-		err := validateConfigFile(v)
-		require.NoError(t, err)
-	})
-	assert.Empty(t, output, "Output should be empty for valid config")
+	err := validateConfigFile(v)
+	require.NoError(t, err, "Expected no error for valid config")
 }
 
 ////////////////////////////// Assess Migration Tests //////////////////////////////
@@ -359,10 +394,10 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -372,21 +407,21 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 
 	// Assertions on source config
-	assert.Equal(t, "postgres", source.DBType, "Source DB type should match the config")
-	assert.Equal(t, "localhost2", source.Host, "Source host should match the config")
-	assert.Equal(t, 5433, source.Port, "Source port should match the config")
-	assert.Equal(t, "test_user2", source.User, "Source user should match the config")
-	assert.Equal(t, "test_password2", source.Password, "Source password should match the config")
-	assert.Equal(t, "test_db2", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public2", source.Schema, "Source schema should match the config")
-	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should match the config")
-	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should match the config")
-	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should match the config")
-	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should match the config")
-	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should match the config")
-	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should match the config")
-	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should match the config")
-	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should match the config")
+	assert.Equal(t, "postgres", source.DBType, "Source DB type should be overridden by CLI")
+	assert.Equal(t, "localhost2", source.Host, "Source host should be overridden by CLI")
+	assert.Equal(t, 5433, source.Port, "Source port should be overridden by CLI")
+	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
+	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
+	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
+	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should be overridden by CLI")
+	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should be overridden by CLI")
+	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should be overridden by CLI")
+	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should be overridden by CLI")
 	// Dont test CDB fields as they are not available in assess migration command
 
 	// Assertions on assess-migration config
@@ -609,10 +644,10 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -621,21 +656,21 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on source config
-	assert.Equal(t, "postgres", source.DBType, "Source DB type should match the config")
-	assert.Equal(t, "localhost2", source.Host, "Source host should match the config")
-	assert.Equal(t, 5433, source.Port, "Source port should match the config")
-	assert.Equal(t, "test_user2", source.User, "Source user should match the config")
-	assert.Equal(t, "test_password2", source.Password, "Source password should match the config")
-	assert.Equal(t, "test_db2", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public2", source.Schema, "Source schema should match the config")
-	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should match the config")
-	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should match the config")
-	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should match the config")
-	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should match the config")
-	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should match the config")
-	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should match the config")
-	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should match the config")
-	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should match the config")
+	assert.Equal(t, "postgres", source.DBType, "Source DB type should be overridden by CLI")
+	assert.Equal(t, "localhost2", source.Host, "Source host should be overridden by CLI")
+	assert.Equal(t, 5433, source.Port, "Source port should be overridden by CLI")
+	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
+	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
+	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
+	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should be overridden by CLI")
+	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should be overridden by CLI")
+	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should be overridden by CLI")
+	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should be overridden by CLI")
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
 	assert.Equal(t, utils.BoolStr(false), source.UseOrafce, "UseOrafce should be overridden by CLI")
@@ -793,10 +828,10 @@ func TestAnalyzeSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by CLI")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
 	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
@@ -1010,10 +1045,10 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -1022,24 +1057,24 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on source config
-	assert.Equal(t, "postgres", source.DBType, "Source DB type should match the config")
-	assert.Equal(t, "localhost2", source.Host, "Source host should match the config")
-	assert.Equal(t, 5433, source.Port, "Source port should match the config")
-	assert.Equal(t, "test_user2", source.User, "Source user should match the config")
-	assert.Equal(t, "test_password2", source.Password, "Source password should match the config")
-	assert.Equal(t, "test_db2", source.DBName, "Source DB name should match the config")
-	assert.Equal(t, "public2", source.Schema, "Source schema should match the config")
-	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should match the config")
-	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should match the config")
-	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should match the config")
-	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should match the config")
-	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should match the config")
-	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should match the config")
-	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should match the config")
-	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should match the config")
-	assert.Equal(t, "test_cdb_name2", source.CDBName, "Source Oracle CDB name should match the config")
-	assert.Equal(t, "test_cdb_sid2", source.CDBSid, "Source Oracle CDB SID should match the config")
-	assert.Equal(t, "test_cdb_tns_alias2", source.CDBTNSAlias, "Source Oracle CDB TNS alias should match the config")
+	assert.Equal(t, "postgres", source.DBType, "Source DB type should be overridden by CLI")
+	assert.Equal(t, "localhost2", source.Host, "Source host should be overridden by CLI")
+	assert.Equal(t, 5433, source.Port, "Source port should be overridden by CLI")
+	assert.Equal(t, "test_user2", source.User, "Source user should be overridden by CLI")
+	assert.Equal(t, "test_password2", source.Password, "Source password should be overridden by CLI")
+	assert.Equal(t, "test_db2", source.DBName, "Source DB name should be overridden by CLI")
+	assert.Equal(t, "public2", source.Schema, "Source schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/cert2.pem", source.SSLCertPath, "Source SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", source.SSLMode, "Source SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/key2.pem", source.SSLKey, "Source SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Source SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/crl2.pem", source.SSLCRL, "Source SSL CRL should be overridden by CLI")
+	assert.Equal(t, "test_sid2", source.DBSid, "Source Oracle DB SID should be overridden by CLI")
+	assert.Equal(t, "/path/to/oracle/home2", source.OracleHome, "Source Oracle home should be overridden by CLI")
+	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should be overridden by CLI")
+	assert.Equal(t, "test_cdb_name2", source.CDBName, "Source Oracle CDB name should be overridden by CLI")
+	assert.Equal(t, "test_cdb_sid2", source.CDBSid, "Source Oracle CDB SID should be overridden by CLI")
+	assert.Equal(t, "test_cdb_tns_alias2", source.CDBTNSAlias, "Source Oracle CDB TNS alias should be overridden by CLI")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
 	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should be overridden by CLI")
@@ -1364,10 +1399,10 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -1376,17 +1411,17 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on target config
-	assert.Equal(t, "localhost2", tconf.Host, "Target host should match the config")
-	assert.Equal(t, 5433, tconf.Port, "Target port should match the config")
-	assert.Equal(t, "test_user2", tconf.User, "Target user should match the config")
-	assert.Equal(t, "test_password2", tconf.Password, "Target password should match the config")
-	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should match the config")
-	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should match the config")
-	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should match the config")
-	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should match the config")
-	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should match the config")
-	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should match the config")
+	assert.Equal(t, "localhost2", tconf.Host, "Target host should be overridden by CLI")
+	assert.Equal(t, 5433, tconf.Port, "Target port should be overridden by CLI")
+	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
+	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
+	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 	// Assertions on import-schema config
 	assert.Equal(t, utils.BoolStr(false), tconf.ContinueOnError, "Continue on error should be overridden by CLI")
 	assert.Equal(t, "table,view", tconf.ImportObjects, "Object type list should be overridden by CLI")
@@ -1574,10 +1609,10 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -1586,17 +1621,17 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on target config
-	assert.Equal(t, "localhost2", tconf.Host, "Target host should match the config")
-	assert.Equal(t, 5433, tconf.Port, "Target port should match the config")
-	assert.Equal(t, "test_user2", tconf.User, "Target user should match the config")
-	assert.Equal(t, "test_password2", tconf.Password, "Target password should match the config")
-	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should match the config")
-	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should match the config")
-	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should match the config")
-	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should match the config")
-	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should match the config")
-	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should match the config")
+	assert.Equal(t, "localhost2", tconf.Host, "Target host should be overridden by CLI")
+	assert.Equal(t, 5433, tconf.Port, "Target port should be overridden by CLI")
+	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
+	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
+	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.Schema, "Target schemashould be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 	// Assertions on import-data config
 	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
@@ -2094,9 +2129,9 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	err := rootCmd.Execute()
 	require.NoError(t, err)
 	// Assertions on global flags
-	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "debug", config.LogLevel, "Log level should match the config")
-	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -2106,17 +2141,17 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 
 	// Assertions on target config
-	assert.Equal(t, "localhost2", tconf.Host, "Target host should match the config")
-	assert.Equal(t, 5433, tconf.Port, "Target port should match the config")
-	assert.Equal(t, "test_user2", tconf.User, "Target user should match the config")
-	assert.Equal(t, "test_password2", tconf.Password, "Target password should match the config")
-	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should match the config")
-	assert.Equal(t, "public2", tconf.Schema, "Target schema should match the config")
-	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should match the config")
-	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should match the config")
-	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should match the config")
-	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should match the config")
-	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should match the config")
+	assert.Equal(t, "localhost2", tconf.Host, "Target host should be overridden by CLI")
+	assert.Equal(t, 5433, tconf.Port, "Target port should be overridden by CLI")
+	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
+	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
+	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 	// Assertions on import-data-file config
 	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")

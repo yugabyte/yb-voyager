@@ -415,6 +415,39 @@ func bindEnvVarsToViper(cmd *cobra.Command, v *viper.Viper) ([]EnvVarSetViaConfi
 	return envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
 
+// ValidationError holds all the invalid configurations detected
+type ConfigValidationError struct {
+	InvalidGlobalKeys   mapset.Set[string]
+	InvalidSectionKeys  map[string]mapset.Set[string]
+	InvalidSections     mapset.Set[string]
+	ConflictingSections [][]string
+}
+
+// Error implements the error interface for ValidationError
+func (e *ConfigValidationError) Error() string {
+	var sb strings.Builder
+
+	sb.WriteString("\nConfig file validation failed:\n")
+
+	if e.InvalidGlobalKeys.Cardinality() > 0 {
+		sb.WriteString(fmt.Sprintf("%s [%s]\n", color.RedString("Invalid global config keys:"), strings.Join(e.InvalidGlobalKeys.ToSlice(), ", ")))
+	}
+
+	for section, keys := range e.InvalidSectionKeys {
+		sb.WriteString(fmt.Sprintf("%s [%s]\n", color.RedString(fmt.Sprintf("Invalid keys in section '%s':", section)), strings.Join(keys.ToSlice(), ", ")))
+	}
+
+	if e.InvalidSections.Cardinality() > 0 {
+		sb.WriteString(fmt.Sprintf("%s [%s]\n", color.RedString("Invalid sections:"), strings.Join(e.InvalidSections.ToSlice(), ", ")))
+	}
+
+	for _, conflict := range e.ConflictingSections {
+		sb.WriteString(fmt.Sprintf("%s [%s]\n", color.RedString("Only one of the following sections can be used:"), strings.Join(conflict, ", ")))
+	}
+
+	return sb.String()
+}
+
 /*
 validateConfigFile checks the loaded configuration for correctness.
 
@@ -425,7 +458,7 @@ validateConfigFile checks the loaded configuration for correctness.
 	4. Ensures that only one section from each group of mutually exclusive aliases is used (e.g.,
 	"export-data" vs "export-data-from-source").
 
-	Any invalid global keys, unknown sections, or invalid section keys are collected and printed.
+	Any invalid global keys, unknown sections, or invalid section keys are collected and returned
 	Conflicts between mutually exclusive sections are also reported.
 	If any validation error is found, an error is returned.
 
@@ -484,24 +517,14 @@ func validateConfigFile(v *viper.Viper) error {
 		}
 	}
 
-	// If invalid configurations exist, print them
+	// If invalid configurations exist, return a ValidationError
 	if invalidGlobalKeys.Cardinality() > 0 || len(invalidSectionKeys) > 0 || invalidSections.Cardinality() > 0 || len(conflictingSections) > 0 {
-		if invalidGlobalKeys.Cardinality() > 0 {
-			fmt.Printf("%s [%s]\n", color.RedString("Invalid global config keys:"), strings.Join(invalidGlobalKeys.ToSlice(), ", "))
+		return &ConfigValidationError{
+			InvalidGlobalKeys:   invalidGlobalKeys,
+			InvalidSectionKeys:  invalidSectionKeys,
+			InvalidSections:     invalidSections,
+			ConflictingSections: conflictingSections,
 		}
-		for section, keys := range invalidSectionKeys {
-			fmt.Printf("%s [%s]\n", color.RedString(fmt.Sprintf("Invalid keys in section '%s':", section)), strings.Join(keys.ToSlice(), ", "))
-		}
-		if invalidSections.Cardinality() > 0 {
-			fmt.Printf("%s [%s]\n", color.RedString("Invalid sections:"), strings.Join(invalidSections.ToSlice(), ", "))
-		}
-		for _, conflict := range conflictingSections {
-			fmt.Printf("%s [%s]\n", color.RedString("Only one of the following sections can be used:"), strings.Join(conflict, ", "))
-		}
-
-		// Return a general error message
-		return fmt.Errorf("found invalid configurations in config file: %s", v.ConfigFileUsed())
-		// TODO: Add a link to a sample config file in the error message
 	}
 
 	return nil
