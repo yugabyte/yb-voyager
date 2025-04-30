@@ -1085,10 +1085,10 @@
                         </tr>
                         <tr>
                             <td>Performance Optimizations</td>
-                            <td>2</td>
+                            <td>4</td>
                             <td>0</td>
                             <td>0</td>
-                            <td>2</td>
+                            <td>4</td>
                         </tr>
                         <tr>
                             <td>Unsupported Plpgsql Objects</td>
@@ -1139,7 +1139,7 @@
         <div class="assessment-issues-header">
             <!-- Left area: text about total issues -->
             <div>
-                <p><strong>Total Issues: </strong>115</p>
+                <p><strong>Total Issues: </strong>117</p>
                 <p>Below is a detailed breakdown of each issue.</p>
             </div>
             <!-- Right area: buttons -->
@@ -5677,6 +5677,204 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                             </td>
                         </tr>
                     </tbody>
+
+                    <tbody class="issue-summary-detail-pair"
+                    data-category="performance_optimizations"
+                    data-name="Redundant index"
+                    data-impact="LEVEL_1">
+                    <!-- Summary Row -->
+                    <tr class="summary-row" onclick="toggleDetails('details-146', 'arrow-146')">
+                        <td>
+                            <span id="arrow-146" style="display:inline-block;">&#x25B6;</span>
+                            &nbsp;&nbsp;
+                            Performance Optimizations
+                        </td>
+                        <td>Redundant index</td>
+                        <td>
+                            
+                                idx4 ON public.combined_tbl
+                            
+                        </td>
+
+                        <td style="text-align: center;">Level 1</td>
+                    </tr>
+
+                    <!-- Hidden Details of the Row -->
+                    <tr id="details-146" class="details-row" style="display: none;">
+                        <td colspan="4">
+                            <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                <colgroup>
+                                    <col style="width: 25%;">
+                                    <col style="width: 75%;">
+                                </colgroup>
+                                <tbody>
+                                    
+                                    <tr>
+                                        <th>Category Description</th>
+                                        <td>
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                Recommendations to source schema or queries to optimize performance on YugabyteDB.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+
+                                    <!-- Only show if ObjectType is present -->
+                                    
+                                    <tr>
+                                        <th>Object Type</th>
+                                        <td>INDEX</td>
+                                    </tr>
+                                    
+
+                                    <!-- Only show if ObjectName is present -->
+                                    
+                                    <tr>
+                                        <th>Object Name</th>
+                                        <td>idx4 ON public.combined_tbl</td>
+                                    </tr>
+                                    
+
+                                    <tr>
+                                        <th>SQL Statement</th>
+                                        <td>
+                                            
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                <pre style="white-space: pre-wrap; margin:0;">CREATE INDEX idx4 ON public.combined_tbl USING btree (lsn)</pre>
+                                            </div>
+                                            
+                                        </td>
+                                    </tr>
+
+                                    <tr>
+                                        <th>Docs Link</th>
+                                        <td>
+                                            
+                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes">Documentation</a>
+                                            
+                                        </td>
+                                    </tr>
+
+                                    <!-- Only show if there is a supported version -->
+                                    
+                                    
+
+                                    <tr>
+                                        <th>Description</th>
+                                        <td>
+                                            
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                <pre style="white-space: pre-wrap; margin:0;">Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
+Existing Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)</pre>
+                                            </div>
+                                            
+                                        </td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                </tbody>
+            
+                <tbody class="issue-summary-detail-pair"
+                    data-category="performance_optimizations"
+                    data-name="Redundant index"
+                    data-impact="LEVEL_1">
+                    <!-- Summary Row -->
+                    <tr class="summary-row" onclick="toggleDetails('details-147', 'arrow-147')">
+                        <td>
+                            <span id="arrow-147" style="display:inline-block;">&#x25B6;</span>
+                            &nbsp;&nbsp;
+                            Performance Optimizations
+                        </td>
+                        <td>Redundant index</td>
+                        <td>
+                            
+                                idx6 ON public.combined_tbl
+                            
+                        </td>
+
+                        <td style="text-align: center;">Level 1</td>
+                    </tr>
+
+                    <!-- Hidden Details of the Row -->
+                    <tr id="details-147" class="details-row" style="display: none;">
+                        <td colspan="4">
+                            <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                <colgroup>
+                                    <col style="width: 25%;">
+                                    <col style="width: 75%;">
+                                </colgroup>
+                                <tbody>
+                                    
+                                    <tr>
+                                        <th>Category Description</th>
+                                        <td>
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                Recommendations to source schema or queries to optimize performance on YugabyteDB.
+                                            </div>
+                                        </td>
+                                    </tr>
+                                    
+
+                                    <!-- Only show if ObjectType is present -->
+                                    
+                                    <tr>
+                                        <th>Object Type</th>
+                                        <td>INDEX</td>
+                                    </tr>
+                                    
+
+                                    <!-- Only show if ObjectName is present -->
+                                    
+                                    <tr>
+                                        <th>Object Name</th>
+                                        <td>idx6 ON public.combined_tbl</td>
+                                    </tr>
+                                    
+
+                                    <tr>
+                                        <th>SQL Statement</th>
+                                        <td>
+                                            
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                <pre style="white-space: pre-wrap; margin:0;">CREATE INDEX idx6 ON public.combined_tbl USING btree (bittv)</pre>
+                                            </div>
+                                            
+                                        </td>
+                                    </tr>
+
+                                    <tr>
+                                        <th>Docs Link</th>
+                                        <td>
+                                            
+                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes">Documentation</a>
+                                            
+                                        </td>
+                                    </tr>
+
+                                    <!-- Only show if there is a supported version -->
+                                    
+                                    
+
+                                    <tr>
+                                        <th>Description</th>
+                                        <td>
+                                            
+                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc;">
+                                                <pre style="white-space: pre-wrap; margin:0;">Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
+Existing Index SQL Statement: CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)</pre>
+                                            </div>
+                                            
+                                        </td>
+                                    </tr>
+
+                                </tbody>
+                            </table>
+                        </td>
+                    </tr>
+                </tbody>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="performance_optimizations"

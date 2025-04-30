@@ -72,6 +72,7 @@ var PerformanceOptimizationIssues = []string{
 	HOTSPOTS_ON_TIMESTAMP_INDEX,
 	HASH_SHARDING_DATE_INDEX,
 	HASH_SHARDING_TIMESTAMP_INDEX,
+	REDUNDANT_INDEXES,
 }
 
 var UnsupportedSystemColumnsIssueTypes = []string{

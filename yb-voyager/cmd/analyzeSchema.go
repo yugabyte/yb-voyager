@@ -593,6 +593,70 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 }
 
+func checkRedundantIndexes() error {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("error getting migration status record: %v", err)
+	}
+	if !msr.MigrationAssessmentDone { //TODO: add the case to handle if assessment is run in export schema
+		return nil
+	}
+
+	if msr.SourceDBConf.DBType != POSTGRESQL {
+		return nil
+	}
+	/*
+		Using the approach to use the final report from assessment instead of using the assessmentDB as
+		it makes more sense to depend on the final output of a previous step (report) rather than some intermediate output (assessmentDB)
+
+		Also, caveat is that there is a case where assessment is run with a metadata dir where the user can use the script and get the information, and provide it. 
+		The assessment will generate the report, so for such we will need the metadata-dir-path, but that is not possible to get and 
+		will create problems in Docker even if we store that in MSR to use here. In all cases report will be present
+	*/
+	//Only considering the case where assessment is run in this migration
+	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
+	//so we should have this information most of the time.
+	assessmentReportPath := GetJsonAssessmentReportPath()
+	if !utils.FileOrFolderExists(assessmentReportPath) {
+		log.Infof("migration assessment report file doesn't exists at %q, skipping redundant index reporting...", assessmentReportPath)
+		return nil
+	}
+
+	log.Infof("parsing assessment report json file for redundant indexes")
+	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
+	if err != nil {
+		return fmt.Errorf("error parsing json report file %q: %w", assessmentReportPath, err)
+	}
+	assessmentIssues := report.Issues
+	redundantIndexIssues := lo.Filter(assessmentIssues, func(i AssessmentIssue, _ int) bool {
+		return i.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY && i.Name == queryissue.REDUNDANT_INDEXES_ISSUE_NAME
+	})
+	for _, redundantIndexIssue := range redundantIndexIssues {
+		//this is the qualified case sensitive name
+		indexObjectName := redundantIndexIssue.ObjectName
+		if slices.Contains(summaryMap["INDEX"].objSet, indexObjectName) {
+			//If the index is present in exported schema then only report the issue
+			//In case of iterations where manually user has removed the index we shouldn't report the issue
+			analyzeRedundantIssue := utils.AnalyzeSchemaIssue{
+				IssueType:              redundantIndexIssue.Category,
+				ObjectType:             redundantIndexIssue.ObjectType,
+				ObjectName:             indexObjectName,
+				Reason:                 redundantIndexIssue.Description,
+				Type:                   queryissue.REDUNDANT_INDEXES,
+				Name:                   redundantIndexIssue.Name,
+				SqlStatement:           redundantIndexIssue.SqlStatement,
+				DocsLink:               redundantIndexIssue.DocsLink,
+				MinimumVersionsFixedIn: redundantIndexIssue.MinimumVersionsFixedIn,
+			}
+			summaryMap["INDEX"].invalidCount[indexObjectName] = true
+			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeRedundantIssue)
+		} else {
+			log.Infof("skipping the redundant index from assessment issues as not found in exported schema - %s", indexObjectName)
+		}
+	}
+	return nil
+}
+
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	for _, sqlInfoStmt := range sqlInfoArr {
 		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
@@ -1149,6 +1213,10 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
 	analyzeSchemaInternal(msr.SourceDBConf, true)
+	err = checkRedundantIndexes()
+	if err != nil {
+		utils.ErrExit("failed to get the redundant index issues from assessment report: %v", err)
+	}
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)

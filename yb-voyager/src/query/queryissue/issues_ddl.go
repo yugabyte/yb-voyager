@@ -2075,3 +2075,19 @@ func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectNa
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var redundantIndexesIssue = issue.Issue{
+	Name:        REDUNDANT_INDEXES_ISSUE_NAME,
+	Type:        REDUNDANT_INDEXES,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: REDUNDANT_INDEXES_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
+}
+
+func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string) QueryIssue {
+	issue := redundantIndexesIssue
+	if existingDDL != "" {
+		issue.Description = fmt.Sprintf("%s\nExisting Index SQL Statement: %s", issue.Description, existingDDL)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

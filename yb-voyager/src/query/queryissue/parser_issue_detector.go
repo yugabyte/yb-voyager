@@ -26,6 +26,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
@@ -470,6 +471,55 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	}
 
 	return result, nil
+}
+
+func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
+
+	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
+
+	//This function helps in resolving the existing index in cases where existing index is also a redundant index on some other index
+	//So in such cases we need to report the main existing index.
+	/*
+		e.g. INDEX idx1 on t(id); INDEX idx2 on t(id, id1); INDEX idx3 on t(id, id1,id2);
+		redundant index coming from the script can have
+		Redundant - idx1, Existing idx2
+		Redundant - idx2, Existing idx3
+		So in this case we need to report it like
+		Redundant - idx1, Existing idx3
+		Redundant - idx2, Existing idx3
+	*/
+	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+		for {
+			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
+			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
+			if !ok {
+				return currRedundantIndexInfo
+			}
+			currRedundantIndexInfo = nextRedundantIndexInfo
+		}
+	}
+	for _, redundantIndex := range redundantIndexes {
+		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+	}
+	for _, redundantIndex := range redundantIndexes {
+		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex)
+		rootExistingIndex := rootIndexInfo.GetExistingIndexObjectName()
+		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
+		if rootExistingIndex != currentExistingIndex {
+			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
+			redundantIndex.ExistingIndexName = rootIndexInfo.ExistingIndexName
+			redundantIndex.ExistingSchemaName = rootIndexInfo.ExistingSchemaName
+			redundantIndex.ExistingTableName = rootIndexInfo.ExistingTableName
+			redundantIndex.ExistingIndexDDL = rootIndexInfo.ExistingIndexDDL
+			redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+		}
+	}
+	var issues []QueryIssue
+	for _, redundantIndexInfo := range redundantIndexToInfo {
+		issues = append(issues, NewRedundantIndexIssue(INDEX_OBJECT_TYPE, redundantIndexInfo.GetRedundantIndexObjectName(),
+			redundantIndexInfo.RedundantIndexDDL, redundantIndexInfo.ExistingIndexDDL))
+	}
+	return issues
 }
 
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
