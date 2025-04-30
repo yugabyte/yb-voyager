@@ -608,6 +608,10 @@ func checkRedundantIndexes() error {
 	/*
 		Using the approach to use the final report from assessment instead of using the assessmentDB as
 		it makes more sense to depend on the final output of a previous step (report) rather than some intermediate output (assessmentDB)
+
+		Also, caveat is that there is a case where assessment is run with a metadata dir where the user can use the script and get the information, and provide it. 
+		The assessment will generate the report, so for such we will need the metadata-dir-path, but that is not possible to get and 
+		will create problems in Docker even if we store that in MSR to use here. In all cases report will be present
 	*/
 	//Only considering the case where assessment is run in this migration
 	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
