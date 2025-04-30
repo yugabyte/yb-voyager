@@ -900,7 +900,7 @@ func addAssessmentIssuesForRedundantIndexes() error {
 		if err != nil {
 			return fmt.Errorf("error scanning rows for redundant indexes: %w", err)
 		}
-
+		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
 	}
 	redundantIssues := parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)

@@ -147,6 +147,7 @@ type TableColumnsDataTypes struct {
 }
 
 type RedundantIndexesInfo struct {
+	DBType              string
 	RedundantSchemaName string
 	RedundantTableName  string
 	RedundantIndexName  string
@@ -158,11 +159,15 @@ type RedundantIndexesInfo struct {
 }
 
 func (r *RedundantIndexesInfo) GetRedundantIndexObjectName() string {
-	return fmt.Sprintf("%s ON %s.%s", r.RedundantIndexName, r.RedundantSchemaName, r.RedundantTableName)
+	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
+	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
+	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
 }
 
 func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
-	return fmt.Sprintf("%s ON %s.%s", r.ExistingIndexName, r.ExistingSchemaName, r.ExistingTableName)
+	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
+	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
+	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
 }
 
 type UnsupportedQueryConstruct struct {

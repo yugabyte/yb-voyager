@@ -593,51 +593,44 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	}
 }
 
-func checkRedundantIndexes() {
+func checkRedundantIndexes() error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		return fmt.Errorf("error getting migration status record: %v", err)
 	}
 	if !msr.MigrationAssessmentDone { //TODO: add the case to handle if assessment is run in export schema
-		return
+		return nil
 	}
 
 	if msr.SourceDBConf.DBType != POSTGRESQL {
-		return
+		return nil
 	}
-
+	/*
+		Using the approach to use the final report from assessment instead of using the assessmentDB as
+		it makes more sense to depend on the final output of a previous step (report) rather than some intermediate output (assessmentDB)
+	*/
 	//Only considering the case where assessment is run in this migration
 	//If not via assess-migration, there is going to be a change where internally in the export-schema we will run assessment
 	//so we should have this information most of the time.
-	assessmentReportPath := filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+	assessmentReportPath := GetJsonAssessmentReportPath()
 	if !utils.FileOrFolderExists(assessmentReportPath) {
-		log.Infof("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
-		return
+		log.Infof("migration assessment report file doesn't exists at %q, skipping redundant index reporting...", assessmentReportPath)
+		return nil
 	}
 
 	log.Infof("parsing assessment report json file for redundant indexes")
 	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
-		utils.ErrExit("error parsing json report file %q: %w", assessmentReportPath, err)
+		fmt.Errorf("error parsing json report file %q: %w", assessmentReportPath, err)
 	}
 	assessmentIssues := report.Issues
 	redundantIndexIssues := lo.Filter(assessmentIssues, func(i AssessmentIssue, _ int) bool {
 		return i.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY && i.Name == queryissue.REDUNDANT_INDEXES_ISSUE_NAME
 	})
 	for _, redundantIndexIssue := range redundantIndexIssues {
-		//this is the Unquoted object name
+		//this is the qualified case sensitive name
 		indexObjectName := redundantIndexIssue.ObjectName
-		//this is to create a proper objectname with Quotes if required to do the check in the objSet of Index if its present or not.
-		splits := strings.Split(indexObjectName, " ON ")
-		indexName := splits[0]
-		qualifiedTableName := ""
-		if len(splits) > 1 {
-			qualifiedTableName = splits[1]
-		}
-		tableObjectName := sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "", qualifiedTableName)
-		indexSQlObjectName := sqlname.NewObjectName(POSTGRESQL, "", tableObjectName.SchemaName, indexName)
-		qualifiedIndexName := fmt.Sprintf(`%s ON %s`, indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
-		if slices.Contains(summaryMap["INDEX"].objSet, qualifiedIndexName) {
+		if slices.Contains(summaryMap["INDEX"].objSet, indexObjectName) {
 			//If the index is present in exported schema then only report the issue
 			//In case of iterations where manually user has removed the index we shouldn't report the issue
 			analyzeRedundantIssue := utils.AnalyzeSchemaIssue{
@@ -651,12 +644,13 @@ func checkRedundantIndexes() {
 				DocsLink:               redundantIndexIssue.DocsLink,
 				MinimumVersionsFixedIn: redundantIndexIssue.MinimumVersionsFixedIn,
 			}
-			summaryMap["INDEX"].invalidCount[qualifiedIndexName] = true
+			summaryMap["INDEX"].invalidCount[indexObjectName] = true
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, analyzeRedundantIssue)
 		} else {
-			log.Infof("skipping the redundant index from assessment issues as not found in exported schema - %s, qualified index used to check - %s", indexObjectName, qualifiedIndexName)
+			log.Infof("skipping the redundant index from assessment issues as not found in exported schema - %s", indexObjectName)
 		}
 	}
+	return nil
 }
 
 func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
@@ -1215,7 +1209,10 @@ func analyzeSchema() {
 		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
 	analyzeSchemaInternal(msr.SourceDBConf, true)
-	checkRedundantIndexes()
+	err = checkRedundantIndexes()
+	if err != nil {
+		utils.ErrExit("failed to get the redundant index issues from assessment report: %v", err)
+	}
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)

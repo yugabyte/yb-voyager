@@ -488,7 +488,7 @@ func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.R
 		Redundant - idx1, Existing idx3
 		Redundant - idx2, Existing idx3
 	*/
-	resolvedRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
 		for {
 			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
 			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
@@ -502,15 +502,15 @@ func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.R
 		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
 	}
 	for _, redundantIndex := range redundantIndexes {
-		resolvedIndexInfo := resolvedRedundantIndexInfo(redundantIndex)
-		resolvedExistingIndex := resolvedIndexInfo.GetExistingIndexObjectName()
+		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex)
+		rootExistingIndex := rootIndexInfo.GetExistingIndexObjectName()
 		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
-		if resolvedExistingIndex != currentExistingIndex {
+		if rootExistingIndex != currentExistingIndex {
 			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
-			redundantIndex.ExistingIndexName = resolvedIndexInfo.ExistingIndexName
-			redundantIndex.ExistingSchemaName = resolvedIndexInfo.ExistingSchemaName
-			redundantIndex.ExistingTableName = resolvedIndexInfo.ExistingTableName
-			redundantIndex.ExistingIndexDDL = resolvedIndexInfo.ExistingIndexDDL
+			redundantIndex.ExistingIndexName = rootIndexInfo.ExistingIndexName
+			redundantIndex.ExistingSchemaName = rootIndexInfo.ExistingSchemaName
+			redundantIndex.ExistingTableName = rootIndexInfo.ExistingTableName
+			redundantIndex.ExistingIndexDDL = rootIndexInfo.ExistingIndexDDL
 			redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
 		}
 	}

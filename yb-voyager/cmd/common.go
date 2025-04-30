@@ -1384,6 +1384,10 @@ func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
 	return res
 }
 
+func GetJsonAssessmentReportPath() string {
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
+}
+
 // ===== AssessMigrationDBConfig struct methods =====
 func (dbConfig *AssessMigrationDBConfig) GetDatabaseIdentifier() string {
 	switch {
