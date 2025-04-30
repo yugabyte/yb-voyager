@@ -86,7 +86,7 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
-	"ignore-exists", "enable-orafce",
+	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
