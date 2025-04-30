@@ -36,25 +36,24 @@ import (
 )
 
 // Helper functions
-func resetCmd(cmd *cobra.Command) {
+func resetCmdAndEnvVars(cmd *cobra.Command) {
 	cmd.Run = func(cmd *cobra.Command, args []string) {}
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {}
 	cmd.PostRun = func(cmd *cobra.Command, args []string) {}
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {}
-
-}
-
-func resetFlagsAndEnvVars(cmd *cobra.Command) {
-	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		f.Value.Set(f.DefValue)
-		f.Changed = false
-	})
 	// go through all the env vars in confParamEnvVarPairs and unset them
 	for _, envVar := range confParamEnvVarPairs {
 		if envVar != "" {
 			os.Unsetenv(envVar)
 		}
 	}
+}
+
+func resetFlags(cmd *cobra.Command) {
+	cmd.Flags().VisitAll(func(f *pflag.Flag) {
+		f.Value.Set(f.DefValue)
+		f.Changed = false
+	})
 }
 
 func setupConfigFile(t *testing.T, configContent string) (string, string) {
@@ -215,9 +214,9 @@ func setupAssessMigrationContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(assessMigrationCmd)
+	resetCmdAndEnvVars(assessMigrationCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(assessMigrationCmd)
+		resetFlags(assessMigrationCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -467,9 +466,9 @@ func setupExportSchemaContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(exportSchemaCmd)
+	resetCmdAndEnvVars(exportSchemaCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(exportSchemaCmd)
+		resetFlags(exportSchemaCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -715,9 +714,9 @@ func setupAnalyzeSchemaContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(analyzeSchemaCmd)
+	resetCmdAndEnvVars(analyzeSchemaCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(analyzeSchemaCmd)
+		resetFlags(analyzeSchemaCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -857,9 +856,9 @@ func setupExportDataFromSourceContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(exportDataFromSrcCmd)
+	resetCmdAndEnvVars(exportDataFromSrcCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(exportDataFromSrcCmd)
+		resetFlags(exportDataFromSrcCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -1127,8 +1126,8 @@ func TestExportDataFromSourceAliasHandling(t *testing.T) {
 	tmpExportDir := setupExportDir(t)
 	defer os.RemoveAll(tmpExportDir)
 	// Run command export data from source but the config section is export-data
-	resetCmd(exportDataFromSrcCmd)
-	defer resetFlagsAndEnvVars(exportDataFromSrcCmd)
+	resetCmdAndEnvVars(exportDataFromSrcCmd)
+	defer resetFlags(exportDataFromSrcCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1181,7 +1180,8 @@ export-data:
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
 
 	// Now reverse. Run command export data but the config section is export-data-from-source
-	resetCmd(exportDataCmd)
+	resetCmdAndEnvVars(exportDataCmd)
+	defer resetFlags(exportDataCmd)
 	configContent = fmt.Sprintf(`
 export-dir: %s
 source:
@@ -1240,9 +1240,9 @@ func setupImportSchemaContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(importSchemaCmd)
+	resetCmdAndEnvVars(importSchemaCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(importSchemaCmd)
+		resetFlags(importSchemaCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -1402,9 +1402,9 @@ func setupImportDataContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(importDataCmd)
+	resetCmdAndEnvVars(importDataCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(importDataCmd)
+		resetFlags(importDataCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -1715,8 +1715,8 @@ func TestImportDataToTargetAliasHandling(t *testing.T) {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(importDataToTargetCmd)
-	defer resetFlagsAndEnvVars(importDataToTargetCmd)
+	resetCmdAndEnvVars(importDataToTargetCmd)
+	defer resetFlags(importDataToTargetCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1814,7 +1814,8 @@ import-data:
 	// Setup config file for import data to targer and run command import data
 	tmpExportDir = setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
-	resetCmd(importDataCmd)
+	resetCmdAndEnvVars(importDataCmd)
+	defer resetFlags(importDataCmd)
 	configContent = fmt.Sprintf(`
 export-dir: %s
 target:
@@ -1916,9 +1917,9 @@ func setupImportDataFileContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(importDataFileCmd)
+	resetCmdAndEnvVars(importDataFileCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(importDataFileCmd)
+		resetFlags(importDataFileCmd)
 	})
 
 	configContent := fmt.Sprintf(`
@@ -2233,9 +2234,9 @@ func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
-	resetCmd(finalizeSchemaPostDataImportCmd)
+	resetCmdAndEnvVars(finalizeSchemaPostDataImportCmd)
 	t.Cleanup(func() {
-		resetFlagsAndEnvVars(finalizeSchemaPostDataImportCmd)
+		resetFlags(finalizeSchemaPostDataImportCmd)
 	})
 
 	configContent := fmt.Sprintf(`
