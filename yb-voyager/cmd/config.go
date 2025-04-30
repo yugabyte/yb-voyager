@@ -90,7 +90,7 @@ var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"continue-on-error", "ignore-exists", "refresh-mviews",
+	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](

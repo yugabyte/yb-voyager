@@ -2199,3 +2199,205 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "20971520", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the env var")
 	assert.Equal(t, "false", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the env var")
 }
+
+////////////////////////// Finalize Schema Post Data Import Tests //////////////////////////
+
+func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmd(finalizeSchemaPostDataImportCmd)
+
+	// var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
+	// 	"continue-on-error", "ignore-exists", "refresh-mviews",
+	// )
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+run-guardrails-checks: true
+control-plane-type: yugabyte
+yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+java-home: /path/to/java/home
+local-call-home-service-host: localhost
+local-call-home-service-port: 8080
+yb-tserver-port: 9000
+tns-admin: /path/to/tns/admin
+target:
+  name: test_target
+  db-host: localhost
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+finalize-schema-post-data-import:
+  continue-on-error: true
+  ignore-exist: true
+  refresh-mviews: true
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestFinalizeSchemaPostDataImportConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupFinalizeSchemaPostDataImportContext(t)
+
+	rootCmd.SetArgs([]string{
+		"finalize-schema-post-data-import",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+
+	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exists should match the config")
+	assert.Equal(t, utils.BoolStr(true), flagRefreshMViews, "Refresh materialized views should match the config")
+}
+
+func TestFinalizeSchemaPostDataImportConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupFinalizeSchemaPostDataImportContext(t)
+
+	// Create a temporary export directory to test CLI overrides
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"finalize-schema-post-data-import",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "false",
+		"--continue-on-error", "false",
+		"--ignore-exist", "false",
+		"--refresh-mviews", "false",
+		"--target-db-host", "localhost2",
+		"--target-db-port", "5433",
+		"--target-db-user", "test_user2",
+		"--target-db-password", "test_password2",
+		"--target-db-name", "test_db2",
+		"--target-db-schema", "public2",
+		"--target-ssl-cert", "/path/to/ssl-cert2",
+		"--target-ssl-mode", "verify-full",
+		"--target-ssl-key", "/path/to/ssl-key2",
+		"--target-ssl-root-cert", "/path/to/ssl-root-cert2",
+		"--target-ssl-crl", "/path/to/ssl-crl2",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+
+	// Assertions on target config
+	assert.Equal(t, "localhost2", tconf.Host, "Target host should be overridden by CLI")
+	assert.Equal(t, 5433, tconf.Port, "Target port should be overridden by CLI")
+	assert.Equal(t, "test_user2", tconf.User, "Target user should be overridden by CLI")
+	assert.Equal(t, "test_password2", tconf.Password, "Target password should be overridden by CLI")
+	assert.Equal(t, "test_db2", tconf.DBName, "Target DB name should be overridden by CLI")
+	assert.Equal(t, "public2", tconf.Schema, "Target schema should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-cert2", tconf.SSLCertPath, "Target SSL cert should be overridden by CLI")
+	assert.Equal(t, "verify-full", tconf.SSLMode, "Target SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-key2", tconf.SSLKey, "Target SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
+
+	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(false), tconf.ContinueOnError, "Continue on error should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), tconf.IgnoreIfExists, "Ignore exists should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), flagRefreshMViews, "Refresh materialized views should be overridden by CLI")
+}
+
+func TestFinalizeSchemaPostDataImportConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupFinalizeSchemaPostDataImportContext(t)
+	// Test whether env vars overrides config
+
+	// env related to global flags
+	os.Setenv("CONTROL_PLANE_TYPE", "yugabyte2")
+	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require")
+	os.Setenv("JAVA_HOME", "/path/to/java/home2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", "localhost2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", "8081")
+	os.Setenv("YB_TSERVER_PORT", "9001")
+	os.Setenv("TNS_ADMIN", "/path/to/tns/admin2")
+
+	rootCmd.SetArgs([]string{
+		"finalize-schema-post-data-import",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
+	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
+	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
+	assert.Equal(t, "localhost2", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should be overridden by env var")
+	assert.Equal(t, "8081", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should be overridden by env var")
+	assert.Equal(t, "9001", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should be overridden by env var")
+	assert.Equal(t, "/path/to/tns/admin2", os.Getenv("TNS_ADMIN"), "TNS admin should be overridden by env var")
+
+	// Assertions on target config
+	assert.Equal(t, "localhost", tconf.Host, "Target host should match the config")
+	assert.Equal(t, 5432, tconf.Port, "Target port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Target user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Target password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Target DB name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Target schema should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
+	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exists should match the config")
+	assert.Equal(t, utils.BoolStr(true), flagRefreshMViews, "Refresh materialized views should match the config")
+}
