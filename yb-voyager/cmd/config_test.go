@@ -1,4 +1,4 @@
-//go:build integration
+//go:build unit
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -41,6 +41,10 @@ func resetCmd(cmd *cobra.Command) {
 	cmd.PreRun = func(cmd *cobra.Command, args []string) {}
 	cmd.PostRun = func(cmd *cobra.Command, args []string) {}
 	rootCmd.PersistentPostRun = func(cmd *cobra.Command, args []string) {}
+
+}
+
+func resetFlagsAndEnvVars(cmd *cobra.Command) {
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		f.Value.Set(f.DefValue)
 		f.Changed = false
@@ -212,6 +216,9 @@ func setupAssessMigrationContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(assessMigrationCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(assessMigrationCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -461,6 +468,9 @@ func setupExportSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(exportSchemaCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(exportSchemaCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -706,6 +716,9 @@ func setupAnalyzeSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(analyzeSchemaCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(analyzeSchemaCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -845,6 +858,9 @@ func setupExportDataFromSourceContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(exportDataFromSrcCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(exportDataFromSrcCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1112,6 +1128,7 @@ func TestExportDataFromSourceAliasHandling(t *testing.T) {
 	defer os.RemoveAll(tmpExportDir)
 	// Run command export data from source but the config section is export-data
 	resetCmd(exportDataFromSrcCmd)
+	defer resetFlagsAndEnvVars(exportDataFromSrcCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1224,6 +1241,9 @@ func setupImportSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(importSchemaCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(importSchemaCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1383,6 +1403,9 @@ func setupImportDataContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(importDataCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(importDataCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1693,6 +1716,7 @@ func TestImportDataToTargetAliasHandling(t *testing.T) {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(importDataToTargetCmd)
+	defer resetFlagsAndEnvVars(importDataToTargetCmd)
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -1893,6 +1917,9 @@ func setupImportDataFileContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(importDataFileCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(importDataFileCmd)
+	})
 
 	configContent := fmt.Sprintf(`
 export-dir: %s
@@ -2207,10 +2234,10 @@ func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmd(finalizeSchemaPostDataImportCmd)
+	t.Cleanup(func() {
+		resetFlagsAndEnvVars(finalizeSchemaPostDataImportCmd)
+	})
 
-	// var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
-	// 	"continue-on-error", "ignore-exists", "refresh-mviews",
-	// )
 	configContent := fmt.Sprintf(`
 export-dir: %s
 log-level: info
