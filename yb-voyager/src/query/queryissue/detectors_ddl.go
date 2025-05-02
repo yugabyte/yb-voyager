@@ -616,12 +616,12 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       4. normal index on column with UDTs
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
-	_, ok = d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
-	if ok && index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
-		for _, param := range index.Params {
+	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
+		for idx, param := range index.Params {
 			if param.IsExpression {
 				isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, param.ExprCastTypeName)
 				isUDTType := slices.Contains(d.compositeTypes, param.GetFullExprCastTypeName())
+				isHotspotType := slices.Contains(hotspotRangeIndexesTypes, param.ExprCastTypeName)
 				if param.IsExprCastArrayType {
 					issues = append(issues, NewIndexOnArrayDatatypeIssue(
 						obj.GetObjectType(),
@@ -642,24 +642,92 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						false,
 						"",
 					))
+				} else if isHotspotType && idx == 0 {
+					//If first column is hotspot type then only report hotspot issue
+					//For expression case not adding any colName for now in the issue
+					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
+					if err != nil {
+						return nil, err
+					}
+					issues = append(issues, hotspotIssues...)
+				} else if isHotspotType && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
+					//If its a hotspot type and ASC DESC clause is not present in definition
+					//For expression case not adding any colName for now in the issue
+					rangeShardingIssues, err := reportUseRangeShardingIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
+					if err != nil {
+						return nil, err
+					}
+					issues = append(issues, rangeShardingIssues...)
 				}
 			} else {
 				colName := param.ColName
-				typeName, ok := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()][colName]
-				if !ok {
-					continue
+				columnWithUnsupportedTypes, tableHasUnsupportedTypes := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
+				columnWithHotspotTypes, tableHasHotspotTypes := d.columnsWithHotspotRangeIndexesDatatypes[index.GetTableName()]
+				if tableHasUnsupportedTypes {
+					typeName, isUnsupportedType := columnWithUnsupportedTypes[colName]
+					if isUnsupportedType {
+						issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
+							obj.GetObjectType(),
+							index.GetObjectName(),
+							typeName,
+							false,
+							"",
+						))
+					}
 				}
-				issues = append(issues, reportIndexOrConstraintIssuesOnComplexDatatypes(
-					obj.GetObjectType(),
-					index.GetObjectName(),
-					typeName,
-					false,
-					"",
-				))
+				//TODO: separate out the Types check of Hotspot problem and the Range sharding recommendation
+				if tableHasHotspotTypes && idx == 0 {
+					//If first column is hotspot type then only report hotspot issue
+					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
+					if isHotspotType {
+						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName)
+						if err != nil {
+							return nil, err
+						}
+						issues = append(issues, hotspotIssues...)
+					}
+				} else if tableHasHotspotTypes && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
+
+					//column is hotspot type and ASC DESC clause is not present then only report use range-sharding issue
+					rangeShardingType, isRangeShardingType := columnWithHotspotTypes[colName]
+					if isRangeShardingType {
+						rangeShardingIssues, err := reportUseRangeShardingIndexes(rangeShardingType, obj.GetObjectType(), obj.GetObjectName(), colName)
+						if err != nil {
+							return nil, err
+						}
+						issues = append(issues, rangeShardingIssues...)
+					}
+				}
 			}
 		}
 	}
 
+	return issues, nil
+}
+
+func reportHotspotsOnIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
+	var issues []QueryIssue
+	switch typeName {
+	case TIMESTAMP, TIMESTAMPTZ:
+		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName))
+	case DATE:
+		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, "", colName))
+	default:
+		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
+	}
+	return issues, nil
+}
+
+func reportUseRangeShardingIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
+	var issues []QueryIssue
+	switch typeName {
+	case TIMESTAMP, TIMESTAMPTZ:
+		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, "", colName))
+	case DATE:
+		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, "", colName))
+	default:
+		return issues, fmt.Errorf("unexpected type for the range indexes")
+	}
 	return issues, nil
 }
 

@@ -45,8 +45,10 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v is_live_migration=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
-
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${db_schema}" \
+                                    -v is_live_migration=0 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 run_pg_restore() {
@@ -156,7 +158,12 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${db_schema}" \
+                                    -v replication_group='replication_group' \
+                                    -v is_live_migration=1 \
+                                    -v is_live_migration_fall_back=0 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 grant_permissions() {
@@ -379,6 +386,25 @@ import_schema() {
 		fi
 
 		yb-voyager import schema ${args} $*
+}
+
+finalize_schema_post_data_import() {
+	args="--export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME}	
+		--yes
+		--send-diagnostics=false
+		"
+	
+		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+		then
+			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+		fi
+
+		yb-voyager finalize-schema-post-data-import ${args} $*
 }
 
 import_data() {
@@ -679,7 +705,12 @@ setup_fallback_environment() {
 		rm -f $TEMP_SCRIPT
 	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+		echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${SOURCE_DB_SCHEMA}" \
+                                    -v replication_group='replication_group' \
+                                    -v is_live_migration=1 \
+                                    -v is_live_migration_fall_back=1 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
 		disable_triggers_sql=$(mktemp)
         drop_constraints_sql=$(mktemp)

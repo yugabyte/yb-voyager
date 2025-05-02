@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/testcontainers/testcontainers-go/modules/yugabytedb"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -55,16 +56,37 @@ func testSystemColumns(t *testing.T) {
 	ctx := context.Background()
 	conn, err := getConn()
 	assert.NoError(t, err)
+	defer conn.Close(ctx)
 
-	defer conn.Close(context.Background())
-	_, err = conn.Exec(ctx, `
-	CREATE TABLE system_col_test(id int, val text);
-	`)
+	_, err = conn.Exec(ctx, `DROP TABLE IF EXISTS system_col_test`)
 	assert.NoError(t, err)
+
+	_, err = conn.Exec(ctx, `CREATE TABLE system_col_test(id int, val text);`)
+	assert.NoError(t, err)
+
+	// Lookup table: system Column -> specific issue constant
+	systemColumnIssueMap := map[string]issue.Issue{
+		"xmin": xminSystemColumnIssue,
+		"xmax": xmaxSystemColumnIssue,
+		"cmin": cminSystemColumnIssue,
+		"cmax": cmaxSystemColumnIssue,
+		"ctid": ctidSystemColumnIssue,
+	}
+
 	for _, col := range unsupportedSysCols.ToSlice() {
-		query := fmt.Sprintf("select %s from system_col_test", col)
-		_, err = conn.Exec(ctx, query)
-		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, fmt.Sprintf(`System column "%s" is not supported yet`, col), systemColumnsIssue)
+		col := col // capture for closure
+		t.Run(fmt.Sprintf("SystemColumn_%s", col), func(t *testing.T) {
+			query := fmt.Sprintf("SELECT %s FROM system_col_test", col)
+			_, err := conn.Exec(ctx, query)
+
+			expectedMsg := fmt.Sprintf(`System column "%s" is not supported yet`, col)
+			expectedIssue, ok := systemColumnIssueMap[col]
+			if !ok {
+				t.Fatalf("Missing expected QueryIssue mapping for system column: %s", col)
+			}
+
+			assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedMsg, expectedIssue)
+		})
 	}
 }
 
@@ -504,7 +526,7 @@ func TestDMLIssuesInYBVersion(t *testing.T) {
 	success = t.Run(fmt.Sprintf("%s-%s", "advisory locks", ybVersion), testAdvisoryLocks)
 	assert.True(t, success)
 
-	success = t.Run(fmt.Sprintf("%s-%s", "system columns", ybVersion), 	testSystemColumns)
+	success = t.Run(fmt.Sprintf("%s-%s", "system columns", ybVersion), testSystemColumns)
 	assert.True(t, success)
 
 	success = t.Run(fmt.Sprintf("%s-%s", "lo functions", ybVersion), testLOFunctionsIssue)

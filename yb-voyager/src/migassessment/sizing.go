@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"io"
 	"math"
 	"net/http"
@@ -75,7 +76,6 @@ type ExpDataThroughput struct {
 type ExpDataLoadTime struct {
 	csvSizeGB         sql.NullFloat64 `db:"csv_size_gb,string"`
 	migrationTimeSecs sql.NullFloat64 `db:"migration_time_secs,string"`
-	parallelThreads   sql.NullInt64   `db:"parallel_threads,string"`
 	rowCount          sql.NullFloat64 `db:"row_count,string"`
 }
 
@@ -102,9 +102,14 @@ type IntermediateRecommendation struct {
 	OptimalSelectConnectionsPerNode int64
 	OptimalInsertConnectionsPerNode int64
 	EstimatedTimeInMinForImport     float64
-	ParallelVoyagerJobs             float64
 	FailureReasoning                string
 	CoresNeeded                     float64
+}
+
+type ExperimentDataAvailableYbVersion struct {
+	versionId        int64
+	expDataYbVersion *ybversion.YBVersion
+	expDataIsDefault bool
 }
 
 const (
@@ -139,8 +144,8 @@ func getExperimentDBPath() string {
 	return filepath.Join(AssessmentDir, DBS_DIR, EXPERIMENT_DATA_FILENAME)
 }
 
-//go:embed resources/yb_2024_0_source.db
-var experimentData20240 []byte
+//go:embed resources/yb_experiment_data_source.db
+var experimentData []byte
 
 var SourceMetadataObjectTypesToUse = []string{
 	"%table%",
@@ -148,7 +153,7 @@ var SourceMetadataObjectTypesToUse = []string{
 	"materialized view",
 }
 
-func SizingAssessment() error {
+func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	log.Infof("loading metadata files for sharding assessment")
 	sourceTableMetadata, sourceIndexMetadata, _, err := loadSourceMetadata(GetSourceMetadataDBFilePath())
@@ -163,25 +168,39 @@ func SizingAssessment() error {
 		return fmt.Errorf("failed to connect to experiment data: %w", err)
 	}
 
-	colocatedLimits, err := loadColocatedLimit(experimentDB)
+	// fetch yb versions with available experiment data, use default version if experiment data of supported release is
+	// not available
+	experimentDbAvailableYbVersions, ybVersionIdToUse, err := loadYbVersionsWithExperimentData(experimentDB)
+	if err != nil {
+		SizingReport.FailureReasoning = fmt.Sprintf("failed to load yb versions: %v", err)
+		return fmt.Errorf("failed to load yb versions: %w", err)
+	}
+	if len(experimentDbAvailableYbVersions) != 0 {
+		// find closest yb version from experiment data to targetYbVersion or default
+		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions)
+	}
+
+	fmt.Printf("yb versionId to use: %v\n", ybVersionIdToUse)
+
+	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the colocated limits: %v", err)
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
-	colocatedThroughput, err := loadExpDataThroughput(experimentDB, COLOCATED_SIZING_TABLE)
+	colocatedThroughput, err := loadExpDataThroughput(experimentDB, COLOCATED_SIZING_TABLE, ybVersionIdToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the colocated throughput: %v", err)
 		return fmt.Errorf("error fetching the colocated throughput: %w", err)
 	}
 
-	shardedLimits, err := loadShardedTableLimits(experimentDB)
+	shardedLimits, err := loadShardedTableLimits(experimentDB, ybVersionIdToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded limits: %v", err)
 		return fmt.Errorf("error fetching the colocated limits: %w", err)
 	}
 
-	shardedThroughput, err := loadExpDataThroughput(experimentDB, SHARDED_SIZING_TABLE)
+	shardedThroughput, err := loadExpDataThroughput(experimentDB, SHARDED_SIZING_TABLE, ybVersionIdToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the sharded throughput: %v", err)
 		return fmt.Errorf("error fetching the sharded throughput: %w", err)
@@ -213,34 +232,34 @@ func SizingAssessment() error {
 
 	// get load times data from experimental database for colocated Tables
 	colocatedLoadTimes, err := getExpDataLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance,
-		finalSizingRecommendation.MemoryPerCore, COLOCATED_LOAD_TIME_TABLE)
+		finalSizingRecommendation.MemoryPerCore, COLOCATED_LOAD_TIME_TABLE, ybVersionIdToUse)
 	if err != nil {
 		return fmt.Errorf("error while fetching colocated load time info: %w", err)
 	}
 
 	// get load times data from experimental database for sharded Tables
 	shardedLoadTimes, err := getExpDataLoadTime(experimentDB, finalSizingRecommendation.VCPUsPerInstance,
-		finalSizingRecommendation.MemoryPerCore, SHARDED_LOAD_TIME_TABLE)
+		finalSizingRecommendation.MemoryPerCore, SHARDED_LOAD_TIME_TABLE, ybVersionIdToUse)
 	if err != nil {
 		return fmt.Errorf("error while fetching sharded load time info: %w", err)
 	}
 
 	// get experimental data for impact of indexes on import time
 	indexImpactOnLoadTimeCommon, err := getExpDataIndexImpactOnLoadTime(experimentDB,
-		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
+		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, ybVersionIdToUse)
 	if err != nil {
 		return fmt.Errorf("error while fetching experiment data for impact of index on load time: %w", err)
 	}
 
 	// get experimental data for impact of number of columns on import time
 	columnsImpactOnLoadTimeCommon, err := getExpDataNumColumnsImpactOnLoadTime(experimentDB,
-		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore)
+		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, ybVersionIdToUse)
 	if err != nil {
 		return fmt.Errorf("error while fetching experiment data for impact of number of columns on load time: %w", err)
 	}
 
 	// calculate time taken for colocated import
-	importTimeForColocatedObjects, parallelVoyagerJobsColocated, err := calculateTimeTakenAndParallelJobsForImport(
+	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED)
 	if err != nil {
@@ -249,7 +268,7 @@ func SizingAssessment() error {
 	}
 
 	// calculate time taken for sharded import
-	importTimeForShardedObjects, parallelVoyagerJobsSharded, err := calculateTimeTakenAndParallelJobsForImport(
+	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
 		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED)
 	if err != nil {
@@ -267,7 +286,6 @@ func SizingAssessment() error {
 		NumNodes:                        finalSizingRecommendation.NumNodes,
 		OptimalSelectConnectionsPerNode: finalSizingRecommendation.OptimalSelectConnectionsPerNode,
 		OptimalInsertConnectionsPerNode: finalSizingRecommendation.OptimalInsertConnectionsPerNode,
-		ParallelVoyagerJobs:             math.Min(float64(parallelVoyagerJobsColocated), float64(parallelVoyagerJobsSharded)),
 		ColocatedReasoning:              reasoning,
 		EstimatedTimeInMinForImport:     importTimeForColocatedObjects + importTimeForShardedObjects,
 	}
@@ -388,7 +406,6 @@ func findNumNodesNeededBasedOnThroughputRequirement(sourceIndexMetadata []Source
 			NumNodes:                        nodesNeeded,
 			OptimalSelectConnectionsPerNode: int64(math.Min(float64(previousRecommendation.OptimalSelectConnectionsPerNode), float64(shardedThroughput.selectConnPerNode.Int64))),
 			OptimalInsertConnectionsPerNode: int64(math.Min(float64(previousRecommendation.OptimalInsertConnectionsPerNode), float64(shardedThroughput.insertConnPerNode.Int64))),
-			ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 			ColocatedSize:                   previousRecommendation.ColocatedSize,
 			ShardedSize:                     previousRecommendation.ShardedSize,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
@@ -562,7 +579,6 @@ func checkShardedTableLimit(sourceIndexMetadata []SourceDBMetadata, shardedLimit
 				NumNodes:                        previousRecommendation.NumNodes,
 				OptimalSelectConnectionsPerNode: previousRecommendation.OptimalSelectConnectionsPerNode,
 				OptimalInsertConnectionsPerNode: previousRecommendation.OptimalInsertConnectionsPerNode,
-				ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 				ColocatedSize:                   0,
 				ShardedSize:                     0,
 				EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
@@ -645,7 +661,6 @@ func shardingBasedOnOperations(sourceIndexMetadata []SourceDBMetadata,
 			NumNodes:                        previousRecommendation.NumNodes,
 			OptimalSelectConnectionsPerNode: colocatedThroughput.selectConnPerNode.Int64,
 			OptimalInsertConnectionsPerNode: colocatedThroughput.insertConnPerNode.Int64,
-			ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 			ColocatedSize:                   cumulativeColocatedSizeSum,
 			ShardedSize:                     cumulativeSizeSharded,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
@@ -725,7 +740,6 @@ func shardingBasedOnTableSizeAndCount(sourceTableMetadata []SourceDBMetadata,
 			NumNodes:                        previousRecommendation.NumNodes,
 			OptimalSelectConnectionsPerNode: previousRecommendation.OptimalSelectConnectionsPerNode,
 			OptimalInsertConnectionsPerNode: previousRecommendation.OptimalInsertConnectionsPerNode,
-			ParallelVoyagerJobs:             previousRecommendation.ParallelVoyagerJobs,
 			ColocatedSize:                   cumulativeColocatedSizeSum,
 			ShardedSize:                     cumulativeSizeSharded,
 			EstimatedTimeInMinForImport:     previousRecommendation.EstimatedTimeInMinForImport,
@@ -742,7 +756,7 @@ Returns:
   - A slice of ExpDataColocatedLimit structs containing the fetched colocated limits.
   - An error if there was any issue during the data retrieval process.
 */
-func loadColocatedLimit(experimentDB *sql.DB) ([]ExpDataColocatedLimit, error) {
+func loadColocatedLimit(experimentDB *sql.DB, ybVersionIdToUse int64) ([]ExpDataColocatedLimit, error) {
 	var colocatedLimits []ExpDataColocatedLimit
 	query := fmt.Sprintf(`
 		SELECT max_colocated_db_size_gb, 
@@ -751,8 +765,9 @@ func loadColocatedLimit(experimentDB *sql.DB) ([]ExpDataColocatedLimit, error) {
 			   max_num_tables, 
 			   min_num_tables
 		FROM %v 
+		WHERE yb_version_id = %d 
 		ORDER BY num_cores DESC
-	`, COLOCATED_LIMITS_TABLE)
+	`, COLOCATED_LIMITS_TABLE, ybVersionIdToUse)
 	rows, err := experimentDB.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
@@ -783,14 +798,15 @@ Returns:
   - A slice of ExpDataShardedLimit structs containing the fetched sharded table limits.
   - An error if there was any issue during the data retrieval process.
 */
-func loadShardedTableLimits(experimentDB *sql.DB) ([]ExpDataShardedLimit, error) {
+func loadShardedTableLimits(experimentDB *sql.DB, ybVersionIdToUse int64) ([]ExpDataShardedLimit, error) {
 	// added num_cores >= VCPUPerInstance from colo recommendation as that is the starting point
 	selectQuery := fmt.Sprintf(`
 			SELECT num_cores, memory_per_core, num_tables 
 			FROM %s 
 			WHERE dimension LIKE '%%TableLimits-3nodeRF=3%%' 
+			AND yb_version_id = %d 
 			ORDER BY num_cores
-		`, SHARDED_SIZING_TABLE)
+		`, SHARDED_SIZING_TABLE, ybVersionIdToUse)
 	rows, err := experimentDB.Query(selectQuery)
 
 	if err != nil {
@@ -822,12 +838,13 @@ Parameters:
 
 	experimentDB: A pointer to the experiment database.
 	tableName: colocated or sharded table
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
   - A slice of ExpDataThroughput structs containing the fetched throughput information.
   - An error if there was any issue during the data retrieval process.
 */
-func loadExpDataThroughput(experimentDB *sql.DB, tableName string) ([]ExpDataThroughput, error) {
+func loadExpDataThroughput(experimentDB *sql.DB, tableName string, ybVersionIdToUse int64) ([]ExpDataThroughput, error) {
 	selectQuery := fmt.Sprintf(`
 			SELECT inserts_per_core,
 				   selects_per_core, 
@@ -837,8 +854,9 @@ func loadExpDataThroughput(experimentDB *sql.DB, tableName string) ([]ExpDataThr
 			   	   insert_conn_per_node 
 			FROM %s 
 			WHERE dimension = 'MaxThroughput' 
+			AND yb_version_id = %d 
 			ORDER BY num_cores DESC;
-	`, tableName)
+	`, tableName, ybVersionIdToUse)
 	rows, err := experimentDB.Query(selectQuery)
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching throughput info with query [%s]: %w", selectQuery, err)
@@ -904,7 +922,7 @@ func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit
 }
 
 /*
-calculateTimeTakenAndParallelJobsForImport estimates the time taken for import of tables.
+calculateTimeTakenForImport estimates the time taken for import of tables.
 It queries experimental data to find import time estimates for similar object sizes and configurations. For every table
 , it tries to find out how much time it would table for importing that table. The function adjusts the
 import time on that table by multiplying it by factor based on the indexes. The import time is also converted to
@@ -920,13 +938,12 @@ Parameters:
 Returns:
 
 	float64: The estimated time taken for import in minutes.
-	int64: Total parallel jobs used for import.
 	error: Error if any
 */
-func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
+func calculateTimeTakenForImport(tables []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
 	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
-	objectType string) (float64, int64, error) {
+	objectType string) (float64, error) {
 	var importTime float64
 
 	// we need to calculate the time taken for import for every table.
@@ -949,7 +966,7 @@ func calculateTimeTakenAndParallelJobsForImport(tables []SourceDBMetadata,
 		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
 	}
 
-	return math.Ceil(importTime), loadTimes[0].parallelThreads.Int64, nil
+	return math.Ceil(importTime), nil
 }
 
 /*
@@ -959,24 +976,26 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
 	[]ExpDataLoadTime: A slice containing the fetched load time information.
 	error: Error if any.
 */
-func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int, tableType string) ([]ExpDataLoadTime, error) {
+func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int,
+	tableType string, ybVersionIdToUse int64) ([]ExpDataLoadTime, error) {
 	selectQuery := fmt.Sprintf(`
 		SELECT csv_size_gb, 
-			   migration_time_secs, 
-			   parallel_threads,
+			   migration_time_secs,
 			   row_count
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
+		    AND yb_version_id = ? 
 		ORDER BY csv_size_gb;
 	`, tableType)
-	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
 
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching load time info with query [%s]: %w", selectQuery, err)
@@ -990,7 +1009,7 @@ func getExpDataLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore in
 	var loadTimes []ExpDataLoadTime
 	for rows.Next() {
 		var loadTime ExpDataLoadTime
-		if err = rows.Scan(&loadTime.csvSizeGB, &loadTime.migrationTimeSecs, &loadTime.parallelThreads, &loadTime.rowCount); err != nil {
+		if err = rows.Scan(&loadTime.csvSizeGB, &loadTime.migrationTimeSecs, &loadTime.rowCount); err != nil {
 			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w",
 				selectQuery, err)
 		}
@@ -1006,23 +1025,26 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
 	[]ExpDataShardedLoadTimeIndexImpact: A slice containing the fetched load time information based on number of indexes.
 	error: Error if any.
 */
-func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int, memPerCore int) ([]ExpDataLoadTimeIndexImpact, error) {
+func getExpDataIndexImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeIndexImpact, error) {
 	selectQuery := fmt.Sprintf(`
 		SELECT number_of_indexes, 
 			   multiplication_factor_sharded,
 			   multiplication_factor_colocated
 		FROM %v 
 		WHERE num_cores = ? 
-			AND mem_per_core = ?
+			AND mem_per_core = ? 
+		AND yb_version_id = ? 
 		ORDER BY number_of_indexes;
 	`, LOAD_TIME_INDEX_IMPACT_TABLE)
-	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
 
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching index impact info with query [%s]: %w", selectQuery, err)
@@ -1053,6 +1075,7 @@ Parameters:
 	experimentDB: Connection to the experiment database
 	vCPUPerInstance: Number of virtual CPUs per instance.
 	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
 
 Returns:
 
@@ -1060,7 +1083,7 @@ Returns:
 	error: Error if any.
 */
 func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
-	memPerCore int) ([]ExpDataLoadTimeColumnsImpact, error) {
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeColumnsImpact, error) {
 	selectQuery := fmt.Sprintf(`
 		SELECT number_of_columns, 
 			   multiplication_factor_sharded,
@@ -1068,9 +1091,10 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
+		AND yb_version_id = ? 
 		ORDER BY number_of_columns;
 	`, LOAD_TIME_COLUMNS_IMPACT_TABLE)
-	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
 
 	if err != nil {
 		return nil, fmt.Errorf("error while fetching columns impact info with query [%s]: %w", selectQuery, err)
@@ -1475,7 +1499,7 @@ func getExperimentFile() (string, error) {
 		}
 	}
 	if !fetchedFromRemote {
-		err := os.WriteFile(getExperimentDBPath(), experimentData20240, 0644)
+		err := os.WriteFile(getExperimentDBPath(), experimentData, 0644)
 		if err != nil {
 			return "", fmt.Errorf("failed to write experiment data file: %w", err)
 		}
@@ -1529,4 +1553,99 @@ func fetchObjectNames(dbObjects []SourceDBMetadata) []string {
 		objectNames = append(objectNames, dbObject.SchemaName+"."+dbObject.ObjectName)
 	}
 	return objectNames
+}
+
+/*
+loadYbVersionsWithExperimentData fetches all versions of yugabyte for which experiment data is available.
+It retrieves various limits such as maximum colocated database size, number of cores, memory per core, etc.
+
+Returns:
+  - A slice of ExperimentDataAvailableYbVersion with all supported yb versions with experiment data.
+  - A default yugabyte version id to use in case no supported yb version data is available.
+  - An error if there was any issue during the data retrieval process.
+*/
+func loadYbVersionsWithExperimentData(experimentDB *sql.DB) ([]ExperimentDataAvailableYbVersion, int64, error) {
+	var experimentDataAvailableYbVersions []ExperimentDataAvailableYbVersion
+	var defaultVersionId int64 = 0
+	query := `SELECT yb_version_id, yb_version, is_default FROM experiment_data_yb_versions ORDER BY yb_version_id`
+
+	rows, err := experimentDB.Query(query)
+	if err != nil {
+		return nil, 0, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
+	}
+
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close the result set for query [%v]", query)
+		}
+	}()
+
+	for rows.Next() {
+		var id int64
+		var v string
+		var isDefault bool
+
+		if err := rows.Scan(&id, &v, &isDefault); err != nil {
+			return nil, 0, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", query, err)
+		}
+		convertedVersion, err := ybversion.NewYBVersion(v)
+		if isDefault {
+			defaultVersionId = id
+		}
+		if err != nil {
+			// if experiment data is not from supported yb version series, then ignore that release
+			// fmt.Printf("version not converted and the error is [%v]\n", err)
+			continue
+		}
+		r1 := ExperimentDataAvailableYbVersion{
+			versionId:        id,
+			expDataYbVersion: convertedVersion,
+			expDataIsDefault: isDefault,
+		}
+		experimentDataAvailableYbVersions = append(experimentDataAvailableYbVersions, r1)
+	}
+
+	// return fetched available versions
+	return experimentDataAvailableYbVersions, defaultVersionId, nil
+}
+
+/*
+versionDifference Helper function to compute absolute difference between two versions
+
+Parameters:
+  - a: base version for comparison.
+  - b: version to compare
+
+Returns:
+  - difference between given versions.
+*/
+func versionDifference(a, b *ybversion.YBVersion) int {
+	result := a.Version.Compare(b.Version)
+	if result < 0 {
+		return -result
+	}
+	return result
+}
+
+/*
+findClosestVersion Helper function to find the closest yb version
+
+Parameters:
+  - targetDbVersion: given target yugabyte database version
+  - availableVersions: slice of available yugabyte versions which has experiment data available.
+
+Returns:
+  - returns the version id(index from experiment table) of the closest version to use for given target yb version.
+*/
+func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions []ExperimentDataAvailableYbVersion) int64 {
+	closest := &availableVersions[0]
+	minDiff := versionDifference(targetDbVersion, availableVersions[0].expDataYbVersion)
+	for i := 1; i < len(availableVersions); i++ {
+		diff := versionDifference(targetDbVersion, availableVersions[i].expDataYbVersion)
+		if diff < minDiff {
+			minDiff = diff
+			closest = &availableVersions[i]
+		}
+	}
+	return closest.versionId
 }
