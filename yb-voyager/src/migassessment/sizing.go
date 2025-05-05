@@ -20,7 +20,6 @@ import (
 	"database/sql"
 	_ "embed"
 	"fmt"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"io"
 	"math"
 	"net/http"
@@ -30,10 +29,10 @@ import (
 	"strings"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
-	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type SourceDBMetadata struct {
@@ -180,7 +179,7 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions)
 	}
 
-	fmt.Printf("yb versionId to use: %v\n", ybVersionIdToUse)
+	log.Infof("for target version - %s, using yb versionId's experimental data: %v\n", targetDbVersion.String(), ybVersionIdToUse)
 
 	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {
