@@ -84,9 +84,9 @@ func testSystemColumns(t *testing.T) {
 			query := fmt.Sprintf("SELECT %s FROM system_col_test", col)
 			_, err := conn.Exec(ctx, query)
 
-			expectedMsg := fmt.Sprintf(`system column "%s" is not supported yet`, col)
+			expectedMsg := fmt.Sprintf(`System column "%s" is not supported yet`, col)
 			if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
-				expectedMsg = fmt.Sprintf(`System column "%s" is not supported yet`, col)
+				expectedMsg = fmt.Sprintf(`system column "%s" is not supported yet`, col)
 			}
 
 			expectedIssue, ok := systemColumnIssueMap[col]
