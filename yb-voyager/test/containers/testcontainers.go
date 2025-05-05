@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 
@@ -30,6 +31,7 @@ type TestContainer interface {
 			// Add Capability to run multiple versions of a dbtype parallely
 	*/
 	ExecuteSqls(sqls ...string)
+	Query(query string) (*sql.Rows, error)
 }
 
 type ContainerConfig struct {

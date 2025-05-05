@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -16,6 +17,7 @@ import (
 type OracleContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
@@ -69,6 +71,13 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping oracle container: %w", err)
 	}
+
+	// initialise the db connection pool
+	ora.db, err = sql.Open("godror", ora.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to open db connection to oracle: %w", err)
+	}
+
 	return nil
 }
 
@@ -120,4 +129,12 @@ func (ora *OracleContainer) GetConnectionString() string {
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
 
+}
+
+func (ora *OracleContainer) Query(query string) (*sql.Rows, error) {
+	if ora == nil {
+		return nil, fmt.Errorf("oracle container is not started: nil")
+	}
+
+	return ora.db.Query(query)
 }
