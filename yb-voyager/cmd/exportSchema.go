@@ -42,6 +42,7 @@ import (
 var skipRecommendations utils.BoolStr
 var assessmentReportPath string
 var assessmentRecommendationsApplied bool
+var assessSchemaBeforeExport utils.BoolStr
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -101,7 +102,6 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to get migration UUID during export schema: %w", err)
 	}
 
-
 	if source.RunGuardrailsChecks {
 		// Check connection with source database.
 		err = source.DB().Connect()
@@ -139,7 +139,6 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to connect to the source db during export schema: %w", err)
 	}
 	defer source.DB().Disconnect() // final disconnect
-
 
 	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
 	checkSourceDBCharset()
@@ -212,8 +211,13 @@ func exportSchema(cmd *cobra.Command) error {
 }
 
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
+	if !bool(assessSchemaBeforeExport) {
+		log.Infof("skipping running assess-migration command before export schema as flag --assess-schema-before-export is set as false.")
+		return nil
+	}
+
 	if source.DBType != POSTGRESQL {
-		log.Infof("skipping running assess-migration command from export schema as source DB type is not PostgreSQL.")
+		log.Infof("skipping running assess-migration command before export schema as source DB type is not PostgreSQL.")
 		return nil
 	}
 
@@ -330,6 +334,10 @@ func init() {
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
 		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
+
+	BoolVar(exportSchemaCmd.Flags(), &assessSchemaBeforeExport, "assess-schema-before-export", true,
+		"run migration assessment before exporting schema. (default true)")
+	exportSchemaCmd.Flags().MarkHidden("assess-schema-before-export") // hide this flag from help output
 }
 
 func schemaIsExported() bool {

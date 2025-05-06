@@ -113,7 +113,7 @@ func TestShardingRecommendations(t *testing.T) {
 func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(exportDir)
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -173,7 +173,7 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *testing.T) {
 	// create temp export dir and setting global exportDir variable
 	exportDir = testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(exportDir)
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -251,4 +251,55 @@ func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *te
 		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
 	}
 	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
+}
+
+// Test: export schema after running assessment internally - case when --assess-schema-before-export flag is set to false
+// Expectation: export-schema should export with no internal assess-migration cmd invokation
+func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
+	// create temp export dir and setting global exportDir variable
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// setting up source test container and source params for assessment
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	err := postgresContainer.Start(context.Background())
+	if err != nil {
+		utils.ErrExit("Failed to start postgres container: %v", err)
+	}
+
+	// create table and initial data in it
+	postgresContainer.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.test_data (
+		id SERIAL PRIMARY KEY,
+		value TEXT
+	);`,
+		`INSERT INTO test_schema.test_data (value)
+	SELECT md5(random()::text) FROM generate_series(1, 100000);`)
+	if err != nil {
+		t.Errorf("Failed to create test table: %v", err)
+	}
+	defer postgresContainer.ExecuteSqls(`
+	DROP SCHEMA test_schema CASCADE;`)
+
+	err = testutils.RunVoyagerCommmand(postgresContainer, "export schema", []string{
+		"--assess-schema-before-export", "false",
+		"--source-db-schema", "test_schema",
+		"--export-dir", exportDir,
+		"--yes",
+	}, nil)
+	if err != nil {
+		t.Errorf("Failed to run export schema command: %v", err)
+	}
+
+	res, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
+
+	reportFilePath := filepath.Join(exportDir, "assessment", "reports", "migration_assessment_report.json")
+	if utils.FileOrFolderExists(reportFilePath) {
+		t.Errorf("Expected assessment report file does exist: %s", reportFilePath)
+	}
 }
