@@ -244,7 +244,7 @@ func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *te
 	}
 	assert.True(t, res, "Expected MigrationAssessmentDone flag to be true")
 
-	// verify the MSR.MigrationAssessmentDoneViaExportSchema flag is set to true
+	// verify the MSR.MigrationAssessmentDoneViaExportSchema flag is set to false
 	metaDB = initMetaDB(exportDir)
 	res, err = IsMigrationAssessmentDoneViaExportSchema()
 	if err != nil {
