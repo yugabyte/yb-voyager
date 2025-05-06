@@ -16,6 +16,7 @@ limitations under the License.
 package utils
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -143,6 +144,30 @@ type TableColumnsDataTypes struct {
 	IsArrayType bool   `json:"-"`
 	IsEnumType  bool   `json:"-"`
 	IsUDTType   bool   `json:"-"`
+}
+
+type RedundantIndexesInfo struct {
+	DBType              string
+	RedundantSchemaName string
+	RedundantTableName  string
+	RedundantIndexName  string
+	ExistingSchemaName  string
+	ExistingTableName   string
+	ExistingIndexName   string
+	RedundantIndexDDL   string
+	ExistingIndexDDL    string
+}
+
+func (r *RedundantIndexesInfo) GetRedundantIndexObjectName() string {
+	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
+	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
+	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+}
+
+func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
+	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
+	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
+	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
 }
 
 type UnsupportedQueryConstruct struct {

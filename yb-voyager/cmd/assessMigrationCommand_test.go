@@ -99,7 +99,6 @@ END $$;`)
 			OptimalSelectConnectionsPerNode: 8,
 			OptimalInsertConnectionsPerNode: 12,
 			EstimatedTimeInMinForImport:     1,
-			ParallelVoyagerJobs:             1,
 		},
 		FailureReasoning: "",
 	}

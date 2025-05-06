@@ -195,7 +195,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
 			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
 			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
-			ParallelVoyagerJobs:             sizingRecommedation.ParallelVoyagerJobs,
 		}
 	}
 
@@ -553,7 +552,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 
 func runAssessment(assessmentDir string) error {
 	log.Infof("running assessment for migration from '%s' to YugabyteDB", source.DBType)
-	err := migassessment.SizingAssessment(assessmentDir)
+	err := migassessment.SizingAssessment(assessmentDir, targetDbVersion)
 	if err != nil {
 		log.Errorf("failed to perform sizing and sharding assessment: %v", err)
 		return fmt.Errorf("failed to perform sizing and sharding assessment: %w", err)
@@ -839,6 +838,10 @@ func generateAssessmentReport() (err error) {
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
+	err = addAssessmentIssuesForRedundantIndexes()
+	if err != nil {
+		return fmt.Errorf("error in getting redundant index issues: %v", err)
+	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -863,6 +866,46 @@ func generateAssessmentReport() (err error) {
 	err = generateAssessmentReportHtml(assessmentReportDir)
 	if err != nil {
 		return fmt.Errorf("failed to generate assessment report HTML: %w", err)
+	}
+	return nil
+}
+
+func addAssessmentIssuesForRedundantIndexes() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	query := fmt.Sprintf(`SELECT redundant_schema_name,redundant_table_name,redundant_index_name,
+	existing_schema_name,existing_table_name,existing_index_name,
+	redundant_ddl,existing_ddl from %s`,
+		migassessment.REDUNDANT_INDEXES)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching redundant indexes %v", err)
+		}
+	}()
+
+	var redundantIndexesInfo []utils.RedundantIndexesInfo
+	for rows.Next() {
+		var redundantIndex utils.RedundantIndexesInfo
+		err := rows.Scan(&redundantIndex.RedundantSchemaName, &redundantIndex.RedundantTableName, &redundantIndex.RedundantIndexName,
+			&redundantIndex.ExistingSchemaName, &redundantIndex.ExistingTableName, &redundantIndex.ExistingIndexName,
+			&redundantIndex.RedundantIndexDDL, &redundantIndex.ExistingIndexDDL)
+		if err != nil {
+			return fmt.Errorf("error scanning rows for redundant indexes: %w", err)
+		}
+		redundantIndex.DBType = source.DBType
+		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
+	}
+	redundantIssues := parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)
+	for _, redundantIssue := range redundantIssues {
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(redundantIssue, "", false, false)
+		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, redundantIssue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(issue)
 	}
 	return nil
 }
@@ -1039,9 +1082,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_INDEX, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_SHARDING_DATE_INDEX_ISSUE_NAME, "", queryissue.RANGE_SHARDING_DATE_INDEX, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.RANGE_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME, "", queryissue.RANGE_SHARDING_TIMESTAMP_INDEX, schemaAnalysisReport, false))
-	
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HASH_SHARDING_DATE_INDEX_ISSUE_NAME, "", queryissue.HASH_SHARDING_DATE_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME, "", queryissue.HASH_SHARDING_TIMESTAMP_INDEX, schemaAnalysisReport, false))
+
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
 	}), nil
