@@ -33,6 +33,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
@@ -1517,9 +1518,37 @@ func startFallBackSetupIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
+
+	passImportDataToSourceSpecificCLIFlags := map[string]bool{
+		"disable-pb": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	if cfgFile != "" {
+		v := viper.New()
+		v.SetConfigFile(cfgFile)
+		if err := v.ReadInConfig(); err != nil {
+			utils.ErrExit("failed to run yb-voyager import data to source %w\n Please check the config file and re-run with command: %s", err, "SOURCE_DB_PASSWORD=*** "+strings.Join(cmd, " "))
+		}
+
+		for key := range passImportDataToSourceSpecificCLIFlags {
+			confKey := "import-data-to-source." + key
+			if v.GetString(confKey) != "" {
+				// If it has been set in the conf file, we do not need to pass it as a CLI flag
+				// It will be handled by the conf file logic upon launching the command
+				passImportDataToSourceSpecificCLIFlags[key] = false
+			}
+		}
+
+		// Also add the config file flag to the command
+		cmd = append(cmd, "--config-file", cfgFile)
+	}
+
+	// Command specific flags
+	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
 		cmd = append(cmd, "--disable-pb=true")
 	}
+
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))

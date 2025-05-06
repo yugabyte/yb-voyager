@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
@@ -282,12 +283,48 @@ func startExportDataFromTargetIfRequired() {
 
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
-		"--table-list", strings.Join(importTableNames, ","),
-		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-
 		"--log-level", config.LogLevel,
 	}
+
+	passExportDataFromTargetSpecificCLIFlags := map[string]bool{
+		"disable-pb":           true,
+		"table-list":           true,
+		"transaction-ordering": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	if cfgFile != "" {
+		v := viper.New()
+		v.SetConfigFile(cfgFile)
+		if err := v.ReadInConfig(); err != nil {
+			utils.ErrExit("failed to run yb-voyager import data to source %w\n Please check the config file and re-run with command: %s", err, "SOURCE_DB_PASSWORD=*** "+strings.Join(cmd, " "))
+		}
+
+		for key := range passExportDataFromTargetSpecificCLIFlags {
+			confKey := "export-data-from-target." + key
+			if v.GetString(confKey) != "" {
+				// If it has been set in the conf file, we do not need to pass it as a CLI flag
+				// It will be handled by the conf file logic upon launching the command
+				passExportDataFromTargetSpecificCLIFlags[key] = false
+			}
+		}
+
+		// Also add the config file flag to the command
+		cmd = append(cmd, "--config-file", cfgFile)
+	}
+
+	// Command specific flags
+	if bool(disablePb) && passExportDataFromTargetSpecificCLIFlags["disable-pb"] {
+		cmd = append(cmd, "--disable-pb=true")
+	}
+	if passExportDataFromTargetSpecificCLIFlags["transaction-ordering"] {
+		cmd = append(cmd, fmt.Sprintf("--transaction-ordering=%t", transactionOrdering))
+	}
+	if passExportDataFromTargetSpecificCLIFlags["table-list"] {
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+	}
+
 	if msr.UseYBgRPCConnector {
 		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
 			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
@@ -301,9 +338,7 @@ func startExportDataFromTargetIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
-		cmd = append(cmd, "--disable-pb=true")
-	}
+
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
