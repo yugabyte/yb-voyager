@@ -181,8 +181,6 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions, defaultYbVersionId)
 	}
 
-	fmt.Printf("yb versionId to use: %v\n", ybVersionIdToUse)
-
 	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("error fetching the colocated limits: %v", err)
