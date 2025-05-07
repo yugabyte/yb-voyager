@@ -16,11 +16,13 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
 	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -257,19 +259,35 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 		return nil
 	}
 
+	var stderrBuf, stdoutBuf bytes.Buffer
+
+	utils.PrintAndLog("Assessing migration before exporting schema...")
+
 	// Invoke the assess-migration command as a subprocess
 	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
-	cmd.Stdout = os.Stdout
-
-	var stderrBuf bytes.Buffer
+	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 
 	// run and ignore exit status
 	if err := cmd.Run(); err != nil {
-		utils.PrintAndLog("failed to assess the schema: %v, continuing with export schema...", err)
-		log.Warnf("assess migration cmd stderr: %s", stderrBuf.String())
+		utils.PrintAndLog("Failed to assess the migration, continuing with export schema...\n")
+		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
 	}
 
+	utils.PrintAndLog("Migration assessment completed successfully.")
+
+	// fetching assessment report path output line from stdout of assess-migration command process
+	re := regexp.MustCompile(`^\s*generated (?:JSON|HTML) assessment report at: .+`)
+	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if re.MatchString(line) {
+			fmt.Println(line)
+		}
+	}
+
+	fmt.Println()
 	return nil
 }
 
