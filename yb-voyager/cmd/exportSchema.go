@@ -38,7 +38,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 var skipRecommendations utils.BoolStr
@@ -246,17 +245,15 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 
 	// Append --yes=true(irrespective) at the end to override any --yes=false if set in export schema cmd
 	assessFlagsWithValues = append(assessFlagsWithValues,
-		"--assessment-invoked-from-export-schema", "true",
+		"--invoked-by-export-schema", "true",
 		"--iops-capture-interval", "0", // TODO: any small but significant duration will be better than 0
-		"--target-db-version", ybversion.LatestStable.String(),
 		"--yes",
 	)
 
 	// locate voyager binary
 	voyagerExecutable, err := os.Executable()
 	if err != nil {
-		log.Warnf("cannot locate executable, skipping assessment: %v", err)
-		return nil
+		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %v", err)
 	}
 
 	var stderrBuf, stdoutBuf bytes.Buffer
@@ -344,6 +341,7 @@ func init() {
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
 		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
 
+	// temporary flag to disable this change if user encounters any issues
 	BoolVar(exportSchemaCmd.Flags(), &assessSchemaBeforeExport, "assess-schema-before-export", true,
 		"run migration assessment before exporting schema. (default true)")
 	exportSchemaCmd.Flags().MarkHidden("assess-schema-before-export") // hide this flag from help output

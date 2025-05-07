@@ -148,6 +148,22 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 		t.Errorf("Failed to run assess-migration command: %v", err)
 	}
 
+	// verify the MSR.MigrationAssessmentDone flag is set to true
+	metaDB = initMetaDB(exportDir)
+	res, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to be true")
+
+	// verify the MSR.MigrationAssessmentDoneViaExportSchema flag is set to false
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
+
 	err = testutils.RunVoyagerCommmand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
 		"--export-dir", exportDir,
@@ -156,6 +172,21 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	if err != nil {
 		t.Errorf("Failed to run export schema command: %v", err)
 	}
+
+	// doing the same check in MSR to ensure nothing has changed after export schema
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.True(t, res, "Expected MigrationAssessmentDone flag to be true")
+
+	metaDB = initMetaDB(exportDir)
+	res, err = IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		t.Errorf("Failed to check MigrationAssessmentDoneViaExportSchema flag: %v", err)
+	}
+	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
 
 	// check if report from assessment
 	reportFilePath := filepath.Join(exportDir, "assessment", "reports", "migration_assessment_report.json")

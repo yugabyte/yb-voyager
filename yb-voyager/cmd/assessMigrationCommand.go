@@ -50,15 +50,15 @@ import (
 )
 
 var (
-	assessmentMetadataDir             string
-	assessmentMetadataDirFlag         string
-	assessmentReport                  AssessmentReport
-	assessmentDB                      *migassessment.AssessmentDB
-	intervalForCapturingIOPS          int64
-	assessMigrationSupportedDBTypes   = []string{POSTGRESQL, ORACLE}
-	referenceOrTablePartitionPresent  = false
-	pgssEnabledForAssessment          = false
-	assessmentInvokedFromExportSchema utils.BoolStr
+	assessmentMetadataDir            string
+	assessmentMetadataDirFlag        string
+	assessmentReport                 AssessmentReport
+	assessmentDB                     *migassessment.AssessmentDB
+	intervalForCapturingIOPS         int64
+	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
+	referenceOrTablePartitionPresent = false
+	pgssEnabledForAssessment         = false
+	invokedByExportSchema            utils.BoolStr
 )
 
 var sourceConnectionFlags = []string{
@@ -295,9 +295,9 @@ func init() {
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
 
-	BoolVar(assessMigrationCmd.Flags(), &assessmentInvokedFromExportSchema, "assessment-invoked-from-export-schema", false,
-		"Flag to indicate if the assessment is invoked from export schema command. ")
-	assessMigrationCmd.Flags().MarkHidden("assessment-invoked-from-export-schema") // mark hidden
+	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
+		"Flag to indicate if the assessment is invoked by export schema command. ")
+	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 }
 
 func assessMigration() (err error) {
@@ -434,7 +434,7 @@ func fetchSourceInfo() {
 
 func SetMigrationAssessmentDoneInMSR() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		if assessmentInvokedFromExportSchema {
+		if invokedByExportSchema {
 			record.MigrationAssessmentDoneViaExportSchema = true
 			record.MigrationAssessmentDone = false
 		} else {
