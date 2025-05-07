@@ -1065,6 +1065,7 @@ var funcMap = template.FuncMap{
 }
 
 // add info to the 'reportStruct' variable and return
+// detectPerfOptimizationIssues - not add the Performance optimizations issues in case it is false
 func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detectPerfOptimizationIssues bool) utils.SchemaReport {
 	/*
 		NOTE: Don't create local var with name 'schemaAnalysisReport' since global one
@@ -1156,14 +1157,9 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
+	//Not populate any perfomance optimizations in analyze-schema report with false for detect Performance optimizations
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 
-	//Not populate any perfomance optimizations in analyze-schema report when it is generated with  the command.
-	//Doing this here because we still need them during assessment where we use the analyse issues to get all these in some cases
-	// i.e. Hotspots one.
-	schemaAnalysisReport.Issues = lo.Filter(schemaAnalysisReport.Issues, func(i utils.AnalyzeSchemaIssue, _ int) bool {
-		return i.IssueType != PERFORMANCE_OPTIMIZATIONS_CATEGORY
-	})
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
