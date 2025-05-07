@@ -170,17 +170,17 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 
 	// fetch yb versions with available experiment data, use default version if experiment data of supported release is
 	// not available
-	experimentDbAvailableYbVersions, ybVersionIdToUse, err := loadYbVersionsWithExperimentData(experimentDB)
+	experimentDbAvailableYbVersions, defaultYbVersionId, err := loadYbVersionsWithExperimentData(experimentDB)
+	ybVersionIdToUse := defaultYbVersionId
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("failed to load yb versions: %v", err)
 		return fmt.Errorf("failed to load yb versions: %w", err)
 	}
 	if len(experimentDbAvailableYbVersions) != 0 {
 		// find closest yb version from experiment data to targetYbVersion or default
-		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions)
+		ybVersionIdToUse = findClosestVersion(targetDbVersion, experimentDbAvailableYbVersions, defaultYbVersionId)
 	}
-
-	fmt.Printf("yb versionId to use: %v\n", ybVersionIdToUse)
+	log.Infof(fmt.Sprintf("Experiment data yb version id used for sizing assessment: %v\n", ybVersionIdToUse))
 
 	colocatedLimits, err := loadColocatedLimit(experimentDB, ybVersionIdToUse)
 	if err != nil {
@@ -1610,42 +1610,38 @@ func loadYbVersionsWithExperimentData(experimentDB *sql.DB) ([]ExperimentDataAva
 }
 
 /*
-versionDifference Helper function to compute absolute difference between two versions
-
-Parameters:
-  - a: base version for comparison.
-  - b: version to compare
-
-Returns:
-  - difference between given versions.
-*/
-func versionDifference(a, b *ybversion.YBVersion) int {
-	result := a.Version.Compare(b.Version)
-	if result < 0 {
-		return -result
-	}
-	return result
-}
-
-/*
 findClosestVersion Helper function to find the closest yb version
 
 Parameters:
   - targetDbVersion: given target yugabyte database version
   - availableVersions: slice of available yugabyte versions which has experiment data available.
+  - defaultYbVersionId: default experiment data to use in case finding closest version is unsuccessful
 
 Returns:
   - returns the version id(index from experiment table) of the closest version to use for given target yb version.
 */
-func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions []ExperimentDataAvailableYbVersion) int64 {
-	closest := &availableVersions[0]
-	minDiff := versionDifference(targetDbVersion, availableVersions[0].expDataYbVersion)
-	for i := 1; i < len(availableVersions); i++ {
-		diff := versionDifference(targetDbVersion, availableVersions[i].expDataYbVersion)
-		if diff < minDiff {
-			minDiff = diff
+func findClosestVersion(targetDbVersion *ybversion.YBVersion, availableVersions []ExperimentDataAvailableYbVersion,
+	defaultYbVersionId int64) int64 {
+	var closest *ExperimentDataAvailableYbVersion
+
+	for i := 0; i < len(availableVersions); i++ {
+		available := availableVersions[i].expDataYbVersion
+
+		// Check if available <= target
+		if available.Version.Compare(targetDbVersion.Version) > 0 {
+			// Skip versions greater than the target
+			continue
+		}
+		if closest == nil {
+			closest = &availableVersions[i]
+		} else if available.Version.Compare(closest.expDataYbVersion.Version) > 0 {
+			// Found a closer (but still <= target) version.
 			closest = &availableVersions[i]
 		}
 	}
-	return closest.versionId
+	if closest == nil {
+		return defaultYbVersionId
+	} else {
+		return closest.versionId
+	}
 }
