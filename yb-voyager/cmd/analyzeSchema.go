@@ -309,7 +309,7 @@ func addSummaryDetailsForIndexes() {
 	}
 }
 
-func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptimizationIssues bool) {
 	log.Infof("checking SQL statements using parser for object type %s in file %s", objType, fpath)
 	for _, sqlStmtInfo := range sqlInfoArr {
 		_, err := queryparser.Parse(sqlStmtInfo.formattedStmt)
@@ -334,6 +334,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
 			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)
 		}
 		for _, i := range ddlIssues {
+			if !detectPerfOptimizationIssues && slices.Contains(queryissue.PerformanceOptimizationIssues, i.Type) {
+				//In case not to detect performance optimizations do not add it to schema analysis report issues.
+				continue
+			}
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, convertIssueInstanceToAnalyzeIssue(i, fpath, false, true))
 		}
 	}
@@ -578,7 +582,7 @@ func checkRemaining(sqlInfoArr []sqlInfo, fpath string) {
 }
 
 // Checks whether the script, fpath, can be migrated to YB
-func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
+func checker(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptimizationIssues bool) {
 	if !utils.FileOrFolderExists(fpath) {
 		return
 	}
@@ -587,13 +591,13 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string) {
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
 	checkRemaining(sqlInfoArr, fpath)
-	checkStmtsUsingParser(sqlInfoArr, fpath, objType)
+	checkStmtsUsingParser(sqlInfoArr, fpath, objType, detectPerfOptimizationIssues)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
-		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType)
+		checkPlPgSQLStmtsUsingParser(sqlInfoArr, fpath, objType, detectPerfOptimizationIssues)
 	}
 }
 
-func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string) {
+func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptimizationIssues bool) {
 	for _, sqlInfoStmt := range sqlInfoArr {
 		issues, err := parserIssueDetector.GetAllPLPGSQLIssues(sqlInfoStmt.formattedStmt, targetDbVersion)
 		if err != nil {
@@ -601,6 +605,10 @@ func checkPlPgSQLStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType st
 			continue
 		}
 		for _, issueInstance := range issues {
+			if !detectPerfOptimizationIssues && slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type) {
+				//In case not to detect performance optimizations do not add it to schema analysis report issues.
+				continue
+			}
 			issue := convertIssueInstanceToAnalyzeIssue(issueInstance, fpath, true, true)
 			schemaAnalysisReport.Issues = append(schemaAnalysisReport.Issues, issue)
 		}
@@ -1057,7 +1065,7 @@ var funcMap = template.FuncMap{
 }
 
 // add info to the 'reportStruct' variable and return
-func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.SchemaReport {
+func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detectPerfOptimizationIssues bool) utils.SchemaReport {
 	/*
 		NOTE: Don't create local var with name 'schemaAnalysisReport' since global one
 		is used across all the internal functions called by analyzeSchemaInternal()
@@ -1080,7 +1088,7 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool) utils.
 			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
 		}
 		if detectIssues {
-			checker(sqlInfoArr, filePath, objType)
+			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
 
 			if objType == "CONVERSION" {
 				checkConversions(sqlInfoArr, filePath)
@@ -1148,7 +1156,7 @@ func analyzeSchema() {
 	if err != nil {
 		utils.ErrExit("failed to get the migration status record: %s", err)
 	}
-	analyzeSchemaInternal(msr.SourceDBConf, true)
+	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 
 	//Not populate any perfomance optimizations in analyze-schema report when it is generated with  the command.
 	//Doing this here because we still need them during assessment where we use the analyse issues to get all these in some cases
