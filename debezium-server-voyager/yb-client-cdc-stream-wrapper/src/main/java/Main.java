@@ -18,14 +18,15 @@ import java.util.Objects;
 public class Main {
     public static void main(String[] args) throws Exception {
         CmdLineParams parameters = CmdLineParams.createFromArgs(args);
-        long ADMIN_OPERATION_TIMEOUT = 10000;
-        long SOCKET_READ_TIMEOUT = 10000;
-        long OPERATION_TIMEOUT = 10000;
+        //Timeout in miliseconds for which the client API can wait and exit if its taking more than that
+        long ADMIN_OPERATION_TIMEOUT_MS = 10000;
+        long SOCKET_READ_TIMEOUT_MS = 10000;
+        long OPERATION_TIMEOUT_MS = 10000;
         AsyncYBClient asyncClient = new AsyncYBClient.AsyncYBClientBuilder(parameters.masterAddresses)
                 .sslCertFile(parameters.certFilePath) // TODO: support sslClientCertFiles(clientCert, clientKey)
-                .defaultAdminOperationTimeoutMs(ADMIN_OPERATION_TIMEOUT)
-                .defaultOperationTimeoutMs(OPERATION_TIMEOUT)
-                .defaultSocketReadTimeoutMs(SOCKET_READ_TIMEOUT)
+                .defaultAdminOperationTimeoutMs(ADMIN_OPERATION_TIMEOUT_MS)
+                .defaultOperationTimeoutMs(SOCKET_READ_TIMEOUT_MS)
+                .defaultSocketReadTimeoutMs(OPERATION_TIMEOUT_MS)
                 .build();
 
         YBClient client = new YBClient(asyncClient);
