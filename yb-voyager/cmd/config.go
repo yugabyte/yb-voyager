@@ -79,7 +79,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path",
+	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
@@ -107,7 +107,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"parallel-jobs", "disable-pb", "max-retries",
+	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",

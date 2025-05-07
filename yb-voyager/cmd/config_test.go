@@ -2462,3 +2462,591 @@ func TestFinalizeSchemaPostDataImportConfigBinding_EnvOverridesConfig(t *testing
 	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exists should match the config")
 	assert.Equal(t, utils.BoolStr(true), flagRefreshMViews, "Refresh materialized views should match the config")
 }
+
+///////////////////////////// Export Data From Target Tests ////////////////////////////////
+
+func setupExportDataFromTargetContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(exportDataFromTargetCmd)
+	t.Cleanup(func() {
+		resetFlags(exportDataFromTargetCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+run-guardrails-checks: true
+control-plane-type: yugabyte
+yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+java-home: /path/to/java/home
+local-call-home-service-host: localhost
+local-call-home-service-port: 8080
+yb-tserver-port: 9000
+tns-admin: /path/to/tns/admin
+target:
+  name: test_target
+  db-host: 2.1.1.1
+  db-port: 5432
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+export-data-from-target:
+  disable-pb: true
+  exclude-table-list: table1,table2
+  table-list: table3,table4
+  exclude-table-list-file-path: /tmp/exclude-tables.txt
+  table-list-file-path: /tmp/table-list.txt
+  yb-master-port: 2024
+  queue-segment-max-bytes: 10485760
+  debezium-dist-dir: /tmp/debezium
+  transaction-ordering: true
+`, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestExportDataFromTargetConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupExportDataFromTargetContext(t)
+
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "target",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on target config
+	// assert.Equal(t, "2.1.1.1", source.Host, "Target host should match the config")
+	// assert.Equal(t, 5432, source.Port, "Target port should match the config")
+	// assert.Equal(t, "test_user", source.User, "Target user should match the config")
+	assert.Equal(t, "test_password", source.Password, "Target password should match the config")
+	// assert.Equal(t, "test_db", source.DBName, "Target DB name should match the config")
+	// assert.Equal(t, "public", source.Schema, "Target schema should match the config")
+	// assert.Equal(t, "/path/to/ssl-cert", source.SSLCertPath, "Target SSL cert should match the config")
+	assert.Equal(t, "require", source.SSLMode, "Target SSL mode should match the config")
+	// assert.Equal(t, "/path/to/ssl-key", source.SSLKey, "Target SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", source.SSLRootCert, "Target SSL root cert should match the config")
+	// assert.Equal(t, "/path/to/ssl-crl", source.SSLCRL, "Target SSL CRL should match the config")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, "2024", os.Getenv("YB_MASTER_PORT"), "YB_MASTER_PORT should match the config")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
+	assert.Equal(t, utils.BoolStr(true), transactionOrdering, "Transaction ordering should match the config")
+}
+
+func TestExportDataFromTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupExportDataFromTargetContext(t)
+
+	// Creating a new temporary export directory to test the cli override
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "target",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "false",
+		"--disable-pb", "false",
+		"--exclude-table-list", "table5,table6",
+		"--table-list", "table7,table8",
+		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
+		"--table-list-file-path", "/tmp/new-table-list.txt",
+		"--transaction-ordering", "false",
+		"--target-db-password", "test_password2",
+		"--target-ssl-mode", "verify-full",
+		"--target-ssl-root-cert", "/path/to/root2.pem",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on target config
+	assert.Equal(t, "test_password2", source.Password, "Target password should be overridden by CLI")
+	assert.Equal(t, "verify-full", source.SSLMode, "Target SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/root2.pem", source.SSLRootCert, "Target SSL root cert should be overridden by CLI")
+	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table7,table8", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/new-exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/new-table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, "2024", os.Getenv("YB_MASTER_PORT"), "YB_MASTER_PORT should match the config")
+	assert.Equal(t, "10485760", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should match the config")
+	assert.Equal(t, "/tmp/debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should match the config")
+	assert.Equal(t, utils.BoolStr(false), transactionOrdering, "Transaction ordering should match the config")
+}
+
+func TestExportDataFromTargetConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupExportDataFromTargetContext(t)
+	// Test whether env vars overrides config
+
+	// env related to global flags
+	os.Setenv("CONTROL_PLANE_TYPE", "yugabyte2")
+	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require")
+	os.Setenv("JAVA_HOME", "/path/to/java/home2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", "localhost2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", "8081")
+	os.Setenv("YB_TSERVER_PORT", "9001")
+	os.Setenv("TNS_ADMIN", "/path/to/tns/admin2")
+
+	// env related to export-data config
+	os.Setenv("QUEUE_SEGMENT_MAX_BYTES", "20971520")
+	os.Setenv("DEBEZIUM_DIST_DIR", "/tmp/new-debezium")
+	os.Setenv("YB_MASTER_PORT", "2025")
+
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "target",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
+	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
+	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
+	assert.Equal(t, "localhost2", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should be overridden by env var")
+	assert.Equal(t, "8081", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should be overridden by env var")
+	assert.Equal(t, "9001", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should be overridden by env var")
+	assert.Equal(t, "/path/to/tns/admin2", os.Getenv("TNS_ADMIN"), "TNS admin should be overridden by env var")
+	// Assertions on target config
+	assert.Equal(t, "test_password", source.Password, "Target password should match the config")
+	assert.Equal(t, "require", source.SSLMode, "Target SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", source.SSLRootCert, "Target SSL root cert should match the config")
+	// // Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
+	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
+	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path should match the config")
+	assert.Equal(t, "/tmp/table-list.txt", tableListFilePath, "Table list file path should match the config")
+	assert.Equal(t, utils.BoolStr(true), transactionOrdering, "Transaction ordering should match the config")
+	assert.Equal(t, "20971520", os.Getenv("QUEUE_SEGMENT_MAX_BYTES"), "QUEUE_SEGMENT_MAX_BYTES should be overridden by env var")
+	assert.Equal(t, "/tmp/new-debezium", os.Getenv("DEBEZIUM_DIST_DIR"), "DEBEZIUM_DIST_DIR should be overridden by env var")
+	assert.Equal(t, "2025", os.Getenv("YB_MASTER_PORT"), "YB_MASTER_PORT should be overridden by env var")
+}
+
+///////////////////////////// Import Data to Source Tests ////////////////////////////////
+
+func setupImportDataToSourceContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(importDataToSourceCmd)
+	t.Cleanup(func() {
+		resetFlags(importDataToSourceCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+run-guardrails-checks: false
+control-plane-type: yugabyte
+yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+java-home: /path/to/java/home
+local-call-home-service-host: localhost
+local-call-home-service-port: 8080
+yb-tserver-port: 9000
+tns-admin: /path/to/tns/admin
+import-data-to-source:
+  parallel-jobs: 10
+  disable-pb: true
+  num-event-channels: 8
+  event-channel-size: 10000
+  max-events-per-batch: 5000
+  max-interval-between-batches: 2
+  max-batch-size-bytes: 10485760
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestImportDataToSourceConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupImportDataToSourceContext(t)
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, 10, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+}
+
+func TestImportDataToSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupImportDataToSourceContext(t)
+
+	// Creating a new temporary export directory to test the cli override
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "false",
+		"--run-guardrails-checks", "true",
+		"--parallel-jobs", "8",
+		"--disable-pb", "false",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on import-data config
+	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
+	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
+	assert.Equal(t, "5000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the config")
+	assert.Equal(t, "2", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the config")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the config")
+}
+
+func TestImportDataToSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupImportDataToSourceContext(t)
+	// Test whether env vars overrides config
+
+	// env related to global flags
+	os.Setenv("CONTROL_PLANE_TYPE", "yugabyte2")
+	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require")
+	os.Setenv("JAVA_HOME", "/path/to/java/home2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", "localhost2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", "8081")
+	os.Setenv("YB_TSERVER_PORT", "9001")
+	os.Setenv("TNS_ADMIN", "/path/to/tns/admin2")
+
+	// env related to import-data
+	os.Setenv("NUM_EVENT_CHANNELS", "16")
+	os.Setenv("EVENT_CHANNEL_SIZE", "20000")
+	os.Setenv("MAX_EVENTS_PER_BATCH", "10000")
+	os.Setenv("MAX_INTERVAL_BETWEEN_BATCHES", "5")
+	os.Setenv("MAX_BATCH_SIZE_BYTES", "20971520")
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
+	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
+	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
+	assert.Equal(t, "localhost2", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should be overridden by env var")
+	assert.Equal(t, "8081", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should be overridden by env var")
+	assert.Equal(t, "9001", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should be overridden by env var")
+	assert.Equal(t, "/path/to/tns/admin2", os.Getenv("TNS_ADMIN"), "TNS admin should be overridden by env var")
+	// Assertions on import-data config
+	assert.Equal(t, 10, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, "16", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the env var")
+	assert.Equal(t, "20000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the env var")
+	assert.Equal(t, "10000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the env var")
+	assert.Equal(t, "5", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the env var")
+	assert.Equal(t, "20971520", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the env var")
+}
+
+///////////////////////////// Initiate cutover to target Tests ////////////////////////////////
+
+func setupIntitiateCutoverToTargetContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(cutoverToTargetCmd)
+	t.Cleanup(func() {
+		resetFlags(cutoverToTargetCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+initiate-cutover-to-target:
+  prepare-for-fall-back: true
+  use-yb-grpc-connector: false
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestIntitateCutoverToTargetConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupIntitiateCutoverToTargetContext(t)
+
+	rootCmd.SetArgs([]string{
+		"initiate", "cutover", "to", "target",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(true), prepareForFallBack, "Prepare for fall back should match the config")
+	assert.Equal(t, utils.BoolStr(false), useYBgRPCConnector, "Use YB GRPC connector should match the config")
+}
+
+func TestInitiateCutoverToTargetConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupIntitiateCutoverToTargetContext(t)
+
+	rootCmd.SetArgs([]string{
+		"initiate", "cutover", "to", "target",
+		"--config-file", ctx.configFile,
+		"--prepare-for-fall-back", "false",
+		"--use-yb-grpc-connector", "true",
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(false), prepareForFallBack, "Prepare for fall back should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), useYBgRPCConnector, "Use YB GRPC connector should be overridden by CLI")
+}
+
+///////////////////////////// Archive Changes Tests ////////////////////////////////
+
+func setupArchiveChangesContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(archiveChangesCmd)
+	t.Cleanup(func() {
+		resetFlags(archiveChangesCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: false
+archive-changes:
+  delete-changes-without-archiving: true
+  fs-utilization-threshold: 20
+  move-to: "path/to/dir"
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestArchiveChangesConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupArchiveChangesContext(t)
+
+	rootCmd.SetArgs([]string{
+		"archive", "changes",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(true), deleteSegments, "Delete Segments should match the config")
+	assert.Equal(t, 20, utilizationThreshold, "Utilizations threshold should match the config")
+	assert.Equal(t, "path/to/dir", moveDestination, "Move destination should match the config")
+}
+
+func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupArchiveChangesContext(t)
+
+	// Creating a new temporary export directory to test the cli override
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	rootCmd.SetArgs([]string{
+		"archive", "changes",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "true",
+		"--delete-changes-without-archiving", "false",
+		"--fs-utilization-threshold", "40",
+		"--move-to", "path/to/dir2",
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(false), deleteSegments, "Delete Segments should be overridden by CLI")
+	assert.Equal(t, 40, utilizationThreshold, "Utilizations threshold should be overridden by CLI")
+	assert.Equal(t, "path/to/dir2", moveDestination, "Move destination should be overridden by CLI")
+}
+
+///////////////////////////// Archive Changes Tests ////////////////////////////////
+
+func setupEndMigrationContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(endMigrationCmd)
+	t.Cleanup(func() {
+		resetFlags(endMigrationCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: false
+end-migration:
+  backup-schema-files: false 
+  backup-data-files: false
+  save-migration-reports: false 
+  backup-log-files: false
+  backup-dir: path/to/dir
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestEndMigrationConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupEndMigrationContext(t)
+
+	rootCmd.SetArgs([]string{
+		"end", "migration",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(false), backupSchemaFiles, "Backup schema files should match the config")
+	assert.Equal(t, utils.BoolStr(false), backupDataFiles, "Backup data files should match the config")
+	assert.Equal(t, utils.BoolStr(false), saveMigrationReports, "Save migration reports should match the config")
+	assert.Equal(t, utils.BoolStr(false), backupLogFiles, "Backup log files should match the config")
+	assert.Equal(t, "path/to/dir", backupDir, "Backup dir should match the config")
+}
+
+func TestEndMigrationConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupEndMigrationContext(t)
+
+	// Creating a new temporary export directory to test the cli override
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	rootCmd.SetArgs([]string{
+		"end", "migration",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "true",
+		"--backup-schema-files", "true",
+		"--backup-data-files", "true",
+		"--save-migration-reports", "true",
+		"--backup-log-files", "true",
+		"--backup-dir", "path/to/dir2",
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	// Assertions on initiate cutover to target config
+	assert.Equal(t, utils.BoolStr(true), backupSchemaFiles, "Backup schema files should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), backupDataFiles, "Backup data files should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), saveMigrationReports, "Save migration reports should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), backupLogFiles, "Backup log files should be overridden by CLI")
+	assert.Equal(t, "path/to/dir2", backupDir, "Backup dir should be overridden by CLI")
+}
