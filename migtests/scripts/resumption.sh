@@ -3,9 +3,8 @@
 set -e
 
 if [ $# -gt 3 ]; then
-    echo "Usage: $0 TEST_NAME [env.sh] [additional_config_file]"
+    echo "Usage: $0 TEST_NAME [env.sh] [config_file]"
     exit 1
-	
 fi
 
 set -x
@@ -45,16 +44,18 @@ fi
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
 
+export CONFIG_FILE="${TEST_DIR}/configs/default_config.yaml"
+
 # Handle optional additional config file ($3)
 if [ -n "$3" ]; then
-    ADDITIONAL_CONFIG_FILE="${TESTS_DIR}/resumption/additional_configs/$3"
-    if [ ! -f "${ADDITIONAL_CONFIG_FILE}" ]; then
-        echo "Error: Additional config file $3 not found in resumption/additional_configs"
+    CONFIG_FILE="${TEST_DIR}/configs/$3"
+    if [ ! -f "${CONFIG_FILE}" ]; then
+        echo "Error: Config file $3 not found in the test directory."
         exit 1
     fi
-	export ADDITIONAL_CONFIG_FILE
+	export CONFIG_FILE
 else
-    echo "No additional config file provided."
+    echo "No Config file provided. Using default_config.yaml."
 fi
 
 main() {
@@ -100,25 +101,25 @@ main() {
 		}
 	fi
 
-	step "Generate the YAML file"
-	if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	  ./generate_config.py
-	fi
+	# step "Generate the YAML file"
+	# if [ -f "${TEST_DIR}/generate_config.py" ]; then
+	#   ./generate_config.py
+	# fi
 
-	# Backup original config
-	cp config.yaml config.yaml.original
+	# # Backup original config
+	# cp config.yaml config.yaml.original
 
-	# If an additional config file is specified, append its contents to config.yaml.
-	# This allows temporary overrides or additions for specific use cases.
-	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
-	    echo "Appending additional config to config.yaml..."
-	    cat "${ADDITIONAL_CONFIG_FILE}" >> config.yaml
-	else
-	    echo "No additional config file provided. Skipping append step."
-	fi
+	# # If an additional config file is specified, append its contents to config.yaml.
+	# # This allows temporary overrides or additions for specific use cases.
+	# if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
+	#     echo "Appending additional config to config.yaml..."
+	#     cat "${ADDITIONAL_CONFIG_FILE}" >> config.yaml
+	# else
+	#     echo "No additional config file provided. Skipping append step."
+	# fi
 
 	step "Run import with resumptions"
-	${SCRIPTS}/resumption.py config.yaml
+	${SCRIPTS}/resumption.py ${CONFIG_FILE}
 
 	step "Run import-data-status"
 	import_data_status
@@ -135,15 +136,15 @@ main() {
 	# After usage, restore the original config to maintain a clean state.
 	# If we had modified config.yaml, replace it with the original.
 	# If no modifications were made, just clean up the backup.
-	if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
-	  mv config.yaml.original config.yaml
-	else
-	  rm config.yaml.original
-	fi
+	# if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
+	#   mv config.yaml.original config.yaml
+	# else
+	#   rm config.yaml.original
+	# fi
 
-	if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	  rm config.yaml
-	fi
+	# if [ -f "${TEST_DIR}/generate_config.py" ]; then
+	#   rm config.yaml
+	# fi
 	if [ -n "${SOURCE_DB_NAME}" ]; then
 		run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
 	fi
