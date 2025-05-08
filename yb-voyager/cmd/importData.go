@@ -74,6 +74,10 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
+// flags only for import data to target
+var enableFastPath utils.BoolStr
+var onPrimaryKeyConflictAction string
+
 var importDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Import data from compatible source database to target database.\n" +
@@ -87,6 +91,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
@@ -1268,6 +1273,7 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 			df.Close()
 		}
+		fmt.Printf("putting table name %q and columns %v in tableToColumns\n", task.TableNameTup.ForKey(), columns)
 		TableToColumnNames.Put(task.TableNameTup, columns)
 	}
 }
@@ -1307,9 +1313,12 @@ func checkExportDataDoneFlag() {
 }
 
 func init() {
+	// adding child commands to parent import commands
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
+
+	// adding flags to the `import data` and `import data to target` commands
 	registerFlagsForTarget(importDataCmd)
 	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)
