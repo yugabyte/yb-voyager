@@ -113,7 +113,8 @@ def prepare_import_data_file_command():
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
         '--data-dir', data_dir,
-        '--file-table-map', file_table_map
+        '--file-table-map', file_table_map,
+        '--skip-replication-checks', 'true',
     ]
 
     if run_without_adaptive_parallelism:
@@ -141,6 +142,7 @@ def prepare_import_data_command(config):
         '--target-db-name', target_db_name,
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
+        '--skip-replication-checks', 'true',
     ]
     
     if source_db_type != 'postgresql':
