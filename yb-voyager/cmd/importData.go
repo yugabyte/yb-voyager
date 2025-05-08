@@ -918,7 +918,7 @@ func startMonitoringTargetYBHealth() error {
 	}
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
-		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, "", "", nil)
+		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
 		err := ybClient.Init()
 		if err != nil {
 			log.Errorf("error intialising the yb client : %v", err)
