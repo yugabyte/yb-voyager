@@ -1139,8 +1139,9 @@ Version History
 1.1: Added TargetDBVersion and AssessmentIssueYugabyteD.MinimumVersionFixedIn
 1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
+1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.3"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.4"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1382,6 +1383,10 @@ func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
 		}
 	}
 	return res
+}
+
+func GetJsonAssessmentReportPath() string {
+	return filepath.Join(exportDir, "assessment", "reports", fmt.Sprintf("%s.json", ASSESSMENT_FILE_NAME))
 }
 
 // ===== AssessMigrationDBConfig struct methods =====

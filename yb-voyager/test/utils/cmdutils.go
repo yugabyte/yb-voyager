@@ -34,6 +34,8 @@ func RunVoyagerCommmand(container testcontainers.TestContainer,
 	cmdName string, cmdArgs []string,
 	doDuringCmd func(),
 ) error {
+	fmt.Printf("Running voyager command: %s %s\n", cmdName, strings.Join(cmdArgs, " "))
+
 	// Gather DB connection info
 	host, port, err := container.GetHostPort()
 	if err != nil {

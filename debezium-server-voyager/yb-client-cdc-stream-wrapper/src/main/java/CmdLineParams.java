@@ -6,12 +6,13 @@ import org.apache.commons.cli.Options;
 public class CmdLineParams {
     String masterAddresses = "127.0.0.1:7100";
     String tableName = "";
-    String dbName = "yugabyte";
+    String dbName = "";
     String certFilePath = null;
     Boolean toCreate = false;
     String deleteStreamId = null;
     Boolean listMasters = false;
     String tserverPort = "9100";
+    Boolean getNumOfCDCStreams = false;
 
     public static CmdLineParams createFromArgs(String[] args) {
         Options options = new Options();
@@ -23,7 +24,8 @@ public class CmdLineParams {
         options.addOption("db_name", true, "Database for which stream needs to be created");
         options.addOption("ssl_cert_file", true, "path to certificate file in case of SSL enabled");
         options.addOption("list_masters", false, "List all the masters nodes in the cluster");
-        options.addOption("tserver_port", true, "Port of the tserver process (default: 9100)");    
+        options.addOption("tserver_port", true, "Port of the tserver process (default: 9100)");  
+        options.addOption("get_num_of_cdc_streams", false, "get number of replication streams created on the cluster");  
 
         CommandLineParser parser = new DefaultParser();
         CommandLine commandLine = null;
@@ -70,6 +72,10 @@ public class CmdLineParams {
 
         if (commandLine.hasOption("tserver_port")) {
             tserverPort = commandLine.getOptionValue("tserver_port");
+        }
+
+        if (commandLine.hasOption("get_num_of_cdc_streams")) {
+            getNumOfCDCStreams = true;
         }
     }
 

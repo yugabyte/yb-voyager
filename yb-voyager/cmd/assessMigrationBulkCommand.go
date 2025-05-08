@@ -446,7 +446,7 @@ func isMigrationAssessmentDoneForConfig(dbConfig AssessMigrationDBConfig) bool {
 	// Note: Checking for report existence might be sufficient
 	// but checking MSR as an additionally covers for edge cases if any.
 	metaDBInstance := initMetaDB(dbConfig.GetAssessmentExportDirPath())
-	assessmentDone, err := IsMigrationAssessmentDone(metaDBInstance)
+	assessmentDone, err := IsMigrationAssessmentDoneDirectly(metaDBInstance)
 	if err != nil {
 		log.Warnf("checking migration assessment done: %v", err)
 	}

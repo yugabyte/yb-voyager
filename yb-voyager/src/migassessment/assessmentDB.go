@@ -25,6 +25,7 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -40,6 +41,7 @@ const (
 	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
 	TABLE_INDEX_STATS        = "table_index_stats"
 	DB_QUERIES_SUMMARY       = "db_queries_summary"
+	REDUNDANT_INDEXES        = "redundant_indexes"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -134,6 +136,16 @@ func InitAssessmentDB() error {
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
 			queryid			BIGINT,
 			query		TEXT);`, DB_QUERIES_SUMMARY),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			redundant_schema_name TEXT,
+			redundant_table_name TEXT,
+			redundant_index_name TEXT,
+			existing_schema_name TEXT,
+			existing_table_name TEXT,
+			existing_index_name TEXT,
+			redundant_ddl TEXT,
+			existing_ddl TEXT,
+			PRIMARY KEY(redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
 	}
 
 	for _, cmd := range cmds {

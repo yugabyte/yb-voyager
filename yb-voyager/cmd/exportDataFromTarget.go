@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -47,7 +48,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 		} else {
 			exporterRole = TARGET_DB_EXPORTER_FF_ROLE
 		}
-		err = verifySSLFlags()
+		err = verifySSLFlags(cmd, msr)
 		if err != nil {
 			utils.ErrExit("failed to verify SSL flags: %v", err)
 		}
@@ -59,7 +60,7 @@ var exportDataFromTargetCmd = &cobra.Command{
 				utils.ErrExit("error updating migration status record: %v", err)
 			}
 		}
-		err = initSourceConfFromTargetConf()
+		err = initSourceConfFromTargetConf(cmd)
 		if err != nil {
 			utils.ErrExit("failed to setup source conf from target conf in MSR: %v", err)
 		}
@@ -80,17 +81,38 @@ func init() {
 		"Setting the flag to `false` disables the transaction ordering. This speeds up change data capture from target YugabyteDB. Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.")
 }
 
-func verifySSLFlags() error {
-	if !lo.Contains([]string{"disable", "require", "verify-ca", "verify-full"}, source.SSLMode) {
-		return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: 'disable', 'require', 'verify-ca', 'verify-full'", source.SSLMode)
+/*
+For GRPC connector, only limited SSL modes are supported (disable, require, verify-ca, verify-full).
+If import-data had used the prefer/allow SSL modes, then, it will be downgraded to disable mode.
+Therefore, we allow users to override the ssl mode in export-data-from-target.
+
+Additinally, SSL root cert is required for require, verify-ca, and verify-full modes. (because of having to use the yb-admin client)
+Therefore, we allow users to override the ssl root cert in export-data-from-target.
+
+For logical-replication connecter, all SSL modes are supported.
+*/
+func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error {
+	allowedSSLModes := []string{constants.DISABLE, constants.PREFER, constants.ALLOW, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
+	// the debezium GRPC connector has some limitations because of which prefer and allow are not supported.
+	allowedSSLModesGRPCConnector := []string{constants.DISABLE, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
+
+	if msr.UseYBgRPCConnector {
+		if !lo.Contains(allowedSSLModesGRPCConnector, source.SSLMode) {
+			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModesGRPCConnector)
+		}
+		if (lo.Contains([]string{constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}, source.SSLMode)) && source.SSLRootCert == "" {
+			return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
+		}
+	} else {
+		if !lo.Contains(allowedSSLModes, source.SSLMode) {
+			return fmt.Errorf("invalid SSL mode '%s' for 'export data from target'. Please restart 'export data from target' with the --target-ssl-mode flag with one of these modes: %v", source.SSLMode, allowedSSLModes)
+		}
 	}
-	if (lo.Contains([]string{"require", "verify-ca", "verify-full"}, source.SSLMode)) && source.SSLRootCert == "" {
-		return fmt.Errorf("SSL root cert is required for SSL mode '%s'. Please restart 'export data from target' with the --target-ssl-mode and --target-ssl-root-cert flags", source.SSLMode)
-	}
+
 	return nil
 }
 
-func initSourceConfFromTargetConf() error {
+func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		return fmt.Errorf("get migration status record: %v", err)
@@ -107,14 +129,33 @@ func initSourceConfFromTargetConf() error {
 	} else {
 		source.Schema = targetConf.Schema
 	}
-	if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
-		if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
-			{
-				fmt.Println("Exiting...")
-				return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+
+	if msr.UseYBgRPCConnector {
+		// ssl-mode and ssl-root-cert as passed via CLI to export-data-from-target.
+		// ssl-key and ssl-cert are not supported by export-data-from-target, so they are ignored.
+		if (targetConf.SSLCertPath != "" || targetConf.SSLKey != "") && source.SSLMode != "disable" {
+			if !utils.AskPrompt("Warning: SSL cert and key are not supported for 'export data from target' yet. Do you want to ignore these settings and continue") {
+				{
+					fmt.Println("Exiting...")
+					return fmt.Errorf("SSL cert and key are not supported for 'export data from target' yet")
+				}
 			}
 		}
+	} else {
+		// no limitations when using logical replication connector. All values are read from target-db-conf.
+		// by default, unless overriden by the user.
+		// target-ssl-mode and target-ssl-root-cert are only available in the CLI because
+		// of limitations of grpc connector. In future, these flags will be removed.
+		if !cmd.Flags().Changed("target-ssl-mode") {
+			source.SSLMode = targetConf.SSLMode
+		}
+		if !cmd.Flags().Changed("target-ssl-root-cert") {
+			source.SSLRootCert = targetConf.SSLRootCert
+		}
+		source.SSLKey = targetConf.SSLKey
+		source.SSLCertPath = targetConf.SSLCertPath
 	}
+
 	source.SSLCRL = targetConf.SSLCRL
 	source.SSLQueryString = targetConf.SSLQueryString
 	source.Uri = targetConf.Uri

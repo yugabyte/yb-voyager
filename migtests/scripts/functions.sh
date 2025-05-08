@@ -45,8 +45,10 @@ grant_user_permission_postgresql() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v is_live_migration=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
-
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${db_schema}" \
+                                    -v is_live_migration=0 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 run_pg_restore() {
@@ -156,7 +158,12 @@ grant_permissions_for_live_migration_pg() {
 	db_name=$1
 	db_schema=$2
 	conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${db_name}"
-	psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${db_schema}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=0 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+	echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${db_schema}" \
+                                    -v replication_group='replication_group' \
+                                    -v is_live_migration=1 \
+                                    -v is_live_migration_fall_back=0 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 }
 
 grant_permissions() {
@@ -381,6 +388,25 @@ import_schema() {
 		yb-voyager import schema ${args} $*
 }
 
+finalize_schema_post_data_import() {
+	args="--export-dir ${EXPORT_DIR} 
+		--target-db-host ${TARGET_DB_HOST} 
+		--target-db-port ${TARGET_DB_PORT} 
+		--target-db-user ${TARGET_DB_USER} 
+		--target-db-password ${TARGET_DB_PASSWORD:-''} 
+		--target-db-name ${TARGET_DB_NAME}	
+		--yes
+		--send-diagnostics=false
+		"
+	
+		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+		then
+			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+		fi
+
+		yb-voyager finalize-schema-post-data-import ${args} $*
+}
+
 import_data() {
 	args="
 	 --export-dir ${EXPORT_DIR} 
@@ -392,6 +418,7 @@ import_data() {
 		--disable-pb true
 		--send-diagnostics=false 
 		--max-retries 1
+		--skip-replication-checks true
 		--yes
 		"
 
@@ -463,6 +490,7 @@ import_data_file() {
     --target-db-name ${TARGET_DB_NAME}
     --disable-pb true
     --send-diagnostics=false
+	--skip-replication-checks true
     "
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
@@ -675,9 +703,14 @@ setup_fallback_environment() {
 
 		# Clean up the temporary file after execution
 		rm -f $TEMP_SCRIPT
-		elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
+	    elif [ "${SOURCE_DB_TYPE}" = "postgresql" ]; then
 		conn_string="postgresql://${SOURCE_DB_ADMIN_USER}:${SOURCE_DB_ADMIN_PASSWORD}@${SOURCE_DB_HOST}:${SOURCE_DB_PORT}/${SOURCE_DB_NAME}"
-		psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" -v schema_list="${SOURCE_DB_SCHEMA}" -v replication_group='replication_group' -v is_live_migration=1 -v is_live_migration_fall_back=1 -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
+		echo "yes" | psql "${conn_string}" -v voyager_user="${SOURCE_DB_USER}" \
+                                    -v schema_list="${SOURCE_DB_SCHEMA}" \
+                                    -v replication_group='replication_group' \
+                                    -v is_live_migration=1 \
+                                    -v is_live_migration_fall_back=1 \
+                                    -f /opt/yb-voyager/guardrails-scripts/yb-voyager-pg-grant-migration-permissions.sql
 
 		disable_triggers_sql=$(mktemp)
         drop_constraints_sql=$(mktemp)
@@ -788,6 +821,11 @@ assess_migration() {
 		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
 	else
 		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+	fi
+
+	if [ "${TARGET_DB_VERSION}" != "" ]
+	then
+		args="${args} --target-db-version ${TARGET_DB_VERSION}"
 	fi
 	
 	yb-voyager assess-migration ${args} $*
@@ -946,6 +984,18 @@ compare_sql_files() {
  	sed -i -E 's#ALTER action CLUSTER ON#ALTER TABLE CLUSTER#g' "$normalized_file1"
 	sed -i -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
 	sed -i -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
+
+	# Replace the PostGIS "extension not available" message with the "could not open control file" message for 2.25
+	sed -i -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
+
+	# Changes required for 2.25 in the mgi schema. We still run Jenkins tests on 2024.2
+	# Commented this for now so that we don't normalize unnecessarily. When we stich the version in Jenkins we can uncomment the below block.
+
+	# # Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
+	# sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
+
+	# # Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
+	# sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
 
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"

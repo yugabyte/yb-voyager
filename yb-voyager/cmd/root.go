@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package cmd
 
 import (
@@ -28,7 +29,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"github.com/spf13/viper"
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
@@ -63,6 +63,13 @@ var rootCmd = &cobra.Command{
 Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like setting up source/target, migration workflow etc.`,
 
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Initialize the config file
+		overrides, envVarsSetViaConfig, envVarsAlreadyExported, err := initConfig(cmd)
+		if err != nil {
+			// not using utils.ErrExit as logging is not initialized yet
+			fmt.Printf("ERROR: Failed to initialize config: %v\n", err)
+			atexit.Exit(1)
+		}
 		currentCommand = cmd.CommandPath()
 
 		if !shouldRunPersistentPreRun(cmd) {
@@ -143,6 +150,20 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			setControlPlane(getControlPlaneType())
 		}
+
+		// Log the flag values set from the config file
+		for _, f := range overrides {
+			log.Infof("Flag '%s' set from config key '%s' with value '%s'\n", f.FlagName, f.ConfigKey, f.Value)
+		}
+		// Log the env variables already set in the environment by the user
+		for envVar, val := range envVarsAlreadyExported {
+			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
+		}
+		// Log the env variables set from the config file
+		for _, val := range envVarsSetViaConfig {
+			log.Infof("Environment variable '%s' set from config key '%s' with value '%s'\n", val.EnvVar, val.ConfigKey, val.Value)
+		}
+
 	},
 
 	Run: func(cmd *cobra.Command, args []string) {
@@ -257,8 +278,6 @@ func Execute() {
 }
 
 func init() {
-	cobra.OnInitialize(initConfig)
-
 	// Here you will define your flags and configuration settings.
 	// Cobra supports persistent flags, which, if defined here,
 	// will be global for your application.
@@ -283,35 +302,17 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+
+	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
+		"path of the config file which is used to set the various parameters for yb-voyager commands")
+
+	// Hide the config file flag from help
+	cmd.PersistentFlags().MarkHidden("config-file")
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&exportDir, "export-dir", "e", "",
 		"export directory is the workspace used to keep the exported schema, data, state, and logs")
-}
-
-// initConfig reads in config file and ENV variables if set.
-func initConfig() {
-	if cfgFile != "" {
-		// Use config file from the flag.
-		viper.SetConfigFile(cfgFile)
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		cobra.CheckErr(err)
-
-		// Search config in home directory with name ".yb-voyager" (without extension).
-		viper.AddConfigPath(home)
-		viper.SetConfigType("yaml")
-		viper.SetConfigName(".yb-voyager")
-	}
-
-	viper.AutomaticEnv() // read in environment variables that match
-
-	// If a config file is found, read it in.
-	if err := viper.ReadInConfig(); err == nil {
-		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-	}
 }
 
 func validateExportDirFlag() {
@@ -331,6 +332,8 @@ func validateExportDirFlag() {
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
+
+	fmt.Println("Using export-dir: ", color.BlueString(exportDir))
 }
 
 func GetCommandID(c *cobra.Command) string {
