@@ -33,7 +33,6 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
@@ -1525,24 +1524,22 @@ func startFallBackSetupIfRequired() {
 
 	// Check whether the command specifc flags have been set in the config file
 	if cfgFile != "" {
-		v := viper.New()
-		v.SetConfigFile(cfgFile)
-		if err := v.ReadInConfig(); err != nil {
-			utils.ErrExit("failed to run yb-voyager import data to source %w\n Please check the config file and re-run with command: %s", err, "SOURCE_DB_PASSWORD=*** "+strings.Join(cmd, " "))
-		}
-
-		for key := range passImportDataToSourceSpecificCLIFlags {
-			confKey := "import-data-to-source." + key
-			if v.GetString(confKey) != "" {
-				// If it has been set in the conf file, we do not need to pass it as a CLI flag
-				// It will be handled by the conf file logic upon launching the command
-				passImportDataToSourceSpecificCLIFlags[key] = false
+		// Use the in memory stored config file in the config file layer
+		// If the config file has been set for a particular key, then don't pass the CLI flag related to that key
+		if section, ok := InMemoryConfigFile["import-data-to-source"].(map[string]interface{}); ok {
+			for key := range passImportDataToSourceSpecificCLIFlags {
+				if value, exists := section[key]; exists && value != "" {
+					passImportDataToSourceSpecificCLIFlags[key] = false
+				}
 			}
 		}
 
 		// Also add the config file flag to the command
 		cmd = append(cmd, "--config-file", cfgFile)
 	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
 
 	// Command specific flags
 	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {

@@ -31,7 +31,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
@@ -295,24 +294,22 @@ func startExportDataFromTargetIfRequired() {
 
 	// Check whether the command specifc flags have been set in the config file
 	if cfgFile != "" {
-		v := viper.New()
-		v.SetConfigFile(cfgFile)
-		if err := v.ReadInConfig(); err != nil {
-			utils.ErrExit("failed to run yb-voyager import data to source %w\n Please check the config file and re-run with command: %s", err, "SOURCE_DB_PASSWORD=*** "+strings.Join(cmd, " "))
-		}
-
-		for key := range passExportDataFromTargetSpecificCLIFlags {
-			confKey := "export-data-from-target." + key
-			if v.GetString(confKey) != "" {
-				// If it has been set in the conf file, we do not need to pass it as a CLI flag
-				// It will be handled by the conf file logic upon launching the command
-				passExportDataFromTargetSpecificCLIFlags[key] = false
+		// Use the in memory stored config file in the config file layer
+		// If the config file has been set for a particular key, then don't pass the CLI flag related to that key
+		if section, ok := InMemoryConfigFile["export-data-from-target"].(map[string]interface{}); ok {
+			for key := range passExportDataFromTargetSpecificCLIFlags {
+				if value, exists := section[key]; exists && value != "" {
+					passExportDataFromTargetSpecificCLIFlags[key] = false
+				}
 			}
 		}
 
 		// Also add the config file flag to the command
 		cmd = append(cmd, "--config-file", cfgFile)
 	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to export data from target: %v", passExportDataFromTargetSpecificCLIFlags)
 
 	// Command specific flags
 	if bool(disablePb) && passExportDataFromTargetSpecificCLIFlags["disable-pb"] {

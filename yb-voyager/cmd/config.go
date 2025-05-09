@@ -13,6 +13,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var InMemoryConfigFile map[string]interface{}
+
 const (
 	// Flag name prefixes (used in CLI flags)
 	SourceDBFlagPrefix = "source-"
@@ -253,6 +255,9 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
+
+	// Set the in-memory config file for later use
+	InMemoryConfigFile = v.AllSettings()
 
 	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
 }
