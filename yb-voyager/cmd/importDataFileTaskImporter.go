@@ -23,6 +23,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -93,7 +94,7 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 }
 
 func (fti *FileTaskImporter) shouldUseNonTransactionalPath() bool {
-	return bool(enableFastPath) &&
+	return onPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR &&
 		fti.TableHasPrimaryKey() &&
 		(importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE)
 }
@@ -132,94 +133,35 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 }
 
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
+	var rowsAffected int64
+	var err error // Note: make sure to not define any other err variable in this scope
+
 	/*
-		Summary:
-
-		Check if the batch is already in progress then we need to recover with failure handling for unique constraint violation
-		Now we can have two paths:
-		1. If --enable-fast-path is true and allowed for the batch(check PK/non-PK table)
-			then use non-txn path for COPY
-		2. Else
-			- Use normal path with txn for COPY
-
-		Fast Path - Does everything like normal path but without transaction around COPY command
-		And in case of recovery; the batch will import via INSERT ON CONFLICT DO NOTHING/UPDATE path
-
-		Case: What if user change the flag/behaviour to use txn/non-txn path at the time of resumption?
-		- Complication comes as we will have to recover the files as per the previous fast path approach, rest of the batches(not created or just created) can continue as asked by the user
-		- For the first phase: Can we restrict the user to not change the flag/behaviour among fast/normal path.
-
-		Assumption: user won't change the PK once import data is started(for eg: after interruption / before retry)
+		recoveryBatch means the batch is already in progress state due to partial ingestion or transient errors in last run
+		Need this info for decision making in tgtdb.ImportBatch() to whether follow which of three paths
+		- Normal mode
+		- Fast path mode
+		- Fast path recovery mode
 	*/
-
-	if fti.shouldUseNonTransactionalPath() {
-		fti.importBatchViaNonTxnPath(batch)
-	} else {
-		fti.importBatchViaTxnPath(batch)
+	recoveryBatch := batch.IsInterrupted()
+	if !recoveryBatch {
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+		}
 	}
-}
 
-func (fti *FileTaskImporter) importBatchViaNonTxnPath(batch *Batch) {
-	/*
-		Fast path do non-txn import of batches
-		In case of recovery(last run imported partial batch):
-		in progress batch(es) will import via INSERT ON CONFLICT DO NOTHING approach
-		to recover with failure handling for unique constraint violation
-	*/
-	log.Infof("importing batch %q via non-transactional path", batch.FilePath)
-
-	// TODO: Need to implement/enable this Recovery logic not just for in-progress batches on command rerun,
-	// but also when we internally retry the batches in case of any database retryable-errors
-	recoverBatch := batch.IsInterrupted()
-	if recoverBatch {
-		// TODO: implement recovery logic
-		// TODO2: Ensure the task picker logic to first pick and import the interrupted task(in progress ones)
-		fti.importBatchViaRecoverMode(batch, onPrimaryKeyConflictAction)
-	} else {
-		fti.importBatchCore(batch, true)
-	}
-}
-
-func (fti *FileTaskImporter) importBatchViaTxnPath(batch *Batch) {
-	/*
-		Normal path uses txn for importing batches
-		In case of recovery(last run imported full batch but not marked as done):
-		we check the metadata table on target if batch is already imported in last run
-		which avoids unique constraint violation and we can skip the batch
-	*/
-	log.Infof("importing batch %q via normal transactional path", batch.FilePath)
-	fti.importBatchCore(batch, false)
-}
-
-// importBatchCore func is used for both txn/non-txn path(depending on the caller)
-// It will do the actual COPY command for the batch in the target DB with retries
-// called from importBatchViaTxnPath and importBatchViaNonTxnPath(non recovery mode)
-func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
-	err := batch.MarkInProgress()
-	if err != nil {
-		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
-	}
+	log.Infof("Importing %q", batch.FilePath)
 
 	importBatchArgs := *fti.importBatchArgsProto
 	importBatchArgs.FilePath = batch.FilePath
 	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
 
-	var rowsAffected int64
 	sleepIntervalSec := 0
-	log.Infof("start importing batch %q with nonTxnPath=%v", batch.FilePath, nonTxnPath)
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		if attempt > 0 && nonTxnPath {
-			log.Infof("(recovery) retrying batch %q with nonTxnPath=%v", batch.FilePath, nonTxnPath)
-			// Caller ensures only valid target DB type(YugabyteDB) reach here
-			ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-			if !ok {
-				utils.ErrExit("(recovery) target db is not of type TargetYugabyteDB to use for importing batch %q", batch.FilePath)
-			}
-			rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, onPrimaryKeyConflictAction, &importBatchArgs, exportDir, tableSchema)
-		} else {
-			rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, nonTxnPath)
-		}
+		isRecoveryCandidate := (recoveryBatch || attempt > 0)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -239,50 +181,6 @@ func (fti *FileTaskImporter) importBatchCore(batch *Batch, nonTxnPath bool) {
 	err = batch.MarkDone()
 	if err != nil {
 		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
-	}
-}
-
-// importBatchViaRecoverMode func is used for recovery in non transactional path
-func (fti *FileTaskImporter) importBatchViaRecoverMode(batch *Batch, action string) {
-	/*
-		Recovery mode for batch import (in-progress batches only)
-		In case of recovery(last run imported partial batch):
-		in progress batch(es) will import via INSERT ON CONFLICT DO (ACTION) approach
-		to recover with failure handling for unique constraint violation, if occurs.
-
-		This logic also need to retried for retryable errors for transient database errors
-		If the batch keeps fails after N retries(via recovery mode) then Error out
-	*/
-
-	// Caller ensures only valid target DB type(YugabyteDB) reach here
-	ybdb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		utils.ErrExit("(recovery) target db is not of type TargetYugabyteDB to use for importing batch %q", batch.FilePath)
-	}
-
-	var err error
-	var rowsAffected int64
-	for attempt := 0; attempt < BATCH_RECOVERY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = ybdb.ImportBatchViaRecoveryMode(batch, action, fti.importBatchArgsProto, exportDir, tableSchema)
-		if err == nil || ybdb.IsNonRetryableInsertError(err, onPrimaryKeyConflictAction) {
-			break
-		}
-
-		log.Warnf("(recovery) import batch %q: %s", batch.FilePath, err)
-		log.Infof("(recovery) sleep for %d seconds before retrying the file %s (attempt %d)",
-			RECOVERY_MODE_SLEEP_SECOND, batch.FilePath, attempt)
-		time.Sleep(time.Duration(RECOVERY_MODE_SLEEP_SECOND) * time.Second)
-	}
-
-	log.Infof("(recovery) %q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("(recovery) import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("(recovery) marking batch as done: %q: %s", batch.FilePath, err)
 	}
 }
 

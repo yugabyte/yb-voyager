@@ -92,7 +92,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
-	validateEnableFastPathFlag()
 	validateOnPrimaryKeyConflictFlag()
 	return nil
 }
@@ -243,8 +242,6 @@ If you go ahead without truncating, then yb-voyager starts ingesting the data pr
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
 	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false,
 		"Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
-	BoolVar(cmd.Flags(), &enableFastPath, "enable-fast-path", false,
-		"Enable fast path (non-transactional COPY) to improve import performance for colocated tables. Applies only to YugabyteDB target. Not applicable when importing into source/source-replica during fallforward or fallback. (default: false)")
 
 	// TODO: restrict changing of flag value after import data has started
 	// TODO: Detailed description of the flag
@@ -447,12 +444,6 @@ func validateTruncateTablesFlag() {
 	}
 }
 
-func validateEnableFastPathFlag() {
-	if !enableFastPath && onPrimaryKeyConflictAction != "" {
-		utils.ErrExit("Error: To use --on-primary-key-conflict, you must also enable --enable-fast-path.")
-	}
-}
-
 var onPrimaryKeyConflictActions = []string{
 	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
 	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
@@ -460,10 +451,6 @@ var onPrimaryKeyConflictActions = []string{
 }
 
 func validateOnPrimaryKeyConflictFlag() {
-	if enableFastPath && onPrimaryKeyConflictAction == "" {
-		utils.ErrExit("Error: The --on-primary-key-conflict flag is required when --enable-fast-path is set to true.")
-	}
-
 	if onPrimaryKeyConflictAction != "" {
 		onPrimaryKeyConflictAction = strings.ToUpper(onPrimaryKeyConflictAction)
 		if !slices.Contains(onPrimaryKeyConflictActions, onPrimaryKeyConflictAction) {

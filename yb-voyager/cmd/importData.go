@@ -74,8 +74,6 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
-// flags only for import data to target
-var enableFastPath utils.BoolStr
 var onPrimaryKeyConflictAction string
 
 var importDataCmd = &cobra.Command{

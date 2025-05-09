@@ -27,7 +27,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -480,17 +479,26 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-var counter atomic.Uint32
+/*
+ImportBatch function handles variety of cases for importing a batch into YugabyteDB
+1. Normal Mode - Importing a batch using COPY command with transaction.
+2. Fast Path Mode - Importing a batch using COPY command without transaction.
+3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
+*/
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
 
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
 	var rowsAffected int64
 	var err error
-
 	copyFn := func(conn *pgx.Conn) (bool, error) {
-		if nonTxnPath {
-			rowsAffected, err = yb.importBatchNoTxn(conn, batch, args, nonTxnPath)
+		if args.IsFastPath() {
+			if !isRecoveryCandidate {
+				rowsAffected, err = yb.importBatchFast(conn, batch, args)
+			} else {
+				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
+			}
 		} else {
-			rowsAffected, err = yb.importBatchWithTxn(conn, batch, args, nonTxnPath)
+			rowsAffected, err = yb.importBatch(conn, batch, args)
 		}
 		return false, err // Retries are now implemented in the caller.
 	}
@@ -498,7 +506,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (rowsAffected int64, err error) {
+func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
 	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
 	ctx := context.Background()
 	var tx pgx.Tx
@@ -525,15 +533,15 @@ func (yb *TargetYugabyteDB) importBatchWithTxn(conn *pgx.Conn, batch Batch, args
 
 	// using the conn on which the transaction is executing which should ensure -
 	// all DB operations inside copyBatchCore will be a part of the transaction
-	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args, nonTxnPath)
+	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args)
 	return rowsAffected, err
 }
 
-func (yb *TargetYugabyteDB) importBatchNoTxn(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (int64, error) {
-	return yb.copyBatchCore(conn, batch, args, nonTxnPath)
+func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	return yb.copyBatchCore(conn, batch, args)
 }
 
-func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, nonTxnPath bool) (int64, error) {
+func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
 	// 1. Open the batch file
 	file, err := batch.Open()
 	if err != nil {
@@ -557,7 +565,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 4. Import the batch using COPY command.
 	var res pgconn.CommandTag
 	var copyCommand string
-	if nonTxnPath {
+
+	// TODO: maybe move this check into the args struct methods and just call GetYBCopyStatement()
+	if args.IsFastPath() {
 		copyCommand = args.GetYBNonTxnCopyStatement()
 	} else {
 		copyCommand = args.GetYBTxnCopyStatement()
@@ -580,40 +590,8 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	return res.RowsAffected(), err
 }
 
-func (yb *TargetYugabyteDB) ImportBatchViaRecoveryMode(batch Batch, onPrimaryKeyConflictAction string,
-	args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
-	/*
-		Steps:
-		1. Check if batch was already imported and just failed to mark as done in last run.
-			If yes, return rows affected; caller will mark it as done.
-		2. Open the batch file
-		3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
-		4. [Optional] Use PreparedStatement Caching on coonPool for better performance
-		5. Execute the INSERT statement one by one
-		6. Update the Metadata about the batch imported
-		7. [Optional] log the summary about this: how many conflicts, how many inserted, how many update/upserted
-		8. Return the number of rows imported(wont necessarily be same as the number of rows in the batch)
-	*/
-
-	var rowsAffected int64
-	var err error
-	importBatchFn := func(conn *pgx.Conn) (bool, error) {
-		rowsAffected, err = yb.importBatchViaRecoverModeCore(conn, batch, args, onPrimaryKeyConflictAction)
-		if err != nil {
-			return false, err
-		}
-		log.Infof("Imported %d rows from %q", rowsAffected, batch.GetFilePath())
-		return false, nil
-	}
-	err = yb.connPool.WithConn(importBatchFn)
-	if err != nil {
-		return 0, fmt.Errorf("import batch %q: %w", batch.GetFilePath(), err)
-	}
-
-	return rowsAffected, nil
-}
-
-func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs, onPrimaryKeyConflictAction string) (int64, error) {
+// importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
+func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
 	// 1. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
@@ -633,7 +611,9 @@ func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch 
 	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
 	var rowsIgnored int64 = 0
 	rowsAffected = 0
-	insertStmt := args.GetInsertStatementBasedOn(onPrimaryKeyConflictAction)
+
+	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
+	insertStmt := args.GetInsertPreparedStmtForBatchImport()
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
@@ -690,7 +670,7 @@ func (yb *TargetYugabyteDB) importBatchViaRecoverModeCore(conn *pgx.Conn, batch 
 	}
 
 	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
-	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored", onPrimaryKeyConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
+	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored", args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 
 	// 8. returns total number of rows inserted; wont necessarily be same as the number of rows in the batch
 	return rowsAffected, nil

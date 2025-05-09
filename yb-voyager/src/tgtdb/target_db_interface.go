@@ -40,7 +40,7 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
@@ -95,11 +95,14 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 	return nil
 }
 
+// ======================= ImportBatchArgs ====================
+
 type ImportBatchArgs struct {
 	FilePath          string
 	TableNameTup      sqlname.NameTuple
 	Columns           []string
 	PrimaryKeyColumns []string // TODO: Implement
+	PKConflictAction  string
 
 	FileFormat string
 	HasHeader  bool
@@ -109,6 +112,11 @@ type ImportBatchArgs struct {
 	NullString string
 
 	RowsPerTransaction int64
+}
+
+// Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action
+func (args *ImportBatchArgs) IsFastPath() bool {
+	return len(args.PrimaryKeyColumns) > 0 && args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
 }
 
 func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
@@ -150,12 +158,12 @@ TODOs:
 */
 
 /*
-GetInsertStatementBasedOn returns the INSERT prepared statement based on the requested conflict action.
+GetInsertPreparedStmtForBatchImport returns the INSERT prepared statement based on the requested conflict action.
 1. ERROR   -> raise error (no ON CONFLICT clause)
 2. IGNORE  -> ON CONFLICT DO NOTHING
 3. UPDATE  -> ON CONFLICT (pk…) DO UPDATE SET non‑pk = EXCLUDED.non‑pk, …
 */
-func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) string {
+func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 	// TODO: Need to ensure the order of columns in the insert statement is same as the rows in batch file
 
 	// column list for insert statement (col1, col2, col3, ...)
@@ -172,9 +180,9 @@ func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) st
 	baseStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`,
 		args.TableNameTup.ForUserQuery(), columns, values)
 
-	switch conflictAction {
+	switch args.PKConflictAction {
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
-		return baseStmt // no additional clause
+		return baseStmt // no additional clause - although this is not going to be called ever.
 
 	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:
 		// we are dealing with PK conflict only for the target table (not Unique index etc...)
@@ -209,7 +217,7 @@ func (args *ImportBatchArgs) GetInsertStatementBasedOn(conflictAction string) st
 		// build the final insert statement
 		baseStmt = fmt.Sprintf("%s ON CONFLICT (%s) DO UPDATE SET %s", baseStmt, conflictTarget, updateSetClause)
 	default:
-		panic(fmt.Sprintf("Invalid conflict action: %s", conflictAction))
+		panic(fmt.Sprintf("Invalid conflict action: %s", args.PKConflictAction))
 	}
 
 	return baseStmt
