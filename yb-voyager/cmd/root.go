@@ -293,6 +293,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+	registerConfigFileFlag(cmd)
 
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
@@ -302,11 +303,11 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+}
 
+func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
-
-	// Hide the config file flag from help
 	cmd.PersistentFlags().MarkHidden("config-file")
 }
 

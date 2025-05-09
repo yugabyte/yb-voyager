@@ -13,6 +13,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var InMemoryConfigFile map[string]interface{}
+
 const (
 	// Flag name prefixes (used in CLI flags)
 	SourceDBFlagPrefix = "source-"
@@ -79,7 +81,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path",
+	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
@@ -96,7 +98,7 @@ var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[st
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
-	"disable-pb", "max-retries", "exclude-table-list", "table-list",
+	"disable-pb", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables",
 	// environment variables keys
@@ -107,14 +109,14 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"parallel-jobs", "disable-pb", "max-retries",
+	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
+	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -122,7 +124,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
+	"disable-pb", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables",
@@ -229,6 +231,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
+		cfgFile = v.ConfigFileUsed()
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -252,6 +255,9 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to bind environment variables to viper: %w", err)
 	}
+
+	// Set the in-memory config file for later use
+	InMemoryConfigFile = v.AllSettings()
 
 	return overrides, envVarsSetViaConfig, envVarsAlreadyExported, nil
 }

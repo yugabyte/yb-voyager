@@ -1517,9 +1517,35 @@ func startFallBackSetupIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
+
+	passImportDataToSourceSpecificCLIFlags := map[string]bool{
+		"disable-pb": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	if cfgFile != "" {
+		// Use the in memory stored config file in the config file layer
+		// If the config file has been set for a particular key, then don't pass the CLI flag related to that key
+		if section, ok := InMemoryConfigFile["import-data-to-source"].(map[string]interface{}); ok {
+			for key := range passImportDataToSourceSpecificCLIFlags {
+				if value, exists := section[key]; exists && value != "" {
+					passImportDataToSourceSpecificCLIFlags[key] = false
+				}
+			}
+		}
+
+		// Also add the config file flag to the command
+		cmd = append(cmd, "--config-file", cfgFile)
+	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
+
+	// Command specific flags
+	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
 		cmd = append(cmd, "--disable-pb=true")
 	}
+
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
