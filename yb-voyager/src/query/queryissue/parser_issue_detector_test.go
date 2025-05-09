@@ -1436,21 +1436,15 @@ func TestTimestampOrDateIndexesIssues(t *testing.T) {
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		stmts[1]: []QueryIssue{},
-		stmts[2]: []QueryIssue{
-			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at ON test", stmts[2], "created_at"),
-		},
+		stmts[2]: []QueryIssue{},
 		stmts[3]: []QueryIssue{
 			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3], "created_at"),
 		},
 		stmts[4]: []QueryIssue{},
 		stmts[5]: []QueryIssue{
 			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "created_at"),
-			NewSuggestionOnDateIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "ordered_date"),
 		},
-		stmts[6]: []QueryIssue{
-			NewSuggestionOnDateIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at_ordered_date ON test", stmts[6], "ordered_date"),
-			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at_ordered_date ON test", stmts[6], "created_at"),
-		},
+		stmts[6]: []QueryIssue{},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	err := parserIssueDetector.ParseAndProcessDDL(stmts[0])
