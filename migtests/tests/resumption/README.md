@@ -1,6 +1,6 @@
 # Resumption Test Script for YB Voyager
 
-The `resumption.py` script is designed to automate the testing of YB Voyager's resumption capabilities. It runs the import process with simulated interruptions according to the config provided and validates the results. It also supports multiple schemas and case-sensitive / reserved word table names. The parent script `resumption.sh` sets up the environment, initializes databases, orchestrates the execution of the Python script, and handles other things like extra config injections etc.
+The `resumption.py` script is designed to automate the testing of YB Voyager's resumption capabilities. It runs the import process with simulated interruptions according to the config provided and validates the results. It also supports multiple schemas and case-sensitive / reserved word table names. The parent script `resumption.sh` sets up the environment, initializes databases, orchestrates the execution of the Python script, and handles other things like flexible config injections etc.
 
 ## Features
 
@@ -13,10 +13,8 @@ The `resumption.py` script is designed to automate the testing of YB Voyager's r
 ## Usage
 
 ```bash
-[resumption.sh] TEST_NAME [env.sh] [additional_config_file]
+[resumption.sh] TEST_NAME [env.sh] [config_file]
 ```
-
-If the user wants to inject additional parameters to their base config, they can specify them in a file and store them in the `additional_configs` directory. The script will read these additional configurations and merge them with the base configuration if provided with the command. 
 
 ### Configuration Fields
 
