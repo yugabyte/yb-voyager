@@ -101,23 +101,6 @@ main() {
 		}
 	fi
 
-	# step "Generate the YAML file"
-	# if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	#   ./generate_config.py
-	# fi
-
-	# # Backup original config
-	# cp config.yaml config.yaml.original
-
-	# # If an additional config file is specified, append its contents to config.yaml.
-	# # This allows temporary overrides or additions for specific use cases.
-	# if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
-	#     echo "Appending additional config to config.yaml..."
-	#     cat "${ADDITIONAL_CONFIG_FILE}" >> config.yaml
-	# else
-	#     echo "No additional config file provided. Skipping append step."
-	# fi
-
 	step "Run import with resumptions"
 	${SCRIPTS}/resumption.py ${CONFIG_FILE}
 
@@ -133,18 +116,6 @@ main() {
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}"
 
-	# After usage, restore the original config to maintain a clean state.
-	# If we had modified config.yaml, replace it with the original.
-	# If no modifications were made, just clean up the backup.
-	# if [ -n "${ADDITIONAL_CONFIG_FILE}" ]; then
-	#   mv config.yaml.original config.yaml
-	# else
-	#   rm config.yaml.original
-	# fi
-
-	# if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	#   rm config.yaml
-	# fi
 	if [ -n "${SOURCE_DB_NAME}" ]; then
 		run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
 	fi
