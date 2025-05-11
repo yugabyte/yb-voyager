@@ -1,0 +1,46 @@
+CREATE TEMP TABLE distinct_stats AS 
+SELECT
+    idx.oid AS index_oid,
+    idx.relname AS index_name,
+    col.attname AS column_name,
+    ns.nspname AS schema_name,
+    tbl.relname AS table_name,
+    CASE 
+        WHEN st.n_distinct < 0 THEN (-1 * st.n_distinct * tbl.reltuples)
+        ELSE st.n_distinct
+    END AS effective_n_distinct,
+    cardinality(i.indkey) AS num_index_keys
+FROM
+    pg_index i
+JOIN pg_class idx ON idx.oid = i.indexrelid
+JOIN pg_class tbl ON tbl.oid = i.indrelid
+JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+JOIN pg_attribute col ON col.attrelid = tbl.oid AND col.attnum = i.indkey[0]
+JOIN pg_stats st ON st.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
+                    AND st.tablename = tbl.relname
+                    AND st.attname = col.attname;
+
+
+CREATE TEMP TABLE low_cardinality_indexes AS 
+SELECT
+    index_name,
+    column_name,
+    schema_name,
+    table_name,
+    effective_n_distinct,
+    num_index_keys,
+    pg_get_indexdef(index_oid) AS index_ddl
+FROM
+    distinct_stats
+WHERE
+    effective_n_distinct > 0 AND effective_n_distinct <= 10
+ORDER BY
+    effective_n_distinct;
+
+
+
+-- Now you can use the temporary table to fetch the data
+\copy low_cardinality_indexes TO 'low_cardinality_indexes.csv' WITH CSV HEADER;
+
+DROP TABLE low_cardinality_indexes;
+DROP TABLE distinct_stats;

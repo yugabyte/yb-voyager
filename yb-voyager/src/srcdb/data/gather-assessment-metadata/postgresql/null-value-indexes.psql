@@ -1,0 +1,28 @@
+CREATE TABLE null_value_indexes AS
+SELECT
+    idx.relname AS index_name,
+    col.attname AS column_name,
+    ns.nspname AS schema_name,
+    tbl.relname AS table_name,
+    st.null_frac,
+    cardinality(i.indkey) AS num_index_keys,
+    pg_get_indexdef(idx.oid) AS index_ddl
+FROM
+    pg_index i
+JOIN pg_class idx ON idx.oid = i.indexrelid
+JOIN pg_class tbl ON tbl.oid = i.indrelid
+JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+JOIN pg_attribute col ON col.attrelid = tbl.oid AND col.attnum = i.indkey[0]
+JOIN pg_stats st ON st.schemaname = 'public'
+                 AND st.tablename = tbl.relname
+                 AND st.attname = col.attname
+WHERE
+    st.null_frac > 0.40
+ORDER BY
+    st.null_frac;
+
+
+-- Now you can use the temporary table to fetch the data
+\copy null_value_indexes TO 'null_value_indexes.csv' WITH CSV HEADER;
+
+DROP TABLE null_value_indexes;

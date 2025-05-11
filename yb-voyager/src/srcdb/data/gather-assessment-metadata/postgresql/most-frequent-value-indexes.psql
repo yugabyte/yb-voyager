@@ -1,0 +1,52 @@
+CREATE TEMP TABLE freq_stats AS
+  SELECT
+    schemaname,
+    tablename,
+    attname,
+    unnest(most_common_vals::text::text[]) AS val,
+    unnest(most_common_freqs) AS freq
+  FROM pg_stats
+  WHERE most_common_freqs IS NOT NULL;
+
+CREATE TEMP TABLE high_freq_columns AS 
+  SELECT
+    schemaname,
+    tablename,
+    attname,
+    val,
+    MAX(freq) AS max_freq
+  FROM freq_stats
+  GROUP BY schemaname, tablename, attname, val
+  HAVING MAX(freq) >= 0.60;
+
+
+CREATE TEMP TABLE most_frequent_value_indexes AS
+SELECT
+  idx.relname AS index_name,
+  col.attname AS column_name,
+  ns.nspname AS schema_name,
+  tbl.relname AS table_name,
+  cardinality(i.indkey) AS num_index_keys,
+  hfc.val AS value,
+  hfc.max_freq AS frequency,
+  pg_get_indexdef(idx.oid) AS index_ddl
+FROM
+  pg_index i
+JOIN pg_class idx ON idx.oid = i.indexrelid
+JOIN pg_class tbl ON tbl.oid = i.indrelid
+JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
+JOIN pg_attribute col ON col.attrelid = tbl.oid AND col.attnum = i.indkey[0]
+JOIN high_freq_columns hfc ON hfc.schemaname = 'public'
+                           AND hfc.tablename = tbl.relname
+                           AND hfc.attname = col.attname;
+
+
+
+
+
+-- Now you can use the temporary table to fetch the data
+\copy most_frequent_value_indexes TO 'most_frequent_value_indexes.csv' WITH CSV HEADER;
+
+DROP TABLE most_frequent_value_indexes;
+DROP TABLE freq_stats;
+DROP TABLE high_freq_columns;
