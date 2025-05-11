@@ -13,7 +13,7 @@ JOIN pg_class idx ON idx.oid = i.indexrelid
 JOIN pg_class tbl ON tbl.oid = i.indrelid
 JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
 JOIN pg_attribute col ON col.attrelid = tbl.oid AND col.attnum = i.indkey[0]
-JOIN pg_stats st ON st.schemaname = 'public'
+JOIN pg_stats st ON st.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
                  AND st.tablename = tbl.relname
                  AND st.attname = col.attname
 WHERE
