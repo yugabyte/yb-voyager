@@ -473,6 +473,26 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	return result, nil
 }
 
+func (p *ParserIssueDetector) GetIndexIssuesForBetterDistribution(lowCardinalityIndexes []utils.LowCardinalityIndexesInfo, nullValueIndexes []utils.NullValueIndexesInfo, mostFrequentIndexes []utils.MostFrequentValueIndexesInfo) []QueryIssue {
+	var issues []QueryIssue
+	//TODO: see if want to have any precendence for an issue over multiple issues on an index
+
+	for _, lowCardinalIndex := range lowCardinalityIndexes {
+		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, lowCardinalIndex.GetIndexObjectName(),
+			lowCardinalIndex.IndexInfo.IndexDDL, lowCardinalIndex.NumIndexKeys, lowCardinalIndex.Cardinality, lowCardinalIndex.IndexInfo.ColumnName))
+	}
+
+	for _, nullValueIndex := range nullValueIndexes {
+		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, nullValueIndex.GetIndexObjectName(), nullValueIndex.IndexInfo.IndexDDL, nullValueIndex.IndexInfo.NumIndexKeys, nullValueIndex.NullFrequency, nullValueIndex.IndexInfo.ColumnName))
+	}
+
+	for _, mostFrequentIndex := range mostFrequentIndexes {
+		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, mostFrequentIndex.GetIndexObjectName(), mostFrequentIndex.IndexInfo.IndexDDL,
+			mostFrequentIndex.IndexInfo.NumIndexKeys, mostFrequentIndex.Value, mostFrequentIndex.Frequency, mostFrequentIndex.IndexInfo.ColumnName))
+	}
+	return issues
+}
+
 func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
 
 	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)

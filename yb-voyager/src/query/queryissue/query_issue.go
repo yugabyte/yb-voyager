@@ -73,6 +73,9 @@ var PerformanceOptimizationIssues = []string{
 	HASH_SHARDING_DATE_INDEX,
 	HASH_SHARDING_TIMESTAMP_INDEX,
 	REDUNDANT_INDEXES,
+	LOW_CARDINALITY_INDEXES, 
+	MOST_FREQUENT_VALUE_INDEXES,
+	NULL_VALUE_INDEXES,
 }
 
 var UnsupportedSystemColumnsIssueTypes = []string{

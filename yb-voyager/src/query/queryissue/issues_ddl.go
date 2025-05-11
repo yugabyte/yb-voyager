@@ -2091,3 +2091,56 @@ func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement s
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
+
+var lowCardinalityIndexIssue = issue.Issue{
+	Name:     LOW_CARDINALITY_INDEX_ISSUE_NAME,
+	Type:     LOW_CARDINALITY_INDEXES,
+	Impact:   constants.IMPACT_LEVEL_1,
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+}
+
+func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, cardinality int, columnName string) QueryIssue {
+	issue := lowCardinalityIndexIssue
+	if numOfColumns > 1 {
+		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN, columnName, cardinality)
+	} else {
+		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN, columnName, cardinality)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var nullValueIndexes = issue.Issue{
+	Name:     NULL_VALUE_INDEXES_ISSUE_NAME,
+	Type:     NULL_VALUE_INDEXES,
+	Impact:   constants.IMPACT_LEVEL_1,
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#null-value-indexes",
+}
+
+func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, nullFrequency float64, columnName string) QueryIssue {
+	issue := nullValueIndexes
+	perc := int(nullFrequency * 100)
+	if numOfColumns > 1 {
+		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN, columnName, perc)
+	} else {
+		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN, columnName, perc)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var mostFrequentValueIndexIssue = issue.Issue{
+	Name:     MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME,
+	Type:     MOST_FREQUENT_VALUE_INDEXES,
+	Impact:   constants.IMPACT_LEVEL_1,
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+}
+
+func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, value string, frequency float64, columnName string) QueryIssue {
+	issue := mostFrequentValueIndexIssue
+	perc := int(frequency * 100)
+	if numOfColumns > 1 {
+		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN, value, perc, columnName)
+	} else {
+		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN, value, perc, columnName)
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}

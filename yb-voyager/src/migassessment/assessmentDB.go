@@ -32,16 +32,19 @@ import (
 )
 
 const (
-	TABLE_INDEX_IOPS         = "table_index_iops"
-	TABLE_INDEX_SIZES        = "table_index_sizes"
-	TABLE_ROW_COUNTS         = "table_row_counts"
-	TABLE_COLUMNS_COUNT      = "table_columns_count"
-	INDEX_TO_TABLE_MAPPING   = "index_to_table_mapping"
-	OBJECT_TYPE_MAPPING      = "object_type_mapping"
-	TABLE_COLUMNS_DATA_TYPES = "table_columns_data_types"
-	TABLE_INDEX_STATS        = "table_index_stats"
-	DB_QUERIES_SUMMARY       = "db_queries_summary"
-	REDUNDANT_INDEXES        = "redundant_indexes"
+	TABLE_INDEX_IOPS            = "table_index_iops"
+	TABLE_INDEX_SIZES           = "table_index_sizes"
+	TABLE_ROW_COUNTS            = "table_row_counts"
+	TABLE_COLUMNS_COUNT         = "table_columns_count"
+	INDEX_TO_TABLE_MAPPING      = "index_to_table_mapping"
+	OBJECT_TYPE_MAPPING         = "object_type_mapping"
+	TABLE_COLUMNS_DATA_TYPES    = "table_columns_data_types"
+	TABLE_INDEX_STATS           = "table_index_stats"
+	DB_QUERIES_SUMMARY          = "db_queries_summary"
+	REDUNDANT_INDEXES           = "redundant_indexes"
+	LOW_CARDINALITY_INDEXES     = "low_cardinality_indexes"
+	NULL_VALUE_INDEXES          = "null_value_indexes"
+	MOST_FREQUENT_VALUE_INDEXES = "most_frequent_value_indexes"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -146,6 +149,34 @@ func InitAssessmentDB() error {
 			redundant_ddl TEXT,
 			existing_ddl TEXT,
 			PRIMARY KEY(redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			index_name TEXT,
+			column_name TEXT,
+			schema_name TEXT,
+			table_name TEXT,
+			effective_n_distinct INTEGER,
+			num_index_keys INTEGER,
+			index_ddl TEXT,
+			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, LOW_CARDINALITY_INDEXES),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			index_name TEXT,
+			column_name TEXT,
+			schema_name TEXT,
+			table_name TEXT,
+			null_frac REAL,
+			num_index_keys INTEGER,
+			index_ddl TEXT,
+			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, NULL_VALUE_INDEXES),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			index_name TEXT,
+			column_name TEXT,
+			schema_name TEXT,
+			table_name TEXT,
+			num_index_keys INTEGER,
+			value TEXT,
+			frequency REAL,
+			index_ddl TEXT,
+			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, MOST_FREQUENT_VALUE_INDEXES),
 	}
 
 	for _, cmd := range cmds {

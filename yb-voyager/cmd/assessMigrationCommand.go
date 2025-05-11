@@ -839,7 +839,7 @@ func generateAssessmentReport() (err error) {
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
-	err = addAssessmentIssuesForRedundantIndexes()
+	err = addAssessmentIssuesForVariousIndexOptimizations()
 	if err != nil {
 		return fmt.Errorf("error in getting redundant index issues: %v", err)
 	}
@@ -871,17 +871,14 @@ func generateAssessmentReport() (err error) {
 	return nil
 }
 
-func addAssessmentIssuesForRedundantIndexes() error {
-	if source.DBType != POSTGRESQL {
-		return nil
-	}
+func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 	query := fmt.Sprintf(`SELECT redundant_schema_name,redundant_table_name,redundant_index_name,
 	existing_schema_name,existing_table_name,existing_index_name,
 	redundant_ddl,existing_ddl from %s`,
 		migassessment.REDUNDANT_INDEXES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -897,16 +894,132 @@ func addAssessmentIssuesForRedundantIndexes() error {
 			&redundantIndex.ExistingSchemaName, &redundantIndex.ExistingTableName, &redundantIndex.ExistingIndexName,
 			&redundantIndex.RedundantIndexDDL, &redundantIndex.ExistingIndexDDL)
 		if err != nil {
-			return fmt.Errorf("error scanning rows for redundant indexes: %w", err)
+			return nil, fmt.Errorf("error scanning rows for redundant indexes: %w", err)
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
 	}
-	redundantIssues := parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)
-	for _, redundantIssue := range redundantIssues {
-		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(redundantIssue, "", false, false)
-		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, redundantIssue.MinimumVersionsFixedIn)
-		assessmentReport.AppendIssues(issue)
+	return redundantIndexesInfo, nil
+}
+
+func fetchLowCardinalityIndexInfo() ([]utils.LowCardinalityIndexesInfo, error) {
+	query := fmt.Sprintf(`SELECT index_name,column_name,schema_name,table_name,effective_n_distinct,num_index_keys,index_ddl from %s`,
+		migassessment.LOW_CARDINALITY_INDEXES)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for low cardinality indexes: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching for low cardinality indexes %v", err)
+		}
+	}()
+
+	var lowCardinalityIndexes []utils.LowCardinalityIndexesInfo
+	for rows.Next() {
+		var lowCardinalityIndexInfo utils.LowCardinalityIndexesInfo
+		err := rows.Scan(&lowCardinalityIndexInfo.IndexInfo.IndexName, &lowCardinalityIndexInfo.IndexInfo.ColumnName, &lowCardinalityIndexInfo.IndexInfo.SchemaName, &lowCardinalityIndexInfo.IndexInfo.TableName,
+			&lowCardinalityIndexInfo.Cardinality, &lowCardinalityIndexInfo.IndexInfo.NumIndexKeys, &lowCardinalityIndexInfo.IndexInfo.IndexDDL)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows for low cardinality indexes: %w", err)
+		}
+		lowCardinalityIndexInfo.DBType = source.DBType
+		lowCardinalityIndexes = append(lowCardinalityIndexes, lowCardinalityIndexInfo)
+	}
+	return lowCardinalityIndexes, nil
+}
+
+func fetchNullValueIndexes() ([]utils.NullValueIndexesInfo, error) {
+	query := fmt.Sprintf(`SELECT index_name,column_name,schema_name,table_name,null_frac,num_index_keys,index_ddl from %s`,
+		migassessment.NULL_VALUE_INDEXES)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for null value indexes: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching for null value indexes %v", err)
+		}
+	}()
+
+	var nullValueIndexes []utils.NullValueIndexesInfo
+	for rows.Next() {
+		var nullValueIndex utils.NullValueIndexesInfo
+		err := rows.Scan(&nullValueIndex.IndexInfo.IndexName, &nullValueIndex.IndexInfo.ColumnName, &nullValueIndex.IndexInfo.SchemaName, &nullValueIndex.IndexInfo.TableName,
+			&nullValueIndex.NullFrequency, &nullValueIndex.IndexInfo.NumIndexKeys, &nullValueIndex.IndexInfo.IndexDDL)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows for null value indexes: %w", err)
+		}
+		nullValueIndex.DBType = source.DBType
+		nullValueIndexes = append(nullValueIndexes, nullValueIndex)
+	}
+	return nullValueIndexes, nil
+}
+func fetchMostFrequentIndexesInfo() ([]utils.MostFrequentValueIndexesInfo, error) {
+	query := fmt.Sprintf(`SELECT 	index_name,column_name,schema_name ,table_name,num_index_keys,value,frequency, index_ddl from %s`,
+		migassessment.MOST_FREQUENT_VALUE_INDEXES)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for most frequent values indexes: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching most frequent values indexes %v", err)
+		}
+	}()
+
+	var mostFrequentIndexes []utils.MostFrequentValueIndexesInfo
+	for rows.Next() {
+		var mostFrequentIndex utils.MostFrequentValueIndexesInfo
+		err := rows.Scan(&mostFrequentIndex.IndexInfo.IndexName, &mostFrequentIndex.IndexInfo.ColumnName, &mostFrequentIndex.IndexInfo.SchemaName, &mostFrequentIndex.IndexInfo.TableName,
+			&mostFrequentIndex.IndexInfo.NumIndexKeys, &mostFrequentIndex.Value, &mostFrequentIndex.Frequency, &mostFrequentIndex.IndexInfo.IndexDDL)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows for most frequent values indexes: %w", err)
+		}
+		mostFrequentIndex.DBType = source.DBType
+		mostFrequentIndexes = append(mostFrequentIndexes, mostFrequentIndex)
+	}
+	return mostFrequentIndexes, nil
+}
+
+func addAssessmentIssuesForVariousIndexOptimizations() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	redundantIndexesInfo, err := fetchRedundantIndexInfo()
+	if err != nil {
+		log.Errorf("error fetching redundant index information: %v", err)
+	}
+
+	lowCardinalityIndexInfo, err := fetchLowCardinalityIndexInfo()
+	if err != nil {
+		log.Errorf("error fetching low cardinality index information: %v", err)
+	}
+
+	nullValueIndexesInfo, err := fetchNullValueIndexes()
+	if err != nil {
+		log.Errorf("error fetching null value index information: %v", err)
+	}
+
+	mostFrequentIndexesInfo, err := fetchMostFrequentIndexesInfo()
+	if err != nil {
+		log.Errorf("error fetching most frequent values index information: %v", err)
+	}
+
+	var variousIndexIssues []queryissue.QueryIssue
+	variousIndexIssues = append(variousIndexIssues, parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)...)
+
+	variousIndexIssues = append(variousIndexIssues, parserIssueDetector.GetIndexIssuesForBetterDistribution(lowCardinalityIndexInfo, nullValueIndexesInfo, mostFrequentIndexesInfo)...)
+
+	//TODO: send some details from description to callhome
+
+	for _, issue := range variousIndexIssues {
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
+		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(convertedIssue)
 	}
 	return nil
 }
