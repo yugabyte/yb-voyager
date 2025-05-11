@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -17,6 +18,7 @@ import (
 type PostgresContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
@@ -72,6 +74,13 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
+
+	// initialise the db connection pool
+	pg.db, err = sql.Open("pgx", pg.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to open db connection to postgres: %w", err)
+	}
+
 	return nil
 }
 
@@ -137,4 +146,12 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (pg *PostgresContainer) Query(query string) (*sql.Rows, error) {
+	if pg == nil {
+		return nil, fmt.Errorf("postgres container is not started: nil")
+	}
+
+	return pg.db.Query(query)
 }

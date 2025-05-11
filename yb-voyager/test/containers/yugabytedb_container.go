@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
@@ -19,6 +20,7 @@ import (
 type YugabyteDBContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
@@ -76,6 +78,13 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping yugabytedb container: %w", err)
 	}
+
+	// initialise the db connection pool
+	yb.db, err = sql.Open("pgx", yb.GetConnectionString())
+	if err != nil {
+		return fmt.Errorf("failed to open db connection to yugabytedb: %w", err)
+	}
+
 	return nil
 }
 
@@ -157,4 +166,12 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}
 	}
+}
+
+func (yb *YugabyteDBContainer) Query(query string) (*sql.Rows, error) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+
+	return yb.db.Query(query)
 }

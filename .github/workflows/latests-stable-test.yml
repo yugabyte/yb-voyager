@@ -1,0 +1,35 @@
+name: Go - Test Latest Stable YB Version
+
+on:
+  push:
+    branches: ['main', '*.*-dev', '*.*.*-dev']
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-latest-stable:
+    runs-on: ubuntu-22.04
+
+    env:
+      YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
+      YB_VOYAGER_SEND_DIAGNOSTICS: 0
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v3
+        with:
+          go-version: "1.23.1"
+
+      - name: Build Voyager
+        run: |
+          cd yb-voyager
+          go build -v ./...
+
+      - name: Test Latest Stable YB Version
+        run: |
+          cd yb-voyager
+          go test -v ./... -tags 'yb_version_latest_stable'
+
+     

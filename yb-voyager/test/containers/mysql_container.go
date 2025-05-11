@@ -17,6 +17,7 @@ import (
 type MysqlContainer struct {
 	ContainerConfig
 	container testcontainers.Container
+	db        *sql.DB
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
@@ -134,4 +135,12 @@ func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (ms *MysqlContainer) Query(query string) (*sql.Rows, error) {
+	if ms == nil {
+		return nil, fmt.Errorf("mysql container is not started: nil")
+	}
+
+	return ms.db.Query(query)
 }
