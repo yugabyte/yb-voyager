@@ -98,7 +98,7 @@ var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[st
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
-	"disable-pb", "exclude-table-list", "table-list",
+	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables",
 	// environment variables keys
@@ -109,14 +109,14 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"parallel-jobs", "disable-pb",
+	"parallel-jobs", "disable-pb", "max-retries",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb",
+	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
 	"event-channel-size", "max-events-per-batch", "max-interval-between-batches",
@@ -124,7 +124,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"disable-pb", "enable-upsert", "use-public-ip", "target-endpoints",
+	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
 	"quote-char", "file-opts", "null-string", "truncate-tables",

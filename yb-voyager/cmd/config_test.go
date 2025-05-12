@@ -1472,6 +1472,7 @@ import-data:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
+  max-retries: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -1539,6 +1540,7 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
 	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
 	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
@@ -1580,6 +1582,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--adaptive-parallelism-max", "5",
 		"--skip-replication-checks", "false",
 		"--disable-pb", "false",
+		"--max-retries", "5",
 		"--exclude-table-list", "table5,table6",
 		"--table-list", "table7,table8",
 		"--exclude-table-list-file-path", "/tmp/new-exclude-tables.txt",
@@ -1634,6 +1637,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), skipReplicationChecks, "Skip replication checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should be overridden by CLI")
 	assert.Equal(t, "table5,table6", tconf.ExcludeTableList, "Exclude table list for importing data should be overridden by CLI")
 	assert.Equal(t, "table7,table8", tconf.TableList, "Table list for importing data should be overridden by CLI")
 	assert.Equal(t, "/tmp/new-exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should be overridden by CLI")
@@ -1717,6 +1721,7 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the env var")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
 	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
 	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
@@ -1768,6 +1773,7 @@ import-data:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
+  max-retries: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -1818,6 +1824,7 @@ import-data:
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
 	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
 	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
@@ -1864,6 +1871,7 @@ import-data-to-target:
   adaptive-parallelism-max: 10
   skip-replication-checks: true
   disable-pb: true
+  max-retries: 3
   exclude-table-list: table1,table2
   table-list: table3,table4
   exclude-table-list-file-path: /tmp/exclude-tables.txt
@@ -1914,6 +1922,7 @@ import-data-to-target:
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), skipReplicationChecks, "Skip replication checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, "table1,table2", tconf.ExcludeTableList, "Exclude table list for importing data should match the config")
 	assert.Equal(t, "table3,table4", tconf.TableList, "Table list for importing data should match the config")
 	assert.Equal(t, "/tmp/exclude-tables.txt", excludeTableListFilePath, "Exclude table list file path for importing data should match the config")
@@ -1977,6 +1986,7 @@ import-data-file:
   enable-adaptive-parallelism: true
   adaptive-parallelism-max: 10
   disable-pb: true
+  max-retries: 3
   enable-upsert: true
   use-public-ip: true
   target-endpoints: endpoint1,endpoint2
@@ -2045,6 +2055,7 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
 	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
@@ -2086,6 +2097,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--enable-adaptive-parallelism", "false",
 		"--adaptive-parallelism-max", "5",
 		"--disable-pb", "false",
+		"--max-retries", "5",
 		"--enable-upsert", "false",
 		"--use-public-ip", "false",
 		"--target-endpoints", "endpoint3,endpoint4",
@@ -2144,6 +2156,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
 	assert.Equal(t, 5, tconf.MaxParallelism, "Adaptive parallelism max should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.EnableUpsert, "Enable upsert for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.UsePublicIP, "Use public IP for importing data should be overridden by CLI")
 	assert.Equal(t, "endpoint3,endpoint4", tconf.TargetEndpoints, "Target endpoints for importing data should be overridden by CLI")
@@ -2225,6 +2238,7 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
 	assert.Equal(t, 10, tconf.MaxParallelism, "Adaptive parallelism max should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableUpsert, "Enable upsert for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
 	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
