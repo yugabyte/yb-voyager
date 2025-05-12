@@ -76,7 +76,7 @@ const (
 
 type Batch interface {
 	Open() (*os.File, error)
-	OpenDataFile() (datafile.DataFile, error)
+	OpenAsDataFile() (datafile.DataFile, error)
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string

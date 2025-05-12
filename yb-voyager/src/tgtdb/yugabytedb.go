@@ -602,7 +602,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	}
 
 	// 2. Open the batch file as datafile
-	df, err := batch.OpenDataFile()
+	df, err := batch.OpenAsDataFile()
 	if err != nil {
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}

@@ -51,7 +51,8 @@ func (d *dummyYb) IsDBColocated() (bool, error) {
 	return len(d.colocatedTables) > 0, nil
 }
 
-func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, exportDir string,
+	tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
 	return 1, nil
 }
 

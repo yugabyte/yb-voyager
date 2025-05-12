@@ -247,6 +247,7 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 	// TODO: Detailed description of the flag
 	cmd.Flags().StringVar(&onPrimaryKeyConflictAction, "on-primary-key-conflict", "",
 		"Action to take on primary key conflict. Supported values: 'ERROR', 'IGNORE', 'UPDATE'")
+	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

@@ -813,7 +813,7 @@ func (batch *Batch) Open() (*os.File, error) {
 	return file, err
 }
 
-func (batch *Batch) OpenDataFile() (datafile.DataFile, error) {
+func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
 	reader, err := dataStore.Open(batch.GetFilePath())
 	if err != nil {
 		return nil, fmt.Errorf("open datastore %q: %s", batch.GetFilePath(), err)

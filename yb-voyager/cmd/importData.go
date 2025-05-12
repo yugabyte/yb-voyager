@@ -1310,7 +1310,6 @@ func prepareTableToColumns(tasks []*ImportFileTask) {
 			log.Infof("header row split using delimiter %q: %v\n", dataFileDescriptor.Delimiter, columns)
 			df.Close()
 		}
-		fmt.Printf("putting table name %q and columns %v in tableToColumns\n", task.TableNameTup.ForKey(), columns)
 		TableToColumnNames.Put(task.TableNameTup, columns)
 	}
 }
