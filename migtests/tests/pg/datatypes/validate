@@ -119,15 +119,14 @@ def migration_completed_checks(tgt):
 		transform_func=str, expected_distinct_values=['1001100101','0001010101','1001000101'])
 	
 	print(f"distinct_bit_varying_values:")
-	# expected_values = ['0001010101','0001010','00101010101010101010101010001010100101010101010101000']
-	expected_values = ['1010101','1010','101010101010101010101010001010100101010101010101000']
+	expected_values = ['0001010101','0001010','00101010101010101010101010001010100101010101010101000']
+	# expected_values = ['1010101','1010','101010101010101010101010001010100101010101010101000']
 	# if os.environ.get('BETA_FAST_DATA_EXPORT') == '1':
 	# 	expected_values = ['1010101','1010','101010101010101010101010001010100101010101010101000']
 	print(f"expected_values: {expected_values}")
-	def remove_leading_zeros(val):
-		return val.lstrip('0')
+	
 	tgt.assert_distinct_values_of_col("datatypes2", "v5", "public", 
-		remove_leading_zeros, expected_distinct_values=expected_values)
+		None, expected_distinct_values=expected_values)
 
 	print(f"distinct_int[]_values:")
 	tgt.assert_distinct_values_of_col("datatypes2", "v3", "public", 
