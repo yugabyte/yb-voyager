@@ -28,6 +28,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
     public void converterFor(RelationalColumn column,
             ConverterRegistration<SchemaBuilder> registration) {
 
+        LOGGER.info("Processing converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
         JDBCType jdbcType = JDBCType.valueOf(column.jdbcType());
         switch (jdbcType) {
             case STRUCT:
@@ -37,6 +38,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
 
         }
         switch (column.typeName()) {
+            case "varbit":
             case "tsvector":
             case "tsquery":
                 registration.register(SchemaBuilder.string(), this::stringify);
