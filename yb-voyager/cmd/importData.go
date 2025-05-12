@@ -293,19 +293,18 @@ func startExportDataFromTargetIfRequired() {
 	}
 
 	// Check whether the command specifc flags have been set in the config file
-	if cfgFile != "" {
-		// Use the in memory stored config file in the config file layer
-		// If the config file has been set for a particular key, then don't pass the CLI flag related to that key
-		if section, ok := InMemoryConfigFile["export-data-from-target"].(map[string]interface{}); ok {
-			for key := range passExportDataFromTargetSpecificCLIFlags {
-				if value, exists := section[key]; exists && value != "" {
-					passExportDataFromTargetSpecificCLIFlags[key] = false
-				}
+	keysSetInConfig, err := readConfigFileAndGetExportDataFromTargetKeys()
+	var displayCmdAndExit bool
+	var configFileErr error
+	if err != nil {
+		displayCmdAndExit = true
+		configFileErr = err
+	} else {
+		for key := range passExportDataFromTargetSpecificCLIFlags {
+			if slices.Contains(keysSetInConfig, key) {
+				passExportDataFromTargetSpecificCLIFlags[key] = false
 			}
 		}
-
-		// Also add the config file flag to the command
-		cmd = append(cmd, "--config-file", cfgFile)
 	}
 
 	// Log which command specific flags are to be passed to the command
@@ -339,6 +338,14 @@ func startExportDataFromTargetIfRequired() {
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
+
+	// If error had occurred while reading the config file, display the command and exit
+	if displayCmdAndExit {
+		// We are delaying this error message to be displayed here so that we can display the command
+		// after it has been constructed
+		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
+	}
+
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager: %w", lookErr)
