@@ -116,7 +116,9 @@ type ImportBatchArgs struct {
 
 // Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action
 func (args *ImportBatchArgs) IsFastPath() bool {
-	return len(args.PrimaryKeyColumns) > 0 && args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
+	return len(args.PrimaryKeyColumns) > 0 &&
+		(args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE ||
+			args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE)
 }
 
 func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
