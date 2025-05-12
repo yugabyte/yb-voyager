@@ -2540,17 +2540,9 @@ func TestExportDataFromTargetConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on target config
-	// assert.Equal(t, "2.1.1.1", source.Host, "Target host should match the config")
-	// assert.Equal(t, 5432, source.Port, "Target port should match the config")
-	// assert.Equal(t, "test_user", source.User, "Target user should match the config")
 	assert.Equal(t, "test_password", source.Password, "Target password should match the config")
-	// assert.Equal(t, "test_db", source.DBName, "Target DB name should match the config")
-	// assert.Equal(t, "public", source.Schema, "Target schema should match the config")
-	// assert.Equal(t, "/path/to/ssl-cert", source.SSLCertPath, "Target SSL cert should match the config")
 	assert.Equal(t, "require", source.SSLMode, "Target SSL mode should match the config")
-	// assert.Equal(t, "/path/to/ssl-key", source.SSLKey, "Target SSL key should match the config")
 	assert.Equal(t, "/path/to/ssl-root-cert", source.SSLRootCert, "Target SSL root cert should match the config")
-	// assert.Equal(t, "/path/to/ssl-crl", source.SSLCRL, "Target SSL CRL should match the config")
 	// Assertions on export-data config
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
