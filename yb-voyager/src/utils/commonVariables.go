@@ -115,7 +115,7 @@ type AnalyzeSchemaIssue struct {
 	GH                     string                          `json:"GH"`
 	DocsLink               string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"-"`
+	Details                map[string]interface{}          `json:"-" xml:"-"`
 }
 
 func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
