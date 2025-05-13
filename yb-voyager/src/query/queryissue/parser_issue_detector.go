@@ -481,7 +481,7 @@ func (p *ParserIssueDetector) GetIndexIssuesForBetterDistribution(lowCardinality
 	for _, lowCardinalIndex := range lowCardinalityIndexes {
 		lowCardinalityIssueMap[lowCardinalIndex.GetIndexObjectName()] = true
 		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, lowCardinalIndex.GetIndexObjectName(),
-			lowCardinalIndex.IndexInfo.IndexDDL, lowCardinalIndex.NumIndexKeys, lowCardinalIndex.Cardinality, lowCardinalIndex.IndexInfo.ColumnName))
+			lowCardinalIndex.IndexInfo.IndexDDL, lowCardinalIndex.IndexInfo.NumIndexKeys, lowCardinalIndex.Cardinality, lowCardinalIndex.IndexInfo.ColumnName))
 	}
 
 	for _, nullValueIndex := range nullValueIndexes {

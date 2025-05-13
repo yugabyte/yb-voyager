@@ -178,6 +178,13 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
 			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
+		if slices.Contains(queryissue.IssueTypesForModifyingIssueNameWithExtraDetails, issue.Type) {
+			//TODO: fix the handling of extra issue specific details with map having that information send it directly to callhome 
+			callhomeIssueName, ok := issue.Details[queryissue.CALLHOME_ISSUE_NAME_KEY]
+			if ok {
+				obfuscatedIssue.Name = callhomeIssueName.(string)
+			}
+		}
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
@@ -1041,9 +1048,8 @@ func addAssessmentIssuesForVariousIndexOptimizations() error {
 
 	variousIndexIssues = append(variousIndexIssues, parserIssueDetector.GetIndexIssuesForBetterDistribution(lowCardinalityIndexInfo, nullValueIndexesInfo, mostFrequentIndexesInfo)...)
 
-	//TODO: send some details from description to callhome
-
 	for _, issue := range variousIndexIssues {
+
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
 		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
 		assessmentReport.AppendIssues(convertedIssue)
@@ -1163,6 +1169,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		SqlStatement:           analyzeSchemaIssue.SqlStatement,
 		DocsLink:               analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn: minVersionsFixedIn,
+		Details:                analyzeSchemaIssue.Details,
 	}
 }
 

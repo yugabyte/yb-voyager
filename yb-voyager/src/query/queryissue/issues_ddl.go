@@ -2067,12 +2067,17 @@ var lowCardinalityIndexIssue = issue.Issue{
 
 func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, cardinality int, columnName string) QueryIssue {
 	issue := lowCardinalityIndexIssue
+	details := make(map[string]interface{})
+	fmt.Printf("object- %s, num columns- %v", objectName, numOfColumns)
 	if numOfColumns > 1 {
+
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality multi column index with cardinality %d", cardinality)
 		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN, columnName, cardinality)
 	} else {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality single column index with cardinality %d", cardinality)
 		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN, columnName, cardinality)
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var nullValueIndexes = issue.Issue{
@@ -2085,12 +2090,15 @@ var nullValueIndexes = issue.Issue{
 func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, nullFrequency float64, columnName string) QueryIssue {
 	issue := nullValueIndexes
 	perc := int(nullFrequency * 100)
+	details := make(map[string]interface{})
 	if numOfColumns > 1 {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value multi column index with frequency %d%%", perc)
 		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN, columnName, perc)
 	} else {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value single column index with frequency %d%%", perc)
 		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN, columnName, perc)
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var mostFrequentValueIndexIssue = issue.Issue{
@@ -2103,10 +2111,14 @@ var mostFrequentValueIndexIssue = issue.Issue{
 func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, value string, frequency float64, columnName string) QueryIssue {
 	issue := mostFrequentValueIndexIssue
 	perc := int(frequency * 100)
+	details := make(map[string]interface{})
 	if numOfColumns > 1 {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value multi column index with frequency %d%%", perc)
+
 		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN, value, perc, columnName)
 	} else {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value single column index with frequency %d%%", perc)
 		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN, value, perc, columnName)
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }

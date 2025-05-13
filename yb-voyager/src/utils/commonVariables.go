@@ -115,6 +115,7 @@ type AnalyzeSchemaIssue struct {
 	GH                     string                          `json:"GH"`
 	DocsLink               string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
+	Details                map[string]interface{}          `json:"-"`
 }
 
 func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
@@ -172,7 +173,6 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 
 type LowCardinalityIndexesInfo struct {
 	DBType       string
-	NumIndexKeys int
 	Cardinality  int
 	IndexInfo    CommonIndexInfo
 }
@@ -183,7 +183,6 @@ func (l *LowCardinalityIndexesInfo) GetIndexObjectName() string {
 
 type NullValueIndexesInfo struct {
 	DBType        string
-	NumIndexKeys  int
 	NullFrequency float64
 	IndexInfo     CommonIndexInfo
 }

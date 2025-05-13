@@ -460,6 +460,7 @@ Note: Range sharding is enabled by default only in PostgreSQL compatibility mode
 
 // Object types
 const (
+	CALLHOME_ISSUE_NAME_KEY   = "CALLHOME_ISSUE_NAME"
 	CONSTRAINT_NAME           = "ConstraintName"
 	FUNCTION_NAMES            = "FunctionNames"
 	TABLE_OBJECT_TYPE         = "TABLE"
@@ -470,6 +471,7 @@ const (
 	TRIGGER_OBJECT_TYPE       = "TRIGGER"
 	DML_QUERY_OBJECT_TYPE     = "DML_QUERY"
 )
+
 
 // Issue Suggestions
 // Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome

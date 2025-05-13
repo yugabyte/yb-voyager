@@ -701,6 +701,8 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Suggestion:             issueInstance.Suggestion,
 		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
+		Details: issueInstance.Details,
+
 	}
 }
 
