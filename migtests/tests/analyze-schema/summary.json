@@ -37,7 +37,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 45,
-                "InvalidCount": 41,
+                "InvalidCount": 40,
                 "ObjectNames": "idx_sales ON sales, film_fulltext_idx ON public.film, idx_actor_last_name ON public.actor, idx_name1 ON table_name, idx_name2 ON table_name, idx_name3 ON schema_name.table_name, idx_fileinfo_name_splitted ON public.fileinfo, abc ON public.example, abc ON schema2.example, tsvector_idx ON public.documents, tsquery_idx ON public.ts_query_table, idx_citext ON public.citext_type, idx_inet ON public.inet_type, idx_json ON public.test_jsonb, idx_json2 ON public.test_jsonb, idx_valid ON public.test_jsonb, idx_array ON public.documents, idx1 ON combined_tbl, idx2 ON combined_tbl, idx3 ON combined_tbl, idx4 ON combined_tbl, idx5 ON combined_tbl, idx6 ON combined_tbl, idx7 ON combined_tbl, idx8 ON combined_tbl, idx9 ON combined_tbl, idx10 ON combined_tbl, idx11 ON combined_tbl, idx12 ON combined_tbl, idx13 ON combined_tbl, idx14 ON combined_tbl, idx15 ON combined_tbl, idx1 ON combined_tbl1, idx2 ON combined_tbl1, idx3 ON combined_tbl1, idx4 ON combined_tbl1, idx5 ON combined_tbl1, idx6 ON combined_tbl1, idx7 ON combined_tbl1, idx8 ON combined_tbl1, idx_udt ON test_udt, idx_udt1 ON test_udt, idx_enum ON test_udt, \"idx\u0026_enum2\" ON test_udt, users_unique_nulls_not_distinct_index_email ON users_unique_nulls_not_distinct_index",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
