@@ -440,21 +440,21 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	LOW_CARDINALITY_INDEXES                   = "LOW_CARDINALITY_INDEXES"
 	LOW_CARDINALITY_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to distribute the data on only few tablets."
 	LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN = `This index is built on a low-cardinality column. If the index is essential, consider converting it into a multi-column range-sharded index by including a high-cardinality column. If not needed, it is recommended to drop the index.`
-	LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN = `The first column of this index has low cardinality. To improve data distribution, either convert it to a range-sharded index or reorder the columns so a higher-cardinality column appears first.
+	LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has low cardinality. To improve data distribution, either convert it to a range-sharded index or reorder the columns so a higher-cardinality column appears first.
 Note: Range sharding is enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
 
 	NULL_VALUE_INDEXES_ISSUE_NAME                = "Null value indexes"
 	NULL_VALUE_INDEXES                           = "NULL_VALUE_INDEXES"
 	NULL_VALUE_INDEXES_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution. Avoid indexing such columns directly."
 	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having many NULLs. If NULLs are not queried, use a partial index to exclude them. If they must be indexed, consider combining this column with another column and create a range-sharded index to ensure better distribution.`
-	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN = `The first column of this index has many NULLs and is not queried, use a partial index to exclude those rows. If NULLs must be indexed, convert the index to a range-sharded one.
+	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has many NULLs and is not queried, use a partial index to exclude those rows. If NULLs must be indexed, convert the index to a range-sharded one.
 Note: Range sharding is enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
 
 	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Most frequent value indexes"
 	MOST_FREQUENT_VALUE_INDEXES                         = "MOST_FREQUENT_VALUE_INDEXES"
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having frequenly occuring value. If the frequently occurring value is not queried, use a partial index to exclude it. Otherwise, combine this column with another column and create a range-sharded index to balance the distribution.`
-	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN = `The first column of this index has frequently occuring value. If this value is not needed in queries, filter it out using a partial index. If required, use a range-sharded index to reduce write and read skew.
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has frequently occuring value. If this value is not needed in queries, filter it out using a partial index. If required, use a range-sharded index to reduce write and read skew.
 Note: Range sharding is enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
 )
 
