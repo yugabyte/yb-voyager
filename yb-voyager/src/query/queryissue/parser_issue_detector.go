@@ -475,18 +475,26 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 
 func (p *ParserIssueDetector) GetIndexIssuesForBetterDistribution(lowCardinalityIndexes []utils.LowCardinalityIndexesInfo, nullValueIndexes []utils.NullValueIndexesInfo, mostFrequentIndexes []utils.MostFrequentValueIndexesInfo) []QueryIssue {
 	var issues []QueryIssue
-	//TODO: see if want to have any precendence for an issue over multiple issues on an index
+
+	lowCardinalityIssueMap := make(map[string]bool)
 
 	for _, lowCardinalIndex := range lowCardinalityIndexes {
+		lowCardinalityIssueMap[lowCardinalIndex.GetIndexObjectName()] = true
 		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, lowCardinalIndex.GetIndexObjectName(),
 			lowCardinalIndex.IndexInfo.IndexDDL, lowCardinalIndex.NumIndexKeys, lowCardinalIndex.Cardinality, lowCardinalIndex.IndexInfo.ColumnName))
 	}
 
 	for _, nullValueIndex := range nullValueIndexes {
+		//For NULL values even if there is other issues like Low cardinality or most common on the index this is a separate problem so user should know about both of these so that it can fix it.
 		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, nullValueIndex.GetIndexObjectName(), nullValueIndex.IndexInfo.IndexDDL, nullValueIndex.IndexInfo.NumIndexKeys, nullValueIndex.NullFrequency, nullValueIndex.IndexInfo.ColumnName))
 	}
 
 	for _, mostFrequentIndex := range mostFrequentIndexes {
+		_, isLowCardinalityIssue := lowCardinalityIssueMap[mostFrequentIndex.GetIndexObjectName()]
+		if isLowCardinalityIssue {
+			//In case an index is a low cardinal index it is okay to not report most frequent index issue as anyways low cardinality is a  problem and if they solve it this isn't required
+			continue
+		}
 		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, mostFrequentIndex.GetIndexObjectName(), mostFrequentIndex.IndexInfo.IndexDDL,
 			mostFrequentIndex.IndexInfo.NumIndexKeys, mostFrequentIndex.Value, mostFrequentIndex.Frequency, mostFrequentIndex.IndexInfo.ColumnName))
 	}
