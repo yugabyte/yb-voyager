@@ -1507,7 +1507,7 @@ func (yb *TargetYugabyteDB) GetEnabledTriggersAndFks() (enabledTriggers []string
 }
 
 func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
-	query := "SELECT count(slot_name) from pg_replication_slots"
+	query := fmt.Sprintf("SELECT count(slot_name) from pg_replication_slots where database='%s'", yb.tconf.DBName)
 	var numOfSlots int64
 
 	err := yb.QueryRow(query).Scan(&numOfSlots)

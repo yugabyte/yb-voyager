@@ -58,6 +58,7 @@ var (
 	assessMigrationSupportedDBTypes  = []string{POSTGRESQL, ORACLE}
 	referenceOrTablePartitionPresent = false
 	pgssEnabledForAssessment         = false
+	invokedByExportSchema            utils.BoolStr
 )
 
 var sourceConnectionFlags = []string{
@@ -293,6 +294,10 @@ func init() {
 
 	assessMigrationCmd.Flags().StringVar(&targetDbVersionStrFlag, "target-db-version", "",
 		fmt.Sprintf("Target YugabyteDB version to assess migration for (in format A.B.C.D). Defaults to latest stable version (%s)", ybversion.LatestStable.String()))
+
+	BoolVar(assessMigrationCmd.Flags(), &invokedByExportSchema, "invoked-by-export-schema", false,
+		"Flag to indicate if the assessment is invoked by export schema command. ")
+	assessMigrationCmd.Flags().MarkHidden("invoked-by-export-schema") // mark hidden
 }
 
 func assessMigration() (err error) {
@@ -429,7 +434,13 @@ func fetchSourceInfo() {
 
 func SetMigrationAssessmentDoneInMSR() error {
 	err := metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-		record.MigrationAssessmentDone = true
+		if invokedByExportSchema {
+			record.MigrationAssessmentDoneViaExportSchema = true
+			record.MigrationAssessmentDone = false
+		} else {
+			record.MigrationAssessmentDone = true
+			record.MigrationAssessmentDoneViaExportSchema = false
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("failed to update migration status record with migration assessment done flag: %w", err)
@@ -437,12 +448,28 @@ func SetMigrationAssessmentDoneInMSR() error {
 	return nil
 }
 
-func IsMigrationAssessmentDone(metaDBInstance *metadb.MetaDB) (bool, error) {
+func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, error) {
 	record, err := metaDBInstance.GetMigrationStatusRecord()
 	if err != nil {
 		return false, fmt.Errorf("failed to get migration status record: %w", err)
 	}
 	return record.MigrationAssessmentDone, nil
+}
+
+func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
+	if !metaDBIsCreated(exportDir) {
+		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return false, fmt.Errorf("failed to get migration status record: %w", err)
+	}
+	if msr == nil {
+		return false, nil
+	}
+
+	return msr.MigrationAssessmentDoneViaExportSchema, nil
 }
 
 func ClearMigrationAssessmentDone() error {
@@ -1031,7 +1058,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 
 		But current Limitation is analyze schema currently uses regexp etc to detect some issues(not using parser).
 	*/
-	schemaAnalysisReport := analyzeSchemaInternal(&source, true)
+	schemaAnalysisReport := analyzeSchemaInternal(&source, true, true)
 	assessmentReport.SchemaSummary = schemaAnalysisReport.SchemaSummary
 	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
 
@@ -1196,8 +1223,6 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_INDEX, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HASH_SHARDING_DATE_INDEX_ISSUE_NAME, "", queryissue.HASH_SHARDING_DATE_INDEX, schemaAnalysisReport, false))
-	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME, "", queryissue.HASH_SHARDING_TIMESTAMP_INDEX, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0

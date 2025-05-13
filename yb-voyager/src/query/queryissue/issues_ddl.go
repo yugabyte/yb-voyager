@@ -2042,40 +2042,6 @@ func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlSt
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 
-var suggestionOnDateIndexesForRangeSharding = issue.Issue{
-	Type:        HASH_SHARDING_DATE_INDEX,
-	Name:        HASH_SHARDING_DATE_INDEX_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_1,
-	Description: HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
-}
-
-func NewSuggestionOnDateIndexesForRangeSharding(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
-	issue := suggestionOnDateIndexesForRangeSharding
-	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
-	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
-var suggestionOnTimestampIndexesForRangeSharding = issue.Issue{
-	Type:        HASH_SHARDING_TIMESTAMP_INDEX,
-	Name:        HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME,
-	Impact:      constants.IMPACT_LEVEL_1,
-	Description: HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES,
-	GH:          "https://github.com/yugabyte/yb-voyager/issues/49",
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hash-sharding-with-indexes-on-the-timestamp-date-columns",
-}
-
-func NewSuggestionOnTimestampIndexesForRangeSharding(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
-	issue := suggestionOnTimestampIndexesForRangeSharding
-	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
-	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
-}
-
 var redundantIndexesIssue = issue.Issue{
 	Name:        REDUNDANT_INDEXES_ISSUE_NAME,
 	Type:        REDUNDANT_INDEXES,
