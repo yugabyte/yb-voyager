@@ -79,7 +79,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path",
+	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
@@ -229,6 +229,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
+		cfgFile = v.ConfigFileUsed()
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
@@ -670,4 +671,103 @@ func setToAliasPrefixIfSet(configKeyPrefix string, v *viper.Viper) string {
 		}
 	}
 	return configKeyPrefix
+}
+
+/*
+readAndValidateConfigFile reads the config file and validates it.
+This functions is called only by readConfigFileAndGetExportDataFromTargetKeys and readConfigFileAndGetImportDataToSourceKeys functions.
+It returns a Viper instance if the config file is set and found, or an error if there are issues with the file.
+It does the following:
+1. If the config file is set, it reads the file using Viper.
+2. If the file is read successfully, it validates the config file for allowed keys and sections.
+3. If the cfgFile variable is empty or an error occurs while reading the file, it returns nil for the Viper instance.
+4. If the config file is read and validated successfully, it returns the Viper instance.
+*/
+func readAndValidateConfigFile() (*viper.Viper, error) {
+	if cfgFile == "" {
+		return nil, nil
+	}
+
+	v := viper.New()
+	v.SetConfigFile(cfgFile)
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Validate the config file for allowed keys and sections
+	err := validateConfigFile(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+/*
+readConfigFileAndGetExportDataFromTargetKeys reads the config file and returns the export-data-from-target keys.
+It returns a slice of strings containing the keys that are set in the config file.
+It does the following:
+1. It calls readAndValidateConfigFile to read the config file and validate it.
+2. If and error occurs in this, it returns an error and a nil slice.
+3. If viper instance is nil, it returns an empty slice.
+4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
+*/
+func readConfigFileAndGetExportDataFromTargetKeys() ([]string, error) {
+	v, err := readAndValidateConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
+	}
+	if v == nil {
+		return []string{}, nil
+	}
+
+	// Get the export-data-from-target keys that are set in the config file
+	exportDataFromTargetKeys := []string{}
+	const keyPrefix = "export-data-from-target."
+	for _, key := range v.AllKeys() {
+		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
+			// Extract the key name after the prefix
+			key = strings.TrimPrefix(key, keyPrefix)
+			key = strings.TrimSpace(key)
+			// Add the key to the list
+			exportDataFromTargetKeys = append(exportDataFromTargetKeys, key)
+		}
+	}
+
+	return exportDataFromTargetKeys, nil
+}
+
+/*
+readConfigFileAndGetImportDataToSourceKeys reads the config file and returns the import-data-to-source keys.
+It returns a slice of strings containing the keys that are set in the config file.
+It does the following:
+1. It calls readAndValidateConfigFile to read the config file and validate it.
+2. If and error occurs in this, it returns an error and a nil slice.
+3. If viper instance is nil, it returns an empty slice.
+4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
+*/
+func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
+	v, err := readAndValidateConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
+	}
+	if v == nil {
+		return []string{}, nil
+	}
+
+	// Get the import-data-to-source keys that are set in the config file
+	importDataToSourceKeys := []string{}
+	const keyPrefix = "import-data-to-source."
+	for _, key := range v.AllKeys() {
+		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
+			// Extract the key name after the prefix
+			key = strings.TrimPrefix(key, keyPrefix)
+			key = strings.TrimSpace(key)
+			// Add the key to the list
+			importDataToSourceKeys = append(importDataToSourceKeys, key)
+		}
+	}
+
+	return importDataToSourceKeys, nil
 }
