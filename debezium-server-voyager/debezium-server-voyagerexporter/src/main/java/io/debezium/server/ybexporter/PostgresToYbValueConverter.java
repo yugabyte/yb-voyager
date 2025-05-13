@@ -50,6 +50,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
     }
 
     private Object stringify(Object x) {
+        LOGGER.info("stringify: input: {}, class: {}", x, x.getClass().getName());
         if (x == null) {
             return null;
         } else {

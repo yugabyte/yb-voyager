@@ -201,8 +201,6 @@ debezium.source.database.port=%d
 debezium.source.database.include.list=%s
 debezium.source.database.server.id=%d
 debezium.source.connector.class=io.debezium.connector.mysql.MySqlConnector
-debezium.source.converters=mysql_to_yb_converter
-debezium.source.mysql_to_yb_converter.type=io.debezium.server.ybexporter.MySQLToYbValueConverter
 
 debezium.source.schema.history.internal=io.debezium.storage.file.history.FileSchemaHistory
 debezium.source.schema.history.internal.file.filename=%s
