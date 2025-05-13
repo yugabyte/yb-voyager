@@ -724,7 +724,7 @@ func readConfigFileAndGetExportDataFromTargetKeys() ([]string, error) {
 
 	// Get the export-data-from-target keys that are set in the config file
 	exportDataFromTargetKeys := []string{}
-	keyPrefix := "export-data-from-target."
+	const keyPrefix = "export-data-from-target."
 	for _, key := range v.AllKeys() {
 		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
 			// Extract the key name after the prefix
@@ -758,7 +758,7 @@ func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
 
 	// Get the import-data-to-source keys that are set in the config file
 	importDataToSourceKeys := []string{}
-	keyPrefix := "import-data-to-source."
+	const keyPrefix = "import-data-to-source."
 	for _, key := range v.AllKeys() {
 		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
 			// Extract the key name after the prefix
