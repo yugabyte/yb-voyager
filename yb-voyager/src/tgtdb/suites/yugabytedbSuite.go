@@ -18,11 +18,13 @@ package tgtdbsuite
 
 import (
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 
@@ -110,6 +112,28 @@ var YBValueConverterSuite = map[string]ConverterFn{
 		MICRO_TIME_FORMAT := "15:04:05.000000"
 		timeValue := time.Unix(epochSeconds, epochNanos).UTC().Format(MICRO_TIME_FORMAT)
 		return quoteValueIfRequired(timeValue, formatIfRequired, dbzmSchema)
+	},
+	"io.debezium.data.Bits": func(columnValue string, formatIfRequired bool, dbzmSchema *schemareg.ColumnSchema) (string, error) {
+		bytes, err := base64.StdEncoding.DecodeString(columnValue)
+		if err != nil {
+			return columnValue, fmt.Errorf("decoding variable scale decimal in base64: %v", err)
+		}
+		var data uint64
+		if len(bytes) >= 8 {
+			data = binary.LittleEndian.Uint64(bytes[:8])
+		} else {
+			for i, b := range bytes {
+				data |= uint64(b) << (8 * i)
+			}
+		}
+		quote := lo.Ternary(formatIfRequired, "'", "")
+		strLength, ok := dbzmSchema.Parameters["length"]
+		length := lo.Ternary(ok, lo.Must(strconv.Atoi(strLength)), BIT_VARYING_MAX_LEN)
+		if length == BIT_VARYING_MAX_LEN {
+			return fmt.Sprintf("%s%b%s", quote, data, quote), nil
+		} else {
+			return fmt.Sprintf("%s%0*b%s", quote, length, data, quote), nil
+		}
 	},
 	"io.debezium.data.geometry.Point": func(columnValue string, formatIfRequired bool, _ *schemareg.ColumnSchema) (string, error) {
 		// TODO: figure out if we want to represent it as a postgres native point or postgis point.
