@@ -107,7 +107,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"parallel-jobs", "disable-pb", "max-retries",
+	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
