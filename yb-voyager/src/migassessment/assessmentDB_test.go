@@ -98,6 +98,34 @@ func TestInitAssessmentDB(t *testing.T) {
 			"redundant_ddl": {Type: "TEXT"},
 			"existing_ddl": {Type: "TEXT"},
 		},
+		LOW_CARDINALITY_INDEXES: {
+			"index_name": {Type: "TEXT", PrimaryKey: 1},
+			"column_name": {Type: "TEXT", PrimaryKey: 4},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"table_name": {Type: "TEXT", PrimaryKey: 3},
+			"effective_n_distinct": {Type: "INTEGER"},
+			"num_index_keys": {Type: "INTEGER"},
+			"index_ddl": {Type: "TEXT"},
+		},
+		NULL_VALUE_INDEXES: {
+			"index_name": {Type: "TEXT", PrimaryKey: 1},
+			"column_name": {Type: "TEXT", PrimaryKey: 4},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"table_name": {Type: "TEXT", PrimaryKey: 3},
+			"null_frac": {Type: "REAL"},
+			"num_index_keys": {Type: "INTEGER"},
+			"index_ddl": {Type: "TEXT"},
+		},
+		MOST_FREQUENT_VALUE_INDEXES: {
+			"index_name": {Type: "TEXT", PrimaryKey: 1},
+			"column_name": {Type: "TEXT", PrimaryKey: 4},
+			"schema_name": {Type: "TEXT", PrimaryKey: 2},
+			"table_name": {Type: "TEXT", PrimaryKey: 3},
+			"value": {Type: "TEXT"},
+			"frequency": {Type: "REAL"},
+			"num_index_keys": {Type: "INTEGER"},
+			"index_ddl": {Type: "TEXT"},
+		},
 	}
 
 	// Create a temporary SQLite database file for testing
