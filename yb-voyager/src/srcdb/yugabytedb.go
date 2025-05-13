@@ -38,7 +38,13 @@ import (
 )
 
 // Apart from these we also skip UDT columns and error out for array of enums as unsupported tables.
-var YugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+var YugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+
+func GetYugabyteUnsupportedDatatypesDbzmWithGrpcConnector() []string {
+	datatypes := YugabyteUnsupportedDataTypesForDbzm
+	datatypes = append(datatypes, "HSTORE")
+	return datatypes
+}
 
 type YugabyteDB struct {
 	source *Source
@@ -638,6 +644,12 @@ func (yb *YugabyteDB) filterUnsupportedUserDefinedDatatypes(tableName sqlname.Na
 func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple, useDebezium bool, isStreamingEnabled bool) (*utils.StructMap[sqlname.NameTuple, []string], *utils.StructMap[sqlname.NameTuple, []string], error) {
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+
+	if yb.source.IsYBGrpcConnector {
+		//ONLY in case of grpc connector add HSTORE
+		YugabyteUnsupportedDataTypesForDbzm = append(YugabyteUnsupportedDataTypesForDbzm, "HSTORE")
+	}
+
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := yb.getTableColumns(tableName)
 		if err != nil {
