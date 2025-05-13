@@ -1,12 +1,12 @@
-CREATE TABLE null_value_indexes AS
+CREATE TEMP TABLE null_frac_stats AS 
 SELECT
+    idx.oid AS index_oid,
     idx.relname AS index_name,
     col.attname AS column_name,
     ns.nspname AS schema_name,
     tbl.relname AS table_name,
-    st.null_frac,
-    cardinality(i.indkey) AS num_index_keys,
-    pg_get_indexdef(idx.oid) AS index_ddl
+    st.null_frac as null_frac,
+    cardinality(i.indkey) AS num_index_keys
 FROM
     pg_index i
 JOIN pg_class idx ON idx.oid = i.indexrelid
@@ -14,15 +14,30 @@ JOIN pg_class tbl ON tbl.oid = i.indrelid
 JOIN pg_namespace ns ON ns.oid = tbl.relnamespace
 JOIN pg_attribute col ON col.attrelid = tbl.oid AND col.attnum = i.indkey[0]
 JOIN pg_stats st ON st.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
-                 AND st.tablename = tbl.relname
-                 AND st.attname = col.attname
+                    AND st.tablename = tbl.relname
+                    AND st.attname = col.attname;
+
+
+CREATE TEMP TABLE null_value_indexes AS 
+SELECT
+    index_name,
+    column_name,
+    schema_name,
+    table_name,
+    null_frac,
+    num_index_keys,
+    pg_get_indexdef(index_oid) AS index_ddl
+FROM
+    null_frac_stats
 WHERE
-    st.null_frac > 0.40
-ORDER BY
-    st.null_frac;
+    null_frac > 0.40
+ORDER BY 
+    null_frac;
+
 
 
 -- Now you can use the temporary table to fetch the data
 \copy null_value_indexes TO 'null_value_indexes.csv' WITH CSV HEADER;
 
+DROP TABLE null_frac_stats;
 DROP TABLE null_value_indexes;
