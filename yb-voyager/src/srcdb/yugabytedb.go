@@ -38,12 +38,15 @@ import (
 )
 
 // Apart from these we also skip UDT columns and error out for array of enums as unsupported tables.
-var YugabyteUnsupportedDataTypesForDbzm = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
+var YugabyteUnsupportedDataTypesForDbzmLogical = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER"}
 
-func GetYugabyteUnsupportedDatatypesDbzmWithGrpcConnector() []string {
-	datatypes := YugabyteUnsupportedDataTypesForDbzm
-	datatypes = append(datatypes, "HSTORE")
-	return datatypes
+var YugabyteUnsupportedDataTypesForDbzmGrpc = []string{"BOX", "CIRCLE", "LINE", "LSEG", "PATH", "PG_LSN", "POINT", "POLYGON", "TSQUERY", "TSVECTOR", "TXID_SNAPSHOT", "GEOMETRY", "GEOGRAPHY", "RASTER", "HSTORE"}
+
+func GetYugabyteUnsupportedDatatypesDbzm(isGRPCConnector bool) []string {
+	if isGRPCConnector {
+		return YugabyteUnsupportedDataTypesForDbzmGrpc
+	}
+	return YugabyteUnsupportedDataTypesForDbzmLogical
 }
 
 type YugabyteDB struct {
@@ -645,10 +648,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 	supportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	unsupportedTableColumnsMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 
-	if yb.source.IsYBGrpcConnector {
-		//ONLY in case of grpc connector add HSTORE
-		YugabyteUnsupportedDataTypesForDbzm = append(YugabyteUnsupportedDataTypesForDbzm, "HSTORE")
-	}
+	unsupportedDatatypesList := GetYugabyteUnsupportedDatatypesDbzm(yb.source.IsYBGrpcConnector)
 
 	for _, tableName := range tableList {
 		columns, dataTypes, _, err := yb.getTableColumns(tableName)
@@ -656,7 +656,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 			return nil, nil, fmt.Errorf("error in getting table columns and datatypes: %w", err)
 		}
 		userDefinedDataTypes := yb.filterUnsupportedUserDefinedDatatypes(tableName)
-		YugabyteUnsupportedDataTypesForDbzm = append(YugabyteUnsupportedDataTypesForDbzm, userDefinedDataTypes...)
+		unsupportedDatatypesList = append(unsupportedDatatypesList, userDefinedDataTypes...)
 		var supportedColumnNames []string
 		var unsupportedColumnNames []string
 		for i, column := range columns {
@@ -664,7 +664,7 @@ func (yb *YugabyteDB) GetColumnsWithSupportedTypes(tableList []sqlname.NameTuple
 				//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 				// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 				//of these types there are other columns available for these information so we just do string match of types with our list
-				if utils.ContainsAnyStringFromSlice(YugabyteUnsupportedDataTypesForDbzm, dataTypes[i]) {
+				if utils.ContainsAnyStringFromSlice(unsupportedDatatypesList, dataTypes[i]) {
 					unsupportedColumnNames = append(unsupportedColumnNames, column)
 				} else {
 					supportedColumnNames = append(supportedColumnNames, column)

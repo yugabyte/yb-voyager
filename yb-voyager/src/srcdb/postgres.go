@@ -60,8 +60,8 @@ func GetPGLiveMigrationUnsupportedDatatypes() []string {
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
-	//TODO: add connector specific handling 
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzmWithGrpcConnector(), PostgresUnsupportedDataTypes)
+	//TODO: add connector specific handling
+	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(true), PostgresUnsupportedDataTypes)
 	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
@@ -107,13 +107,11 @@ This query returns all types of sequences attached to the tables -
 1. SERIAL/BIGSERIAL datatypes
 2. DEFAULT nextval()
 
-the change in this query  from the above query is this line 
+the change in this query  from the above query is this line
 
-LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S' 
+LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S'
 
-where the join is happening with `dep.refobjid` which helps in getting the default nextval cases as 
-
-
+where the join is happening with `dep.refobjid` which helps in getting the default nextval cases as
 */
 const FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE = `SELECT
 	(tn.nspname || '.' || t.relname)  AS table_name,
