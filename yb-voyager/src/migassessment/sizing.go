@@ -28,8 +28,6 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
-
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
