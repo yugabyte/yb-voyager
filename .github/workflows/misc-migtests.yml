@@ -77,6 +77,9 @@ jobs:
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
+      - name: "TEST: Assessment Report Test For Performance optimization"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-perf-optimization-test
+
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
 
