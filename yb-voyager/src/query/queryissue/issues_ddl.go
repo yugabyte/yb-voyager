@@ -2068,7 +2068,6 @@ var lowCardinalityIndexIssue = issue.Issue{
 func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, cardinality int, columnName string) QueryIssue {
 	issue := lowCardinalityIndexIssue
 	details := make(map[string]interface{})
-	fmt.Printf("object- %s, num columns- %v", objectName, numOfColumns)
 	if numOfColumns > 1 {
 
 		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality multi column index with cardinality %d", cardinality)
