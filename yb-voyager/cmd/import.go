@@ -245,8 +245,11 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 
 	// TODO: restrict changing of flag value after import data has started
 	// TODO: Detailed description of the flag
-	cmd.Flags().StringVar(&onPrimaryKeyConflictAction, "on-primary-key-conflict", "",
-		"Action to take on primary key conflict. Supported values: 'ERROR', 'IGNORE', 'UPDATE'")
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
+		`Action to take on primary key conflict during data import.
+Supported values:
+  ERROR(default): Imports data in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
+  IGNORE		: Skips rows that already exist with the same primary key and enables fast-path import, which provides significantly better performance for large data loads.`)
 	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
 }
 
@@ -448,13 +451,13 @@ func validateTruncateTablesFlag() {
 var onPrimaryKeyConflictActions = []string{
 	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
 	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
-	constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
+	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
 
 func validateOnPrimaryKeyConflictFlag() {
-	if onPrimaryKeyConflictAction != "" {
-		onPrimaryKeyConflictAction = strings.ToUpper(onPrimaryKeyConflictAction)
-		if !slices.Contains(onPrimaryKeyConflictActions, onPrimaryKeyConflictAction) {
+	conflictAction := strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+	if conflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, conflictAction) {
 			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}

@@ -115,10 +115,10 @@ type ImportBatchArgs struct {
 }
 
 // Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action
-func (args *ImportBatchArgs) IsFastPath() bool {
+func (args *ImportBatchArgs) ShouldUseFastPath() bool {
 	return len(args.PrimaryKeyColumns) > 0 &&
-		(args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE ||
-			args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE)
+		(args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE)
+	/*|| args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE )*/
 }
 
 func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
@@ -136,6 +136,21 @@ func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
 // To trigger COPY fast path, no transaction and ROWS_PER_TRANSACTION should be used
 func (args *ImportBatchArgs) GetYBNonTxnCopyStatement() string {
 	options := args.copyOptions()
+	columns := ""
+	if len(args.Columns) > 0 {
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+	}
+
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
+}
+
+func (args *ImportBatchArgs) GetYBCopyStatement() string {
+	options := args.copyOptions()
+	if !args.ShouldUseFastPath() {
+		// fast path on DB side not enabled if ROWS_PER_TRANSACTION is set in COPY
+		options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
+	}
+
 	columns := ""
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
@@ -200,24 +215,24 @@ func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 					name = EXCLUDED.name,
 					email = EXCLUDED.email
 	*/
-	case constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE:
-		// build conflict target (pk1, pk2, pk3, ...)
-		conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
+	// case constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE:
+	// 	// build conflict target (pk1, pk2, pk3, ...)
+	// 	conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
 
-		// build update set clause (col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ...)
-		nonPKColumns := utils.SetDifference(args.Columns, args.PrimaryKeyColumns)
-		if len(nonPKColumns) == 0 {
-			return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
-		}
+	// 	// build update set clause (col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ...)
+	// 	nonPKColumns := utils.SetDifference(args.Columns, args.PrimaryKeyColumns)
+	// 	if len(nonPKColumns) == 0 {
+	// 		return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
+	// 	}
 
-		updateSet := make([]string, len(nonPKColumns))
-		for i, col := range nonPKColumns {
-			updateSet[i] = fmt.Sprintf("%s = EXCLUDED.%s", col, col)
-		}
-		updateSetClause := strings.Join(updateSet, ", ")
+	// 	updateSet := make([]string, len(nonPKColumns))
+	// 	for i, col := range nonPKColumns {
+	// 		updateSet[i] = fmt.Sprintf("%s = EXCLUDED.%s", col, col)
+	// 	}
+	// 	updateSetClause := strings.Join(updateSet, ", ")
 
-		// build the final insert statement
-		baseStmt = fmt.Sprintf("%s ON CONFLICT (%s) DO UPDATE SET %s", baseStmt, conflictTarget, updateSetClause)
+	// 	// build the final insert statement
+	// 	baseStmt = fmt.Sprintf("%s ON CONFLICT (%s) DO UPDATE SET %s", baseStmt, conflictTarget, updateSetClause)
 	default:
 		panic(fmt.Sprintf("Invalid conflict action: %s", args.PKConflictAction))
 	}

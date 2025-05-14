@@ -74,8 +74,6 @@ var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
-var onPrimaryKeyConflictAction string
-
 var importDataCmd = &cobra.Command{
 	Use: "data",
 	Short: "Import data from compatible source database to target database.\n" +

@@ -23,7 +23,6 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -93,12 +92,6 @@ func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
 	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
 }
 
-func (fti *FileTaskImporter) shouldUseNonTransactionalPath() bool {
-	return onPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR &&
-		fti.TableHasPrimaryKey() &&
-		(importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE)
-}
-
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
@@ -158,6 +151,15 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
 
 	sleepIntervalSec := 0
+	/*
+		Cases:
+		1. First time batch import with onPrimaryKeyConflictAction == "ERROR" 		-> Normal Path
+		2. First time batch import with onPrimaryKeyConflictAction == "IGNORE" 		-> Fast Path
+		3. Batch in *.P state with onPrimaryKeyConflictAction == "IGNORE" 			-> Fast Path Recovery
+
+		If 2 fails due to already existing rows in table, then first ImportBatch() internally switch to Fast Path Recovery
+		If that also fails then batch gets executed as fast path recovery due to attempt > 0 from here.
+	*/
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		isRecoveryCandidate := (recoveryBatch || attempt > 0)
@@ -272,7 +274,6 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
-	// TODO: Implement caching since this is called for every batch
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
@@ -295,7 +296,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
-		PKConflictAction:  onPrimaryKeyConflictAction,
+		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,
 		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,

@@ -806,11 +806,7 @@ type Batch struct {
 }
 
 func (batch *Batch) Open() (*os.File, error) {
-	file, err := os.Open(batch.FilePath)
-	if err != nil {
-		return nil, err
-	}
-	return file, err
+	return os.Open(batch.FilePath)
 }
 
 func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
