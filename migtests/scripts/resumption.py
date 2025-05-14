@@ -157,7 +157,7 @@ def prepare_import_data_command():
 
     return args
 
-def inject_varying_flags(command):
+def inject_varying_flags_values(command):
     global varying_flags
 
     for flag, setting in varying_flags.items():
@@ -261,7 +261,7 @@ def run_and_resume_voyager(base_command):
         command = base_command.copy()
 
         # Inject varying flags on each retry
-        command = inject_varying_flags(command)
+        command = inject_varying_flags_values(command)
 
         # Randomly determine interruption timing
         interruption_time = random.randint(min_interrupt_seconds, max_interrupt_seconds)
@@ -281,7 +281,7 @@ def run_and_resume_voyager(base_command):
     print("\n--- Final attempt to complete the import ---\n", flush=True)
 
     # Inject final set of varying flags before final run
-    command = inject_varying_flags(base_command.copy())
+    command = inject_varying_flags_values(base_command.copy())
     completed, stdout, stderr = run_command(command, allow_interruption=False)
 
     if not completed:

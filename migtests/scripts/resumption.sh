@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 
 set -e
+set -x
 
 if [ $# -gt 3 ]; then
     echo "Usage: $0 TEST_NAME [env.sh] [config_file]"
     exit 1
 fi
 
-set -x
-
+# If exactly 2 arguments are passed, and the second argument ends with .yaml,
+# treat it as the config_file and leave env.sh as an empty string
 if [ $# -eq 2 ] && [[ "$2" == *.yaml ]]; then
     set -- "$1" "" "$2"
 fi
