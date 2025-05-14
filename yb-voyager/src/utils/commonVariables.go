@@ -171,50 +171,21 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
 }
 
-type LowCardinalityIndexesInfo struct {
-	DBType       string
-	Cardinality  int
-	IndexInfo    CommonIndexInfo
+type ColumnStatistics struct {
+	DBType           string
+	SchemaName       string
+	TableName        string
+	ColumnName       string
+	NullFrequency    float64
+	DistinctValues   int64
+	MaxFrequency     float64
+	MaxFrequentValue string
 }
 
-func (l *LowCardinalityIndexesInfo) GetIndexObjectName() string {
-	return l.IndexInfo.GetIndexObjectName(l.DBType)
-}
-
-type NullValueIndexesInfo struct {
-	DBType        string
-	NullFrequency float64
-	IndexInfo     CommonIndexInfo
-}
-
-func (n *NullValueIndexesInfo) GetIndexObjectName() string {
-	return n.IndexInfo.GetIndexObjectName(n.DBType)
-}
-
-type MostFrequentValueIndexesInfo struct {
-	DBType    string
-	Value     string
-	Frequency float64
-	IndexInfo CommonIndexInfo
-}
-
-func (m *MostFrequentValueIndexesInfo) GetIndexObjectName() string {
-	return m.IndexInfo.GetIndexObjectName(m.DBType)
-}
-
-type CommonIndexInfo struct {
-	IndexName    string
-	SchemaName   string
-	TableName    string
-	ColumnName   string
-	NumIndexKeys int
-	IndexDDL     string
-}
-
-func (c *CommonIndexInfo) GetIndexObjectName(dbType string) string {
-	tableObjectName := sqlname.NewObjectName(dbType, "", c.SchemaName, c.TableName)
-	indexSQlObjectName := sqlname.NewObjectName(dbType, "", c.SchemaName, c.IndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+func (c *ColumnStatistics) GetTableName() string {
+	tableObjectName := sqlname.NewObjectName(c.DBType, "", c.SchemaName, c.TableName)
+	//Get Unquoted table name as the parse gets the unquoted name after parsing index statement
+	return tableObjectName.Qualified.Unquoted
 }
 
 type UnsupportedQueryConstruct struct {

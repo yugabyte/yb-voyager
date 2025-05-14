@@ -45,6 +45,7 @@ const (
 	LOW_CARDINALITY_INDEXES     = "low_cardinality_indexes"
 	NULL_VALUE_INDEXES          = "null_value_indexes"
 	MOST_FREQUENT_VALUE_INDEXES = "most_frequent_value_indexes"
+	COLUMN_STATISTICS           = "column_statistics"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -150,33 +151,14 @@ func InitAssessmentDB() error {
 			existing_ddl TEXT,
 			PRIMARY KEY(redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
 		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			index_name TEXT,
-			column_name TEXT,
 			schema_name TEXT,
 			table_name TEXT,
+			column_name TEXT,
+			null_frequency REAL,
 			effective_n_distinct INTEGER,
-			num_index_keys INTEGER,
-			index_ddl TEXT,
-			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, LOW_CARDINALITY_INDEXES),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			index_name TEXT,
-			column_name TEXT,
-			schema_name TEXT,
-			table_name TEXT,
-			null_frac REAL,
-			num_index_keys INTEGER,
-			index_ddl TEXT,
-			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, NULL_VALUE_INDEXES),
-		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
-			index_name TEXT,
-			column_name TEXT,
-			schema_name TEXT,
-			table_name TEXT,
-			num_index_keys INTEGER,
-			value TEXT,
-			frequency REAL,
-			index_ddl TEXT,
-			PRIMARY KEY(index_name, schema_name, table_name, column_name));`, MOST_FREQUENT_VALUE_INDEXES),
+			max_frequency REAL,
+			max_frequent_val TEXT,
+			PRIMARY KEY(schema_name, table_name, column_name));`, COLUMN_STATISTICS),
 	}
 
 	for _, cmd := range cmds {

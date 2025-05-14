@@ -650,7 +650,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						return nil, err
 					}
 					issues = append(issues, hotspotIssues...)
-				} 
+				}
 			} else {
 				colName := param.ColName
 				columnWithUnsupportedTypes, tableHasUnsupportedTypes := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
@@ -680,6 +680,52 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 				}
 			}
+			if idx == 0 && !param.IsExpression {
+				//if this is first column and not an expression index
+				indexIssues, err := d.reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, indexIssues...)
+			}
+		}
+	}
+	return issues, nil
+}
+
+func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
+	var issues []QueryIssue
+
+	firstColumnParam := index.Params[0]
+	firstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
+
+	isSingleColumnIndex := len(index.Params) == 1
+
+	for column, stat := range i.columnStatistics {
+		if firstColumnName != column {
+			continue
+		}
+
+		maxFrequencyPerc := int(stat.MaxFrequency * 100)
+		nullFrequencyPerc := int(stat.NullFrequency * 100)
+
+		if stat.DistinctValues > 0 && stat.DistinctValues <= 10 {
+			// LOW CARDINALITY INDEX ISSUE
+			issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
+				"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
+		} else if maxFrequencyPerc >= 60 {
+
+			//If the index is not LOW cardinality one then see if that has most frequent value or not
+			//MOST FREQUENT VALUE INDEX ISSUE
+			issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
+				isSingleColumnIndex, stat.MaxFrequentValue, maxFrequencyPerc, stat.ColumnName))
+
+		}
+
+		if nullFrequencyPerc >= 40 {
+
+			// NULL VALUE INDEX ISSUE
+			issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
 		}
 	}
 

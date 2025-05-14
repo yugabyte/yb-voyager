@@ -2065,16 +2065,15 @@ var lowCardinalityIndexIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
 }
 
-func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, cardinality int, columnName string) QueryIssue {
+func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, cardinality int64, columnName string) QueryIssue {
 	issue := lowCardinalityIndexIssue
 	details := make(map[string]interface{})
-	if numOfColumns > 1 {
-
-		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality multi column index with cardinality %d", cardinality)
-		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN, columnName, cardinality)
-	} else {
+	if isSingleColumnIndex {
 		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality single column index with cardinality %d", cardinality)
 		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN, columnName, cardinality)
+	} else {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Low cardinality multi column index with cardinality %d", cardinality)
+		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN, columnName, cardinality)
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
@@ -2086,16 +2085,16 @@ var nullValueIndexes = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#null-value-indexes",
 }
 
-func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, nullFrequency float64, columnName string) QueryIssue {
+func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, nullFrequency int, columnName string) QueryIssue {
 	issue := nullValueIndexes
-	perc := int(nullFrequency * 100)
 	details := make(map[string]interface{})
-	if numOfColumns > 1 {
-		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value multi column index with frequency %d%%", perc)
-		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN, columnName, perc)
+	if isSingleColumnIndex {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value single column index with frequency %d%%", nullFrequency)
+		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN, columnName, nullFrequency)
 	} else {
-		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value single column index with frequency %d%%", perc)
-		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN, columnName, perc)
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Null value multi column index with frequency %d%%", nullFrequency)
+		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN, columnName, nullFrequency)
+
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
@@ -2107,17 +2106,17 @@ var mostFrequentValueIndexIssue = issue.Issue{
 	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
 }
 
-func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, numOfColumns int, value string, frequency float64, columnName string) QueryIssue {
+func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string) QueryIssue {
 	issue := mostFrequentValueIndexIssue
-	perc := int(frequency * 100)
 	details := make(map[string]interface{})
-	if numOfColumns > 1 {
-		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value multi column index with frequency %d%%", perc)
-
-		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN, value, perc, columnName)
+	if isSingleColumnIndex {
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value single column index with frequency %d%%", frequency)
+		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN, value, frequency, columnName)
 	} else {
-		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value single column index with frequency %d%%", perc)
-		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN, value, perc, columnName)
+		details[CALLHOME_ISSUE_NAME_KEY] = fmt.Sprintf("Most Frequent value multi column index with frequency %d%%", frequency)
+
+		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN, value, frequency, columnName)
+
 	}
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }

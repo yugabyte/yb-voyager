@@ -179,7 +179,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
 		if slices.Contains(queryissue.IssueTypesForModifyingIssueNameWithExtraDetails, issue.Type) {
-			//TODO: fix the handling of extra issue specific details with map having that information send it directly to callhome 
+			//TODO: fix the handling of extra issue specific details with map having that information send it directly to callhome
 			callhomeIssueName, ok := issue.Details[queryissue.CALLHOME_ISSUE_NAME_KEY]
 			if ok {
 				obfuscatedIssue.Name = callhomeIssueName.(string)
@@ -873,7 +873,7 @@ func generateAssessmentReport() (err error) {
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
-	err = addAssessmentIssuesForVariousIndexOptimizations()
+	err = addAssessmentIssuesForRedundantIndex()
 	if err != nil {
 		return fmt.Errorf("error in getting redundant index issues: %v", err)
 	}
@@ -936,90 +936,47 @@ func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 	return redundantIndexesInfo, nil
 }
 
-func fetchLowCardinalityIndexInfo() ([]utils.LowCardinalityIndexesInfo, error) {
-	query := fmt.Sprintf(`SELECT index_name,column_name,schema_name,table_name,effective_n_distinct,num_index_keys,index_ddl from %s`,
-		migassessment.LOW_CARDINALITY_INDEXES)
+func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
+	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, null_frequency, effective_n_distinct, max_frequency, max_frequent_val from %s`,
+		migassessment.COLUMN_STATISTICS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%s on assessmentDB for low cardinality indexes: %w", query, err)
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for column statistics: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
 		if closeErr != nil {
-			log.Warnf("error closing rows while fetching for low cardinality indexes %v", err)
+			log.Warnf("error closing rows while fetching column statistics %v", err)
 		}
 	}()
 
-	var lowCardinalityIndexes []utils.LowCardinalityIndexesInfo
+	var columnStats []utils.ColumnStatistics
 	for rows.Next() {
-		var lowCardinalityIndexInfo utils.LowCardinalityIndexesInfo
-		err := rows.Scan(&lowCardinalityIndexInfo.IndexInfo.IndexName, &lowCardinalityIndexInfo.IndexInfo.ColumnName, &lowCardinalityIndexInfo.IndexInfo.SchemaName, &lowCardinalityIndexInfo.IndexInfo.TableName,
-			&lowCardinalityIndexInfo.Cardinality, &lowCardinalityIndexInfo.IndexInfo.NumIndexKeys, &lowCardinalityIndexInfo.IndexInfo.IndexDDL)
-		if err != nil {
-			return nil, fmt.Errorf("error scanning rows for low cardinality indexes: %w", err)
-		}
-		lowCardinalityIndexInfo.DBType = source.DBType
-		lowCardinalityIndexes = append(lowCardinalityIndexes, lowCardinalityIndexInfo)
-	}
-	return lowCardinalityIndexes, nil
-}
-
-func fetchNullValueIndexes() ([]utils.NullValueIndexesInfo, error) {
-	query := fmt.Sprintf(`SELECT index_name,column_name,schema_name,table_name,null_frac,num_index_keys,index_ddl from %s`,
-		migassessment.NULL_VALUE_INDEXES)
-	rows, err := assessmentDB.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error querying-%s on assessmentDB for null value indexes: %w", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("error closing rows while fetching for null value indexes %v", err)
-		}
-	}()
-
-	var nullValueIndexes []utils.NullValueIndexesInfo
-	for rows.Next() {
-		var nullValueIndex utils.NullValueIndexesInfo
-		err := rows.Scan(&nullValueIndex.IndexInfo.IndexName, &nullValueIndex.IndexInfo.ColumnName, &nullValueIndex.IndexInfo.SchemaName, &nullValueIndex.IndexInfo.TableName,
-			&nullValueIndex.NullFrequency, &nullValueIndex.IndexInfo.NumIndexKeys, &nullValueIndex.IndexInfo.IndexDDL)
-		if err != nil {
-			return nil, fmt.Errorf("error scanning rows for null value indexes: %w", err)
-		}
-		nullValueIndex.DBType = source.DBType
-		nullValueIndexes = append(nullValueIndexes, nullValueIndex)
-	}
-	return nullValueIndexes, nil
-}
-func fetchMostFrequentIndexesInfo() ([]utils.MostFrequentValueIndexesInfo, error) {
-	query := fmt.Sprintf(`SELECT 	index_name,column_name,schema_name ,table_name,num_index_keys,value,frequency, index_ddl from %s`,
-		migassessment.MOST_FREQUENT_VALUE_INDEXES)
-	rows, err := assessmentDB.Query(query)
-	if err != nil {
-		return nil, fmt.Errorf("error querying-%s on assessmentDB for most frequent values indexes: %w", query, err)
-	}
-	defer func() {
-		closeErr := rows.Close()
-		if closeErr != nil {
-			log.Warnf("error closing rows while fetching most frequent values indexes %v", err)
-		}
-	}()
-
-	var mostFrequentIndexes []utils.MostFrequentValueIndexesInfo
-	for rows.Next() {
-		var mostFrequentIndex utils.MostFrequentValueIndexesInfo
-		err := rows.Scan(&mostFrequentIndex.IndexInfo.IndexName, &mostFrequentIndex.IndexInfo.ColumnName, &mostFrequentIndex.IndexInfo.SchemaName, &mostFrequentIndex.IndexInfo.TableName,
-			&mostFrequentIndex.IndexInfo.NumIndexKeys, &mostFrequentIndex.Value, &mostFrequentIndex.Frequency, &mostFrequentIndex.IndexInfo.IndexDDL)
+		var stat utils.ColumnStatistics
+		err := rows.Scan(&stat.SchemaName, &stat.TableName, &stat.ColumnName, &stat.NullFrequency, &stat.DistinctValues, &stat.MaxFrequency, &stat.MaxFrequentValue)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning rows for most frequent values indexes: %w", err)
 		}
-		mostFrequentIndex.DBType = source.DBType
-		mostFrequentIndexes = append(mostFrequentIndexes, mostFrequentIndex)
+		stat.DBType = source.DBType
+		columnStats = append(columnStats, stat)
 	}
-	return mostFrequentIndexes, nil
+	return columnStats, nil
 }
 
-func addAssessmentIssuesForVariousIndexOptimizations() error {
+func fetchAndParseColumnStatisticsForIndexIssues() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	var err error
+	columnStats, err := fetchColumnStatisticsInfo()
+	if err != nil {
+		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
+	}
+	parserIssueDetector.PopulateColumnStatisticsMap(columnStats)
+	return nil
+}
+
+func addAssessmentIssuesForRedundantIndex() error {
 	if source.DBType != POSTGRESQL {
 		return nil
 	}
@@ -1028,27 +985,9 @@ func addAssessmentIssuesForVariousIndexOptimizations() error {
 		log.Errorf("error fetching redundant index information: %v", err)
 	}
 
-	lowCardinalityIndexInfo, err := fetchLowCardinalityIndexInfo()
-	if err != nil {
-		log.Errorf("error fetching low cardinality index information: %v", err)
-	}
-
-	nullValueIndexesInfo, err := fetchNullValueIndexes()
-	if err != nil {
-		log.Errorf("error fetching null value index information: %v", err)
-	}
-
-	mostFrequentIndexesInfo, err := fetchMostFrequentIndexesInfo()
-	if err != nil {
-		log.Errorf("error fetching most frequent values index information: %v", err)
-	}
-
-	var variousIndexIssues []queryissue.QueryIssue
-	variousIndexIssues = append(variousIndexIssues, parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)...)
-
-	variousIndexIssues = append(variousIndexIssues, parserIssueDetector.GetIndexIssuesForBetterDistribution(lowCardinalityIndexInfo, nullValueIndexesInfo, mostFrequentIndexesInfo)...)
-
-	for _, issue := range variousIndexIssues {
+	var redundantIssues []queryissue.QueryIssue
+	redundantIssues = append(redundantIssues, queryissue.GetRedundantIndexIssues(redundantIndexesInfo)...)
+	for _, issue := range redundantIssues {
 
 		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
 		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
@@ -1058,6 +997,13 @@ func addAssessmentIssuesForVariousIndexOptimizations() error {
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
+
+	var err error
+	err = fetchAndParseColumnStatisticsForIndexIssues()
+	if err != nil {
+		log.Errorf("error parsing column statistics information: %v", err)
+	}
+
 	/*
 		Here we are generating analyze schema report which converts issue instance to analyze schema issue
 		Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
@@ -1069,7 +1015,6 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
 
 	var unsupportedFeatures []UnsupportedFeature
-	var err error
 	switch source.DBType {
 	case ORACLE:
 		unsupportedFeatures, err = fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport)
@@ -1230,6 +1175,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_INDEX, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LOW_CARDINALITY_INDEX_ISSUE_NAME, "", queryissue.LOW_CARDINALITY_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME, "", queryissue.MOST_FREQUENT_VALUE_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NULL_VALUE_INDEXES_ISSUE_NAME, "", queryissue.NULL_VALUE_INDEXES, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
