@@ -961,7 +961,7 @@ normalize_json() {
     )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
-    sed -i '' '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
+    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
 
     # Move cleaned file to output
     mv "$temp_file2" "$output_file"
@@ -979,16 +979,16 @@ compare_sql_files() {
     grep -v '^File :' "$sql_file1" > "$normalized_file1"
     grep -v '^File :' "$sql_file2" > "$normalized_file2"
 
-    sed -i '' -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
-    sed -i '' -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
+    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file1"
+    sed -i -E 's#could not open extension control file ".*/(postgis\.control)"#could not open extension control file "PATH_PLACEHOLDER/\1"#g' "$normalized_file2"
 
 	# Modifying the ALTER error msg changes for different yb versions in the failed.sql to match expected failed.sql
- 	sed -i '' -E 's#ALTER action CLUSTER ON#ALTER TABLE CLUSTER#g' "$normalized_file1"
-	sed -i '' -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
-	sed -i '' -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
+ 	sed -i -E 's#ALTER action CLUSTER ON#ALTER TABLE CLUSTER#g' "$normalized_file1"
+	sed -i -E 's#ALTER action DISABLE RULE#ALTER TABLE DISABLE RULE#g' "$normalized_file1"
+	sed -i -E 's#ALTER action ALTER COLUMN ... SET#ALTER TABLE ALTER COLUMN#g' "$normalized_file1"
 
 	# Replace the PostGIS "extension not available" message with the "could not open control file" message for 2.25
-	sed -i '' -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
+	sed -i -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
 
 	# Changes required for 2.25 in the mgi schema. We still run Jenkins tests on 2024.2
 	# Commented this for now so that we don't normalize unnecessarily. When we stich the version in Jenkins we can uncomment the below block.
