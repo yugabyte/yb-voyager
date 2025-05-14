@@ -236,6 +236,15 @@ func exportData() bool {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+
+	if source.DBType == YUGABYTEDB {
+		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
+	}
+
 	res := source.DB().CheckSchemaExists()
 	if !res {
 		utils.ErrExit("schema does not exist : %q", source.Schema)
@@ -295,7 +304,7 @@ func exportData() bool {
 		}
 	})
 
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
