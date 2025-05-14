@@ -701,8 +701,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 		Suggestion:             issueInstance.Suggestion,
 		GH:                     issueInstance.GH,
 		MinimumVersionsFixedIn: issueInstance.MinimumVersionsFixedIn,
-		Details: issueInstance.Details,
-
+		Details:                issueInstance.Details,
 	}
 }
 
@@ -1161,7 +1160,6 @@ func analyzeSchema() {
 	}
 	//Not populate any perfomance optimizations in analyze-schema report with false for detect Performance optimizations
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
-
 
 	if analyzeSchemaReportFormat != "" {
 		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
