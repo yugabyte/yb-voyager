@@ -19,6 +19,7 @@ var (
 
 type TestContainer interface {
 	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 	Terminate(ctx context.Context)
 	GetHostPort() (string, int, error)
 	GetConfig() ContainerConfig

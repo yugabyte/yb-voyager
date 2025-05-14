@@ -138,12 +138,12 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	DROP SCHEMA test_schema CASCADE;`)
 
 	// running the command
-	err = testutils.RunVoyagerCommmand(postgresContainer, "assess-migration", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
 		"--iops-capture-interval", "0",
 		"--source-db-schema", "test_schema",
 		"--export-dir", exportDir,
 		"--yes",
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		t.Errorf("Failed to run assess-migration command: %v", err)
 	}
@@ -164,11 +164,11 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	}
 	assert.False(t, res, "Expected MigrationAssessmentDoneViaExportSchema flag to be false")
 
-	err = testutils.RunVoyagerCommmand(postgresContainer, "export schema", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
 		"--export-dir", exportDir,
 		"--yes",
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		t.Errorf("Failed to run export schema command: %v", err)
 	}
@@ -228,11 +228,11 @@ func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *te
 	defer postgresContainer.ExecuteSqls(`
 	DROP SCHEMA test_schema CASCADE;`)
 
-	err = testutils.RunVoyagerCommmand(postgresContainer, "export schema", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--source-db-schema", "test_schema",
 		"--export-dir", exportDir,
 		"--yes",
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		t.Errorf("Failed to run export schema command: %v", err)
 	}
@@ -251,13 +251,13 @@ func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *te
 		t.Errorf("Expected table.sql file does not exist: %s", tableSqlFilePath)
 	}
 
-	err = testutils.RunVoyagerCommmand(postgresContainer, "assess-migration", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "assess-migration", []string{
 		"--source-db-schema", "test_schema",
 		"--iops-capture-interval", "0",
 		"--export-dir", exportDir,
 		"--start-clean", "true",
 		"--yes",
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		t.Errorf("Failed to run assess-migration command: %v", err)
 	}
@@ -313,12 +313,12 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 	defer postgresContainer.ExecuteSqls(`
 	DROP SCHEMA test_schema CASCADE;`)
 
-	err = testutils.RunVoyagerCommmand(postgresContainer, "export schema", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export schema", []string{
 		"--assess-schema-before-export", "false",
 		"--source-db-schema", "test_schema",
 		"--export-dir", exportDir,
 		"--yes",
-	}, nil)
+	}, nil, false)
 	if err != nil {
 		t.Errorf("Failed to run export schema command: %v", err)
 	}

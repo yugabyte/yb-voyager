@@ -21,9 +21,21 @@ type PostgresContainer struct {
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
-	if pg.container != nil && pg.container.IsRunning() {
-		utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
-		return nil
+	// if container is not nil, it means it was already started
+	if pg.container != nil {
+		// already running, do nothing.
+		if pg.container.IsRunning() {
+			utils.PrintAndLog("Postgres-%s container already running", pg.DBVersion)
+			return nil
+		}
+		// but if it’s stopped, so start it back up in place
+		utils.PrintAndLog("Restarting Postgres-%s container", pg.DBVersion)
+		if err := pg.container.Start(ctx); err != nil {
+			return fmt.Errorf("failed to restart postgres container: %w", err)
+		}
+
+		// Wait for it to accept connections again
+		return pingDatabase("pgx", pg.GetConnectionString())
 	}
 
 	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
@@ -72,6 +84,25 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	err = pingDatabase("pgx", pg.GetConnectionString())
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
+	}
+	return nil
+}
+
+// Stop simulates a database outage by stopping (but not removing) the Docker container.
+// The underlying data directory remains intact, so you can call Start() later
+// and the DB will pick up with exactly the same contents.
+func (pg *PostgresContainer) Stop(ctx context.Context) error {
+	if pg.container == nil {
+		return nil
+	} else if !pg.container.IsRunning() {
+		utils.PrintAndLog("Postgres-%s container already stopped", pg.DBVersion)
+		return nil
+	}
+
+	timeout := 10 * time.Second
+	// Stop with a 10s timeout—this sends SIGTERM and waits, but does NOT remove the container.
+	if err := pg.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop postgres container: %w", err)
 	}
 	return nil
 }
