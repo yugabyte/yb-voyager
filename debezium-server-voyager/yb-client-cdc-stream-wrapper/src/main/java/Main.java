@@ -5,6 +5,9 @@ import org.yb.client.YBClient;
 import org.yb.client.ListCDCStreamsResponse;
 import org.yb.client.YBTable;
 import org.yb.master.MasterDdlOuterClass.ListTablesResponsePB.TableInfo;
+import org.yb.client.GetNamespaceInfoResponse;
+import org.yb.CommonTypes.YQLDatabase;
+import org.yb.master.MasterReplicationOuterClass;
 import java.util.Set;   
 import java.util.HashSet;
 import java.util.stream.Collectors;
@@ -15,8 +18,15 @@ import java.util.Objects;
 public class Main {
     public static void main(String[] args) throws Exception {
         CmdLineParams parameters = CmdLineParams.createFromArgs(args);
+        //Timeout in miliseconds for which the client API can wait and exit if its taking more than that
+        long ADMIN_OPERATION_TIMEOUT_MS = 10000;
+        long SOCKET_READ_TIMEOUT_MS = 10000;
+        long OPERATION_TIMEOUT_MS = 10000;
         AsyncYBClient asyncClient = new AsyncYBClient.AsyncYBClientBuilder(parameters.masterAddresses)
                 .sslCertFile(parameters.certFilePath) // TODO: support sslClientCertFiles(clientCert, clientKey)
+                .defaultAdminOperationTimeoutMs(ADMIN_OPERATION_TIMEOUT_MS)
+                .defaultOperationTimeoutMs(SOCKET_READ_TIMEOUT_MS)
+                .defaultSocketReadTimeoutMs(OPERATION_TIMEOUT_MS)
                 .build();
 
         YBClient client = new YBClient(asyncClient);
@@ -54,7 +64,20 @@ public class Main {
             masterAddressesList = masterAddressesList.replace("}", "");
             System.out.println("Master Addresses: " + masterAddressesList);
         } else if (parameters.getNumOfCDCStreams) {
-            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, null, null);
+            String namespaceID = null;
+            if(parameters.dbName != "") {
+                GetNamespaceInfoResponse namespaceInfoResponse =
+                    client.getNamespaceInfo(parameters.dbName, YQLDatabase.YQL_DATABASE_PGSQL);
+                if (namespaceInfoResponse.hasError()) {
+                    throw new RuntimeException(
+                        String.format(
+                            "Error getting namespace details for namespace: %s. Error: %s",
+                            parameters.dbName,
+                            namespaceInfoResponse.errorMessage()));
+                    }
+                namespaceID = namespaceInfoResponse.getNamespaceId();
+            }
+            ListCDCStreamsResponse cdcStreamsResponse = client.listCDCStreams(null, namespaceID, MasterReplicationOuterClass.IdTypePB.NAMESPACE_ID);
             if (cdcStreamsResponse.hasError()) {
               throw new RuntimeException("error getting the num of cdc streams");
             }

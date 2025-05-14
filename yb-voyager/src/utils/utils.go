@@ -37,6 +37,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -884,4 +886,24 @@ func SliceLastElement[T any](slice []T) (T, bool) {
 		return zeroValue, false
 	}
 	return slice[len(slice)-1], true
+}
+
+// GetCommonFlags returns the list of *pflag.Flag that are registered
+// on both cmdA and cmdB.
+func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
+	var common []*pflag.Flag
+	cmdA.Flags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.Flags().Lookup(f.Name) != nil {
+			common = append(common, f)
+		}
+	})
+
+	// also return common persistent flags like --export-dir --yes
+	cmdA.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.PersistentFlags().Lookup(f.Name) != nil {
+			common = append(common, f)
+		}
+	})
+
+	return common
 }

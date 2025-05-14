@@ -1517,18 +1517,52 @@ func startFallBackSetupIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
+
+	passImportDataToSourceSpecificCLIFlags := map[string]bool{
+		"disable-pb": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	keysSetInConfig, err := readConfigFileAndGetImportDataToSourceKeys()
+	var displayCmdAndExit bool
+	var configFileErr error
+	if err != nil {
+		displayCmdAndExit = true
+		configFileErr = err
+	} else {
+		for key := range passImportDataToSourceSpecificCLIFlags {
+			if slices.Contains(keysSetInConfig, key) {
+				passImportDataToSourceSpecificCLIFlags[key] = false
+			}
+		}
+	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
+
+	// Command specific flags
+	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
 		cmd = append(cmd, "--disable-pb=true")
 	}
+
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
+
+	// If error had occurred while reading the config file, display the command and exit
+	if displayCmdAndExit {
+		// We are delaying this error message to be displayed here so that we can display the command
+		// after it has been constructed
+		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
+	}
+
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager: %w", err)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)

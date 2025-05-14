@@ -432,14 +432,6 @@ const (
 To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
-	HASH_SHARDING_DATE_INDEX                               = "HASH_SHARDING_DATE_INDEX"
-	HASH_SHARDING_DATE_INDEX_ISSUE_NAME                    = "Hash-sharding for indexes on date columns"
-	HASH_SHARDING_TIMESTAMP_INDEX                          = "HASH_SHARDING_TIMESTAMP_INDEX"
-	HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME               = "Hash-sharding for indexes on timestamp columns"
-	HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES = `Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.
-To address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.
-Note that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
-
 	REDUNDANT_INDEXES="REDUNDANT_INDEXES"
 	REDUNDANT_INDEXES_ISSUE_NAME="Redundant index"
 	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."

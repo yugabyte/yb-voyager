@@ -282,12 +282,45 @@ func startExportDataFromTargetIfRequired() {
 
 	cmd := []string{"yb-voyager", "export", "data", "from", "target",
 		"--export-dir", exportDir,
-		"--table-list", strings.Join(importTableNames, ","),
-		fmt.Sprintf("--transaction-ordering=%t", transactionOrdering),
 		fmt.Sprintf("--send-diagnostics=%t", callhome.SendDiagnostics),
-
 		"--log-level", config.LogLevel,
 	}
+
+	passExportDataFromTargetSpecificCLIFlags := map[string]bool{
+		"disable-pb":           true,
+		"table-list":           true,
+		"transaction-ordering": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	keysSetInConfig, err := readConfigFileAndGetExportDataFromTargetKeys()
+	var displayCmdAndExit bool
+	var configFileErr error
+	if err != nil {
+		displayCmdAndExit = true
+		configFileErr = err
+	} else {
+		for key := range passExportDataFromTargetSpecificCLIFlags {
+			if slices.Contains(keysSetInConfig, key) {
+				passExportDataFromTargetSpecificCLIFlags[key] = false
+			}
+		}
+	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to export data from target: %v", passExportDataFromTargetSpecificCLIFlags)
+
+	// Command specific flags
+	if bool(disablePb) && passExportDataFromTargetSpecificCLIFlags["disable-pb"] {
+		cmd = append(cmd, "--disable-pb=true")
+	}
+	if passExportDataFromTargetSpecificCLIFlags["transaction-ordering"] {
+		cmd = append(cmd, fmt.Sprintf("--transaction-ordering=%t", transactionOrdering))
+	}
+	if passExportDataFromTargetSpecificCLIFlags["table-list"] {
+		cmd = append(cmd, "--table-list", strings.Join(importTableNames, ","))
+	}
+
 	if msr.UseYBgRPCConnector {
 		if tconf.SSLMode == "prefer" || tconf.SSLMode == "allow" {
 			utils.PrintAndLog(color.RedString("Warning: SSL mode '%s' is not supported for 'export data from target' yet. Downgrading it to 'disable'.\nIf you don't want these settings you can restart the 'export data from target' with a different value for --target-ssl-mode and --target-ssl-root-cert flag.", source.SSLMode))
@@ -301,12 +334,18 @@ func startExportDataFromTargetIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
-		cmd = append(cmd, "--disable-pb=true")
-	}
+
 	cmdStr := "TARGET_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting export data from target with command:\n %s", color.GreenString(cmdStr))
+
+	// If error had occurred while reading the config file, display the command and exit
+	if displayCmdAndExit {
+		// We are delaying this error message to be displayed here so that we can display the command
+		// after it has been constructed
+		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
+	}
+
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager: %w", lookErr)
@@ -918,7 +957,7 @@ func startMonitoringTargetYBHealth() error {
 	}
 	go func() {
 		//for now not sending any other parameters as not required for monitor usage
-		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, "", "", nil)
+		ybClient := dbzm.NewYugabyteDBCDCClient(exportDir, "", tconf.SSLRootCert, tconf.DBName, "", nil)
 		err := ybClient.Init()
 		if err != nil {
 			log.Errorf("error intialising the yb client : %v", err)

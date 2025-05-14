@@ -41,7 +41,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 29,
-                "InvalidCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "film_fulltext_idx ON public.film, idx_actor_last_name ON public.actor, idx_fk_address_id ON public.customer, idx_fk_city_id ON public.address, idx_fk_country_id ON public.city, idx_fk_customer_id ON public.payment, idx_fk_film_id ON public.film_actor, idx_fk_inventory_id ON public.rental, idx_fk_language_id ON public.film, idx_fk_original_language_id ON public.film, idx_fk_payment_p2007_01_customer_id ON public.payment_p2007_01, idx_fk_payment_p2007_01_staff_id ON public.payment_p2007_01, idx_fk_payment_p2007_02_customer_id ON public.payment_p2007_02, idx_fk_payment_p2007_02_staff_id ON public.payment_p2007_02, idx_fk_payment_p2007_03_customer_id ON public.payment_p2007_03, idx_fk_payment_p2007_03_staff_id ON public.payment_p2007_03, idx_fk_payment_p2007_04_customer_id ON public.payment_p2007_04, idx_fk_payment_p2007_04_staff_id ON public.payment_p2007_04, idx_fk_payment_p2007_05_customer_id ON public.payment_p2007_05, idx_fk_payment_p2007_05_staff_id ON public.payment_p2007_05, idx_fk_payment_p2007_06_customer_id ON public.payment_p2007_06, idx_fk_payment_p2007_06_staff_id ON public.payment_p2007_06, idx_fk_staff_id ON public.payment, idx_fk_store_id ON public.customer, idx_last_name ON public.customer, idx_store_id_film_id ON public.inventory, idx_title ON public.film, idx_unq_manager_staff_id ON public.store, idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental"
             },
             {
@@ -147,18 +147,6 @@
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1129",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental",
-            "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: rental_date",
-            "SqlStatement": "CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental USING btree (rental_date, inventory_id, customer_id);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/sakila/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {

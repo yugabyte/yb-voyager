@@ -43,6 +43,7 @@ var cutoverStatusCmd = &cobra.Command{
 func init() {
 	cutoverRootCmd.AddCommand(cutoverStatusCmd)
 	registerExportDirFlag(cutoverStatusCmd)
+	registerConfigFileFlag(cutoverStatusCmd)
 }
 
 func checkAndReportCutoverStatus() {
