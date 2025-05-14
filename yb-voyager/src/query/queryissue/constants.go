@@ -499,3 +499,11 @@ const (
 	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
 )
+
+
+const (
+	LOW_CARDINALITY_MIN_THRESHOLD = 0
+	LOW_CARDINALITY_MAX_THRESHOLD = 10
+	NULL_FREQUENCY_THRESHOLD = 40 // percentage of nulls in the column
+	MOST_FREQUENT_VALUE_THRESHOLD = 60 // percentage of most frequent value in the column
+)
