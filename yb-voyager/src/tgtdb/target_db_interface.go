@@ -236,8 +236,6 @@ func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
 	default:
 		panic(fmt.Sprintf("Invalid conflict action: %s", args.PKConflictAction))
 	}
-
-	return baseStmt
 }
 
 func (args *ImportBatchArgs) copyOptions() []string {
