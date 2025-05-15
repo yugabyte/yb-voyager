@@ -706,8 +706,8 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 			continue
 		}
 
-		maxFrequencyPerc := int(stat.MaxFrequency * 100)
-		nullFrequencyPerc := int(stat.NullFrequency * 100)
+		maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
+		nullFrequencyPerc := int(stat.NullFraction * 100)
 
 		if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
 			// LOW CARDINALITY INDEX ISSUE
@@ -718,7 +718,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 			//If the index is not LOW cardinality one then see if that has most frequent value or not
 			//MOST FREQUENT VALUE INDEX ISSUE
 			issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
-				isSingleColumnIndex, stat.MaxFrequentValue, maxFrequencyPerc, stat.ColumnName))
+				isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
 
 		}
 

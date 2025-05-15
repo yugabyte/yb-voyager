@@ -76,12 +76,6 @@ var PerformanceOptimizationIssues = []string{
 	NULL_VALUE_INDEXES,
 }
 
-var IssueTypesForModifyingIssueNameWithExtraDetails = []string{
-	LOW_CARDINALITY_INDEXES,
-	MOST_FREQUENT_VALUE_INDEXES,
-	NULL_VALUE_INDEXES,
-}
-
 var UnsupportedSystemColumnsIssueTypes = []string{
 	SYSTEM_COLUMN_XMIN,
 	SYSTEM_COLUMN_XMAX,

@@ -102,10 +102,10 @@ func TestInitAssessmentDB(t *testing.T) {
 			"schema_name":          {Type: "TEXT", PrimaryKey: 1},
 			"table_name":           {Type: "TEXT", PrimaryKey: 2},
 			"column_name":          {Type: "TEXT", PrimaryKey: 3},
-			"null_frequency":       {Type: "REAL"},
+			"null_frac":            {Type: "REAL"},
 			"effective_n_distinct": {Type: "INTEGER"},
-			"max_frequency":        {Type: "REAL"},
-			"max_frequent_val":     {Type: "TEXT"},
+			"most_common_freq":     {Type: "REAL"},
+			"most_common_val":      {Type: "TEXT"},
 		},
 	}
 

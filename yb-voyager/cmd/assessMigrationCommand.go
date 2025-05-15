@@ -178,13 +178,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
 			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
 		}
-		if slices.Contains(queryissue.IssueTypesForModifyingIssueNameWithExtraDetails, issue.Type) {
-			//TODO: fix the handling of extra issue specific details with map having that information send it directly to callhome
-			callhomeIssueName, ok := issue.Details[queryissue.CALLHOME_ISSUE_NAME_KEY]
-			if ok {
-				obfuscatedIssue.Name = callhomeIssueName.(string)
-			}
-		}
 
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
@@ -937,7 +930,7 @@ func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 }
 
 func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
-	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, null_frequency, effective_n_distinct, max_frequency, max_frequent_val from %s`,
+	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, null_frac, effective_n_distinct, most_common_freq, most_common_val from %s`,
 		migassessment.COLUMN_STATISTICS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
@@ -953,7 +946,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	var columnStats []utils.ColumnStatistics
 	for rows.Next() {
 		var stat utils.ColumnStatistics
-		err := rows.Scan(&stat.SchemaName, &stat.TableName, &stat.ColumnName, &stat.NullFrequency, &stat.DistinctValues, &stat.MaxFrequency, &stat.MaxFrequentValue)
+		err := rows.Scan(&stat.SchemaName, &stat.TableName, &stat.ColumnName, &stat.NullFraction, &stat.DistinctValues, &stat.MostCommonFrequency, &stat.MostCommonValue)
 		if err != nil {
 			return nil, fmt.Errorf("error scanning rows for most frequent values indexes: %w", err)
 		}
@@ -963,16 +956,18 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 	return columnStats, nil
 }
 
-func fetchAndParseColumnStatisticsForIndexIssues() error {
+func fetchAndSetColumnStatisticsForIndexIssues() error {
 	if source.DBType != POSTGRESQL {
 		return nil
 	}
 	var err error
+	//Fetching the column stats from assessment db
 	columnStats, err := fetchColumnStatisticsInfo()
 	if err != nil {
 		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
 	}
-	parserIssueDetector.PopulateColumnStatisticsMap(columnStats)
+	//passing it on to the parser issue detector to enable it for detecting issues using this.
+	parserIssueDetector.SetColumnStatistics(columnStats)
 	return nil
 }
 
@@ -982,7 +977,7 @@ func addAssessmentIssuesForRedundantIndex() error {
 	}
 	redundantIndexesInfo, err := fetchRedundantIndexInfo()
 	if err != nil {
-		log.Errorf("error fetching redundant index information: %v", err)
+		return fmt.Errorf("error fetching redundant index information: %v", err)
 	}
 
 	var redundantIssues []queryissue.QueryIssue
@@ -999,9 +994,10 @@ func addAssessmentIssuesForRedundantIndex() error {
 func getAssessmentReportContentFromAnalyzeSchema() error {
 
 	var err error
-	err = fetchAndParseColumnStatisticsForIndexIssues()
+	//fetching column stats from assessment db and then passing it on to the parser issue detector for detecting issues
+	err = fetchAndSetColumnStatisticsForIndexIssues()
 	if err != nil {
-		log.Errorf("error parsing column statistics information: %v", err)
+		return fmt.Errorf("error parsing column statistics information: %v", err)
 	}
 
 	/*

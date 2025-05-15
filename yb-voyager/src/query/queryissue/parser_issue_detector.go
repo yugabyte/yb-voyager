@@ -511,10 +511,9 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 	return p.isUnloggedTablesIssueFiltered
 }
 
-func (p *ParserIssueDetector) PopulateColumnStatisticsMap(columnStats []utils.ColumnStatistics) {
+func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {
 	for _, stat := range columnStats {
-		qualifiedColumnName := fmt.Sprintf("%s.%s", stat.GetTableName(), stat.ColumnName)
-		p.columnStatistics[qualifiedColumnName] = stat
+		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
 	}
 }
 

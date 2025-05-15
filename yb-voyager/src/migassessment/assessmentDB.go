@@ -151,10 +151,10 @@ func InitAssessmentDB() error {
 			schema_name TEXT,
 			table_name TEXT,
 			column_name TEXT,
-			null_frequency REAL,
+			null_frac REAL,
 			effective_n_distinct INTEGER,
-			max_frequency REAL,
-			max_frequent_val TEXT,
+			most_common_freq REAL,
+			most_common_val TEXT,
 			PRIMARY KEY(schema_name, table_name, column_name));`, COLUMN_STATISTICS),
 	}
 

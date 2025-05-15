@@ -172,20 +172,24 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 }
 
 type ColumnStatistics struct {
-	DBType           string
-	SchemaName       string
-	TableName        string
-	ColumnName       string
-	NullFrequency    float64
-	DistinctValues   int64
-	MaxFrequency     float64
-	MaxFrequentValue string
+	DBType              string
+	SchemaName          string
+	TableName           string
+	ColumnName          string
+	NullFraction        float64
+	DistinctValues      int64
+	MostCommonFrequency float64
+	MostCommonValue     string
 }
 
 func (c *ColumnStatistics) GetTableName() string {
 	tableObjectName := sqlname.NewObjectName(c.DBType, "", c.SchemaName, c.TableName)
 	//Get Unquoted table name as the parse gets the unquoted name after parsing index statement
 	return tableObjectName.Qualified.Unquoted
+}
+
+func (c *ColumnStatistics) GetQualifiedColumnName() string {
+	return fmt.Sprintf("%s.%s", c.GetTableName(), c.ColumnName)
 }
 
 type UnsupportedQueryConstruct struct {
