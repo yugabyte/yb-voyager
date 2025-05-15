@@ -60,7 +60,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'isactive' is 2.",
 			"Impact": "LEVEL_1",
@@ -73,7 +73,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'id' is 2.",
 			"Impact": "LEVEL_1",
@@ -86,7 +86,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'id2' is 10.",
 			"Impact": "LEVEL_1",
@@ -99,7 +99,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'status' is 2.",
 			"Impact": "LEVEL_1",
@@ -112,7 +112,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. The first column of this index is low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'status' is 2.",
 			"Impact": "LEVEL_1",
@@ -125,7 +125,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'val' is 2.",
 			"Impact": "LEVEL_1",
@@ -138,7 +138,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'val1' is 1.",
 			"Impact": "LEVEL_1",
@@ -151,7 +151,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "LOW_CARDINALITY_INDEXES",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
 			"Name": "Index on low-cardinality column",
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.\nCardinality of the column 'id' is 2.",
 			"Impact": "LEVEL_1",
@@ -164,20 +164,20 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "MOST_FREQUENT_VALUE_INDEXES",
-			"Name": "Index on column with high percentage of a value",
+			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE",
+			"Name": "Index on column with high percentage of a particular value",
 			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots. This index is built on column having a value occuring in large number of rows. Refer to docs link for more details on recommendations.\nFrequently occuring value '' with frequency 65% on the column 'name'.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_name ON public.users",
 			"SqlStatement": "CREATE INDEX idx_name ON public.users USING btree (name);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-value",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
 			"MinimumVersionsFixedIn": null
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "NULL_VALUE_INDEXES",
+			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
 			"Name": "Index on column with a high percentage of NULL values",
 			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues. This index is built on a column having high percentage of NULL values. Refer to docs link for more details on recommendations.\nFrequency of NULLs on the column 'id2' is 100%.",
 			"Impact": "LEVEL_1",
@@ -190,7 +190,7 @@
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
-			"Type": "NULL_VALUE_INDEXES",
+			"Type": "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES",
 			"Name": "Index on column with a high percentage of NULL values",
 			"Description": "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues. This index is built on a column having high percentage of NULL values. Refer to docs link for more details on recommendations.\nFrequency of NULLs on the column 'val1' is 50%.",
 			"Impact": "LEVEL_1",

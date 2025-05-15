@@ -112,7 +112,7 @@ var mostFrequentValueIndexIssue = issue.Issue{
 	Name:     MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME,
 	Type:     MOST_FREQUENT_VALUE_INDEXES,
 	Impact:   constants.IMPACT_LEVEL_1,
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-value",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-particular-value",
 }
 
 func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string) QueryIssue {

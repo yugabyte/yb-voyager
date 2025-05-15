@@ -437,19 +437,19 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	REDUNDANT_INDEXES_DESCRIPTION = "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
 
 	LOW_CARDINALITY_INDEX_ISSUE_NAME          = "Index on low-cardinality column"
-	LOW_CARDINALITY_INDEXES                   = "LOW_CARDINALITY_INDEXES"
+	LOW_CARDINALITY_INDEXES                   = "INDEX_ON_LOW_CARDINALITY_COLUMN"
 	LOW_CARDINALITY_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets."
 	LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN = `This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.`
 	LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN  = `The first column of this index is low-cardinality column. Refer to docs link for more details on recommendations.`
 
 	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
-	NULL_VALUE_INDEXES                           = "NULL_VALUE_INDEXES"
+	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
 	NULL_VALUE_INDEXES_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues."
 	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values. Refer to docs link for more details on recommendations.`
 	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values. Refer to docs link for more details on recommendations.`
 
-	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a value"
-	MOST_FREQUENT_VALUE_INDEXES                         = "MOST_FREQUENT_VALUE_INDEXES"
+	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
+	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows. Refer to docs link for more details on recommendations.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows. Refer to docs link for more details on recommendations.`
