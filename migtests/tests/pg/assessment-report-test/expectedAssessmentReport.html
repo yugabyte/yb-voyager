@@ -15883,7 +15883,7 @@ FROM xmltable(
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
 Existing Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)</pre>
                                                             </div>
                                                         
@@ -15982,7 +15982,7 @@ Existing Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USIN
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
 Existing Index SQL Statement: CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)</pre>
                                                             </div>
                                                         

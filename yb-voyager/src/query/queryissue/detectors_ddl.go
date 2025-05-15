@@ -701,32 +701,33 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 
 	isSingleColumnIndex := len(index.Params) == 1
 
-	for column, stat := range i.columnStatistics {
-		if firstColumnName != column {
-			continue
-		}
+	stat, ok := i.columnStatistics[firstColumnName]
+	if !ok {
+		return nil, nil
+	}
 
-		maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
-		nullFrequencyPerc := int(stat.NullFraction * 100)
+	maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
+	nullFrequencyPerc := int(stat.NullFraction * 100)
 
-		if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
-			// LOW CARDINALITY INDEX ISSUE
-			issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
-				"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
-		} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD {
+	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
+	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
+	if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
+		// LOW CARDINALITY INDEX ISSUE
+		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
+			"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
+	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD {
 
-			//If the index is not LOW cardinality one then see if that has most frequent value or not
-			//MOST FREQUENT VALUE INDEX ISSUE
-			issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
-				isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
+		//If the index is not LOW cardinality one then see if that has most frequent value or not
+		//MOST FREQUENT VALUE INDEX ISSUE
+		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
+			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
 
-		}
+	}
 
-		if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD {
+	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD {
 
-			// NULL VALUE INDEX ISSUE
-			issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
-		}
+		// NULL VALUE INDEX ISSUE
+		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
 	}
 
 	return issues, nil
