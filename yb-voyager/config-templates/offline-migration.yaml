@@ -1,0 +1,422 @@
+### Note: This is a template configuration file for YB Voyager offline migration.
+
+# ---------------------------------------------------------
+# Global configuration
+# ---------------------------------------------------------
+
+### *********** Basic Configuration ************
+### Export directory is the workspace used to keep the exported schema, data, state, and logs
+### Required
+export-dir: <export-dir-name>     
+
+### Log level for yb-voyager 
+### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+### Default - info
+log-level: info                  
+
+### Run guardrails checks before the export/import command is run. 
+### Note - This is only valid for PostgreSQL source database.
+### Accepted values - (true, false, yes, no, 0, 1)
+### Default - true
+# run-guardrails-checks: true  
+
+### *********** Control Plane Configuration ************
+### To see the Voyager migration workflow details in the UI, set the following parameters.
+
+### Control plane type refers to the deployment type of YugabyteDB Anywhere 
+### Accepted value - (yugabyted)
+### Optional
+control-plane-type: yugabyted  
+
+### YSQL connection string
+### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
+### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
+### Required if control-plane-type is set to yugabyted
+yugabyted-db-conn-string: <ysql-connection-parameters>                            
+
+# ---------------------------------------------------------
+# Source Database Configuration
+# ---------------------------------------------------------
+
+source:
+
+  ### Source database type: (oracle, mysql, postgresql)
+  db-type: postgresql    
+
+  ### Source database server host. 
+  ### Default - localhost                             
+  db-host: localhost 
+
+  ### Source database server port number. 
+  ### Default - Oracle(1521), MySQL(3306), PostgreSQL(5432)                                     
+  db-port: 5432    
+
+  ### Source database name to be migrated to YugabyteDB                                       
+  db-name: test_db  
+
+  ### Source schema name to export 
+  ### Note - This is valid for only Oracle and PostgreSQL source databases.
+  ### Note - In case of PostgreSQL, it can be a single or comma separated list of schemas: "schema1,schema2,schema3"                                        
+  db-schema: test_schema   
+
+  ### Connect to source database as the specified user                                     
+  db-user: test_user   
+
+  ### Source password to connect as the specified user.    
+  ### Alternatively, you can also specify the password by setting the environment variable SOURCE_DB_PASSWORD. 
+  ### If you don't provide a password via the config, yb-voyager will prompt you at runtime for a password. 
+  ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.                               
+  db-password: test_password                               
+
+### *********** Source SSL Configuration ************  
+
+  ### Path of the file containing source SSL Certificate         
+  # ssl-cert: <ssl-cert-path>  
+
+  ### Specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) 
+  ### MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters. 
+  ### Default - prefer.                          
+  # ssl-mode: prefer    
+
+  ### Path of the file containing source SSL Key
+  # ssl-key: <ssl-key-path>      
+
+  ### Path of the file containing source SSL Root Certificate
+  # ssl-root-cert: <ssl-root-cert-path> 
+
+  ### Path of the file containing source SSL Root Certificate Revocation List (CRL)                  
+  # ssl-crl: <ssl-crl-path>    
+
+### *********** Oracle Specific Configuration ************
+
+  ### [For Oracle Only] Oracle System Identifier (SID) that you wish to use while exporting data from Oracle instances
+  # oracle-db-sid: <oracle-db-sid>                        
+
+  ### [For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin
+  # oracle-home: <oracle-home-path>  
+
+  ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases                    
+  # oracle-tns-alias: <oracle-tns-alias>                  
+
+# ---------------------------------------------------------
+# Target Database Configuration
+# ---------------------------------------------------------
+
+target:    
+
+  ### Host on which the YugabyteDB server is running. 
+  ### Default - 127.0.0.1                          
+  db-host: 127.0.0.1      
+
+  ### Port on which the YugabyteDB YSQL API is running. 
+  ### Default - 5433                                   
+  db-port: 5433  
+
+  ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
+  db-name: yugabyte 
+
+  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  # db-schema: public      
+
+  ### Username with which to connect to the target YugabyteDB server                                    
+  db-user: test_user      
+
+  ### Password with which to connect to the target YugabyteDB server.    
+  ### Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. 
+  ### If you don't provide a password via the config, yb-voyager will prompt you at runtime for a password. 
+  ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.                          
+  db-password: test_password                             
+
+### *********** Target SSL Configuration ************
+
+  ### Path of the file containing target SSL Certificate
+  # ssl-cert: <ssl-cert-path>        
+
+  ### Specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full). 
+  ### Default - prefer
+  # ssl-mode: prefer           
+
+  ### Path of the file containing target SSL Key                                                            
+  # ssl-key: <ssl-key-path>      
+
+  ### Path of the file containing target SSL Root Certificate                         
+  # ssl-root-cert: <ssl-root-cert-path>     
+
+  ### Path of the file containing target SSL Root Certificate Revocation List (CRL)              
+  # ssl-crl: <ssl-crl-path>                               
+
+# ---------------------------------------------------------
+# Assess Migration Configuration 
+# ---------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional assess migration options.
+assess-migration:
+
+  ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
+  ### Default - latest stable version i.e. 2024.2.2.2.
+  target-db-version: 2024.2.2.2
+
+  ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
+  ### Note: Only valid for PostgreSQL
+  ### Default - 120                         
+  # iops-capture-interval: 120     
+
+  ### Directory path where assessment metadata like source DB metadata and statistics are stored. 
+  ### Optional flag, if not provided, it will be assumed to be present at default path inside the export directory.
+  # assessment-metadata-dir: <assessment-metadata-dir>     
+
+# ----------------------------------------------------------
+# Export Schema Configuration
+# ----------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional export schema options.
+export-schema: 
+
+  ### Provide comma separated list of objects to export or exclude from export.
+  ### Note - You can only provide either object-type-list or exclude-object-type-list, not both.
+  ###   Accepted parameters for the object-type-list and exclude-object-type-list are:
+  ###   Oracle - TYPE, SEQUENCE, TABLE, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, SYNONYM, VIEW, MVIEW
+  ###   PostgreSQL - TYPE, DOMAIN, SEQUENCE, TABLE, FUNCTION, PROCEDURE, AGGREGATE, VIEW, MVIEW, TRIGGER, COMMENT
+  ###   MySQL - TABLE, VIEW, TRIGGER, FUNCTION, PROCEDURE                                                 
+  # object-type-list: "TABLE,FUNCTION,VIEW"            
+  # exclude-object-type-list: "TRIGGER"   
+
+  ### Enable export of comments associated with database objects 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  comments-on-objects: false                                                
+
+  ### Enable using orafce extension in export schema 
+  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Only valid for Oracle and MySQL source databases
+  ### Default - true
+  # use-orafce: true  
+
+  ### Disable applying recommendations in the exported schema suggested by the migration assessment report
+  ### Accepted values (true, false, yes, no, 0, 1)  
+  ### Default - false                                       
+  # skip-recommendations: false  
+
+  ### Path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema                       
+  # assessment-report-path: <assessment-report-path>        
+
+# ----------------------------------------------------------
+# Analyze Schema Configuration
+# ----------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional analyze schema options.
+analyze-schema:
+
+  ### Format in which report can be generated: ('html', 'txt', 'json', 'xml'). 
+  ### If not provided, reports will be generated in both 'json' and 'html' formats by default.
+  # output-format: txt    
+
+  ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
+  ### Default - latest stable version i.e. 2024.2.2.2                                        
+  target-db-version: 2024.2.2.2                            
+                                      
+                                  
+# ----------------------------------------------------------
+# Import Schema Configuration
+# ----------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional import schema options.
+import-schema:
+  
+  ### Comma separated list of schema object types to include while importing schema
+  ### Note - You can provide only one of the arguments at a time.
+  ### Accepted parameters -
+  ###   Oracle - TYPE, SEQUENCE, TABLE, PARTITION, INDEX, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, MVIEW, SYNONYM
+  ###   PostgreSQL - SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, INDEX, FUNCTION, AGGREGATE, PROCEDURE, VIEW, TRIGGER, MVIEW, RULE, COMMENT
+  ###   MySQL - TABLE, PARTITION, INDEX, VIEW, TRIGGER, FUNCTION, PROCEDURE 
+  # object-type-list: 'TABLE, MVIEW'                              
+  # exclude-object-type-list: 'TRIGGER'
+
+  ### Ignore errors and continue with the import 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  continue-on-error: false   
+
+  ### Ignore errors if object already exists 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  ignore-exist: false                                                               
+                                                                                                                                 
+  ### Imports the schema objects in the order specified via the object-type-list parameter 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # straight-order: false                                                                                   
+  
+  ### Enable Orafce extension on target
+  ### Note - This is only valid for Oracle source database.
+  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Default - true
+  # enable-orafce: true   
+
+# ----------------------------------------------------------
+# Export Data Configuration
+# ----------------------------------------------------------
+
+### Uncomment this section and the respective parameters when you want to configure additional export data options.
+export-data:
+
+  ### Export type for offline migration (Do not change)
+  ### Required                                                 
+  export-type: snapshot-only         
+
+  ### Comma-separated list of the table names to include or exclude while exporting data.
+  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
+  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
+  # table-list: 'table1, table2'                          
+  # exclude-table-list: 'table3, table4'  
+
+  ### Path of the file containing comma-separated list of table names to include or exclude while exporting data
+  ### Note - Only one of table-list or table-list-file-path can be used at a time.
+  ### Similary, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
+  # table-list-file-path: <table-list-file-path>
+  # exclude-table-list-file-path: <exclude-table-list-file-path>                    
+
+  ### Number of Parallel Jobs to extract data from source database.
+  ### Default - 4
+  parallel-jobs: 4    
+
+  ### Disable progress bar/stats during data export  
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # disable-pb: false     
+
+  ### For MySQL and Oracle, you can optionally speed up data export by setting the config parameter beta-fast-data-export: 1.
+  ### In case this parameter is set, parallel-jobs has no effect and its value is fixed to 1. 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  # beta-fast-data-export: 0                                           
+
+# ---------------------------------------------------------
+# Import Data Configuration
+# ---------------------------------------------------------
+
+### Uncomment this section and the respective parameters when you want to configure additional import data options.
+import-data:
+
+  ### Comma-separated list of the table names to include or exclude while importing data.
+  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
+  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
+  # table-list: 'table1,table2'                           
+  # exclude-table-list: 'table3,table4'          
+
+  ### Path of the file containing comma-separated list of table names to exclude while importing data
+  ### Note - Only one of table-list or table-list-file-path can be used at a time.
+  ### Similary, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
+  # table-list-file-path: <exclude-table-list-file-path>  
+  # exclude-table-list-file-path: <table-list-file-path>
+
+  ### Control parallelism of data import
+  ### By default, Voyager enables adaptive parallelism which adjusts the number 
+  ### of parallel jobs based on the resource usage (CPU, memory) of the target 
+  ### YugabyteDB cluster.
+  ### The following flags are available to control parallelism:
+  ### - enable-adaptive-parallelism: Enables adaptive adjustment of parallel jobs.
+  ###   Accepted values: true, false, yes, no, 0, 1 
+  ###   Default: true
+  ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
+  ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
+  ###   where N is the number of available CPU cores.
+  ### - parallel-jobs: If set, overrides adaptive parallelism entirely.
+  ###   Voyager will use the given number of parallel jobs.
+  ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
+  ###   Note: Do not set this if enable-adaptive-parallelism is true.
+  enable-adaptive-parallelism: true
+  # adaptive-parallelism-max: <integer>
+  # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled  
+
+  ### Size of batches in the number of rows generated for ingestion during import.
+  ### Default - 20000
+  # batch-size: 20000  
+
+  ### Truncate tables on target YugabyteDB before importing data. 
+  ### Only applicable along with --start-clean true
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # truncate-tables: false 
+
+  ### It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. 
+  ### If detected, data import is aborted. Use this flag to turn off the checks and continue importing data. 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # skip-replication-checks: false    
+
+  ### Disable progress bar/stats during data import 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # disable-pb: false         
+
+  ### Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import
+  ### Note - you might need to configure database to have public_ip available by setting server-broadcast-addresses.
+  ### Refer - https://docs.yugabyte.com/preview/reference/configuration/yb-tserver/#server-broadcast-addresses 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # use-public-ip: false    
+
+  ### Comma separated list of node's endpoint to use for parallel import of data.
+  ### For example - "host1:port1,host2:port2" or "host1,host2"
+  ### Note - use-public-ip flag will be ignored if this is used.
+  ### Default is to use all the nodes in the cluster
+  # target-endpoints: "host1:port1,host2:port2"   
+
+  ### Enable UPSERT mode on target tables. WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. 
+  ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # enable-upsert: false                                                                 
+
+# ---------------------------------------------------------
+# Finalize Schema Post Data Import Configuration
+# ---------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional finalize schema post data import options.
+finalize-schema-post-data-import:
+  
+  ### Ignore errors and continue with the import 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  continue-on-error: false                                    
+  
+  ### Ignore errors if object already exists 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  ignore-exist: false                                         
+  
+  ### Refreshes the materialised views on target during post snapshot import phase  
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  refresh-mviews: false                                       
+
+# ---------------------------------------------------------
+# End Migration Configuration
+# ---------------------------------------------------------
+
+### Uncomment the respective parameters when you want to configure additional end migration options.
+end-migration:
+  
+  ### Backup migration schema files 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Required
+  backup-schema-files: false                                  
+  
+  ### Backup snapshot data files 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Required
+  backup-data-files: false                                    
+  
+  ### Save migration assessment report, analyze schema report and data migration reports
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Required
+  save-migration-reports: false                               
+  
+  ### Backup yb-voyager log files for this migration
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Required
+  backup-log-files: false                                    
+  
+  ### Backup directory is where all the backup files of schema, data, logs and reports will be saved
+  ### Note: Mandatory if any of the following flags are set to true or yes or 1: --backup-data-files, --backup-log-files, --backup-schema-files, --save-migration-reports.
+  # backup-dir: <backup-dir-path>                             
