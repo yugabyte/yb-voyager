@@ -28,13 +28,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
-
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-
-	log "github.com/sirupsen/logrus"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 type SourceDBMetadata struct {

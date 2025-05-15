@@ -38,6 +38,7 @@ var V2024_2_2_3 *YBVersion
 var V2_23_0_0 *YBVersion
 
 var V2_25_0_0 *YBVersion
+var V2_25_1_0 *YBVersion
 
 func init() {
 	var err error
@@ -76,6 +77,11 @@ func init() {
 	V2_25_0_0, err = NewYBVersion("2.25.0.0")
 	if err != nil {
 		panic("could not create version 2.25.0.0")
+	}
+
+	V2_25_1_0, err = NewYBVersion("2.25.1.0")
+	if err != nil {
+		panic("could not create version 2.25.1.0")
 	}
 
 	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
