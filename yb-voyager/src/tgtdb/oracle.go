@@ -175,8 +175,28 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
+// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// This info is only used in fast path import of batches(Target YugabyteDB)
 func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	panic("GetPrimaryKeyColumns not implemented for Oracle")
+	sname, tname := table.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE TABLE_NAME = '%s' AND OWNER = '%s'", tname, sname)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query primary key columns: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []string
+	for rows.Next() {
+		var column string
+		err := rows.Scan(&column)
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from Oracle DB: %w", err)
+		}
+		columns = append(columns, column)
+	}
+
+	return columns, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
