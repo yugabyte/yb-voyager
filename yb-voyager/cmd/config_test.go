@@ -544,6 +544,7 @@ export-schema:
   skip-recommendations: false
   assessment-report-path: /tmp/assessment-report
   ybvoyager-skip-merge-constraints-transformation: true
+  assess-schema-before-export: true
 `, tmpExportDir)
 	configFile, configDir := setupConfigFile(t, configContent)
 	t.Cleanup(func() { os.RemoveAll(configDir) })
@@ -599,6 +600,7 @@ func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), skipRecommendations, "Skip recommendations should match the config")
 	assert.Equal(t, "/tmp/assessment-report", assessmentReportPath, "Assessment report path should match the config")
 	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should match the config")
+	assert.Equal(t, utils.BoolStr(true), assessSchemaBeforeExport, "Assess schema before export should match the config")
 }
 
 func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
@@ -637,6 +639,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--oracle-db-sid", "test_sid2",
 		"--oracle-home", "/path/to/oracle/home2",
 		"--oracle-tns-alias", "test_tns_alias2",
+		"--assess-schema-before-export", "false",
 	})
 	err := rootCmd.Execute()
 	require.NoError(t, err)
@@ -678,6 +681,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), skipRecommendations, "Skip recommendations should be overridden by CLI")
 	assert.Equal(t, "/tmp/new-assessment-report", assessmentReportPath, "Assessment report path should be overridden by CLI")
 	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should match the config")
+	assert.Equal(t, utils.BoolStr(false), assessSchemaBeforeExport, "Assess schema before export should be overridden by CLI")
 }
 
 func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
@@ -739,6 +743,7 @@ func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), skipRecommendations, "Skip recommendations should match the config")
 	assert.Equal(t, "/tmp/assessment-report", assessmentReportPath, "Assessment report path should match the config")
 	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should be overridden by env var")
+	assert.Equal(t, utils.BoolStr(true), assessSchemaBeforeExport, "Assess schema before export should match the config")
 }
 
 ////////////////////////////// Analyze Schema Tests ////////////////////////////////
