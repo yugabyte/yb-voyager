@@ -28,7 +28,7 @@ public class PostgresToYbValueConverter implements CustomConverter<SchemaBuilder
     public void converterFor(RelationalColumn column,
             ConverterRegistration<SchemaBuilder> registration) {
 
-        LOGGER.info("Processing converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
+        LOGGER.debug("Processing converter for column: {}, type: {}, JDBC type: {}", column.name(), column.typeName(), column.jdbcType());
         JDBCType jdbcType = JDBCType.valueOf(column.jdbcType());
         switch (jdbcType) {
             case BIT:
