@@ -92,7 +92,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			tableName := tablesProgressMetadata[key].TableName
 			fullTableName := tableName.ForKey()
-			table := tableName.ForMinOutput()
+			table := tableName.ForDataFile()
 			if _, ok := requiredMap[fullTableName]; ok { // checking if toc/dump has data file for table
 				tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", requiredMap[fullTableName])
 				tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", table+"_data.sql")
