@@ -14,16 +14,16 @@ export-dir: <export-dir-name>
 ### Default - info
 log-level: info                  
 
-### Run guardrails checks before the export/import command is run. 
+### Run guardrails checks before the command is run. 
 ### Note - This is only valid for PostgreSQL source database.
-### Accepted values - (true, false, yes, no, 0, 1)
+### Accepted values - (true, false, yes, no, 1, 0)
 ### Default - true
 # run-guardrails-checks: true  
 
 ### *********** Control Plane Configuration ************
 ### To see the Voyager migration workflow details in the UI, set the following parameters.
 
-### Control plane type refers to the deployment type of YugabyteDB Anywhere 
+### Control plane type refers to the deployment type of YugabyteDB
 ### Accepted value - (yugabyted)
 ### Optional
 control-plane-type: yugabyted  
@@ -74,7 +74,7 @@ source:
   # ssl-cert: <ssl-cert-path>  
 
   ### Specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) 
-  ### MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters. 
+  ### MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode parameters. 
   ### Default - prefer.                          
   # ssl-mode: prefer    
 
@@ -182,18 +182,18 @@ export-schema:
   # exclude-object-type-list: "TRIGGER"   
 
   ### Enable export of comments associated with database objects 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   comments-on-objects: false                                                
 
   ### Enable using orafce extension in export schema 
-  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Accepted values (true, false, yes, no, 1, 0) 
   ### Only valid for Oracle and MySQL source databases
   ### Default - true
   # use-orafce: true  
 
   ### Disable applying recommendations in the exported schema suggested by the migration assessment report
-  ### Accepted values (true, false, yes, no, 0, 1)  
+  ### Accepted values (true, false, yes, no, 1, 0)  
   ### Default - false                                       
   # skip-recommendations: false  
 
@@ -224,7 +224,7 @@ analyze-schema:
 import-schema:
   
   ### Comma separated list of schema object types to include while importing schema
-  ### Note - You can provide only one of the arguments at a time.
+  ### Note - You can provide only one of the arguments object-type-list or exclude-object-type-list at a time.
   ### Accepted parameters -
   ###   Oracle - TYPE, SEQUENCE, TABLE, PARTITION, INDEX, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, MVIEW, SYNONYM
   ###   PostgreSQL - SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, INDEX, FUNCTION, AGGREGATE, PROCEDURE, VIEW, TRIGGER, MVIEW, RULE, COMMENT
@@ -233,23 +233,23 @@ import-schema:
   # exclude-object-type-list: 'TRIGGER'
 
   ### Ignore errors and continue with the import 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   continue-on-error: false   
 
   ### Ignore errors if object already exists 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   ignore-exist: false                                                               
                                                                                                                                  
   ### Imports the schema objects in the order specified via the object-type-list parameter 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # straight-order: false                                                                                   
   
   ### Enable Orafce extension on target
   ### Note - This is only valid for Oracle source database.
-  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Accepted values (true, false, yes, no, 1, 0) 
   ### Default - true
   # enable-orafce: true   
 
@@ -281,13 +281,13 @@ export-data:
   parallel-jobs: 4    
 
   ### Disable progress bar/stats during data export  
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # disable-pb: false     
 
   ### For MySQL and Oracle, you can optionally speed up data export by setting the config parameter beta-fast-data-export: 1.
   ### In case this parameter is set, parallel-jobs has no effect and its value is fixed to 1. 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   # beta-fast-data-export: 0                                           
 
 # ---------------------------------------------------------
@@ -315,7 +315,7 @@ import-data:
   ### YugabyteDB cluster.
   ### The following flags are available to control parallelism:
   ### - enable-adaptive-parallelism: Enables adaptive adjustment of parallel jobs.
-  ###   Accepted values: true, false, yes, no, 0, 1 
+  ###   Accepted values: true, false, yes, no, 1, 0 
   ###   Default: true
   ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
   ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
@@ -334,25 +334,25 @@ import-data:
 
   ### Truncate tables on target YugabyteDB before importing data. 
   ### Only applicable along with --start-clean true
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # truncate-tables: false 
 
   ### It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. 
   ### If detected, data import is aborted. Use this flag to turn off the checks and continue importing data. 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # skip-replication-checks: false    
 
   ### Disable progress bar/stats during data import 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # disable-pb: false         
 
   ### Use the public IPs of the nodes to distribute --parallel-jobs uniformly for data import
   ### Note - you might need to configure database to have public_ip available by setting server-broadcast-addresses.
   ### Refer - https://docs.yugabyte.com/preview/reference/configuration/yb-tserver/#server-broadcast-addresses 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # use-public-ip: false    
 
@@ -364,7 +364,7 @@ import-data:
 
   ### Enable UPSERT mode on target tables. WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. 
   ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   # enable-upsert: false                                                                 
 
@@ -376,17 +376,17 @@ import-data:
 finalize-schema-post-data-import:
   
   ### Ignore errors and continue with the import 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   continue-on-error: false                                    
   
   ### Ignore errors if object already exists 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   ignore-exist: false                                         
   
   ### Refreshes the materialised views on target during post snapshot import phase  
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
   refresh-mviews: false                                       
 
@@ -398,25 +398,29 @@ finalize-schema-post-data-import:
 end-migration:
   
   ### Backup migration schema files 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Required
   backup-schema-files: false                                  
   
   ### Backup snapshot data files 
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Required
   backup-data-files: false                                    
   
   ### Save migration assessment report, analyze schema report and data migration reports
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Required
   save-migration-reports: false                               
   
   ### Backup yb-voyager log files for this migration
-  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Accepted values (true, false, yes, no, 1, 0)
   ### Required
   backup-log-files: false                                    
   
   ### Backup directory is where all the backup files of schema, data, logs and reports will be saved
   ### Note: Mandatory if any of the following flags are set to true or yes or 1: --backup-data-files, --backup-log-files, --backup-schema-files, --save-migration-reports.
   # backup-dir: <backup-dir-path>                             
+
+# ---------------------------------------------------------
+# Config File End
+# ---------------------------------------------------------
