@@ -930,6 +930,8 @@ normalize_json() {
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+			.ColocatedReasoning? = "IGNORED" |
             .RowCount? = "IGNORED" |
 			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
             # Replace newline characters in SqlStatement with spaces

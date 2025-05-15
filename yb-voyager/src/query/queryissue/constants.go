@@ -432,13 +432,32 @@ const (
 To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
-	REDUNDANT_INDEXES="REDUNDANT_INDEXES"
-	REDUNDANT_INDEXES_ISSUE_NAME="Redundant index"
-	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
+	REDUNDANT_INDEXES             = "REDUNDANT_INDEXES"
+	REDUNDANT_INDEXES_ISSUE_NAME  = "Redundant index"
+	REDUNDANT_INDEXES_DESCRIPTION = "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
+
+	LOW_CARDINALITY_INDEX_ISSUE_NAME          = "Index on low-cardinality column"
+	LOW_CARDINALITY_INDEXES                   = "INDEX_ON_LOW_CARDINALITY_COLUMN"
+	LOW_CARDINALITY_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets."
+	LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN = `This index is built on a low-cardinality column. Refer to docs link for more details on recommendations.`
+	LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN  = `The first column of this index is low-cardinality column. Refer to docs link for more details on recommendations.`
+
+	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
+	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
+	NULL_VALUE_INDEXES_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues."
+	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values. Refer to docs link for more details on recommendations.`
+	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values. Refer to docs link for more details on recommendations.`
+
+	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
+	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows. Refer to docs link for more details on recommendations.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows. Refer to docs link for more details on recommendations.`
 )
 
 // Object types
 const (
+	CALLHOME_ISSUE_NAME_KEY   = "CALLHOME_ISSUE_NAME"
 	CONSTRAINT_NAME           = "ConstraintName"
 	FUNCTION_NAMES            = "FunctionNames"
 	TABLE_OBJECT_TYPE         = "TABLE"
@@ -475,4 +494,11 @@ const (
 
 	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+)
+
+const (
+	LOW_CARDINALITY_MIN_THRESHOLD = 0
+	LOW_CARDINALITY_MAX_THRESHOLD = 10
+	NULL_FREQUENCY_THRESHOLD      = 40 // percentage of nulls in the column
+	MOST_FREQUENT_VALUE_THRESHOLD = 60 // percentage of most frequent value in the column
 )

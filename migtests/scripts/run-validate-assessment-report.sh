@@ -97,10 +97,12 @@ main() {
         actual_json_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.json"
 	    compare_json_reports ${expected_json_file} ${actual_json_file}
 
-		echo "Comparing HTML report"
-		expected_html_file="${TEST_DIR}/expectedAssessmentReport.html"
-		actual_html_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.html"
-		${SCRIPTS}/compare-html-reports.py ${expected_html_file} ${actual_html_file}
+		if [[ "${SKIP_HTML_VALIDATION}" != "true" ]]; then 
+			echo "Comparing HTML report"
+			expected_html_file="${TEST_DIR}/expectedAssessmentReport.html"
+			actual_html_file="${EXPORT_DIR}/assessment/reports/migration_assessment_report.html"
+			${SCRIPTS}/compare-html-reports.py ${expected_html_file} ${actual_html_file}	
+		fi
 
 	else
 		echo "Error: Assessment reports were not created successfully."

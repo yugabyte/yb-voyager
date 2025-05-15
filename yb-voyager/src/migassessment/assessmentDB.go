@@ -42,6 +42,7 @@ const (
 	TABLE_INDEX_STATS        = "table_index_stats"
 	DB_QUERIES_SUMMARY       = "db_queries_summary"
 	REDUNDANT_INDEXES        = "redundant_indexes"
+	COLUMN_STATISTICS        = "column_statistics"
 
 	PARTITIONED_TABLE_OBJECT_TYPE = "partitioned table"
 	PARTITIONED_INDEX_OBJECT_TYPE = "partitioned index"
@@ -146,6 +147,15 @@ func InitAssessmentDB() error {
 			redundant_ddl TEXT,
 			existing_ddl TEXT,
 			PRIMARY KEY(redundant_schema_name,redundant_table_name,redundant_index_name));`, REDUNDANT_INDEXES),
+		fmt.Sprintf(`CREATE TABLE IF NOT EXISTS %s (
+			schema_name TEXT,
+			table_name TEXT,
+			column_name TEXT,
+			null_frac REAL,
+			effective_n_distinct INTEGER,
+			most_common_freq REAL,
+			most_common_val TEXT,
+			PRIMARY KEY(schema_name, table_name, column_name));`, COLUMN_STATISTICS),
 	}
 
 	for _, cmd := range cmds {

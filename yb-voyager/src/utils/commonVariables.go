@@ -115,6 +115,7 @@ type AnalyzeSchemaIssue struct {
 	GH                     string                          `json:"GH"`
 	DocsLink               string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
+	Details                map[string]interface{}          `json:"-" xml:"-"`
 }
 
 func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
@@ -168,6 +169,27 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
 	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
 	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+}
+
+type ColumnStatistics struct {
+	DBType              string
+	SchemaName          string
+	TableName           string
+	ColumnName          string
+	NullFraction        float64
+	DistinctValues      int64
+	MostCommonFrequency float64
+	MostCommonValue     string
+}
+
+func (c *ColumnStatistics) GetTableName() string {
+	tableObjectName := sqlname.NewObjectName(c.DBType, "", c.SchemaName, c.TableName)
+	//Get Unquoted table name as the parse gets the unquoted name after parsing index statement
+	return tableObjectName.Qualified.Unquoted
+}
+
+func (c *ColumnStatistics) GetQualifiedColumnName() string {
+	return fmt.Sprintf("%s.%s", c.GetTableName(), c.ColumnName)
 }
 
 type UnsupportedQueryConstruct struct {

@@ -650,7 +650,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						return nil, err
 					}
 					issues = append(issues, hotspotIssues...)
-				} 
+				}
 			} else {
 				colName := param.ColName
 				columnWithUnsupportedTypes, tableHasUnsupportedTypes := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
@@ -680,7 +680,54 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					}
 				}
 			}
+			if idx == 0 && !param.IsExpression {
+				//if this is first column and not an expression index
+				indexIssues, err := d.reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, indexIssues...)
+			}
 		}
+	}
+	return issues, nil
+}
+
+func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
+	var issues []QueryIssue
+
+	firstColumnParam := index.Params[0]
+	firstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
+
+	isSingleColumnIndex := len(index.Params) == 1
+
+	stat, ok := i.columnStatistics[firstColumnName]
+	if !ok {
+		return nil, nil
+	}
+
+	maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
+	nullFrequencyPerc := int(stat.NullFraction * 100)
+
+	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
+	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
+	if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
+		// LOW CARDINALITY INDEX ISSUE
+		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
+			"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
+	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD {
+
+		//If the index is not LOW cardinality one then see if that has most frequent value or not
+		//MOST FREQUENT VALUE INDEX ISSUE
+		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
+			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
+
+	}
+
+	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD {
+
+		// NULL VALUE INDEX ISSUE
+		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
 	}
 
 	return issues, nil

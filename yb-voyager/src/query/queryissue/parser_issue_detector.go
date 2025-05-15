@@ -82,6 +82,9 @@ type ParserIssueDetector struct {
 
 	//columns names with jsonb type
 	jsonbColumns []string
+
+	//column is the key (qualifiedTableName.column_name) -> column stats
+	columnStatistics map[string]utils.ColumnStatistics
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -92,6 +95,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		enumTypes:                               make([]string, 0),
 		partitionedTablesMap:                    make(map[string]bool),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
+		columnStatistics:                        make(map[string]utils.ColumnStatistics),
 	}
 }
 
@@ -473,7 +477,49 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 	return result, nil
 }
 
-func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
+func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
+	var jsonbFunctions []string
+	jsonbColumns := p.jsonbColumns
+	for _, function := range p.functionObjects {
+		returnType := function.ReturnType
+		if strings.HasSuffix(returnType, "%TYPE") {
+			// e.g. public.table_name.column%TYPE
+			qualifiedColumn := strings.TrimSuffix(returnType, "%TYPE")
+			parts := strings.Split(qualifiedColumn, ".")
+			column := parts[len(parts)-1]
+			if slices.Contains(jsonbColumns, column) {
+				jsonbFunctions = append(jsonbFunctions, function.FuncName)
+			}
+		} else {
+			// e.g. public.udt_type, text, trigger, jsonb
+			parts := strings.Split(returnType, ".")
+			typeName := parts[len(parts)-1]
+			if typeName == "jsonb" {
+				jsonbFunctions = append(jsonbFunctions, function.FuncName)
+			}
+		}
+	}
+	jsonbFunctions = append(jsonbFunctions, catalogFunctionsReturningJsonb.ToSlice()...)
+	return jsonbFunctions
+}
+
+func (p *ParserIssueDetector) IsGinIndexPresentInSchema() bool {
+	return p.isGinIndexPresentInSchema
+}
+
+func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
+	return p.isUnloggedTablesIssueFiltered
+}
+
+func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {
+	for _, stat := range columnStats {
+		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
+	}
+}
+
+// ======= Functions not use parser right now
+
+func GetRedundantIndexIssues(redundantIndexes []utils.RedundantIndexesInfo) []QueryIssue {
 
 	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
 
@@ -520,38 +566,4 @@ func (p *ParserIssueDetector) GetRedundantIndexIssues(redundantIndexes []utils.R
 			redundantIndexInfo.RedundantIndexDDL, redundantIndexInfo.ExistingIndexDDL))
 	}
 	return issues
-}
-
-func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
-	var jsonbFunctions []string
-	jsonbColumns := p.jsonbColumns
-	for _, function := range p.functionObjects {
-		returnType := function.ReturnType
-		if strings.HasSuffix(returnType, "%TYPE") {
-			// e.g. public.table_name.column%TYPE
-			qualifiedColumn := strings.TrimSuffix(returnType, "%TYPE")
-			parts := strings.Split(qualifiedColumn, ".")
-			column := parts[len(parts)-1]
-			if slices.Contains(jsonbColumns, column) {
-				jsonbFunctions = append(jsonbFunctions, function.FuncName)
-			}
-		} else {
-			// e.g. public.udt_type, text, trigger, jsonb
-			parts := strings.Split(returnType, ".")
-			typeName := parts[len(parts)-1]
-			if typeName == "jsonb" {
-				jsonbFunctions = append(jsonbFunctions, function.FuncName)
-			}
-		}
-	}
-	jsonbFunctions = append(jsonbFunctions, catalogFunctionsReturningJsonb.ToSlice()...)
-	return jsonbFunctions
-}
-
-func (p *ParserIssueDetector) IsGinIndexPresentInSchema() bool {
-	return p.isGinIndexPresentInSchema
-}
-
-func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
-	return p.isUnloggedTablesIssueFiltered
 }

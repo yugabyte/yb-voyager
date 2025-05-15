@@ -141,6 +141,7 @@ func TestAssessmentReportStructs(t *testing.T) {
 				SqlStatement           string                          `json:"SqlStatement"`
 				DocsLink               string                          `json:"DocsLink"`
 				MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+				Details                map[string]interface{}          `json:"-"`
 			}{},
 		},
 		{

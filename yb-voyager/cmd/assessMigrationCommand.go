@@ -866,7 +866,7 @@ func generateAssessmentReport() (err error) {
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
 
-	err = addAssessmentIssuesForRedundantIndexes()
+	err = addAssessmentIssuesForRedundantIndex()
 	if err != nil {
 		return fmt.Errorf("error in getting redundant index issues: %v", err)
 	}
@@ -898,17 +898,14 @@ func generateAssessmentReport() (err error) {
 	return nil
 }
 
-func addAssessmentIssuesForRedundantIndexes() error {
-	if source.DBType != POSTGRESQL {
-		return nil
-	}
+func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 	query := fmt.Sprintf(`SELECT redundant_schema_name,redundant_table_name,redundant_index_name,
 	existing_schema_name,existing_table_name,existing_index_name,
 	redundant_ddl,existing_ddl from %s`,
 		migassessment.REDUNDANT_INDEXES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -924,21 +921,85 @@ func addAssessmentIssuesForRedundantIndexes() error {
 			&redundantIndex.ExistingSchemaName, &redundantIndex.ExistingTableName, &redundantIndex.ExistingIndexName,
 			&redundantIndex.RedundantIndexDDL, &redundantIndex.ExistingIndexDDL)
 		if err != nil {
-			return fmt.Errorf("error scanning rows for redundant indexes: %w", err)
+			return nil, fmt.Errorf("error scanning rows for redundant indexes: %w", err)
 		}
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
 	}
-	redundantIssues := parserIssueDetector.GetRedundantIndexIssues(redundantIndexesInfo)
-	for _, redundantIssue := range redundantIssues {
-		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(redundantIssue, "", false, false)
-		issue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, redundantIssue.MinimumVersionsFixedIn)
-		assessmentReport.AppendIssues(issue)
+	return redundantIndexesInfo, nil
+}
+
+func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
+	query := fmt.Sprintf(`SELECT schema_name, table_name, column_name, null_frac, effective_n_distinct, most_common_freq, most_common_val from %s`,
+		migassessment.COLUMN_STATISTICS)
+	rows, err := assessmentDB.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("error querying-%s on assessmentDB for column statistics: %w", query, err)
+	}
+	defer func() {
+		closeErr := rows.Close()
+		if closeErr != nil {
+			log.Warnf("error closing rows while fetching column statistics %v", err)
+		}
+	}()
+
+	var columnStats []utils.ColumnStatistics
+	for rows.Next() {
+		var stat utils.ColumnStatistics
+		err := rows.Scan(&stat.SchemaName, &stat.TableName, &stat.ColumnName, &stat.NullFraction, &stat.DistinctValues, &stat.MostCommonFrequency, &stat.MostCommonValue)
+		if err != nil {
+			return nil, fmt.Errorf("error scanning rows for most frequent values indexes: %w", err)
+		}
+		stat.DBType = source.DBType
+		columnStats = append(columnStats, stat)
+	}
+	return columnStats, nil
+}
+
+func fetchAndSetColumnStatisticsForIndexIssues() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	var err error
+	//Fetching the column stats from assessment db
+	columnStats, err := fetchColumnStatisticsInfo()
+	if err != nil {
+		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
+	}
+	//passing it on to the parser issue detector to enable it for detecting issues using this.
+	parserIssueDetector.SetColumnStatistics(columnStats)
+	return nil
+}
+
+func addAssessmentIssuesForRedundantIndex() error {
+	if source.DBType != POSTGRESQL {
+		return nil
+	}
+	redundantIndexesInfo, err := fetchRedundantIndexInfo()
+	if err != nil {
+		return fmt.Errorf("error fetching redundant index information: %v", err)
+	}
+
+	var redundantIssues []queryissue.QueryIssue
+	redundantIssues = append(redundantIssues, queryissue.GetRedundantIndexIssues(redundantIndexesInfo)...)
+	for _, issue := range redundantIssues {
+
+		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
+		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
+		assessmentReport.AppendIssues(convertedIssue)
 	}
 	return nil
 }
 
 func getAssessmentReportContentFromAnalyzeSchema() error {
+
+	var err error
+	//fetching column stats from assessment db and then passing it on to the parser issue detector for detecting issues
+	err = fetchAndSetColumnStatisticsForIndexIssues()
+	if err != nil {
+		return fmt.Errorf("error parsing column statistics information: %v", err)
+	}
+
 	/*
 		Here we are generating analyze schema report which converts issue instance to analyze schema issue
 		Then in assessment codepath we extract the required information from analyze schema issue which could have been done directly from issue instance(TODO)
@@ -950,7 +1011,6 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	assessmentReport.SchemaSummary.Description = lo.Ternary(source.DBType == ORACLE, SCHEMA_SUMMARY_DESCRIPTION_ORACLE, SCHEMA_SUMMARY_DESCRIPTION)
 
 	var unsupportedFeatures []UnsupportedFeature
-	var err error
 	switch source.DBType {
 	case ORACLE:
 		unsupportedFeatures, err = fetchUnsupportedOracleFeaturesFromSchemaReport(schemaAnalysisReport)
@@ -1050,6 +1110,7 @@ func convertAnalyzeSchemaIssueToAssessmentIssue(analyzeSchemaIssue utils.Analyze
 		SqlStatement:           analyzeSchemaIssue.SqlStatement,
 		DocsLink:               analyzeSchemaIssue.DocsLink,
 		MinimumVersionsFixedIn: minVersionsFixedIn,
+		Details:                analyzeSchemaIssue.Details,
 	}
 }
 
@@ -1110,6 +1171,9 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.COMPRESSION_CLAUSE_IN_TABLE_ISSUE_NAME, "", queryissue.COMPRESSION_CLAUSE_IN_TABLE, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_INDEX, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_INDEX, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LOW_CARDINALITY_INDEX_ISSUE_NAME, "", queryissue.LOW_CARDINALITY_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME, "", queryissue.MOST_FREQUENT_VALUE_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NULL_VALUE_INDEXES_ISSUE_NAME, "", queryissue.NULL_VALUE_INDEXES, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
