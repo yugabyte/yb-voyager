@@ -67,7 +67,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx ON public.test_low_card",
 			"SqlStatement": "CREATE INDEX idx ON public.test_low_card USING btree (isactive) WHERE (isactive = false);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -80,7 +80,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_test_case_sensitive ON public.Test_caseSensitive",
 			"SqlStatement": "CREATE INDEX idx_test_case_sensitive ON public.\"Test_caseSensitive\" USING btree (id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -93,7 +93,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_test_multi_id2 ON public.test_multi_col_idx",
 			"SqlStatement": "CREATE INDEX idx_test_multi_id2 ON public.test_multi_col_idx USING btree (id2);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -106,7 +106,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "indx ON public.test_most_freq",
 			"SqlStatement": "CREATE INDEX indx ON public.test_most_freq USING btree (status) WHERE (status \u003c\u003e 'active'::text);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -119,7 +119,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "indx1 ON public.test_most_freq",
 			"SqlStatement": "CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -132,7 +132,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx ON test.t",
 			"SqlStatement": "CREATE INDEX idx ON test.t USING btree (val);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -145,7 +145,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx2 ON test.t",
 			"SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -158,7 +158,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_try ON test.t_low_most",
 			"SqlStatement": "CREATE INDEX idx_try ON test.t_low_most USING btree (id);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -171,7 +171,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_name ON public.users",
 			"SqlStatement": "CREATE INDEX idx_name ON public.users USING btree (name);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-value",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -184,7 +184,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idxtt ON public.t",
 			"SqlStatement": "CREATE INDEX idxtt ON public.t USING btree (id2);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#null-value-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -197,7 +197,7 @@
 			"ObjectType": "INDEX",
 			"ObjectName": "idx2 ON test.t",
 			"SqlStatement": "CREATE INDEX idx2 ON test.t USING btree (val1);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#null-value-indexes",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 			"MinimumVersionsFixedIn": null
 		},
 		{

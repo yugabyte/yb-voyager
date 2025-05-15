@@ -77,7 +77,7 @@ var lowCardinalityIndexIssue = issue.Issue{
 	Name:     LOW_CARDINALITY_INDEX_ISSUE_NAME,
 	Type:     LOW_CARDINALITY_INDEXES,
 	Impact:   constants.IMPACT_LEVEL_1,
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
 }
 
 func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, cardinality int64, columnName string) QueryIssue {
@@ -94,7 +94,7 @@ var nullValueIndexes = issue.Issue{
 	Name:     NULL_VALUE_INDEXES_ISSUE_NAME,
 	Type:     NULL_VALUE_INDEXES,
 	Impact:   constants.IMPACT_LEVEL_1,
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#null-value-indexes",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-a-high-percentage-of-null-values",
 }
 
 func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, nullFrequency int, columnName string) QueryIssue {
@@ -112,7 +112,7 @@ var mostFrequentValueIndexIssue = issue.Issue{
 	Name:     MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME,
 	Type:     MOST_FREQUENT_VALUE_INDEXES,
 	Impact:   constants.IMPACT_LEVEL_1,
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#low-cardinality-indexes",
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-column-with-high-percentage-of-a-value",
 }
 
 func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string) QueryIssue {
