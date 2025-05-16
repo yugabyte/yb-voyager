@@ -149,7 +149,7 @@ jobs:
       - name: Upload logs as artifact
         uses: actions/upload-artifact@v4
         with:
-          name: yugabyte-logs
+          name: yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}
           path: yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
       
       - name: "TEST: pg-partitions"
