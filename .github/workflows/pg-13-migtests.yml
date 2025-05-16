@@ -118,6 +118,7 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
+
       - name: "TEST: pg-indexes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/indexes
