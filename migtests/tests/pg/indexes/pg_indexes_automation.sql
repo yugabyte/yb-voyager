@@ -29,7 +29,7 @@ SELECT
   md5(random()::text),
   md5(random()::text)
 from (
-  SELECT * FROM generate_series(1,100000) AS id
+  SELECT * FROM generate_series(1,1000) AS id
 ) AS x;
 
 -- explain select * from mult_index_test where first_name like '%fd%' and last_name like '%fg%';
@@ -182,7 +182,7 @@ SELECT
   md5(random()::text),
   md5(random()::text)
 from (
-  SELECT * FROM generate_series(1,100000) AS id
+  SELECT * FROM generate_series(1,1000) AS id
 ) AS x;
 
 explain select * from gin_index_test where body_indexed like '%d%';

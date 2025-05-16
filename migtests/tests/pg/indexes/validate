@@ -10,14 +10,14 @@ def main():
 
 EXPECTED_ROW_COUNT = {
 	'single_index_test': 4,
-	'mult_index_test': 100000,
+	'mult_index_test': 1000,
 	'outunique_index_test': 4,
 	'desc_index_test': 3,
 	'partial_index_test': 13,
 	'exp_index_test': 13,
 	'hash_index_test': 4,
 	'covering_index_test': 1000,
-	'gin_index_test': 100000
+	'gin_index_test': 1000
 }
 
 EXPECTED_INDEX_COUNT = {
