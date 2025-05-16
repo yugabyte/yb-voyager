@@ -141,7 +141,18 @@ jobs:
       - name: "TEST: pg-indexes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/indexes
+      
+      - name: "copy and zip logs"
+        run: |
+          docker cp yugabytedb:/home/yugabyte/var/logs ./container-logs
+          zip -r yugabyte-logs.zip ./container-logs
 
+      - name: Upload logs as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: yugabyte-logs
+          path: yugabyte-logs.zip
+      
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/partitions 
