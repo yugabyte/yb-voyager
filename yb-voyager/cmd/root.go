@@ -318,6 +318,7 @@ func registerConfigFileFlag(cmd *cobra.Command) {
 		"yb-voyager export data from source",
 		"yb-voyager import data",
 		"yb-voyager import data to target",
+		"yb-voyager finalize-schema-post-data-import",
 		"yb-voyager end migration",
 	}
 
