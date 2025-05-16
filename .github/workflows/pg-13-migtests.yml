@@ -144,14 +144,13 @@ jobs:
       
       - name: "copy and zip logs"
         run: |
-          docker cp yugabytedb:/home/yugabyte/var/logs ./container-logs
-          zip -r yugabyte-logs.zip ./container-logs
+          docker exec yugabytedb bin/yugabyted collect_logs --stdout > yugabyted.tar.gz
 
       - name: Upload logs as artifact
         uses: actions/upload-artifact@v4
         with:
           name: yugabyte-logs
-          path: yugabyte-logs.zip
+          path: yugabyted.tar.gz
       
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
