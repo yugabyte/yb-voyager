@@ -169,6 +169,9 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
+	# sleep for 600ms; just greater than max_clock_skew = 500ms(default) for yugabyte cluster
+	sleep 0.6
+
 	step "Run validations."
 	if [[ "${EXPORT_TABLE_LIST}" != "" && -x "${TEST_DIR}/validate-with-table-list" ]]; then
 		"${TEST_DIR}/validate-with-table-list"
