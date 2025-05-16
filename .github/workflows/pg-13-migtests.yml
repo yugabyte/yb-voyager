@@ -118,6 +118,10 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
+      - name: "TEST: pg-indexes"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        run: migtests/scripts/run-test.sh pg/indexes
+
       - name: "TEST: pg-case-sensitivity-single-table"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test-export-data.sh pg/case-sensitivity-single-table
@@ -137,10 +141,6 @@ jobs:
       - name: "TEST: pg-sequences with table list"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sequences env-with-table-list.sh
-
-      - name: "TEST: pg-indexes"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/indexes
 
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
