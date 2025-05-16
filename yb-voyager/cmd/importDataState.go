@@ -31,6 +31,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -140,9 +141,12 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlna
 			batchGenerationCompleted = true
 		}
 	}
+
 	if doneCount == len(batches) && batchGenerationCompleted {
 		return FILE_IMPORT_COMPLETED, nil
 	}
+
+	// Even if there are some .C batches it means the import has actually not started
 	if interruptedCount == 0 && doneCount == 0 {
 		return FILE_IMPORT_NOT_STARTED, nil
 	}
@@ -239,15 +243,7 @@ func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, er
 	return result, nil
 }
 
-func (s *ImportDataState) NewBatchWriter(filePath string, tableNameTup sqlname.NameTuple, batchNumber int64) *BatchWriter {
-	return &BatchWriter{
-		state:       s,
-		filePath:    filePath,
-		tableName:   tableNameTup,
-		batchNumber: batchNumber,
-	}
-}
-
+// Fetch batches for a given table, file and states[CPD]
 func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameTuple, states string) ([]*Batch, error) {
 	// result == nil: import not started.
 	// empty result: import started but no batches created yet.
@@ -296,6 +292,8 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 
 }
 
+// Sample batch file name - batch::1.5000.5000.107786.D
+// batch::<batch_num>.<offset_end>.<record_count>.<byte_count>.<state>
 func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byteCount int64, state string, err error) {
 	md := strings.Split(strings.Split(fileName, "::")[1], ".")
 	if len(md) != 5 {
@@ -686,7 +684,16 @@ func (s *ImportDataState) AllBatchesImported(filepath string, tableNameTup sqlna
 	return taskStatus == FILE_IMPORT_COMPLETED, nil
 }
 
-//============================================================================
+//==================================== BatchWriter ====================================
+
+func (s *ImportDataState) NewBatchWriter(filePath string, tableNameTup sqlname.NameTuple, batchNumber int64) *BatchWriter {
+	return &BatchWriter{
+		state:       s,
+		filePath:    filePath,
+		tableName:   tableNameTup,
+		batchNumber: batchNumber,
+	}
+}
 
 type BatchWriter struct {
 	state *ImportDataState
@@ -727,7 +734,10 @@ func (bw *BatchWriter) WriteRecord(record string) error {
 	if record == "" {
 		return nil
 	}
+
 	var err error
+	// adding newline after one record is written and before writing the next record
+	// to make sure that there is no newline at the end of the file contributing extra unnecessary bytes in the batch file
 	if bw.flagFirstRecordWritten {
 		_, err = bw.w.WriteString("\n")
 		if err != nil {
@@ -780,8 +790,8 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 	return batch, nil
 }
 
-//============================================================================
-
+// ============================================================================
+// Implementing Batch interface defined in target_db_interface.go
 type Batch struct {
 	Number       int64
 	TableNameTup sqlname.NameTuple
@@ -797,6 +807,20 @@ type Batch struct {
 
 func (batch *Batch) Open() (*os.File, error) {
 	return os.Open(batch.FilePath)
+}
+
+func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
+	reader, err := dataStore.Open(batch.GetFilePath())
+	if err != nil {
+		return nil, fmt.Errorf("open datastore %q: %s", batch.GetFilePath(), err)
+	}
+
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), reader, dataFileDescriptor)
+	if err != nil {
+		return nil, fmt.Errorf("open datafile %q: %s", batch.GetFilePath(), err)
+	}
+
+	return datafile, err
 }
 
 func (batch *Batch) Delete() error {

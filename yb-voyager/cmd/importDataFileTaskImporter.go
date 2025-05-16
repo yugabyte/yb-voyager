@@ -88,6 +88,10 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
 }
 
+func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
+	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
+}
+
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
@@ -97,44 +101,6 @@ func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 		return fmt.Errorf("getting next batch: %w", err)
 	}
 	return fti.submitBatch(batch)
-}
-
-func (fti *FileTaskImporter) importBatch(batch *Batch) {
-	err := batch.MarkInProgress()
-	if err != nil {
-		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
-	}
-	log.Infof("Importing %q", batch.FilePath)
-
-	importBatchArgs := *fti.importBatchArgsProto
-	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
-
-	var rowsAffected int64
-	sleepIntervalSec := 0
-	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
-			break
-		}
-		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
-		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
-		}
-		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, batch.FilePath, attempt)
-		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	}
-	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
-	}
 }
 
 func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
@@ -157,6 +123,67 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
+}
+
+func (fti *FileTaskImporter) importBatch(batch *Batch) {
+	var rowsAffected int64
+	var err error // Note: make sure to not define any other err variable in this scope
+
+	/*
+		recoveryBatch means the batch is already in progress state due to partial ingestion or transient errors in last run
+		Need this info for decision making in tgtdb.ImportBatch() to whether follow which of three paths
+		- Normal mode
+		- Fast path mode
+		- Fast path recovery mode
+	*/
+	recoveryBatch := batch.IsInterrupted()
+	if !recoveryBatch {
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+		}
+	}
+
+	log.Infof("Importing %q", batch.FilePath)
+
+	importBatchArgs := *fti.importBatchArgsProto
+	importBatchArgs.FilePath = batch.FilePath
+	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+
+	sleepIntervalSec := 0
+	/*
+		Cases:
+		1. First time batch import with onPrimaryKeyConflictAction == "ERROR" 		-> Normal Path
+		2. First time batch import with onPrimaryKeyConflictAction == "IGNORE" 		-> Fast Path
+		3. Batch in *.P state with onPrimaryKeyConflictAction == "IGNORE" 			-> Fast Path Recovery
+
+		If 2 fails due to already existing rows in table, then first ImportBatch() internally switch to Fast Path Recovery
+		If that also fails then batch gets executed as fast path recovery due to attempt > 0 from here.
+	*/
+	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
+		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
+		isRecoveryCandidate := (recoveryBatch || attempt > 0)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
+		if err == nil || tdb.IsNonRetryableCopyError(err) {
+			break
+		}
+		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
+			sleepIntervalSec, batch.FilePath, attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+	}
+	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
+	if err != nil {
+		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+	}
+	err = batch.MarkDone()
+	if err != nil {
+		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+	}
 }
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
@@ -246,6 +273,16 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
+
+	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
+	if err != nil {
+		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
+	if err != nil {
+		utils.ErrExit("if required quote primary key column names: %s", err)
+	}
+
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 
@@ -256,14 +293,16 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
+		TableNameTup:      tableNameTup,
+		Columns:           columns,
+		PrimaryKeyColumns: pkColumns,
+		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		FileFormat:        fileFormat,
+		Delimiter:         dataFileDescriptor.Delimiter,
+		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:         dataFileDescriptor.QuoteChar,
+		EscapeChar:        dataFileDescriptor.EscapeChar,
+		NullString:        dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto

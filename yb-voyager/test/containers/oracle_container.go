@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"time"
@@ -19,9 +20,19 @@ type OracleContainer struct {
 }
 
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
-	if ora.container != nil && ora.container.IsRunning() {
-		utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
-		return nil
+	if ora.container != nil {
+		if ora.container.IsRunning() {
+			utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
+			return nil
+		}
+
+		// but if it’s stopped, so start it back up in place
+		utils.PrintAndLog("Restarting Oracle-%s container", ora.DBVersion)
+		if err := ora.container.Start(ctx); err != nil {
+			return fmt.Errorf("failed to restart oracle container: %w", err)
+		}
+		// Wait for it to accept connections again
+		return pingDatabase("godror", ora.GetConnectionString())
 	}
 
 	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
@@ -72,6 +83,25 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 	return nil
 }
 
+// Stop simulates a database outage by stopping (but not removing) the Docker container.
+// The underlying data directory remains intact, so you can call Start() later
+// and the DB will pick up with exactly the same contents.
+func (ora *OracleContainer) Stop(ctx context.Context) error {
+	if ora.container == nil {
+		return nil
+	} else if !ora.container.IsRunning() {
+		utils.PrintAndLog("Oracle-%s container already stopped", ora.DBVersion)
+		return nil
+	}
+
+	timeout := 10 * time.Second
+	// Stop with a 10s timeout—this sends SIGTERM and waits, but does NOT remove the container.
+	if err := ora.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop postgres container: %w", err)
+	}
+	return nil
+}
+
 func (ora *OracleContainer) Terminate(ctx context.Context) {
 	if ora == nil {
 		return
@@ -116,6 +146,18 @@ func (ora *OracleContainer) GetConnectionString() string {
 	connectString := fmt.Sprintf(`(DESCRIPTION = (ADDRESS = (PROTOCOL = TCP)(HOST = %s)(PORT = %d))(CONNECT_DATA = (SERVICE_NAME = %s)))`,
 		host, port, config.DBName)
 	return fmt.Sprintf(`user="%s" password="%s" connectString="%s"`, config.User, config.Password, connectString)
+}
+
+func (ora *OracleContainer) GetConnection() (*sql.DB, error) {
+	if ora.container == nil {
+		utils.ErrExit("oracle container is not started: nil")
+	}
+
+	conn, err := sql.Open("godror", ora.GetConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to open connection to oracle container: %w", err)
+	}
+	return conn, nil
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {

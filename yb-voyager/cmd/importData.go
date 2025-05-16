@@ -87,6 +87,7 @@ var importDataCmd = &cobra.Command{
 		if importerRole == "" {
 			importerRole = TARGET_DB_IMPORTER_ROLE
 		}
+
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
@@ -1346,9 +1347,12 @@ func checkExportDataDoneFlag() {
 }
 
 func init() {
+	// adding child commands to parent import commands
 	importCmd.AddCommand(importDataCmd)
 	importDataCmd.AddCommand(importDataToCmd)
 	importDataToCmd.AddCommand(importDataToTargetCmd)
+
+	// adding flags to the `import data` and `import data to target` commands
 	registerFlagsForTarget(importDataCmd)
 	registerFlagsForTarget(importDataToTargetCmd)
 	registerCommonGlobalFlags(importDataCmd)

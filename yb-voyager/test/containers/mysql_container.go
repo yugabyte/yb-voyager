@@ -20,9 +20,20 @@ type MysqlContainer struct {
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
-	if ms.container != nil && ms.container.IsRunning() {
-		utils.PrintAndLog("Mysql-%s container already running", ms.DBVersion)
-		return nil
+	if ms.container != nil {
+		// already running, do nothing.
+		if ms.container.IsRunning() {
+			utils.PrintAndLog("MySQL-%s container already running", ms.DBVersion)
+			return nil
+		}
+		// but if it’s stopped, so start it back up in place
+		utils.PrintAndLog("Restarting MySQL-%s container", ms.DBVersion)
+		if err := ms.container.Start(ctx); err != nil {
+			return fmt.Errorf("failed to restart mysql container: %w", err)
+		}
+
+		// Wait for it to accept connections again
+		return pingDatabase("mysql", ms.GetConnectionString())
 	}
 
 	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
@@ -73,6 +84,25 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 	return nil
 }
 
+// Stop simulates a database outage by stopping (but not removing) the Docker container.
+// The underlying data directory remains intact, so you can call Start() later
+// and the DB will pick up with exactly the same contents.
+func (ms *MysqlContainer) Stop(ctx context.Context) error {
+	if ms.container == nil {
+		return nil
+	} else if !ms.container.IsRunning() {
+		utils.PrintAndLog("MySQL-%s container already stopped", ms.DBVersion)
+		return nil
+	}
+
+	timeout := 10 * time.Second
+	// Stop with a 10s timeout—this sends SIGTERM and waits, but does NOT remove the container.
+	if err := ms.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop postgres container: %w", err)
+	}
+	return nil
+}
+
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
 	if ms == nil {
 		return
@@ -116,6 +146,19 @@ func (ms *MysqlContainer) GetConnectionString() string {
 	// DSN format: user:password@tcp(host:port)/dbname
 	return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s",
 		ms.User, ms.Password, host, port, ms.DBName)
+}
+
+func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
+	if ms.container == nil {
+		utils.ErrExit("mysql container is not started: nil")
+	}
+
+	db, err := sql.Open("mysql", ms.GetConnectionString())
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to mysql: %w", err)
+	}
+
+	return db, nil
 }
 
 func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {

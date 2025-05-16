@@ -24,6 +24,8 @@ import (
 	"github.com/google/uuid"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -38,8 +40,9 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
+	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	ExecuteBatch(migrationUUID uuid.UUID, batch *EventBatch) error
 	GetListOfTableAttributes(tableNameTup sqlname.NameTuple) ([]string, error)
 	QuoteAttributeName(tableNameTup sqlname.NameTuple, columnName string) (string, error)
@@ -73,6 +76,7 @@ const (
 
 type Batch interface {
 	Open() (*os.File, error)
+	OpenAsDataFile() (datafile.DataFile, error)
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	GetQueryIsBatchAlreadyImported() string
@@ -91,10 +95,14 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 	return nil
 }
 
+// ======================= ImportBatchArgs ====================
+
 type ImportBatchArgs struct {
-	FilePath     string
-	TableNameTup sqlname.NameTuple
-	Columns      []string
+	FilePath          string
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string // TODO: Implement
+	PKConflictAction  string
 
 	FileFormat string
 	HasHeader  bool
@@ -106,13 +114,48 @@ type ImportBatchArgs struct {
 	RowsPerTransaction int64
 }
 
-func (args *ImportBatchArgs) GetYBCopyStatement() string {
+// Fast Path can be used to import batch is when: Primary Key is present and user has selected IGNORE as PK conflict action
+func (args *ImportBatchArgs) ShouldUseFastPath() bool {
+	return len(args.PrimaryKeyColumns) > 0 &&
+		(args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE)
+	/*|| args.PKConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE )*/
+}
+
+func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
 	options := args.copyOptions()
 	options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
 	columns := ""
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
 	}
+
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
+}
+
+// returns YB COPY statement for fast path
+// To trigger COPY fast path, no transaction and ROWS_PER_TRANSACTION should be used
+func (args *ImportBatchArgs) GetYBNonTxnCopyStatement() string {
+	options := args.copyOptions()
+	columns := ""
+	if len(args.Columns) > 0 {
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+	}
+
+	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
+}
+
+func (args *ImportBatchArgs) GetYBCopyStatement() string {
+	options := args.copyOptions()
+	if !args.ShouldUseFastPath() {
+		// fast path on DB side not enabled if ROWS_PER_TRANSACTION is set in COPY
+		options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
+	}
+
+	columns := ""
+	if len(args.Columns) > 0 {
+		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
+	}
+
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
@@ -125,8 +168,77 @@ func (args *ImportBatchArgs) GetPGCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
-func (args *ImportBatchArgs) copyOptions() []string {
+/*
+TODOs:
+	1. Handle quoting of identifiers(column/table names) in the insert statement
+	2. Optimise the prepare statment to be cached and reused in connPool (same as for streaming events)
+*/
 
+/*
+GetInsertPreparedStmtForBatchImport returns the INSERT prepared statement based on the requested conflict action.
+1. ERROR   -> raise error (no ON CONFLICT clause)
+2. IGNORE  -> ON CONFLICT DO NOTHING
+3. UPDATE  -> ON CONFLICT (pk…) DO UPDATE SET non‑pk = EXCLUDED.non‑pk, …
+*/
+func (args *ImportBatchArgs) GetInsertPreparedStmtForBatchImport() string {
+	// TODO: Need to ensure the order of columns in the insert statement is same as the rows in batch file
+
+	// column list for insert statement (col1, col2, col3, ...)
+	columns := strings.Join(args.Columns, ", ")
+
+	// value placeholders for insert statement ($1, $2, $3, ...)
+	valuePlaceHolders := make([]string, len(args.Columns))
+	for i := range args.Columns {
+		valuePlaceHolders[i] = fmt.Sprintf("$%d", i+1)
+	}
+	values := strings.Join(valuePlaceHolders, ", ")
+
+	// base insert statement
+	baseStmt := fmt.Sprintf(`INSERT INTO %s (%s) VALUES (%s)`,
+		args.TableNameTup.ForUserQuery(), columns, values)
+
+	switch args.PKConflictAction {
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR:
+		return baseStmt // no additional clause - although this is not going to be called ever.
+
+	case constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE:
+		// we are dealing with PK conflict only for the target table (not Unique index etc...)
+		conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
+
+		return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
+
+	/*
+		Sample Statement:
+			INSERT INTO users (id, name, email) VALUES ($1, $2, $3)
+				ON CONFLICT (id) DO UPDATE
+				SET
+					name = EXCLUDED.name,
+					email = EXCLUDED.email
+	*/
+	// case constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE:
+	// 	// build conflict target (pk1, pk2, pk3, ...)
+	// 	conflictTarget := strings.Join(args.PrimaryKeyColumns, ", ")
+
+	// 	// build update set clause (col1 = EXCLUDED.col1, col2 = EXCLUDED.col2, ...)
+	// 	nonPKColumns := utils.SetDifference(args.Columns, args.PrimaryKeyColumns)
+	// 	if len(nonPKColumns) == 0 {
+	// 		return fmt.Sprintf("%s ON CONFLICT(%s) DO NOTHING", baseStmt, conflictTarget)
+	// 	}
+
+	// 	updateSet := make([]string, len(nonPKColumns))
+	// 	for i, col := range nonPKColumns {
+	// 		updateSet[i] = fmt.Sprintf("%s = EXCLUDED.%s", col, col)
+	// 	}
+	// 	updateSetClause := strings.Join(updateSet, ", ")
+
+	// 	// build the final insert statement
+	// 	baseStmt = fmt.Sprintf("%s ON CONFLICT (%s) DO UPDATE SET %s", baseStmt, conflictTarget, updateSetClause)
+	default:
+		panic(fmt.Sprintf("Invalid conflict action: %s", args.PKConflictAction))
+	}
+}
+
+func (args *ImportBatchArgs) copyOptions() []string {
 	options := []string{
 		fmt.Sprintf("FORMAT '%s'", args.FileFormat),
 	}

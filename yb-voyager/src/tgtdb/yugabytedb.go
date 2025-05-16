@@ -21,6 +21,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"strconv"
@@ -38,6 +39,7 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
@@ -409,6 +411,41 @@ outer:
 	return nil
 }
 
+// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
+// primary‑key definition of the given table.
+func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	var primaryKeyColumns []string
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_class      c ON c.oid = i.indrelid
+		JOIN pg_namespace  n ON n.oid = c.relnamespace
+		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+		WHERE n.nspname = '%s'
+			AND c.relname  = '%s'
+			AND i.indisprimary;`, schemaName, tableName)
+
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan PK column: %w", err)
+		}
+		primaryKeyColumns = append(primaryKeyColumns, col)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return primaryKeyColumns, nil
+}
+
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -442,11 +479,28 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+/*
+ImportBatch function handles variety of cases for importing a batch into YugabyteDB
+1. Normal Mode - Importing a batch using COPY command with transaction.
+2. Fast Path Mode - Importing a batch using COPY command without transaction.
+3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
+*/
+func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
-		rowsAffected, err = yb.importBatch(conn, batch, args)
+		if args.ShouldUseFastPath() {
+			if !isRecoveryCandidate {
+				rowsAffected, err = yb.importBatchFast(conn, batch, args)
+			} else {
+				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
+			}
+		} else {
+			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
+			rowsAffected, err = yb.importBatch(conn, batch, args)
+		}
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
@@ -454,19 +508,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 }
 
 func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
-	var file *os.File
-	file, err = batch.Open()
-	if err != nil {
-		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
-	}
-	defer file.Close()
-
-	//setting the schema so that COPY command can acesss the table
-	err = yb.setTargetSchema(conn)
-	if err != nil {
-		return 0, fmt.Errorf("setting schema on conn: %w", err)
-	}
-
+	log.Infof("importing %q using COPY command normal path(transactional)", batch.GetFilePath())
 	// NOTE: DO NOT DEFINE A NEW err VARIABLE IN THIS FUNCTION. ELSE, IT WILL MASK THE err FROM RETURN LIST.
 	ctx := context.Background()
 	var tx pgx.Tx
@@ -491,21 +533,66 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		}
 	}()
 
-	// Check if the split is already imported.
-	var alreadyImported bool
-	alreadyImported, rowsAffected, err = yb.isBatchAlreadyImported(tx, batch)
+	// using the conn on which the transaction is executing which should ensure -
+	// all DB operations inside copyBatchCore will be a part of the transaction
+	rowsAffected, err = yb.copyBatchCore(tx.Conn(), batch, args)
+	return rowsAffected, err
+}
+
+func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	log.Infof("importing %q using COPY command fast path(non transactional)", batch.GetFilePath())
+	// running copy without transaction
+	rowsAffected, err := yb.copyBatchCore(conn, batch, args)
+
+	/*
+		Check if the error is violates unique constraint then use the fast path recovery to ingest this batch
+		Case: If the table already has the data(before import started) which is being imported
+
+		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
+		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
+	*/
+	if err != nil && strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
+		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
+		return yb.importBatchFastRecover(conn, batch, args)
+	}
+
+	return rowsAffected, err
+}
+
+func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	// 1. Open the batch file
+	file, err := batch.Open()
+	if err != nil {
+		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+	}
+	defer file.Close()
+
+	// 2. setting the schema so that COPY command can acesss the table
+	// Q: If we set the schema for this batch on this conn, will it impact others using the same conn from pool later?
+	yb.setTargetSchema(conn)
+
+	// 3. Check if the split is already imported.
+	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
 		return 0, err
 	}
 	if alreadyImported {
+		log.Infof("batch %q already imported, skipping", batch.GetFilePath())
 		return rowsAffected, nil
 	}
 
-	// Import the split using COPY command.
+	// 4. Import the batch using COPY command.
 	var res pgconn.CommandTag
-	copyCommand := args.GetYBCopyStatement()
+	var copyCommand string
+
+	// TODO: maybe move this check into the args struct methods and just call GetYBCopyStatement()
+	if args.ShouldUseFastPath() {
+		copyCommand = args.GetYBNonTxnCopyStatement()
+	} else {
+		copyCommand = args.GetYBTxnCopyStatement()
+	}
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
-	res, err = tx.Conn().PgConn().CopyFrom(context.Background(), file, copyCommand)
+	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
@@ -514,11 +601,102 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 		return res.RowsAffected(), err
 	}
 
-	err = yb.recordEntryInDB(tx, batch, res.RowsAffected())
+	// 5. Record the import in the DB.
+	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 	}
 	return res.RowsAffected(), err
+}
+
+// importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
+func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
+	log.Infof("importing %q using COPY command fast path with recovery", batch.GetFilePath())
+	// 1. Check if the split is already imported.
+	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
+	if err != nil {
+		return 0, err
+	}
+	if alreadyImported {
+		log.Infof("batch %q already imported, skipping fast recover", batch.GetFilePath())
+		return rowsAffected, nil
+	}
+
+	// 2. Open the batch file as datafile
+	df, err := batch.OpenAsDataFile()
+	if err != nil {
+		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+	}
+	defer df.Close()
+
+	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
+	var rowsIgnored int64 = 0
+	rowsAffected = 0
+
+	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
+	// TODO (high priority): fix https://yugabyte.atlassian.net/browse/DB-16276 otherwise syntax error for non public schema data import
+	insertStmt := args.GetInsertPreparedStmtForBatchImport()
+	for {
+		line, _, readLinErr := df.NextLine()
+		if readLinErr != nil && readLinErr != io.EOF {
+			return 0, fmt.Errorf("read line from file %s: %w", batch.GetFilePath(), err)
+		}
+
+		/*
+			Both the cases are handled:
+			1. line="" + EOF error
+			2. line!=""(last line) + EOF error
+		*/
+		if line == "" { // handles case 1
+			if readLinErr == io.EOF {
+				break
+			} else {
+				// skipping if any empty line (not expected from batch file)
+				continue
+			}
+		}
+
+		fields := strings.Split(line, args.Delimiter)
+		stmtArgs := make([]interface{}, len(fields))
+		for i, val := range fields {
+			stmtArgs[i] = val
+		}
+
+		// 5. Execute the INSERT statement one by one
+		res, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
+		if err != nil {
+			return 0, fmt.Errorf("insert into target table: %w", err)
+		}
+
+		if res.RowsAffected() > 0 {
+			rowsAffected++
+		} else {
+			rowsIgnored++
+		}
+		if readLinErr == io.EOF { // handles case 2
+			log.Infof("reached end of file %s", batch.GetFilePath())
+			break
+		}
+	}
+
+	totalRowsInBatch := rowsAffected + rowsIgnored
+
+	// 6. Update the Metadata about the batch imported
+	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't
+	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
+	if err != nil {
+		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+		return 0, err
+	}
+
+	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored",
+		args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
+	log.Debugf("(recovery) [conflict_action=%s] %q => insert stmt: %s, rows inserted: %d, rows ignored: %d",
+		args.PKConflictAction, batch.GetFilePath(), insertStmt, rowsAffected, rowsIgnored)
+
+	// 8. returns total number of rows
+	return totalRowsInBatch, nil
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
@@ -545,15 +723,20 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 	return result, nil
 }
 
+const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
+const SYNTAX_ERROR = "syntax error at"
+const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
+
 var NonRetryCopyErrors = []string{
-	"invalid input syntax",
-	"violates unique constraint",
-	"syntax error at",
+	INVALID_INPUT_SYNTAX_ERROR,
+	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
+	SYNTAX_ERROR,
 }
 
 func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
-	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, "Sending too long RPC message")
+	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
@@ -1009,6 +1192,7 @@ const (
 	SET_SESSION_REPLICATE_ROLE_TO_REPLICA = "SET session_replication_role TO replica" //Disable triggers or fkeys constraint checks.
 	SET_YB_ENABLE_UPSERT_MODE             = "SET yb_enable_upsert_mode to true"
 	SET_YB_DISABLE_TRANSACTIONAL_WRITES   = "SET yb_disable_transactional_writes to true" // Disable transactions to improve ingestion throughput.
+	SET_YB_FAST_PATH_FOR_COLOCATED_COPY   = "SET yb_fast_path_for_colocated_copy=true"
 	// The "SELECT 1" workaround introduced in ExecuteBatch does not work if isolation level is read_committed. Therefore, for now, we are forcing REPEATABLE READ.
 	SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ = "SET default_transaction_isolation = 'repeatable read'"
 	ERROR_MSG_PERMISSION_DENIED                 = "permission denied"
@@ -1035,6 +1219,12 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 	}
 	if checkSessionVariableSupport(tconf, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ) {
 		sessionVars = append(sessionVars, SET_DEFAULT_ISOLATION_LEVEL_REPEATABLE_READ)
+	}
+
+	// enable `set yb_fast_path_for_colocated_copy` only if opted for IGNORE or UPDATE as PK conflict action
+	if (tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE) &&
+		checkSessionVariableSupport(tconf, SET_YB_FAST_PATH_FOR_COLOCATED_COPY) {
+		sessionVars = append(sessionVars, SET_YB_FAST_PATH_FOR_COLOCATED_COPY)
 	}
 
 	if tconf.EnableUpsert {
@@ -1124,10 +1314,10 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
 	return nil
 }
 
-func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool, int64, error) {
+func (yb *TargetYugabyteDB) isBatchAlreadyImported(conn *pgx.Conn, batch Batch) (bool, int64, error) {
 	var rowsImported int64
 	query := batch.GetQueryIsBatchAlreadyImported()
-	err := tx.QueryRow(context.Background(), query).Scan(&rowsImported)
+	err := conn.QueryRow(context.Background(), query).Scan(&rowsImported)
 	if err == nil {
 		log.Infof("%v rows from %q are already imported", rowsImported, batch.GetFilePath())
 		return true, rowsImported, nil
@@ -1139,9 +1329,9 @@ func (yb *TargetYugabyteDB) isBatchAlreadyImported(tx pgx.Tx, batch Batch) (bool
 	return false, 0, fmt.Errorf("check if %s is already imported: %w", batch.GetFilePath(), err)
 }
 
-func (yb *TargetYugabyteDB) recordEntryInDB(tx pgx.Tx, batch Batch, rowsAffected int64) error {
+func (yb *TargetYugabyteDB) recordEntryInDB(conn *pgx.Conn, batch Batch, rowsAffected int64) error {
 	cmd := batch.GetQueryToRecordEntryInDB(rowsAffected)
-	_, err := tx.Exec(context.Background(), cmd)
+	_, err := conn.Exec(context.Background(), cmd)
 	if err != nil {
 		return fmt.Errorf("insert into %s: %w", BATCH_METADATA_TABLE_NAME, err)
 	}

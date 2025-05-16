@@ -2,6 +2,7 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"sync"
 
@@ -18,10 +19,12 @@ var (
 
 type TestContainer interface {
 	Start(ctx context.Context) error
+	Stop(ctx context.Context) error
 	Terminate(ctx context.Context)
 	GetHostPort() (string, int, error)
 	GetConfig() ContainerConfig
 	GetConnectionString() string
+	GetConnection() (*sql.DB, error)
 	/*
 		TODOs
 			// Function to run sql script for a specific test case

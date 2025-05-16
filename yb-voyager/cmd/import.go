@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -91,6 +92,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
+	validateOnPrimaryKeyConflictFlag()
 	return nil
 }
 
@@ -238,7 +240,8 @@ func registerImportDataToTargetFlags(cmd *cobra.Command) {
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
-	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false,
+		"Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -370,6 +373,16 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &skipDiskUsageHealthChecks, "skip-disk-usage-health-checks", false,
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
+
+	// TODO: restrict changing of flag value after import data has started
+	// TODO: Detailed description of the flag
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
+		`Action to take on primary key conflict during data import.
+Supported values:
+ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
+IGNORE		: Skips rows with existing primary keys and uses fast-path import for better performance with colocated tables.`)
+	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
+
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 	cmd.Flags().MarkHidden("skip-node-health-checks")
 }
@@ -404,6 +417,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 	}
 
+	// TODO: we might want to lift this restriction for non-transactional COPY (depends on testing of --batch-size flag)
 	if numLinesInASplit > defaultBatchSize {
 		utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
 	}
@@ -432,5 +446,20 @@ func validateParallelismFlags() {
 func validateTruncateTablesFlag() {
 	if truncateTables && !startClean {
 		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
+	}
+}
+
+var onPrimaryKeyConflictActions = []string{
+	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
+	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
+}
+
+func validateOnPrimaryKeyConflictFlag() {
+	conflictAction := strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+	if conflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, conflictAction) {
+			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+		}
 	}
 }
