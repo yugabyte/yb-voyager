@@ -143,10 +143,12 @@ jobs:
         run: migtests/scripts/run-test.sh pg/indexes
       
       - name: "copy and zip logs"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: |
           docker exec yugabytedb bin/yugabyted collect_logs --stdout > yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
 
       - name: Upload logs as artifact
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         uses: actions/upload-artifact@v4
         with:
           name: yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}
