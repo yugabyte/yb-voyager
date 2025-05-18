@@ -126,7 +126,7 @@ class PostgresDB:
 			password=self.password,
 			database=self.database
 		)
-		self.conn.autocommit = True # statement level transaction allows yugabytedb to do internal retries for Restart Required errors
+		# self.conn.autocommit = True # statement level transaction allows yugabytedb to do internal retries for Restart Required errors
 	  
 	def close(self):
 		self.conn.close()
