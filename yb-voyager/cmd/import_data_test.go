@@ -337,7 +337,7 @@ FROM generate_series(1, 500000);`
 	// Export data from Postgres (synchronous run).
 	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
-		"--source-db-schema", "public,test_schema", // adding public due to DB-16276
+		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
@@ -457,7 +457,7 @@ INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i))
 
 	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
-		"--source-db-schema", "public,test_schema", // adding public due to DB-16276
+		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)

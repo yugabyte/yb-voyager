@@ -442,23 +442,19 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 
 	result := make(map[string][]string)
 	for _, tableMetadata := range tablesMetadata {
-		// TODO: Use tableMetadata.TableName instead of parsing the file name.
-		// We need a new method in sqlname.SourceName that returns MaybeQuoted and MaybeQualified names.
-		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		result[tableName] = pg.getExportedColumnsListForTable(exportDir, tableName)
+		tableName := tableMetadata.TableName
+		// using minqualified and minquoted as used for data file naems and in console UI
+		result[tableName.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, tableMetadata.TableName)
 	}
 	return result
 }
 
-func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string) []string {
+func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir string, tableName sqlname.NameTuple) []string {
 	var columnsList []string
-	var re *regexp.Regexp
-	if len(strings.Split(tableName, ".")) == 1 {
-		// happens only when table is in public schema, use public schema with table name for regexp
-		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\((.*)\) FROM STDIN`, tableName))
-	} else {
-		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName))
-	}
+
+	// ForOutput return fully qualified and min quote name which is the case with COPY in toc.txt
+	re := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName.ForOutput()))
+
 	tocFilePath := filepath.Join(exportDir, "data", "toc.dat")
 	err := utils.ForEachMatchingLineInFile(tocFilePath, re, func(matches []string) bool {
 		columnsList = strings.Split(matches[1], ",")
