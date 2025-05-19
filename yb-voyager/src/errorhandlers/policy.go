@@ -16,6 +16,8 @@ limitations under the License.
 
 package errorhandlers
 
+import "fmt"
+
 /*
 ErrorPolicy defines what to do when an error occurs during a task.
 Currently, it is used in the context of import-data, where we do the following tasks:
@@ -32,11 +34,27 @@ const (
 	StashAndContinueErrorPolicy                    // Stash the error to a file and continue with the task
 )
 
+const (
+	AbortErrorPolicyName            = "Abort"
+	StashAndContinueErrorPolicyName = "StashAndContinue"
+)
+
 var errorPolicyNames = map[ErrorPolicy]string{
-	AbortErrorPolicy:            "Abort",
-	StashAndContinueErrorPolicy: "StashAndContinue",
+	AbortErrorPolicy:            AbortErrorPolicyName,
+	StashAndContinueErrorPolicy: StashAndContinueErrorPolicyName,
 }
 
 func (e ErrorPolicy) String() string {
 	return errorPolicyNames[e]
+}
+
+func NewErrorPolicy(s string) (ErrorPolicy, error) {
+	switch s {
+	case AbortErrorPolicyName:
+		return AbortErrorPolicy, nil
+	case StashAndContinueErrorPolicyName:
+		return StashAndContinueErrorPolicy, nil
+	default:
+		return 0, fmt.Errorf("invalid error policy: %s", s)
+	}
 }

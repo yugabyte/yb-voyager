@@ -16,6 +16,14 @@ limitations under the License.
 
 package errorhandlers
 
+import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+
+type ErroredBatch interface {
+	GetFilePath() string
+	GetTableName() sqlname.NameTuple
+	IsInterrupted() bool
+}
+
 type ImportDataAbortHandler struct {
 }
 
@@ -28,10 +36,12 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 }
 
 func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
+	// nothing to do.
 	return nil
 }
 
-func (handler *ImportDataAbortHandler) HandleBatchIngestionError() error {
+func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, err error) error {
+	// nothing to do.
 	return nil
 }
 
@@ -53,6 +63,6 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() err
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError() error {
+func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, err error) error {
 	return nil
 }

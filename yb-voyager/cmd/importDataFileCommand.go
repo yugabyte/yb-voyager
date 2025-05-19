@@ -29,6 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorhandlers"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -95,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks)
+		importData(importFileTasks, errorhandlers.AbortErrorPolicy)
 		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
@@ -363,7 +364,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 		Error:              callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		ControlPlaneType:   getControlPlaneType(),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):

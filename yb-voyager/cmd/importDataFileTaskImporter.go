@@ -47,11 +47,14 @@ type FileTaskImporter struct {
 	totalProgressAmount   int64
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
+
+	errorHandler ImportDataErrorHandler
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool) (*FileTaskImporter, error) {
-	batchProducer, err := NewFileBatchProducer(task, state)
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
+	errorHandler ImportDataErrorHandler) (*FileTaskImporter, error) {
+	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
 	}
@@ -70,6 +73,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		progressReporter:          progressReporter,
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
+		errorHandler:              errorHandler,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -178,7 +182,12 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		fti.errorHandler.HandleBatchIngestionError(batch, err)
+		if fti.errorHandler.ShouldAbort() {
+			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		} else {
+			log.Errorf("Continuing after handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		}
 	}
 	err = batch.MarkDone()
 	if err != nil {
