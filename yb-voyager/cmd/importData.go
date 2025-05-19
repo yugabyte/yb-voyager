@@ -664,7 +664,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorhandlers.Err
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -821,7 +821,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
