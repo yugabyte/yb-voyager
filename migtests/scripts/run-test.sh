@@ -169,6 +169,9 @@ main() {
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
 
+	step "Sleeping before read queries in validations script to let tablets safe time get updated(updated every 1sec)"
+	sleep 1.1
+
 	step "Run validations."
 	if [[ "${EXPORT_TABLE_LIST}" != "" && -x "${TEST_DIR}/validate-with-table-list" ]]; then
 		"${TEST_DIR}/validate-with-table-list"
