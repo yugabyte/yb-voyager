@@ -109,16 +109,17 @@ func (s *ImportDataState) GetCompletedBatches(filePath string, tableNameTup sqln
 }
 
 func (s *ImportDataState) GetAllBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
-	return s.getBatches(filePath, tableNameTup, "CPD")
+	return s.getBatches(filePath, tableNameTup, "CPDE")
 }
 
 type FileImportState string
 
 const (
-	FILE_IMPORT_STATE_UNKNOWN FileImportState = "FILE_IMPORT_STATE_UNKNOWN"
-	FILE_IMPORT_NOT_STARTED   FileImportState = "FILE_IMPORT_NOT_STARTED"
-	FILE_IMPORT_IN_PROGRESS   FileImportState = "FILE_IMPORT_IN_PROGRESS"
-	FILE_IMPORT_COMPLETED     FileImportState = "FILE_IMPORT_COMPLETED"
+	FILE_IMPORT_STATE_UNKNOWN         FileImportState = "FILE_IMPORT_STATE_UNKNOWN"
+	FILE_IMPORT_NOT_STARTED           FileImportState = "FILE_IMPORT_NOT_STARTED"
+	FILE_IMPORT_IN_PROGRESS           FileImportState = "FILE_IMPORT_IN_PROGRESS"
+	FILE_IMPORT_COMPLETED             FileImportState = "FILE_IMPORT_COMPLETED"
+	FILE_IMPORT_COMPLETED_WITH_ERRORS FileImportState = "FILE_IMPORT_COMPLETED_WITH_ERRORS"
 )
 
 func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlname.NameTuple) (FileImportState, error) {
@@ -130,24 +131,32 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlna
 		return FILE_IMPORT_NOT_STARTED, nil
 	}
 	batchGenerationCompleted := false
-	interruptedCount, doneCount := 0, 0
+	interruptedCount, doneCount, errorCount := 0, 0, 0
 	for _, batch := range batches {
 		if batch.IsDone() {
 			doneCount++
 		} else if batch.IsInterrupted() {
 			interruptedCount++
+		} else if batch.IsErrored() {
+			errorCount++
 		}
 		if batch.Number == LAST_SPLIT_NUM {
 			batchGenerationCompleted = true
 		}
 	}
 
+	log.Infof("get file import state: file %q, table %q: interruptedCount=%d, doneCount=%d, errorCount=%d, batchGenerationCompleted=%t")
+
 	if doneCount == len(batches) && batchGenerationCompleted {
 		return FILE_IMPORT_COMPLETED, nil
 	}
 
+	if doneCount+errorCount == len(batches) && batchGenerationCompleted {
+		return FILE_IMPORT_COMPLETED_WITH_ERRORS, nil
+	}
+
 	// Even if there are some .C batches it means the import has actually not started
-	if interruptedCount == 0 && doneCount == 0 {
+	if interruptedCount == 0 && doneCount == 0 && errorCount == 0 {
 		return FILE_IMPORT_NOT_STARTED, nil
 	}
 	return FILE_IMPORT_IN_PROGRESS, nil
@@ -316,7 +325,7 @@ func parseBatchFileName(fileName string) (batchNum, offsetEnd, recordCount, byte
 		return 0, 0, 0, 0, "", fmt.Errorf("invalid byteCount %q in the file name %q", md[3], fileName)
 	}
 	state = md[4]
-	if !slices.Contains([]string{"C", "P", "D"}, state) {
+	if !slices.Contains([]string{"C", "P", "D", "E"}, state) {
 		return 0, 0, 0, 0, "", fmt.Errorf("invalid state %q in the file name %q", md[4], fileName)
 	}
 	return batchNum, offsetEnd, recordCount, byteCount, state, nil
@@ -681,7 +690,7 @@ func (s *ImportDataState) AllBatchesImported(filepath string, tableNameTup sqlna
 	if err != nil {
 		return false, fmt.Errorf("getting file import state: %s", err)
 	}
-	return taskStatus == FILE_IMPORT_COMPLETED, nil
+	return taskStatus == FILE_IMPORT_COMPLETED || taskStatus == FILE_IMPORT_COMPLETED_WITH_ERRORS, nil
 }
 
 //==================================== BatchWriter ====================================
@@ -845,6 +854,10 @@ func (batch *Batch) IsDone() bool {
 	return strings.HasSuffix(batch.FilePath, ".D")
 }
 
+func (batch *Batch) IsErrored() bool {
+	return strings.HasSuffix(batch.FilePath, ".E")
+}
+
 func (batch *Batch) MarkInProgress() error {
 	// Rename the file to .P
 	inProgressFilePath := batch.getInProgressFilePath()
@@ -854,6 +867,18 @@ func (batch *Batch) MarkInProgress() error {
 		return fmt.Errorf("rename %q to %q: %w", batch.FilePath, inProgressFilePath, err)
 	}
 	batch.FilePath = inProgressFilePath
+	return nil
+}
+
+func (batch *Batch) MarkError() error {
+	// Rename the file to .E
+	errorFilePath := batch.getErrorFilePath()
+	log.Infof("Renaming file from %q to %q", batch.FilePath, errorFilePath)
+	err := os.Rename(batch.FilePath, errorFilePath)
+	if err != nil {
+		return fmt.Errorf("rename %q to %q: %w", batch.FilePath, errorFilePath, err)
+	}
+	batch.FilePath = errorFilePath
 	return nil
 }
 
@@ -907,6 +932,10 @@ func (batch *Batch) GetTableName() sqlname.NameTuple {
 
 func (batch *Batch) getInProgressFilePath() string {
 	return batch.FilePath[0:len(batch.FilePath)-1] + "P" // *.C -> *.P
+}
+
+func (batch *Batch) getErrorFilePath() string {
+	return batch.FilePath[0:len(batch.FilePath)-1] + "E" // *.P -> *.E
 }
 
 func (batch *Batch) getDoneFilePath() string {

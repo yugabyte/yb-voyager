@@ -188,10 +188,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		} else {
 			log.Errorf("Continuing after handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		}
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+	} else {
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+		}
 	}
 }
 
