@@ -165,13 +165,6 @@ func (t NameTuple) ForMinOutput() string {
 	return t.CurrentName.MinQualified.MinQuoted
 }
 
-func (t NameTuple) ForDataFile() string {
-	if t.CurrentName.SchemaName == "public" {
-		return t.CurrentName.MinQualified.MinQuoted
-	}
-	return t.CurrentName.Qualified.MinQuoted
-}
-
 func (t NameTuple) ForKey() string {
 	// sourcename will be nil only in the case of import-data-file
 	if t.SourceName != nil {
