@@ -14,11 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package errorhandlers
+package importdata
 
 import (
 	"fmt"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -74,4 +75,21 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 		return fmt.Errorf("marking batch as errored: %s", err)
 	}
 	return nil
+}
+
+type ImportDataErrorHandler interface {
+	ShouldAbort() bool
+	HandleRowProcessingError() error
+	HandleBatchIngestionError(batch ErroredBatch, err error) error
+}
+
+func GetImportDataErrorHandler(errorPolicy errorpolicy.ErrorPolicy) (ImportDataErrorHandler, error) {
+	switch errorPolicy {
+	case errorpolicy.AbortErrorPolicy:
+		return NewImportDataAbortHandler(), nil
+	case errorpolicy.StashAndContinueErrorPolicy:
+		return NewImportDataStashAndContinueHandler(), nil
+	default:
+		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
+	}
 }

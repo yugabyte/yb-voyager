@@ -29,7 +29,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorhandlers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks, errorhandlers.StashAndContinueErrorPolicy)
+		importData(importFileTasks, errorpolicy.StashAndContinueErrorPolicy)
 		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},

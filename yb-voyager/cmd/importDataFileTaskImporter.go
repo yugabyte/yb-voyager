@@ -25,6 +25,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -48,12 +49,12 @@ type FileTaskImporter struct {
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 
-	errorHandler ImportDataErrorHandler
+	errorHandler importdata.ImportDataErrorHandler
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
-	errorHandler ImportDataErrorHandler) (*FileTaskImporter, error) {
+	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)

@@ -40,7 +40,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorhandlers"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -187,7 +188,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	importData(importFileTasks, errorhandlers.AbortErrorPolicy)
+	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
@@ -530,7 +531,7 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy errorhandlers.ErrorPolicy) {
+func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.ErrorPolicy) {
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
@@ -539,7 +540,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorhandlers.Err
 		}
 	}
 
-	errorHandler, err := getImportDataErrorHandler(errorPolicy)
+	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error handler: %s", err)
 	}
@@ -781,7 +782,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler ImportDataErrorHandler) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler) error {
 
 	var err error
 
@@ -933,7 +934,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler ImportDataErrorHandler) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -1413,23 +1414,4 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	}
 
 	return result
-}
-
-// -------------------------- Error Handling --------------------------------//
-
-type ImportDataErrorHandler interface {
-	ShouldAbort() bool
-	HandleRowProcessingError() error
-	HandleBatchIngestionError(batch errorhandlers.ErroredBatch, err error) error
-}
-
-func getImportDataErrorHandler(errorPolicy errorhandlers.ErrorPolicy) (ImportDataErrorHandler, error) {
-	switch errorPolicy {
-	case errorhandlers.AbortErrorPolicy:
-		return errorhandlers.NewImportDataAbortHandler(), nil
-	case errorhandlers.StashAndContinueErrorPolicy:
-		return errorhandlers.NewImportDataStashAndContinueHandler(), nil
-	default:
-		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
-	}
 }
