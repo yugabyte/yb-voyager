@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -54,6 +55,21 @@ var cutoverToTargetCmd = &cobra.Command{
 			if msr.FallForwardEnabled {
 				utils.ErrExit("Live migration with Fall-forward workflow is already started on this export-dir. So --prepare-for-fall-back is not applicable.")
 			}
+		}
+		isFallForwardOrFallBackEnabled := bool(prepareForFallBack) || msr.FallForwardEnabled
+		if isFallForwardOrFallBackEnabled {
+			if prepareForFallBack {
+				log.Infof("Migration workflow opted is live migration with fall-back.")
+			} else if msr.FallForwardEnabled {
+				log.Infof("Migration workflow opted is live migration with fall-forward.")
+			}
+			// --use-yb-grpc-connector is mandatory in this case.
+			useYBgRPCConnectorSpecified := cmd.Flags().Changed("use-yb-grpc-connector")
+			if !useYBgRPCConnectorSpecified {
+				utils.ErrExit(`missing required flag "--use-yb-grpc-connector [true|false]"`)
+			}
+		} else {
+			log.Infof("Migration workflow opted is normal live migration.")
 		}
 		err = InitiateCutover("target", bool(prepareForFallBack), bool(useYBgRPCConnector))
 		if err != nil {
