@@ -1184,7 +1184,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
 		switch fileImportState {
-		case FILE_IMPORT_COMPLETED:
+		case FILE_IMPORT_COMPLETED, FILE_IMPORT_COMPLETED_WITH_ERRORS:
 			completedTasks = append(completedTasks, task)
 		case FILE_IMPORT_IN_PROGRESS:
 			inProgressTasks = append(inProgressTasks, task)

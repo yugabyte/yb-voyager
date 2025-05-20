@@ -188,7 +188,7 @@ func (s *ImportDataState) Recover(filePath string, tableNameTup sqlname.NameTupl
 		if batch.OffsetEnd > lastOffset {
 			lastOffset = batch.OffsetEnd
 		}
-		if !batch.IsDone() {
+		if !batch.IsCompleted() {
 			pendingBatches = append(pendingBatches, batch)
 		}
 	}
@@ -856,6 +856,10 @@ func (batch *Batch) IsDone() bool {
 
 func (batch *Batch) IsErrored() bool {
 	return strings.HasSuffix(batch.FilePath, ".E")
+}
+
+func (batch *Batch) IsCompleted() bool {
+	return batch.IsDone() || batch.IsErrored()
 }
 
 func (batch *Batch) MarkInProgress() error {
