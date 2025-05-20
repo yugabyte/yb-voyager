@@ -930,6 +930,10 @@ func (batch *Batch) GetFilePath() string {
 	return batch.FilePath
 }
 
+func (batch *Batch) GetFileDirectory() string {
+	return filepath.Dir(batch.FilePath)
+}
+
 func (batch *Batch) GetTableName() sqlname.NameTuple {
 	return batch.TableNameTup
 }

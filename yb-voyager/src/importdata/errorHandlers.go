@@ -18,6 +18,8 @@ package importdata
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -25,6 +27,7 @@ import (
 
 type ErroredBatch interface {
 	GetFilePath() string
+	GetFileDirectory() string
 	GetTableName() sqlname.NameTuple
 	IsInterrupted() bool
 	MarkError() error
@@ -73,6 +76,37 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 	err := batch.MarkError()
 	if err != nil {
 		return fmt.Errorf("marking batch as errored: %s", err)
+	}
+	err = handler.createBatchSymlinkInErrorsFolder(batch)
+	if err != nil {
+		return fmt.Errorf("creating symlink in errors folder: %s", err)
+	}
+	return nil
+}
+
+func (handler *ImportDataStashAndContinueHandler) getTaskErrorsFolderPath(batch ErroredBatch) string {
+	return filepath.Join(batch.GetFileDirectory(), "errors")
+}
+
+func (handler *ImportDataStashAndContinueHandler) mkdirPErrorsFolder(batch ErroredBatch) error {
+	err := os.MkdirAll(handler.getTaskErrorsFolderPath(batch), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("creating errors folder: %s", err)
+	}
+	return nil
+}
+
+func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch) error {
+	err := handler.mkdirPErrorsFolder(batch)
+	if err != nil {
+		return fmt.Errorf("creating errors folder: %s", err)
+	}
+	// create a symlink to the batch file in the errors folder so that all errors are in one place.
+	// errors/ingestion-error.<batch_file_name> -> <batch_file_name>
+	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getTaskErrorsFolderPath(batch), symlinkFileName))
+	if err != nil {
+		return fmt.Errorf("creating symlink: %s", err)
 	}
 	return nil
 }
