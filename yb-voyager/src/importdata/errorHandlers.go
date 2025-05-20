@@ -27,7 +27,6 @@ import (
 
 type ErroredBatch interface {
 	GetFilePath() string
-	GetFileDirectory() string
 	GetTableName() sqlname.NameTuple
 	IsInterrupted() bool
 	MarkError() error
@@ -49,7 +48,7 @@ func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
 	return nil
 }
 
-func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, err error) error {
+func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error {
 	// nothing to do.
 	return nil
 }
@@ -58,10 +57,11 @@ func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBa
 Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
+	dataDir string
 }
 
-func NewImportDataStashAndContinueHandler() *ImportDataStashAndContinueHandler {
-	return &ImportDataStashAndContinueHandler{}
+func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
+	return &ImportDataStashAndContinueHandler{dataDir: dataDir}
 }
 
 func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
@@ -72,39 +72,39 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() err
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, batchErr error) error {
+func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error {
 	err := batch.MarkError()
 	if err != nil {
 		return fmt.Errorf("marking batch as errored: %s", err)
 	}
-	err = handler.createBatchSymlinkInErrorsFolder(batch)
+	err = handler.createBatchSymlinkInErrorsFolder(batch, importFileTaskId)
 	if err != nil {
 		return fmt.Errorf("creating symlink in errors folder: %s", err)
 	}
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) getTaskErrorsFolderPath(batch ErroredBatch) string {
-	return filepath.Join(batch.GetFileDirectory(), "errors")
+func (handler *ImportDataStashAndContinueHandler) getTaskErrorsFolderPath(batch ErroredBatch, importFileTaskId string) string {
+	return filepath.Join(handler.dataDir, "errors", batch.GetTableName().ForMinOutput(), importFileTaskId)
 }
 
-func (handler *ImportDataStashAndContinueHandler) mkdirPErrorsFolder(batch ErroredBatch) error {
-	err := os.MkdirAll(handler.getTaskErrorsFolderPath(batch), os.ModePerm)
+func (handler *ImportDataStashAndContinueHandler) mkdirPErrorsFolder(batch ErroredBatch, importFileTaskId string) error {
+	err := os.MkdirAll(handler.getTaskErrorsFolderPath(batch, importFileTaskId), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch) error {
-	err := handler.mkdirPErrorsFolder(batch)
+func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, importFileTaskId string) error {
+	err := handler.mkdirPErrorsFolder(batch, importFileTaskId)
 	if err != nil {
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 	// create a symlink to the batch file in the errors folder so that all errors are in one place.
 	// errors/ingestion-error.<batch_file_name> -> <batch_file_name>
 	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
-	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getTaskErrorsFolderPath(batch), symlinkFileName))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getTaskErrorsFolderPath(batch, importFileTaskId), symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
 	}
@@ -114,15 +114,15 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
 	HandleRowProcessingError() error
-	HandleBatchIngestionError(batch ErroredBatch, err error) error
+	HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error
 }
 
-func GetImportDataErrorHandler(errorPolicy errorpolicy.ErrorPolicy) (ImportDataErrorHandler, error) {
+func GetImportDataErrorHandler(errorPolicy errorpolicy.ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
 	switch errorPolicy {
 	case errorpolicy.AbortErrorPolicy:
 		return NewImportDataAbortHandler(), nil
 	case errorpolicy.StashAndContinueErrorPolicy:
-		return NewImportDataStashAndContinueHandler(), nil
+		return NewImportDataStashAndContinueHandler(dataDir), nil
 	default:
 		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
 	}

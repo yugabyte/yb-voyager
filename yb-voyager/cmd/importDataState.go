@@ -354,6 +354,31 @@ func computePathHash(filePath, exportDir string) string {
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
 }
 
+func (s *ImportDataState) GetComputedFileTaskDir(filePath string, tableNameTup sqlname.NameTuple) (string, error) {
+	fullPath := s.getFileStateDir(filePath, tableNameTup)
+	// extract last two components of the path
+	// table::<table_name>/file::<base_name>::<path_hash>
+	fileDirPath := filepath.Base(fullPath)
+	if fileDirPath == "" {
+		return "", fmt.Errorf("invalid file path %q. could not retrieve filedirpath %q",
+			fullPath, fileDirPath)
+	}
+	return fileDirPath, nil
+}
+
+// func (s *ImportDataState) GetTableFileRelativePath(filePath string, tableNameTup sqlname.NameTuple) (string, error) {
+// 	fullPath := s.getFileStateDir(filePath, tableNameTup)
+// 	// extract last two components of the path
+// 	// table::<table_name>/file::<base_name>::<path_hash>
+// 	fileDirPath := filepath.Base(fullPath)
+// 	tableDirPath := filepath.Base(filepath.Dir(fullPath))
+// 	if fileDirPath == "" || tableDirPath == "" {
+// 		return "", fmt.Errorf("invalid file path %q. could not retrieve filedirpath %q and tabledirpath %q",
+// 			fullPath, fileDirPath, tableDirPath)
+// 	}
+// 	return filepath.Join(tableDirPath, fileDirPath), nil
+// }
+
 func (s *ImportDataState) discoverTableNames() ([]sqlname.NameTuple, error) {
 	// Find directories in the `stateDir` whose name starts with "table::"
 	dirEntries, err := os.ReadDir(s.stateDir)
@@ -928,10 +953,6 @@ func (batch *Batch) GetQueryToRecordEntryInDB(rowsAffected int64) string {
 
 func (batch *Batch) GetFilePath() string {
 	return batch.FilePath
-}
-
-func (batch *Batch) GetFileDirectory() string {
-	return filepath.Dir(batch.FilePath)
 }
 
 func (batch *Batch) GetTableName() sqlname.NameTuple {

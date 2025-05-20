@@ -37,6 +37,8 @@ It uses a FileBatchProducer to produce batches. It submits each batch to a provi
 worker pool for processing. It also maintains and updates the progress of the task.
 */
 type FileTaskImporter struct {
+	state *ImportDataState
+
 	task                 *ImportFileTask
 	batchProducer        *FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
@@ -65,6 +67,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	fti := &FileTaskImporter{
+		state:                     state,
 		task:                      task,
 		batchProducer:             batchProducer,
 		workerPool:                workerPool,
@@ -183,7 +186,11 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		fti.errorHandler.HandleBatchIngestionError(batch, err)
+		taskIdentifier, err := fti.state.GetComputedFileTaskDir(fti.task.FilePath, batch.TableNameTup)
+		if err != nil {
+			utils.ErrExit("getting task table identifier for %s: %s", batch.TableNameTup, err)
+		}
+		fti.errorHandler.HandleBatchIngestionError(batch, taskIdentifier, err)
 		if fti.errorHandler.ShouldAbort() {
 			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		} else {

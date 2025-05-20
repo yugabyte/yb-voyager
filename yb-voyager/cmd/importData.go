@@ -540,7 +540,8 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.Error
 		}
 	}
 
-	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy)
+	exportDirDataDir := filepath.Join(exportDir, "data")
+	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
 	if err != nil {
 		utils.ErrExit("Failed to initialize error handler: %s", err)
 	}
