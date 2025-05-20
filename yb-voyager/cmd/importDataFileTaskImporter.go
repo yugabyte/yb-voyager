@@ -186,11 +186,16 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		taskIdentifier, err := fti.state.GetComputedFileTaskDir(fti.task.FilePath, batch.TableNameTup)
-		if err != nil {
+		var err2 error
+		taskIdentifier, err2 := fti.state.GetComputedFileTaskDir(fti.task.FilePath, batch.TableNameTup)
+		if err2 != nil {
 			utils.ErrExit("getting task table identifier for %s: %s", batch.TableNameTup, err)
 		}
-		fti.errorHandler.HandleBatchIngestionError(batch, taskIdentifier, err)
+		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, taskIdentifier, err)
+		if err2 != nil {
+			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
+		}
 		if fti.errorHandler.ShouldAbort() {
 			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		} else {

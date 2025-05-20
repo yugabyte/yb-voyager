@@ -29,7 +29,7 @@ type ErroredBatch interface {
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	IsInterrupted() bool
-	MarkError() error
+	MarkError(batchErr error) error
 }
 
 type ImportDataAbortHandler struct {
@@ -73,7 +73,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() err
 }
 
 func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error {
-	err := batch.MarkError()
+	err := batch.MarkError(batchErr)
 	if err != nil {
 		return fmt.Errorf("marking batch as errored: %s", err)
 	}

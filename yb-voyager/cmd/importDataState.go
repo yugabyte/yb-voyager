@@ -899,7 +899,10 @@ func (batch *Batch) MarkInProgress() error {
 	return nil
 }
 
-func (batch *Batch) MarkError() error {
+func (batch *Batch) MarkError(batchErr error) error {
+	log.Infof("Marking batch %q as errored", batch.FilePath)
+	errorString := fmt.Sprintf("\n/*\nError Message: %s\n*/\n", batchErr.Error())
+
 	// Rename the file to .E
 	errorFilePath := batch.getErrorFilePath()
 	log.Infof("Renaming file from %q to %q", batch.FilePath, errorFilePath)
@@ -908,6 +911,17 @@ func (batch *Batch) MarkError() error {
 		return fmt.Errorf("rename %q to %q: %w", batch.FilePath, errorFilePath, err)
 	}
 	batch.FilePath = errorFilePath
+
+	// append error message to the file.
+	file, err := os.OpenFile(batch.FilePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("open file for appending error %q: %s", batch.FilePath, err)
+	}
+	defer file.Close()
+	_, err = file.WriteString(errorString)
+	if err != nil {
+		return fmt.Errorf("write error message to %q: %s", batch.FilePath, err)
+	}
 	return nil
 }
 
