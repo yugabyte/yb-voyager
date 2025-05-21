@@ -188,7 +188,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
+	importData(importFileTasks, errorpolicy.StashAndContinueErrorPolicy)
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()

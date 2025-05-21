@@ -145,7 +145,8 @@ func (s *ImportDataState) GetFileImportState(filePath string, tableNameTup sqlna
 		}
 	}
 
-	log.Infof("get file import state: file %q, table %q: interruptedCount=%d, doneCount=%d, errorCount=%d, batchGenerationCompleted=%t")
+	log.Infof("get file import state: file %q, table %q: interruptedCount=%d, doneCount=%d, errorCount=%d, batchGenerationCompleted=%t",
+		interruptedCount, doneCount, errorCount, batchGenerationCompleted)
 
 	if doneCount == len(batches) && batchGenerationCompleted {
 		return FILE_IMPORT_COMPLETED, nil
