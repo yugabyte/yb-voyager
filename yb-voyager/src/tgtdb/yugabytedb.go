@@ -411,6 +411,38 @@ outer:
 	return nil
 }
 
+// Note: order of columns need to be same as in the table definition
+func (yb *TargetYugabyteDB) GetTableColumns(table sqlname.NameTuple) ([]string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT column_name
+		FROM information_schema.columns
+		WHERE table_schema = '%s'
+			AND table_name = '%s'
+		ORDER BY ordinal_position;`, // <-- enforce declaration order
+		schemaName, tableName)
+
+	rows, err := yb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	var columns []string
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan column name: %w", err)
+		}
+		columns = append(columns, col)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return columns, nil
+}
+
 // GetPrimaryKeyColumns returns the subset of `columns` that belong to the
 // primary‑key definition of the given table.
 func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
@@ -629,13 +661,23 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	}
 	defer df.Close()
 
+	// Skip the header line otherwise INSERT will consider it as a row and fail with SYNTAX error
+	if args.HasHeader {
+		_, _, err = df.NextLine()
+		if err != nil {
+			return 0, fmt.Errorf("read header line from file %s: %w", batch.GetFilePath(), err)
+		}
+	}
+
 	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
 	var rowsIgnored int64 = 0
 	rowsAffected = 0
 
 	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
-	// TODO (high priority): fix https://yugabyte.atlassian.net/browse/DB-16276 otherwise syntax error for non public schema data import
 	insertStmt := args.GetInsertPreparedStmtForBatchImport()
+	log.Infof("prepared insert stmt for batch %q: %s", batch.GetFilePath(), insertStmt)
+	// If --has-header=true then each batch file will have a header line
+	// which needs to be skipped here
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
