@@ -462,4 +462,9 @@ func validateOnPrimaryKeyConflictFlag() {
 			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
+
+	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
+	if tconf.EnableUpsert && conflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		utils.ErrExit("Error: --enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+	}
 }
