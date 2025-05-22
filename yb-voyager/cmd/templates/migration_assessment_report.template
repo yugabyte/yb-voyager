@@ -4,18 +4,14 @@
     <title>Migration Assessment Report</title>
     <style>
         /* General Styles */
-        body, pre, code {
-            font-family: Arial, sans-serif;
-            font-size: 1em;
-            -webkit-font-smoothing: antialiased;
-            -moz-osx-font-smoothing: grayscale;
-        }
-
         body {
+            font-family: Arial, sans-serif;
             margin: 0;
             padding: 0;
             background-color: #f4f4f4;
             color: #333;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .wrapper {
@@ -597,7 +593,7 @@
                                                     <td>
                                                         {{ if $issue.SqlStatement }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace; font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
+                                                                <pre style="font-family: 'Courier New', Courier, 'Liberation Mono', monospace; font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if Sql Statement not present -->
@@ -630,7 +626,7 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-family: 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'Courier New', monospace; font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-family: 'Courier New', Courier, 'Liberation Mono', monospace; font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if description not present -->
