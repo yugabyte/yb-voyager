@@ -68,6 +68,11 @@ var cutoverToTargetCmd = &cobra.Command{
 			if !useYBgRPCConnectorSpecified {
 				utils.ErrExit(`missing required flag "--use-yb-grpc-connector [true|false]"`)
 			}
+			if useYBgRPCConnector {
+				utils.PrintAndLog("Using YB gRPC connector for export data from target")
+			} else {
+				utils.PrintAndLog("Using YB Logical Replication connector for export data from target")
+			}
 		} else {
 			log.Infof("Migration workflow opted is normal live migration.")
 		}
