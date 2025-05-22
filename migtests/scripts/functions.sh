@@ -1124,7 +1124,9 @@ cutover_to_target() {
 	"    
     if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
         args="${args} --use-yb-grpc-connector false"
-    fi
+    else 
+		args="${args} --use-yb-grpc-connector true"
+	fi
     
     yb-voyager initiate cutover to target ${args} $*
 }
