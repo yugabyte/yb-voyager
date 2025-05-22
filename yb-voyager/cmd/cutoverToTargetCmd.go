@@ -85,7 +85,7 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
-		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) were present in the schema during import")
+		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used.")
 	cutoverToCmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
 }
