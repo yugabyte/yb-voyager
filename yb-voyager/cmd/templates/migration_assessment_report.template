@@ -111,15 +111,15 @@
         }
 
         pre, code {
-            width: 100%;
-            margin: 0;
-            padding: 8px;
-            background: none;
-            border: none;
+            width: 100%;          /* Ensure content takes full width of container */
+            margin: 0;            /* Remove default margins */
+            padding: 8px;         /* Add consistent padding around code blocks */
+            background: none;     /* Remove any background styling */
+            border: none;         /* Remove any borders */
             white-space: pre-wrap;      /* CSS3: wrap as needed, preserve whitespace */
             word-break: break-word;     /* Break long words if needed */
             overflow-wrap: break-word;  /* Same as above, for newer browsers */
-            box-sizing: border-box;
+            box-sizing: border-box;     /* Include padding in element's total width */
         }
 
         /* Highlight Table Styles */
