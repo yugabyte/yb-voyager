@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/docker/go-connections/nat"
@@ -15,11 +16,15 @@ import (
 )
 
 type MysqlContainer struct {
+	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
 }
 
 func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
 	if ms.container != nil {
 		// already running, do nothing.
 		if ms.container.IsRunning() {
@@ -88,6 +93,9 @@ func (ms *MysqlContainer) Start(ctx context.Context) (err error) {
 // The underlying data directory remains intact, so you can call Start() later
 // and the DB will pick up with exactly the same contents.
 func (ms *MysqlContainer) Stop(ctx context.Context) error {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
 	if ms.container == nil {
 		return nil
 	} else if !ms.container.IsRunning() {
@@ -104,6 +112,9 @@ func (ms *MysqlContainer) Stop(ctx context.Context) error {
 }
 
 func (ms *MysqlContainer) Terminate(ctx context.Context) {
+	ms.mutex.Lock()
+	defer ms.mutex.Unlock()
+
 	if ms == nil {
 		return
 	}
