@@ -103,7 +103,8 @@ func TestMain(m *testing.M) {
 	log.SetLevel(log.WarnLevel)
 	exitCode := m.Run()
 
-	testPostgresSource.Terminate(ctx)
+	// cleaning up all the running containers
+	testcontainers.TerminateAllContainers()
 
 	os.Exit(exitCode)
 }

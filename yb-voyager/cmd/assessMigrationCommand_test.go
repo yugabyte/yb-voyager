@@ -41,7 +41,7 @@ func TestMain(m *testing.M) {
 
 	exitCode := m.Run()
 
-	// cleanig up all the running containers
+	// cleaning up all the running containers
 	testcontainers.TerminateAllContainers()
 
 	os.Exit(exitCode)
