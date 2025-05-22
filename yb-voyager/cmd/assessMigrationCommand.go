@@ -1786,9 +1786,12 @@ func postProcessingOfAssessmentReport() {
 		// TODO: Remove this processing step in future when supporting Explanation for Oracle
 		for i := range assessmentReport.Issues {
 			assessmentReport.Issues[i].Impact = "-"
-		}
-
+		}		
 	}
+	//sort issues and keep all the Performance Optimization ones at the last
+	sort.Slice(assessmentReport.Issues, func(i, j int) bool {
+		return assessmentReport.Issues[i].Category != PERFORMANCE_OPTIMIZATIONS_CATEGORY
+    })
 }
 
 func generateAssessmentReportJson(reportDir string) error {
