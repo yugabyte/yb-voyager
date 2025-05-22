@@ -961,7 +961,7 @@ normalize_json() {
     )' "$temp_file" > "$temp_file2"
 
     # Remove unwanted lines
-    sed -i '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
+    sed -i '' '/Review and manually import.*uncategorized.sql/d' "$temp_file2"
 
     # Move cleaned file to output
     mv "$temp_file2" "$output_file"
@@ -1124,7 +1124,9 @@ cutover_to_target() {
 	"    
     if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
         args="${args} --use-yb-grpc-connector false"
-    fi
+    else 
+		args="${args} --use-yb-grpc-connector true"
+	fi
     
     yb-voyager initiate cutover to target ${args} $*
 }
