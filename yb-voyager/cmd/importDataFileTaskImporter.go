@@ -269,6 +269,7 @@ func createImportDataTableMetrics(tableName string, countLiveRows int64, countTo
 
 func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *tgtdb.ImportBatchArgs {
 	columns, _ := TableToColumnNames.Get(tableNameTup)
+
 	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
@@ -278,6 +279,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
+
 	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
 	if err != nil {
 		utils.ErrExit("if required quote primary key column names: %s", err)
