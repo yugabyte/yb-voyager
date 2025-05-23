@@ -442,9 +442,12 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 
 	result := make(map[string][]string)
 	for _, tableMetadata := range tablesMetadata {
-		tableName := tableMetadata.TableName
 		// using minqualified and minquoted as used for data file naems and in console UI
-		result[tableName.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, tableMetadata.TableName)
+		rootTable := tableMetadata.TableName
+		if tableMetadata.IsPartition {
+			rootTable = tableMetadata.ParentTable
+		}
+		result[rootTable.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result
 }

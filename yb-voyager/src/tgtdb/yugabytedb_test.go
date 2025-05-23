@@ -192,3 +192,51 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	log.Infof("non empty tables: %+v\n", actualTables)
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }
+
+func TestYugabyteGetTableColumns(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema`,
+		`CREATE TABLE test_schema.foo (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			email VARCHAR,
+			phone VARCHAR,
+			salary DECIMAL(10, 2)
+		);`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name VARCHAR,
+			address VARCHAR,
+			phone VARCHAR,
+			email VARCHAR
+		);`)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tables := []sqlname.NameTuple{
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "foo")},
+		{CurrentName: sqlname.NewObjectName(YUGABYTEDB, "test_schema", "test_schema", "bar")},
+	}
+
+	expectedColumns := map[string][]string{
+		"test_schema.foo": {"id", "name", "email", "phone", "salary"},
+		"test_schema.bar": {"id", "name", "address", "phone", "email"},
+	}
+
+	yb, ok := testYugabyteDBTarget.TargetDB.(*TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("Failed to cast TargetDB to TargetYugabyteDB")
+	}
+
+	for _, table := range tables {
+		columns, err := yb.GetTableColumns(table)
+		assert.NoError(t, err)
+
+		// Note: Don't use testutils.AssertEqualStringSlices(internally sorts) here as the order of columns may vary
+		// So, order should also match so just compare the slices
+
+		expectedCols := expectedColumns[table.AsQualifiedCatalogName()]
+		assert.Equal(t, len(expectedCols), len(columns), "Column count mismatch for table %s", table.AsQualifiedCatalogName())
+		assert.Equal(t, expectedCols, columns, "Column names/order mismatch for table %s", table.AsQualifiedCatalogName())
+
+	}
+}
