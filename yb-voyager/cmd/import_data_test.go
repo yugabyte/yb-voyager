@@ -499,6 +499,108 @@ INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i))
 	}
 }
 
+func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_TableAlreadyHasData_MultiSchema(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;
+	CREATE SCHEMA IF NOT EXISTS public;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;
+	DROP TABLE IF EXISTS public.foo CASCADE;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_data (
+	id SERIAL PRIMARY KEY,
+	name TEXT
+);
+CREATE TABLE public.foo (
+	id SERIAL PRIMARY KEY,
+	name TEXT
+);
+`
+
+	// insert 100 rows in the table
+	var insertDataSQLs []string
+	for i := 0; i < 100; i++ {
+		// need same rows to be Inserted in both Postgres and YugabyteDB
+		insertDataSQLs = append(insertDataSQLs, fmt.Sprintf(`
+INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i))
+		insertDataSQLs = append(insertDataSQLs, fmt.Sprintf(`
+INSERT INTO public.foo (name) VALUES ('name_%d');`, i))
+	}
+
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	postgresContainer.ExecuteSqls(insertDataSQLs...)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Inserting the same data so that import data will have conflicts
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	yugabytedbContainer.ExecuteSqls(insertDataSQLs...)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "public,test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Export command failed: %v", err)
+	}
+
+	importDataCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--on-primary-key-conflict", "IGNORE",
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to Postgres: %v", err)
+	}
+	ybConn, err := yugabytedbContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to YugabyteDB: %v", err)
+	}
+
+	cases := []struct {
+		table string
+		pk    string
+	}{
+		{"test_schema.test_data", "id"},
+		{"public.foo", "id"},
+	}
+
+	for _, tc := range cases {
+		if err := testutils.CompareTableData(ctx, pgConn, ybConn, tc.table, tc.pk); err != nil {
+			t.Errorf("table %q mismatch: %v", tc.table, err)
+		} else {
+			t.Logf("table %q matches exactly", tc.table)
+		}
+	}
+}
+
 // ============ similar tests for import data file command =============
 
 // Data file without header - fetching by querying up the column list for INSERTs from target DB
@@ -710,3 +812,110 @@ CREATE table test_schema.test_data (
 	3. Add/Enable test for --on-primary-key-conflict=UPDATE
 	4. Import Data file tests
 */
+
+func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData_MultiSchema(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;
+	CREATE SCHEMA IF NOT EXISTS public;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;
+	DROP TABLE IF EXISTS public.foo CASCADE;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_data (
+	id SERIAL PRIMARY KEY,
+	name VARCHAR(255)
+);
+CREATE TABLE public.foo (
+	id SERIAL PRIMARY KEY,
+	name VARCHAR(255)
+);`
+
+	// insert 100 rows in the table
+	var insertDataSQLs []string
+	for i := 0; i < 100; i++ {
+		// need same rows to be Inserted in both Postgres and YugabyteDB
+		insertDataSQLs = append(insertDataSQLs, fmt.Sprintf("INSERT INTO test_schema.test_data (name) VALUES ('name_%d');", i))
+		insertDataSQLs = append(insertDataSQLs, fmt.Sprintf("INSERT INTO public.foo (name) VALUES ('name_%d');", i))
+	}
+
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	postgresContainer.ExecuteSqls(insertDataSQLs...)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Inserting the same data so that import data will have conflicts
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	yugabytedbContainer.ExecuteSqls(insertDataSQLs...)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Export data from Postgres (synchronous run).
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+
+	// create new export dir and run import data file command on this data file
+	exportDir2 := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir2)
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir2,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "test_schema",
+		"--on-primary-key-conflict", "IGNORE",
+		"--data-dir", filepath.Join(exportDir, "data"),
+		"--file-table-map", "test_data_data.sql:test_schema.test_data",
+		"--format", "TEXT", // by default hasHeader is false
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to Postgres: %v", err)
+	}
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to YugabyteDB: %v", err)
+	}
+
+	cases := []struct {
+		table string
+		pk    string
+	}{
+		{"test_schema.test_data", "id"},
+		{"public.foo", "id"},
+	}
+
+	for _, tc := range cases {
+		if err := testutils.CompareTableData(ctx, pgConn, ybConn, tc.table, tc.pk); err != nil {
+			t.Errorf("table %q mismatch: %v", tc.table, err)
+		} else {
+			t.Logf("table %q matches exactly", tc.table)
+		}
+	}
+}
