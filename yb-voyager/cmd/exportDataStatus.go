@@ -87,7 +87,13 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 		tablesProgressMetadata[key] = &utils.TableProgressMetadata{} //initialzing with struct
 
 		// Initializing all the members of struct
-		tablesProgressMetadata[key].IsPartition = false
+		rootTable, err := GetRootTableOfPartition(tableName)
+		if err != nil {
+			utils.ErrExit("failed to get root table of partition: %v", err)
+		}
+
+		tablesProgressMetadata[key].IsPartition = (rootTable != tableName)
+		tablesProgressMetadata[key].ParentTable = rootTable
 		tablesProgressMetadata[key].InProgressFilePath = ""
 		tablesProgressMetadata[key].FinalFilePath = ""        //file paths will be updated when status changes to IN-PROGRESS by other func
 		tablesProgressMetadata[key].CountTotalRows = int64(0) //will be updated by other func
@@ -102,7 +108,7 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 			ExportedRowCountSnapshot: int64(0),
 		}
 		if source.DBType == POSTGRESQL {
-			//for Postgresql rename the table leaf table names to root table
+			// for Postgresql rename the table leaf table names to root table
 			renamedTable, isRenamed := renameTableIfRequired(key)
 			if isRenamed {
 				exportSnapshotStatus.Tables[key].TableName = renamedTable
