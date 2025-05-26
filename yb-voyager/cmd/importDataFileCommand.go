@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks, errorpolicy.StashAndContinueErrorPolicy)
+		importData(importFileTasks, errorpolicy.AbortErrorPolicy)
 		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
