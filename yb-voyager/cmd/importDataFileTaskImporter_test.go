@@ -233,3 +233,52 @@ func TestTaskImportResumableNoPK(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(4), rowCount)
 }
+
+func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+
+	if ldataDir != "" {
+		defer os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(lexportDir)
+	}
+	setupYugabyteTestDb(t)
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_error (id INT PRIMARY KEY, val TEXT);`,
+		`INSERT INTO test_table_error VALUES (3, 'three');`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_error;`)
+
+	// file import
+	// second batch (with row id 3) should fail with error (PK violation)
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "three"
+4, "four"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler)
+	testutils.FatalIfError(t, err)
+
+	// panic("testpanic1")
+	// utils.MonkeyPatchUtilsErrExitWithPanic()
+	// assert.PanicsWithError(t, "duplicate key value violates unique constraint \"test_table_error_pkey\" (SQLSTATE 23505)", func() {
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	// })
+
+	// workerPool.Wait()
+	// var rowCount int64
+	// err = tdb.QueryRow("SELECT count(*) FROM test_table_error").Scan(&rowCount)
+	// assert.NoError(t, err)
+	// assert.Equal(t, int64(2), rowCount)
+}

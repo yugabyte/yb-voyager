@@ -1,6 +1,8 @@
 package testutils
 
-import "github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+import (
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
 
 func isSourceCmd(cmdName string) bool {
 	return cmdName == "assess-migration" || cmdName == "export schema" || cmdName == "export data"
