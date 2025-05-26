@@ -457,7 +457,6 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 // Object types
 const (
-	CALLHOME_ISSUE_NAME_KEY   = "CALLHOME_ISSUE_NAME"
 	CONSTRAINT_NAME           = "ConstraintName"
 	FUNCTION_NAMES            = "FunctionNames"
 	TABLE_OBJECT_TYPE         = "TABLE"

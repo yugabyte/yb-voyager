@@ -23,6 +23,7 @@ import (
 	"net/http"
 	"os"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -30,6 +31,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
@@ -102,8 +104,9 @@ Version History
 1.0: Introduced Issues field for storing assessment issues in flattened format and removed the other fields like UnsupportedFeatures, UnsupportedDatatypes,etc..
 1.1: Added a new field as ControlPlaneType
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
+1.3: Added field Details in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.2"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.3"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -122,12 +125,31 @@ type AssessMigrationPhasePayload struct {
 }
 
 type AssessmentIssueCallhome struct {
-	Category            string `json:"category"`
-	CategoryDescription string `json:"category_description"`
-	Type                string `json:"type"`
-	Name                string `json:"name"`
-	Impact              string `json:"impact"`
-	ObjectType          string `json:"object_type"`
+	Category            string                 `json:"category"`
+	CategoryDescription string                 `json:"category_description"`
+	Type                string                 `json:"type"`
+	Name                string                 `json:"name"`
+	Impact              string                 `json:"impact"`
+	ObjectType          string                 `json:"object_type"`
+	Details             map[string]interface{} `json:"Details,omitempty"`
+}
+
+var sensitiveKeysInIssueDetailsMap = []string{
+	queryissue.COLUMN_NAME,
+	queryissue.EXISTING_INDEX_SQL_STATEMENT,
+	queryissue.VALUE,
+	queryissue.CONSTRAINT_NAME,
+	queryissue.FUNCTION_NAMES,
+}
+
+func ObfuscatedIssueDetails(details map[string]interface{}) map[string]interface{} {
+	obfuscatedDetails := make(map[string]interface{})
+	for key, value := range details {
+		if !slices.Contains(sensitiveKeysInIssueDetailsMap, key) {
+			obfuscatedDetails[key] = value
+		}
+	}
+	return obfuscatedDetails
 }
 
 type SizingCallhome struct {

@@ -619,10 +619,14 @@
                                                 </tr>
                                                {{ if $issue.Details }}
                                                     <tr>
-                                                        {{ range $key, $value := $issue.Details }}
-                                                            <th class="centered-cell">{{ $key }}</th>
-                                                            <td>{{ $value }}</td>
-                                                        {{ end }}
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            {{ range $key, $value := $issue.Details }}
+                                                                <li>{{ $key }}: <code>{{ $value }}</code></li>
+                                                            {{ end }}
+                                                            </ul>
+                                                        </td>
                                                     </tr>
                                                {{ end }}
                                             </tbody>

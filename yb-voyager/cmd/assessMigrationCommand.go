@@ -165,6 +165,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
+		obfusactedIssueDetails := callhome.ObfuscatedIssueDetails(issue.Details)
 		obfuscatedIssue := callhome.AssessmentIssueCallhome{
 			Category:            issue.Category,
 			CategoryDescription: issue.CategoryDescription,
@@ -172,6 +173,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 			Name:                issue.Name,
 			Impact:              issue.Impact,
 			ObjectType:          issue.ObjectType,
+			Details:             obfusactedIssueDetails,
 		}
 
 		// special handling for extensions issue: adding extname to issue.Name
@@ -559,6 +561,10 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
+		extraDetails, err := json.Marshal(issue.Details)
+		if err != nil {
+			utils.ErrExit("error marshalling details: %v", err)
+		}
 		ybdIssue := AssessmentIssueYugabyteD{
 			Category:               issue.Category,
 			CategoryDescription:    issue.CategoryDescription,
@@ -571,6 +577,8 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+
+			Details: extraDetails,
 		}
 		result = append(result, ybdIssue)
 	}
@@ -1619,7 +1627,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 }
 
 const (
-	PREVIEW_FEATURES_NOTE = `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`
+	PREVIEW_FEATURES_NOTE                = `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`
 	RANGE_SHARDED_INDEXES_RECOMMENDATION = `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
 By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
