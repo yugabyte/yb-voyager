@@ -600,7 +600,6 @@ func importData(importFileTasks []*ImportFileTask) {
 		cleanImportState(state, importFileTasks)
 		pendingTasks = importFileTasks
 	} else {
-		saveOnPrimaryKeyConflictActionInMSR()
 		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
 		if err != nil {
 			utils.ErrExit("Failed to classify tasks: %s", err)

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -456,7 +457,8 @@ var onPrimaryKeyConflictActions = []string{
 }
 
 func validateOnPrimaryKeyConflictFlag() {
-	conflictAction := strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
+	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
 
 	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
 	if !startClean {
@@ -465,20 +467,23 @@ func validateOnPrimaryKeyConflictFlag() {
 			utils.ErrExit("Error getting migration status record: %v", err)
 		}
 
-		if msr != nil && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
+		if msr != nil && msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
 			utils.ErrExit("Error: --on-primary-key-conflict flag cannot be changed after the import has started."+
-				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, conflictAction)
+				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
 		}
 	}
 
-	if conflictAction != "" {
-		if !slices.Contains(onPrimaryKeyConflictActions, conflictAction) {
+	if tconf.OnPrimaryKeyConflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
 			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
 
 	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
-	if tconf.EnableUpsert && conflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
 		utils.ErrExit("Error: --enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
+
+	// once all validations passed we can save the action value in MSR
+	saveOnPrimaryKeyConflictActionInMSR()
 }
