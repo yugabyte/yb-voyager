@@ -102,11 +102,18 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 			ExportedRowCountSnapshot: int64(0),
 		}
 		if source.DBType == POSTGRESQL {
-			//for Postgresql rename the table leaf table names to root table
+			// for Postgresql rename the table leaf table names to root table
 			renamedTable, isRenamed := renameTableIfRequired(key)
 			if isRenamed {
 				exportSnapshotStatus.Tables[key].TableName = renamedTable
 			}
+		}
+
+		renamedTableTup, isRenamed := getRenamedTableTuple(tableName)
+		if isRenamed {
+			tablesProgressMetadata[key].IsPartition = true // as it is renamed to root table, it is Partitioned()
+			tablesProgressMetadata[key].ParentTable = renamedTableTup
+			exportSnapshotStatus.Tables[key].TableName = renamedTableTup.ForMinOutput()
 		}
 	}
 	err := exportSnapshotStatusFile.Create(exportSnapshotStatus)
