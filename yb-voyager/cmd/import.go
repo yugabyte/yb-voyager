@@ -457,6 +457,20 @@ var onPrimaryKeyConflictActions = []string{
 
 func validateOnPrimaryKeyConflictFlag() {
 	conflictAction := strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+
+	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
+	if !startClean {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			utils.ErrExit("Error getting migration status record: %v", err)
+		}
+
+		if msr != nil && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
+			utils.ErrExit("Error: --on-primary-key-conflict flag cannot be changed after the import has started."+
+				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, conflictAction)
+		}
+	}
+
 	if conflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, conflictAction) {
 			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
