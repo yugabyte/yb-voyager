@@ -199,7 +199,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		if fti.errorHandler.ShouldAbort() {
 			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		} else {
-			log.Errorf("Continuing after handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+			log.Errorf("Continuing after handling error for batch: %q into %s", batch.FilePath, batch.TableNameTup)
 		}
 	} else {
 		err = batch.MarkDone()
