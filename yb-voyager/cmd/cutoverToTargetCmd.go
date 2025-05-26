@@ -90,7 +90,7 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
-		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used.")
+		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. Refer to the documentation for more information on this flag https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#cutover-to-target ")
 	cutoverToCmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
 }
