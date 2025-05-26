@@ -34,10 +34,15 @@ var hotspotsOnDateIndexes = issue.Issue{
 
 func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := hotspotsOnDateIndexes
+	// if colName != "" {
+	// 	issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	// }
+	details := make(map[string]interface{})
 	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+		details["Column Name"] = colName
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var hotspotsOnTimestampIndexes = issue.Issue{
@@ -51,10 +56,15 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 
 func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := hotspotsOnTimestampIndexes
+	// if colName != "" {
+	// 	issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	// }
+	details := make(map[string]interface{})
 	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+		details["Column Name"] = colName
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var redundantIndexesIssue = issue.Issue{
@@ -67,10 +77,15 @@ var redundantIndexesIssue = issue.Issue{
 
 func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string) QueryIssue {
 	issue := redundantIndexesIssue
+	// if existingDDL != "" {
+	// 	issue.Description = fmt.Sprintf("%s\nExisting Index SQL Statement: %s", issue.Description, existingDDL)
+	// }
+	details := make(map[string]interface{})
 	if existingDDL != "" {
-		issue.Description = fmt.Sprintf("%s\nExisting Index SQL Statement: %s", issue.Description, existingDDL)
+		details["Existing Index SQL Statement"] = existingDDL
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var lowCardinalityIndexIssue = issue.Issue{

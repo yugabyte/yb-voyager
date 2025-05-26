@@ -617,6 +617,14 @@
                                                         {{ end }}
                                                     </td>
                                                 </tr>
+                                               {{ if $issue.Details }}
+                                                    <tr>
+                                                        {{ range $key, $value := $issue.Details }}
+                                                            <th class="centered-cell">{{ $key }}</th>
+                                                            <td>{{ $value }}</td>
+                                                        {{ end }}
+                                                    </tr>
+                                               {{ end }}
                                             </tbody>
                                         </table>
                                     </div>
