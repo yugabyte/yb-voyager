@@ -108,7 +108,7 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 			// required if PREFIX_PARTITION is set in ora2pg.conf file
 			if tablesProgressMetadata[key].IsPartition {
 				_, parentTable := tablesProgressMetadata[key].ParentTable.ForCatalogQuery()
-				targetTableName = parentTable  + "_" + targetTableName
+				targetTableName = parentTable + "_" + targetTableName
 			}
 			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
 			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
@@ -944,6 +944,17 @@ func renameTableIfRequired(table string) (string, bool) {
 		return tableTup.ForMinOutput(), true
 	}
 	return table, false
+}
+
+// TODO: ideally original function renameTableIfRequired should be made to return NameTuple instead of string
+// but that will require a lot of changes in the codebase. So, keeping this function as a wrapper to do same but return Tuple
+func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
+	renamedTable, isRenamed := renameTableIfRequired(table.ForKey())
+	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
+	if err != nil {
+		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
+	}
+	return tableTuple, isRenamed
 }
 
 func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
