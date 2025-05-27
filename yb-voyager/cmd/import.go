@@ -242,6 +242,12 @@ If you go ahead without truncating, then yb-voyager starts ingesting the data pr
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
 	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false,
 		"Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+
+	cmd.Flags().Var(&errorPolicySnapshotFlag, "error-policy-snapshot",
+		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
+			"\tabort: immediately abort the process. (default)\n"+
+			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+	cmd.Flags().MarkHidden("error-policy-snapshot")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {

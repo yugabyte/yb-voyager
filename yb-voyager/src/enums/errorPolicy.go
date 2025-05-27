@@ -14,9 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package errorpolicy
+package enums
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 /*
 ErrorPolicy defines what to do when an error occurs during a task.
@@ -27,34 +30,49 @@ Currently, it is used in the context of import-data, where we do the following t
 If an error occurs during any of these tasks related to data specifically, a policy will
 determine what needs to be done.
 */
-type ErrorPolicy int
+// type ErrorPolicy int
+type ErrorPolicy string
 
 const (
-	AbortErrorPolicy            ErrorPolicy = iota // Abort the task and return an error
-	StashAndContinueErrorPolicy                    // Stash the error to a file and continue with the task
+	AbortErrorPolicy            ErrorPolicy = AbortErrorPolicyName            // Abort the task and return an error
+	StashAndContinueErrorPolicy ErrorPolicy = StashAndContinueErrorPolicyName // Stash the error to a file and continue with the task
 )
 
 const (
-	AbortErrorPolicyName            = "Abort"
-	StashAndContinueErrorPolicyName = "StashAndContinue"
+	AbortErrorPolicyName            = "abort"
+	StashAndContinueErrorPolicyName = "stash-and-continue"
 )
 
-var errorPolicyNames = map[ErrorPolicy]string{
-	AbortErrorPolicy:            AbortErrorPolicyName,
-	StashAndContinueErrorPolicy: StashAndContinueErrorPolicyName,
+var validErrorPolicyNames = []string{
+	AbortErrorPolicyName,
+	StashAndContinueErrorPolicyName,
 }
 
-func (e ErrorPolicy) String() string {
-	return errorPolicyNames[e]
+func (e *ErrorPolicy) Type() string {
+	return "ErrorPolicy"
+}
+
+func (e *ErrorPolicy) String() string {
+	return string(*e)
+}
+
+func (e *ErrorPolicy) Set(s string) error {
+	policy, err := NewErrorPolicy(s)
+	if err != nil {
+		return err
+	}
+	*e = policy
+	return nil
 }
 
 func NewErrorPolicy(s string) (ErrorPolicy, error) {
+	s = strings.ToLower(s)
 	switch s {
 	case AbortErrorPolicyName:
 		return AbortErrorPolicy, nil
 	case StashAndContinueErrorPolicyName:
 		return StashAndContinueErrorPolicy, nil
 	default:
-		return 0, fmt.Errorf("invalid error policy: %s", s)
+		return "", fmt.Errorf("invalid error policy: %q. Allowed error policies: %v", s, validErrorPolicyNames)
 	}
 }
