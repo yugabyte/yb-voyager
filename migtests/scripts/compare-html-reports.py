@@ -122,7 +122,7 @@ def extract_html_data(html_content):
                 {normalize_text(a.get("href") or ""): normalize_text(a.text) for a in soup.find_all("a")}.items()
             )
         },
-        "spans": extract_and_normalize_texts(soup.find_all("span")),
+        "spans": extract_and_normalize_texts(spans_without_spans_inside_tables),
         "divs": extract_divs(soup)
     }
 
