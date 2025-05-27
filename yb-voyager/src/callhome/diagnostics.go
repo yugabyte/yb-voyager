@@ -131,7 +131,7 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
-	Details             map[string]interface{} `json:"Details,omitempty"`
+	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
 var sensitiveKeysInIssueDetailsMap = []string{
