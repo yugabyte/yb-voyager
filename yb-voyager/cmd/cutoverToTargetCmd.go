@@ -90,7 +90,11 @@ func init() {
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", true,
-		"Use the gRPC connector for YB export (default: true). If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. Refer to the documentation for more information on this flag https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/#cutover-to-target ")
+		`YugabyteDB provides two types of CDC (Change Data Capture) connectors:
+gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
+Logical Connector: It does not require access to internal ports. It is recommended for deployments where the gRPC connector cannot be used—such as with YBAeon or other restricted environments.
+Use the gRPC connector (default: true). If set to false, the logical connector (supported in YugabyteDB versions 2024.1.1+) is used.
+Note: The Logical connector is currently available as a Tech Preview feature.`)
 	cutoverToCmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
 }
