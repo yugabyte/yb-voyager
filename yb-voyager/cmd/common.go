@@ -905,6 +905,11 @@ func renameTableIfRequired(table string) (string, bool) {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
+
+	if msr == nil || msr.SourceDBConf == nil { // this shouldn't hit in migration flow, adding just to avoid nil pointer dereference error
+		return table, false
+	}
+
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
 	schema := msr.SourceDBConf.Schema
@@ -945,6 +950,11 @@ func renameTableIfRequired(table string) (string, bool) {
 // but that will require a lot of changes in the codebase. So, keeping this function as a wrapper to do same but return Tuple
 func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
 	renamedTable, isRenamed := renameTableIfRequired(table.ForKey())
+	// no need to lookup the same table
+	if !isRenamed {
+		return table, false
+	}
+
 	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
 	if err != nil {
 		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
