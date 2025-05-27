@@ -46,8 +46,7 @@ func PrintAndLog(formatString string, args ...interface{}) {
 
 func MonkeyPatchUtilsErrExitWithPanic() {
 	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
-		os.Exit(1)
-		// panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))
+		panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))
 	})
 }
 

@@ -23,6 +23,7 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -267,18 +268,12 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler)
 	testutils.FatalIfError(t, err)
 
-	// panic("testpanic1")
-	// utils.MonkeyPatchUtilsErrExitWithPanic()
-	// assert.PanicsWithError(t, "duplicate key value violates unique constraint \"test_table_error_pkey\" (SQLSTATE 23505)", func() {
-	for !taskImporter.AllBatchesSubmitted() {
-		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
-		assert.NoError(t, err)
-	}
-	// })
-
-	// workerPool.Wait()
-	// var rowCount int64
-	// err = tdb.QueryRow("SELECT count(*) FROM test_table_error").Scan(&rowCount)
-	// assert.NoError(t, err)
-	// assert.Equal(t, int64(2), rowCount)
+	utils.MonkeyPatchUtilsErrExitWithPanic()
+	assert.Panics(t, func() {
+		for !taskImporter.AllBatchesSubmitted() {
+			err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+			assert.NoError(t, err)
+		}
+		workerPool.Wait()
+	})
 }
