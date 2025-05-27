@@ -105,10 +105,6 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			_, tname := tablesProgressMetadata[key].TableName.ForCatalogQuery()
 			targetTableName := tname
-			// required if PREFIX_PARTITION is set in ora2pg.conf file
-			if tablesProgressMetadata[key].IsPartition {
-				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
-			}
 			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
 			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
 		}
@@ -909,6 +905,11 @@ func renameTableIfRequired(table string) (string, bool) {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
+
+	if msr == nil || msr.SourceDBConf == nil { // this shouldn't hit in migration flow, adding just to avoid nil pointer dereference error
+		return table, false
+	}
+
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
 	schema := msr.SourceDBConf.Schema
@@ -943,6 +944,22 @@ func renameTableIfRequired(table string) (string, bool) {
 		return tableTup.ForMinOutput(), true
 	}
 	return table, false
+}
+
+// TODO: ideally original function renameTableIfRequired should be made to return NameTuple instead of string
+// but that will require a lot of changes in the codebase. So, keeping this function as a wrapper to do same but return Tuple
+func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
+	renamedTable, isRenamed := renameTableIfRequired(table.ForKey())
+	// no need to lookup the same table
+	if !isRenamed {
+		return table, false
+	}
+
+	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
+	if err != nil {
+		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
+	}
+	return tableTuple, isRenamed
 }
 
 func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
