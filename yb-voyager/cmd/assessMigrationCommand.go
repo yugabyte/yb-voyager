@@ -1788,7 +1788,7 @@ func postProcessingOfAssessmentReport() {
 			assessmentReport.Issues[i].Impact = "-"
 		}
 	case POSTGRESQL:
-		//sort issues and keep all the Performance Optimization ones at the last
+		//sort issues based on Category with a defined order and keep all the Performance Optimization ones at the last
 		var categoryOrder = map[string]int{
 			UNSUPPORTED_DATATYPES_CATEGORY:        0,
 			UNSUPPORTED_FEATURES_CATEGORY:         1,
@@ -1803,6 +1803,7 @@ func postProcessingOfAssessmentReport() {
 				if r, ok := categoryOrder[cat]; ok {
 					return r
 				}
+				//New categories are considered last in the ordering
 				return len(categoryOrder)
 			}
 			return rank(assessmentReport.Issues[i].Category) < rank(assessmentReport.Issues[j].Category)
