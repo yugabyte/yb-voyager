@@ -23,7 +23,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -143,12 +142,7 @@ var sensitiveKeysInIssueDetailsMap = []string{
 }
 
 func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
-	obfuscatedDetails := make(map[string]interface{})
-	for key, value := range details {
-		if !slices.Contains(sensitiveKeysInIssueDetailsMap, key) {
-			obfuscatedDetails[key] = value
-		}
-	}
+	obfuscatedDetails := lo.OmitByKeys(details, sensitiveKeysInIssueDetailsMap)
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
