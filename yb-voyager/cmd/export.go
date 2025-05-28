@@ -297,10 +297,10 @@ func validatePortRange() {
 }
 
 func validateSSLMode() {
-	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
+	if source.DBType == ORACLE || slices.Contains(ValidSSLModesForSourceDB[source.DBType], source.SSLMode) {
 		return
 	} else {
-		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, validSSLModes[source.DBType])
+		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, ValidSSLModesForSourceDB[source.DBType])
 	}
 }
 

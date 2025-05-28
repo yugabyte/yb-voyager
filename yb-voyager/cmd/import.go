@@ -31,12 +31,8 @@ var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
 
-var SSLModes = []string{
-	"disable", "allow", "prefer", "require", "verify-ca", "verify-full",
-}
-
-var supportedSSLModesOnTargetForImport = SSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
-var supportedSSLModesOnSourceOrSourceReplica = SSLModes
+var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
+var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
 
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
@@ -186,6 +182,7 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
 		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
+	// Q: Do we need separate handling for Oracle vs PostgreSQL here?
 	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
 		fmt.Sprintf("specify the Source-Replica DB SSL mode: [%s]",
 			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
