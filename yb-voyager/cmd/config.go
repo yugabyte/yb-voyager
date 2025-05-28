@@ -99,7 +99,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
-	"target-endpoints", "truncate-tables",
+	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
@@ -126,7 +126,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
-	"quote-char", "file-opts", "null-string", "truncate-tables",
+	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
