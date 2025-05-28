@@ -49,6 +49,10 @@ func resetCmdAndEnvVars(cmd *cobra.Command) {
 			os.Unsetenv(envVar)
 		}
 	}
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.ErrExit = func(formatString string, args ...interface{}) {}
+
 }
 
 // The flags and the variables related to them need to be reset to their default values
