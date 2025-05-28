@@ -40,7 +40,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
@@ -75,7 +74,9 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
-var errorPolicyString string
+
+// Error policy
+var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -188,7 +189,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
+	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
@@ -531,7 +532,7 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.ErrorPolicy) {
+func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
