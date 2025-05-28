@@ -296,20 +296,23 @@ CREATE TABLE test_schema.test_data (
 );`
 
 	// insert 100 rows in the table
-	var insertDataSQLs []string
+	var pgInsertStatements, ybInsertStatements []string
 	for i := 0; i < 100; i++ {
-		// need same rows to be Inserted in both Postgres and YugabyteDB
-		insertDataSQLs = append(insertDataSQLs, fmt.Sprintf(`
-INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i))
+		insertStatement := fmt.Sprintf(`INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i)
+
+		if (i % 2) == 0 {
+			ybInsertStatements = append(ybInsertStatements, insertStatement)
+		}
+		pgInsertStatements = append(pgInsertStatements, insertStatement)
 	}
 
 	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
-	postgresContainer.ExecuteSqls(insertDataSQLs...)
+	postgresContainer.ExecuteSqls(pgInsertStatements...)
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 
-	// Inserting the same data so that import data will have conflicts
+	// Import some of the rows so that import data will have conflicts
 	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
-	yugabytedbContainer.ExecuteSqls(insertDataSQLs...)
+	yugabytedbContainer.ExecuteSqls(ybInsertStatements...)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
 	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
