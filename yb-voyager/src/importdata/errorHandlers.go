@@ -21,7 +21,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/enums"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -117,11 +116,11 @@ type ImportDataErrorHandler interface {
 	HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error
 }
 
-func GetImportDataErrorHandler(errorPolicy enums.ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
+func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
 	switch errorPolicy {
-	case enums.AbortErrorPolicy:
+	case AbortErrorPolicy:
 		return NewImportDataAbortHandler(), nil
-	case enums.StashAndContinueErrorPolicy:
+	case StashAndContinueErrorPolicy:
 		return NewImportDataStashAndContinueHandler(dataDir), nil
 	default:
 		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)

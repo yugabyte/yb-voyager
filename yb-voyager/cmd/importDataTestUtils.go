@@ -25,7 +25,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/enums"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -102,7 +101,7 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 	importerRole = TARGET_DB_IMPORTER_ROLE
 
-	errorHandler, err := importdata.GetImportDataErrorHandler(enums.AbortErrorPolicy, filepath.Join(lexportDir, "data"))
+	errorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, filepath.Join(lexportDir, "data"))
 
 	if err != nil {
 		return "", "", nil, nil, err

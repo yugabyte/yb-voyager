@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -1486,6 +1487,7 @@ import-data:
   use-public-ip: true
   target-endpoints: endpoint1,endpoint2
   truncate-tables: true
+  error-policy-snapshot: stash-and-continue
   ybvoyager-max-colocated-batches-in-progress: 5
   num-event-channels: 8
   event-channel-size: 10000
@@ -1554,6 +1556,7 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
 	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy-snapshot should match the config")
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
 	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
@@ -1596,6 +1599,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--use-public-ip", "false",
 		"--target-endpoints", "endpoint3,endpoint4",
 		"--truncate-tables", "false",
+		"--error-policy-snapshot", "abort",
 		"--target-db-host", "localhost2",
 		"--target-db-port", "5433",
 		"--target-db-user", "test_user2",
@@ -1651,6 +1655,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(false), tconf.UsePublicIP, "Use public IP for importing data should be overridden by CLI")
 	assert.Equal(t, "endpoint3,endpoint4", tconf.TargetEndpoints, "Target endpoints for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
+	assert.Equal(t, importdata.AbortErrorPolicy, errorPolicySnapshotFlag, "error-policy-snapshot should be overridden by the CLI")
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
 	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
@@ -1787,6 +1792,7 @@ import-data:
   use-public-ip: true
   target-endpoints: endpoint1,endpoint2
   truncate-tables: true
+  error-policy-snapshot: stash-and-continue
   ybvoyager-max-colocated-batches-in-progress: 5
   num-event-channels: 8
   event-channel-size: 10000
@@ -1838,6 +1844,7 @@ import-data:
 	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
 	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy-snapshot should match the config")
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
 	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
@@ -1885,6 +1892,7 @@ import-data-to-target:
   use-public-ip: true
   target-endpoints: endpoint1,endpoint2
   truncate-tables: true
+  error-policy-snapshot: stash-and-continue
   ybvoyager-max-colocated-batches-in-progress: 5
   num-event-channels: 8
   event-channel-size: 10000
@@ -1936,6 +1944,8 @@ import-data-to-target:
 	assert.Equal(t, utils.BoolStr(true), tconf.UsePublicIP, "Use public IP for importing data should match the config")
 	assert.Equal(t, "endpoint1,endpoint2", tconf.TargetEndpoints, "Target endpoints for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy-snapshot should match the config")
+
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
 	assert.Equal(t, "10000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data should match the config")
@@ -2005,6 +2015,7 @@ import-data-file:
   file-opts: option1=value1;option2=value2
   null-string: "\\N"
   truncate-tables: true
+  error-policy: stash-and-continue
   csv-reader-max-buffer-size-bytes: 10485760
   ybvoyager-max-colocated-batches-in-progress: 5
   max-cpu-threshold: 80
@@ -2074,6 +2085,8 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "option1=value1;option2=value2", fileOpts, "File options for importing data should match the config")
 	assert.Equal(t, "\\N", nullString, "Null string for importing data should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables for importing data should match the config")
+	assert.Equal(t, importdata.StashAndContinueErrorPolicy, errorPolicySnapshotFlag, "error-policy should match the config")
+
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should match the config")
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")
@@ -2116,6 +2129,7 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--file-opts", "option3=value3;option4=value4",
 		"--null-string", "\\N2",
 		"--truncate-tables", "false",
+		"--error-policy", "abort",
 		"--target-db-host", "localhost2",
 		"--target-db-port", "5433",
 		"--target-db-user", "test_user2",
@@ -2175,6 +2189,8 @@ func TestImportDataFileConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "option3=value3;option4=value4", fileOpts, "File options for importing data should be overridden by CLI")
 	assert.Equal(t, "\\N2", nullString, "Null string for importing data should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables for importing data should be overridden by CLI")
+	assert.Equal(t, importdata.AbortErrorPolicy, errorPolicySnapshotFlag, "error-policy should be overridden by the CLI")
+
 	assert.Equal(t, "10485760", os.Getenv("CSV_READER_MAX_BUFFER_SIZE_BYTES"), "CSV reader max buffer size bytes should be overridden by CLI")
 	assert.Equal(t, "5", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
 	assert.Equal(t, "80", os.Getenv("MAX_CPU_THRESHOLD"), "Max CPU threshold for importing data should match the config")

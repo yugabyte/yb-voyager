@@ -40,7 +40,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/enums"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
@@ -77,7 +76,7 @@ var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
 
 // Error policy
-var errorPolicySnapshotFlag enums.ErrorPolicy = enums.AbortErrorPolicy
+var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -533,7 +532,7 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy enums.ErrorPolicy) {
+func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +

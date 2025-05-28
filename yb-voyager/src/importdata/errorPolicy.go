@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package enums
+package importdata
 
 import (
 	"fmt"
@@ -22,8 +22,7 @@ import (
 )
 
 /*
-ErrorPolicy defines what to do when an error occurs during a task.
-Currently, it is used in the context of import-data, where we do the following tasks:
+ErrorPolicy defines what to do when an error occurs during the following tasks:
 1. Read the data from the source
 2. Transform the data
 3. Write the data to the target
