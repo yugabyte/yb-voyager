@@ -142,14 +142,22 @@ var sensitiveKeysInIssueDetailsMap = []string{
 	queryissue.FUNCTION_NAMES,
 }
 
-func ObfuscatedIssueDetails(details map[string]interface{}) map[string]interface{} {
+func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	obfuscatedDetails := make(map[string]interface{})
 	for key, value := range details {
 		if !slices.Contains(sensitiveKeysInIssueDetailsMap, key) {
 			obfuscatedDetails[key] = value
 		}
 	}
-	return obfuscatedDetails
+	return AssessmentIssueCallhome{
+		Category:            category,
+		CategoryDescription: categoryDesc,
+		Type:                issueType,
+		Name:                issueName,
+		Impact:              issueImpact,
+		ObjectType:          objectType,
+		Details:             obfuscatedDetails,
+	}
 }
 
 type SizingCallhome struct {

@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -1088,7 +1087,7 @@ type AssessmentIssue struct {
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"-"`
+	Details                map[string]interface{}          `json:"Details,omitempty"`
 }
 
 type UnsupportedFeature struct {
@@ -1141,8 +1140,9 @@ Version History
 1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
+1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.4"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.5"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1178,7 +1178,7 @@ type AssessmentIssueYugabyteD struct {
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 
 	// Store Type-specific details - extensible, can refer any struct
-	Details json.RawMessage `json:"Details,omitempty"`
+	Details map[string]interface{} `json:"Details,omitempty"`
 }
 
 // To be deprecated in future

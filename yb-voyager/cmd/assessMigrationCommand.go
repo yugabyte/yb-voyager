@@ -165,16 +165,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
-		obfusactedIssueDetails := callhome.ObfuscatedIssueDetails(issue.Details)
-		obfuscatedIssue := callhome.AssessmentIssueCallhome{
-			Category:            issue.Category,
-			CategoryDescription: issue.CategoryDescription,
-			Type:                issue.Type,
-			Name:                issue.Name,
-			Impact:              issue.Impact,
-			ObjectType:          issue.ObjectType,
-			Details:             obfusactedIssueDetails,
-		}
+		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
@@ -561,10 +552,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
-		extraDetails, err := json.Marshal(issue.Details)
-		if err != nil {
-			utils.ErrExit("error marshalling details: %v", err)
-		}
+
 		ybdIssue := AssessmentIssueYugabyteD{
 			Category:               issue.Category,
 			CategoryDescription:    issue.CategoryDescription,
@@ -578,7 +566,7 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
 
-			Details: extraDetails,
+			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
 	}

@@ -26,12 +26,12 @@ import (
 )
 
 const (
-	COLUMN_NAME                  = "Column Name"
-	EXISTING_INDEX_SQL_STATEMENT = "Existing Index SQL Statement"
-	CARDINALITY                  = "Cardinality"
-	FREQUENCY_OF_NULLS           = "Frequency of Nulls"
-	VALUE                        = "Value"
-	FREQUENCY_OF_VALUE           = "Frequency of the value"
+	COLUMN_NAME                  = "column_name"
+	EXISTING_INDEX_SQL_STATEMENT = "existing_index_sql_statement"
+	CARDINALITY                  = "cardinality"
+	FREQUENCY_OF_NULLS           = "frequency_of_nulls"
+	VALUE                        = "value"
+	FREQUENCY_OF_VALUE           = "frequency_of_the_value"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{
