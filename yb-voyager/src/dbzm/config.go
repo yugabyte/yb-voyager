@@ -103,6 +103,8 @@ debezium.source.tombstones.on.delete=false
 debezium.source.topic.naming.strategy=io.debezium.server.ybexporter.DummyTopicNamingStrategy
 debezium.source.topic.prefix=yb-voyager
 debezium.source.database.server.name=yb-voyager
+
+debezium.source.errors.max.retries=15
 `
 var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter

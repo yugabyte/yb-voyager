@@ -28,6 +28,7 @@ import (
 	"github.com/tebeka/atexit"
 	"gopkg.in/natefinch/lumberjack.v2"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/lockfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -129,6 +130,9 @@ func (d *Debezium) Start() error {
 	if err != nil {
 		return fmt.Errorf("Error setting up logging for debezium: %v", err)
 	}
+	dbzmLockFPath := filepath.Join(d.ExportDir, fmt.Sprintf(".debezium-%s-Lockfile.lck", d.ExporterRole))
+	dbzmLockFile := lockfile.NewLockfile(dbzmLockFPath)
+	dbzmLockFile.Lock()
 	d.registerExitHandlers()
 	err = d.cmd.Start()
 	if err != nil {
@@ -138,6 +142,7 @@ func (d *Debezium) Start() error {
 
 	// wait for process to end.
 	go func() {
+		defer dbzmLockFile.Unlock()
 		d.err = d.cmd.Wait()
 		d.done = true
 		if d.err != nil {
