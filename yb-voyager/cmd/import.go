@@ -31,6 +31,13 @@ var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
 
+var SSLModes = []string{
+	"disable", "allow", "prefer", "require", "verify-ca", "verify-full",
+}
+
+var supportedSSLModesOnTargetForImport = SSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
+var supportedSSLModesOnSourceOrSourceReplica = SSLModes
+
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
 
@@ -128,7 +135,8 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 		"Path of file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "target-ssl-mode", "prefer",
-		"specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full)")
+		fmt.Sprintf("specify the target SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnTargetForImport, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "target-ssl-key", "",
 		"Path of file containing target SSL Key")
@@ -179,7 +187,8 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
-		"specify the Source-Replica DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+		fmt.Sprintf("specify the Source-Replica DB SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "source-replica-ssl-key", "",
 		"Path of the file containing Source-Replica DB SSL Key")
@@ -344,10 +353,15 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 }
 
 func checkOrSetDefaultTargetSSLMode() {
+	tconf.SSLMode = strings.ToLower(tconf.SSLMode) // normalize before comparing
+
 	if tconf.SSLMode == "" {
 		tconf.SSLMode = "prefer"
-	} else if tconf.SSLMode != "disable" && tconf.SSLMode != "prefer" && tconf.SSLMode != "require" && tconf.SSLMode != "verify-ca" && tconf.SSLMode != "verify-full" {
-		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", tconf.SSLMode)
+		return
+	}
+
+	if !slices.Contains(supportedSSLModesOnTargetForImport, tconf.SSLMode) {
+		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(supportedSSLModesOnTargetForImport, ", "))
 	}
 }
 

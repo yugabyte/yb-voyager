@@ -253,7 +253,8 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 		"Path of the file containing source SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full)")
+		fmt.Sprintf("specify the source SSL mode out of: [%s]",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"Path of the file containing source SSL Key")
