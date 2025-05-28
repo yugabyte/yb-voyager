@@ -1783,8 +1783,29 @@ func postProcessingOfAssessmentReport() {
 		for i := range assessmentReport.Issues {
 			assessmentReport.Issues[i].Impact = "-"
 		}
+	case POSTGRESQL:
+		//sort issues based on Category with a defined order and keep all the Performance Optimization ones at the last
+		var categoryOrder = map[string]int{
+			UNSUPPORTED_DATATYPES_CATEGORY:        0,
+			UNSUPPORTED_FEATURES_CATEGORY:         1,
+			UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY: 2,
+			UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY:  3,
+			MIGRATION_CAVEATS_CATEGORY:            4,
+			PERFORMANCE_OPTIMIZATIONS_CATEGORY:    5,
+		}
 
+		sort.Slice(assessmentReport.Issues, func(i, j int) bool {
+			rank := func(cat string) int {
+				if r, ok := categoryOrder[cat]; ok {
+					return r
+				}
+				//New categories are considered last in the ordering
+				return len(categoryOrder)
+			}
+			return rank(assessmentReport.Issues[i].Category) < rank(assessmentReport.Issues[j].Category)
+		})
 	}
+
 }
 
 func generateAssessmentReportJson(reportDir string) error {
