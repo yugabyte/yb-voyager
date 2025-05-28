@@ -1789,8 +1789,23 @@ func postProcessingOfAssessmentReport() {
 		}
 	case POSTGRESQL:
 		//sort issues and keep all the Performance Optimization ones at the last
+		var categoryOrder = map[string]int{
+			UNSUPPORTED_DATATYPES_CATEGORY:        0,
+			UNSUPPORTED_FEATURES_CATEGORY:         1,
+			UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY: 2,
+			UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY:  3,
+			MIGRATION_CAVEATS_CATEGORY:            4,
+			PERFORMANCE_OPTIMIZATIONS_CATEGORY:    5,
+		}
+
 		sort.Slice(assessmentReport.Issues, func(i, j int) bool {
-			return assessmentReport.Issues[i].Category != PERFORMANCE_OPTIMIZATIONS_CATEGORY
+			rank := func(cat string) int {
+				if r, ok := categoryOrder[cat]; ok {
+					return r
+				}
+				return len(categoryOrder)
+			}
+			return rank(assessmentReport.Issues[i].Category) < rank(assessmentReport.Issues[j].Category)
 		})
 	}
 
