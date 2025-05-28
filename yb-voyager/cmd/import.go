@@ -93,7 +93,11 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
-	validateOnPrimaryKeyConflictFlag()
+
+	err = validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
 	return nil
 }
 
@@ -456,34 +460,39 @@ var onPrimaryKeyConflictActions = []string{
 	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
 
-func validateOnPrimaryKeyConflictFlag() {
+func validateOnPrimaryKeyConflictFlag() error {
 	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
 	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+
+	// Check if the provided OnPrimaryKeyConflictAction is valid
+	if tconf.OnPrimaryKeyConflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
+			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+		}
+	}
 
 	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
 	if !startClean {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("Error getting migration status record: %v", err)
+			return fmt.Errorf("error getting migration status record: %v", err)
+		} else if msr == nil {
+			return fmt.Errorf("migration status record not found.")
 		}
 
-		if msr != nil && msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
-			utils.ErrExit("Error: --on-primary-key-conflict flag cannot be changed after the import has started."+
+		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
+			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
 				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
-		}
-	}
-
-	if tconf.OnPrimaryKeyConflictAction != "" {
-		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
-			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
 
 	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
-		utils.ErrExit("Error: --enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
 	// once all validations passed we can save the action value in MSR
 	saveOnPrimaryKeyConflictActionInMSR()
+
+	return nil
 }
