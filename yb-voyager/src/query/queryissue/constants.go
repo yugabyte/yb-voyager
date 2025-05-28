@@ -457,8 +457,8 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 // Object types
 const (
-	CONSTRAINT_NAME           = "constraint_name"
-	FUNCTION_NAMES            = "function_names"
+	CONSTRAINT_NAME           = "ConstraintName"
+	FUNCTION_NAMES            = "FunctionNames"
 	TABLE_OBJECT_TYPE         = "TABLE"
 	FOREIGN_TABLE_OBJECT_TYPE = "FOREIGN TABLE"
 	FUNCTION_OBJECT_TYPE      = "FUNCTION"

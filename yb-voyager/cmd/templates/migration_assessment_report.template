@@ -623,7 +623,7 @@
                                                         <td>
                                                             <ul>
                                                             {{ range $key, $value := $issue.Details }}
-                                                                <li>{{ snakeCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
+                                                                <li>{{ camelCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
                                                             {{ end }}
                                                             </ul>
                                                         </td>

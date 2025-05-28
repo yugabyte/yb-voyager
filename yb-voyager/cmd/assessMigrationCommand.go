@@ -1829,6 +1829,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
 		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"camelCaseToTitleCase":             utils.CamelCaseToTitleCase,
 		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
