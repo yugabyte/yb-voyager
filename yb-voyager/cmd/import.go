@@ -353,7 +353,7 @@ func checkOrSetDefaultTargetSSLMode() {
 	tconf.SSLMode = strings.ToLower(tconf.SSLMode) // normalize before comparing
 
 	if tconf.SSLMode == "" {
-		tconf.SSLMode = "prefer"
+		tconf.SSLMode = constants.PREFER
 		return
 	}
 
