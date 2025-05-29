@@ -74,7 +74,7 @@ func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, e
 	assert.Equal(t, expectedFileName, batchBaseFilePath, "Expected batch file name to match")
 }
 
-func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, expectedErrorSubstring string) {
+func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, rows string, expectedErrorSubstring string) {
 	taskIdentifier, err := state.GetComputedFileTaskDir(task.FilePath, task.TableNameTup)
 	assert.NoError(t, err)
 	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
@@ -83,7 +83,8 @@ func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string,
 	assert.NoError(t, err)
 	errorFileContents := string(errorFileContentsBytes)
 
-	assert.Contains(t, errorFileContents, expectedErrorSubstring)
+	assert.Containsf(t, errorFileContents, rows, "file does not contain expected row data")
+	assert.Containsf(t, errorFileContents, expectedErrorSubstring, "file does not contain expected error message")
 }
 
 func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
@@ -132,5 +133,8 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 
 	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.4.2.20.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		`id,val
+3, "three"
+4, "four"`,
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 }
