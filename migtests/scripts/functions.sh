@@ -187,6 +187,24 @@ grant_permissions() {
 	esac
 }
 
+grant_permission_to_target_user() {
+  permissions_sql_file="grant_permissions.sql"
+
+  echo "-- Grant CREATE ON DATABASE" > "${permissions_sql_file}"
+  echo "GRANT CREATE ON DATABASE ${TARGET_DB_NAME} TO ${TARGET_DB_USER};" >> "${permissions_sql_file}"
+
+  IFS=',' read -ra schemas <<< "${TARGET_DB_SCHEMA}"
+  for schema in "${schemas[@]}"; do
+    echo "-- Grant USAGE, CREATE ON SCHEMA ${schema}" >> "${permissions_sql_file}"
+    echo "GRANT USAGE, CREATE ON SCHEMA ${schema} TO ${TARGET_DB_USER};" >> "${permissions_sql_file}"
+  done
+
+  ysql_import_file "${TARGET_DB_NAME}" "${permissions_sql_file}"
+  rm -f "${permissions_sql_file}"
+}
+
+
+
 
 run_sqlplus_as_sys() {
 	db_name=$1

@@ -124,6 +124,9 @@ main() {
 		run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME}"
 	fi
 
+	step "Grant permissions to target database user"
+	grant_permission_to_target_user
+
 	step "Import schema."
 	import_schema
 	run_ysql ${TARGET_DB_NAME} "\dt"
