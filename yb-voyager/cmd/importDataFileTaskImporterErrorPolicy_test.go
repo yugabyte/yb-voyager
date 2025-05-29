@@ -46,6 +46,46 @@ func getBatchErrorBaseFilePath(batchBaseFilePath string) string {
 	return fmt.Sprintf("ingestion-error.%s", batchBaseFilePath)
 }
 
+func assertTableRowCount(t *testing.T, tableName string, expectedCount int64) {
+	var rowCount int64
+	err := tdb.QueryRow(fmt.Sprintf("SELECT count(*) FROM %s", tableName)).Scan(&rowCount)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedCount, rowCount, fmt.Sprintf("Expected row count for table %s to be %d", tableName, expectedCount))
+}
+
+func assertTableIds(t *testing.T, tableName string, expectedIds []int64) {
+	var ids []int64
+	rows, err := tdb.Query(fmt.Sprintf("SELECT id FROM %s", tableName))
+	defer rows.Close()
+	assert.NoError(t, err)
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		testutils.FatalIfError(t, err)
+		ids = append(ids, id)
+	}
+	assert.ElementsMatch(t, expectedIds, ids, fmt.Sprintf("Expected IDs for table %s do not match", tableName))
+}
+
+func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, expectedFileName string) {
+	assert.Equal(t, expectedRecordCount, batch.RecordCount, "Expected record count in errored batch to match")
+	batchBaseFilePath := filepath.Base(batch.GetFilePath())
+	assert.Equal(t, expectedFileName, batchBaseFilePath, "Expected batch file name to match")
+}
+
+func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, expectedErrorSubstring string) {
+	taskIdentifier, err := state.GetComputedFileTaskDir(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
+	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", task.TableNameTup.ForMinOutput(), taskIdentifier, batchErrorBaseFilePath)
+	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
+	assert.NoError(t, err)
+	errorFileContents := string(errorFileContentsBytes)
+
+	assert.Contains(t, errorFileContents, expectedErrorSubstring)
+}
+
 func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
 	testutils.FatalIfError(t, err)
@@ -83,40 +123,14 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	}
 	workerPool.Wait()
 
-	var rowCount int64
-	err = tdb.QueryRow("SELECT count(*) FROM test_table_error").Scan(&rowCount)
-	assert.NoError(t, err)
-	assert.Equal(t, int64(3), rowCount)
+	assertTableRowCount(t, "test_table_error", 3)
+	assertTableIds(t, "test_table_error", []int64{1, 2, 3})
 
-	var ids []int64
-	rows, err := tdb.Query("SELECT id FROM test_table_error")
-	defer rows.Close()
-	assert.NoError(t, err)
-
-	for rows.Next() {
-		var id int64
-		err = rows.Scan(&id)
-		testutils.FatalIfError(t, err)
-		ids = append(ids, id)
-	}
-	assert.ElementsMatch(t, []int64{1, 2, 3}, ids, "Expected IDs do not match")
-
-	// check that the batch errored
 	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
 	assert.NoError(t, err)
-
 	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
-	assert.Equal(t, 2, int(erroredBatches[0].RecordCount), "Expected two rows in the errored batch")
-	batchBaseFilePath := filepath.Base(erroredBatches[0].GetFilePath())
-	assert.Equal(t, "batch::0.4.2.20.E", batchBaseFilePath, "Expected batch file name to match")
 
-	// check that the error file for batch was created with proper contents.
-	taskIdentifier, err := state.GetComputedFileTaskDir(task.FilePath, task.TableNameTup)
-	assert.NoError(t, err)
-	batchErrorBaseFilePath := getBatchErrorBaseFilePath(batchBaseFilePath)
-	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", task.TableNameTup.ForMinOutput(), taskIdentifier, batchErrorBaseFilePath)
-	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
-	errorFileContents := string(errorFileContentsBytes)
-
-	assert.Contains(t, errorFileContents, `ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.4.2.20.E")
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 }
