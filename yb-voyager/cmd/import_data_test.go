@@ -298,7 +298,7 @@ CREATE TABLE test_schema.test_data (
 	// insert 100 rows in the table
 	var pgInsertStatements, ybInsertStatements []string
 	for i := 0; i < 100; i++ {
-		insertStatement := fmt.Sprintf(`INSERT INTO test_schema.test_data (name) VALUES ('name_%d');`, i)
+		insertStatement := fmt.Sprintf(`INSERT INTO test_schema.test_data (id, name) VALUES (%d, 'name_%d');`, i+1, i)
 
 		if (i % 2) == 0 {
 			ybInsertStatements = append(ybInsertStatements, insertStatement)
