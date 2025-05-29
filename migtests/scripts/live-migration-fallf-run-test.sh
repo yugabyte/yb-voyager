@@ -159,6 +159,9 @@ main() {
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json 
 
+	step "Disable triggers and FKs on target database."
+	disable_triggers_and_fks_yugabyte
+
 	step "Import data."
 	import_data || { 
     	tail_log_file "yb-voyager-import-data.log"
@@ -206,6 +209,9 @@ main() {
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	finalize_schema_post_data_import --refresh-mviews true
+
+	step "Re-enable triggers and foreign keys in YugabyteDB."
+	reenable_triggers_fkeys_yugabyte
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {

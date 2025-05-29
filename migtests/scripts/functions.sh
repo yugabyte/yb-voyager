@@ -712,6 +712,82 @@ grant_permissions_for_live_migration() {
     fi
 }
 
+disable_triggers_and_fks_yugabyte() {
+  local disable_triggers_sql="disable_triggers.sql"
+  local drop_constraints_sql="drop_fks.sql"
+
+  # Convert comma-separated list to quoted strings for SQL (e.g., 'public','schema1')
+  local formatted_schema_list=$(echo "${TARGET_DB_SCHEMA}" | sed "s/,/','/g" | sed "s/^/'/" | sed "s/\$/'/")
+
+  # Generate SQL to disable triggers
+  cat <<EOF > "${disable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN (${formatted_schema_list})
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' DISABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+
+  # Generate SQL to drop foreign key constraints
+  cat <<EOF > "${drop_constraints_sql}"
+DO \$\$
+DECLARE
+    fk RECORD;
+BEGIN
+    FOR fk IN
+        SELECT conname, conrelid::regclass AS table_name
+        FROM pg_constraint
+        JOIN pg_class ON conrelid = pg_class.oid
+        JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+        WHERE contype = 'f'
+        AND pg_namespace.nspname IN (${formatted_schema_list})
+    LOOP
+        EXECUTE 'ALTER TABLE ' || fk.table_name || ' DROP CONSTRAINT ' || fk.conname;
+    END LOOP;
+END \$\$;
+EOF
+
+  # Execute the SQLs
+  ysql_import_file "${TARGET_DB_NAME}" "${disable_triggers_sql}"
+  ysql_import_file "${TARGET_DB_NAME}" "${drop_constraints_sql}"
+
+  # Cleanup
+  rm -f "${disable_triggers_sql}" "${drop_constraints_sql}"
+}
+
+reenable_triggers_fkeys_yugabyte() {
+
+	enable_triggers_sql=$(mktemp)
+	formatted_schema_list=$(echo "${TARGET_DB_SCHEMA}" | sed "s/,/','/g")
+
+	cat <<EOF > "${enable_triggers_sql}"
+DO \$\$
+DECLARE
+    r RECORD;
+BEGIN
+    FOR r IN
+        SELECT table_schema, '"' || table_name || '"' AS t_name
+        FROM information_schema.tables
+        WHERE table_type = 'BASE TABLE'
+        AND table_schema IN ('${formatted_schema_list}')
+    LOOP
+        EXECUTE 'ALTER TABLE ' || r.table_schema || '.' || r.t_name || ' ENABLE TRIGGER ALL';
+    END LOOP;
+END \$\$;
+EOF
+	psql_import_file "${TARGET_DB_NAME}" "${enable_triggers_sql}"
+#TODO: Add re-creating FKs
+}
+
+
 setup_fallback_environment() {
 	if [ "${SOURCE_DB_TYPE}" = "oracle" ]; then
 		run_sqlplus_as_sys ${SOURCE_DB_NAME} ${SCRIPTS}/oracle/create_metadata_tables.sql

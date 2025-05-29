@@ -163,11 +163,17 @@ main() {
 		 "${TEST_DIR}/validate-schema"
 	fi
 
+	step "Disable triggers and foreign keys in YugabyteDB."
+	disable_triggers_and_fks_yugabyte
+
 	step "Import data."
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import=true --refresh-mviews=true
+
+	step "Re-enable triggers and foreign keys in YugabyteDB."
+	reenable_triggers_fkeys_yugabyte
 	
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
