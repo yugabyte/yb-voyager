@@ -67,12 +67,12 @@ func TestImportDataResumptionWithInterruptions(t *testing.T) {
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
-	testutils.FatalIfError(t, "Failed to start Postgres container", err)
+	testutils.FatalIfError(t, fmt.Errorf("Failed to start Postgres container: %w", err))
 
 	// Start YugabyteDB container.
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	err := yugabytedbContainer.Start(ctx)
-	testutils.FatalIfError(t, "Failed to start YugabyteDB container", err)
+	err = yugabytedbContainer.Start(ctx)
+	testutils.FatalIfError(t, fmt.Errorf("Failed to start YugabyteDB container: %w", err))
 
 	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
 	createTableSQL := `
@@ -100,13 +100,13 @@ FROM generate_series(1, 500000);`
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
 	// Export data from Postgres (synchronous run).
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
-	testutils.FatalIfError(t, "Export command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Export command failed: %w", err))
 
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
@@ -122,7 +122,7 @@ FROM generate_series(1, 500000);`
 
 		// Start the import command in async mode.
 		cmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
-		testutils.FatalIfError(t, fmt.Sprintf("Failed to start async import command (run #%d)", i+1), err)
+		testutils.FatalIfError(t, fmt.Errorf("Failed to start async import command (run #%d): %w", i+1, err))
 
 		// Wait a short while to ensure that the command has gotten underway.
 		time.Sleep(2 * time.Second)
@@ -143,13 +143,13 @@ FROM generate_series(1, 500000);`
 	// Now, resume the import without interruption (synchronous mode) to complete the data import.
 	t.Log("Resuming import command to complete data import...")
 	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
-	testutils.FatalIfError(t, "Final import command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Final import command failed: %w", err))
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to Postgres", err)
+	testutils.FatalIfError(t, fmt.Errorf("connecting to Postgres: %w", err))
 	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to YugabyteDB", err)
+	testutils.FatalIfError(t, fmt.Errorf("Error connecting to YugabyteDB: %w", err))
 
 	// Compare the full table data between Postgres and YugabyteDB.
 	// We assume the table "test_data" has a primary key "id" so we order by it.
@@ -210,7 +210,7 @@ FROM generate_series(1, 500000);`
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
-	testutils.FatalIfError(t, "Export command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Export command failed: %w", err))
 
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
@@ -227,7 +227,7 @@ FROM generate_series(1, 500000);`
 
 		// Start the import command in async mode.
 		cmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
-		testutils.FatalIfError(t, fmt.Sprintf("Failed to start async import command (run #%d)", i+1), err)
+		testutils.FatalIfError(t, fmt.Errorf("Failed to start async import command (run #%d): %w", i+1, err))
 
 		// Wait a short while to ensure that the command has gotten underway.
 		time.Sleep(2 * time.Second)
@@ -248,13 +248,13 @@ FROM generate_series(1, 500000);`
 	// Now, resume the import without interruption (synchronous mode) to complete the data import.
 	t.Log("Resuming import command to complete data import...")
 	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
-	testutils.FatalIfError(t, "Final import command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Final import command failed: %w", err))
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to Postgres", err)
+	testutils.FatalIfError(t, fmt.Errorf("connecting to Postgres: %w", err))
 	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to YugabyteDB", err)
+	testutils.FatalIfError(t, fmt.Errorf("Error connecting to YugabyteDB: %w", err))
 
 	// Compare the full table data between Postgres and YugabyteDB.
 	// We assume the table "test_data" has a primary key "id" so we order by it.
@@ -321,7 +321,7 @@ CREATE TABLE test_schema.test_data (
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
-	testutils.FatalIfError(t, "Export command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Export command failed: %w", err))
 
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
@@ -331,14 +331,14 @@ CREATE TABLE test_schema.test_data (
 	}
 
 	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
-	testutils.FatalIfError(t, "Import command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Import command failed: %w", err))
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to Postgres", err)
+	testutils.FatalIfError(t, fmt.Errorf("connecting to Postgres: %w", err))
 
 	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to YugabyteDB", err)
+	testutils.FatalIfError(t, fmt.Errorf("Error connecting to YugabyteDB: %w", err))
 
 	// Compare the full table data between Postgres and YugabyteDB.
 	// We assume the table "test_data" has a primary key "id" so we order by it.
@@ -387,7 +387,7 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
-	testutils.FatalIfError(t, "Export command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Export command failed: %w", err))
 
 	importDataCmdArgs := []string{
 		"--export-dir", exportDir,
@@ -398,7 +398,7 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 
 	// first run: import data command to load data from PG
 	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
-	testutils.FatalIfError(t, "Import command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Import command failed: %w", err))
 
 	// second run: test IGNORE on primary key conflict
 	importDataCmdArgs = []string{
@@ -411,14 +411,14 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 	}
 	// second run: to test INSERT ON CONFLICT DO NOTHING statements with all datatypes
 	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, false)
-	testutils.FatalIfError(t, "Import command failed", err)
+	testutils.FatalIfError(t, fmt.Errorf("Import command failed: %w", err))
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to Postgres", err)
+	testutils.FatalIfError(t, fmt.Errorf("connecting to Postgres: %w", err))
 
 	ybConn, err := yugabytedbContainer.GetConnection()
-	testutils.FatalIfError(t, "Error connecting to YugabyteDB", err)
+	testutils.FatalIfError(t, fmt.Errorf("Error connecting to YugabyteDB: %w", err))
 
 	// Compare the full table data between Postgres and YugabyteDB.
 	// We assume the table "test_data" has a primary key "id" so we order by it.
