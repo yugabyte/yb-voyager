@@ -132,17 +132,7 @@ type AssessmentIssueCallhome struct {
 	ObjectType          string                 `json:"object_type"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
-
-var sensitiveKeysInIssueDetailsMap = []string{
-	queryissue.COLUMN_NAME,
-	queryissue.EXISTING_INDEX_SQL_STATEMENT,
-	queryissue.VALUE,
-	queryissue.CONSTRAINT_NAME,
-	queryissue.FUNCTION_NAMES,
-}
-
 func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
-	obfuscatedDetails := lo.OmitByKeys(details, sensitiveKeysInIssueDetailsMap)
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -150,7 +140,7 @@ func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType 
 		Name:                issueName,
 		Impact:              issueImpact,
 		ObjectType:          objectType,
-		Details:             obfuscatedDetails,
+		Details:             lo.OmitByKeys(details, queryissue.SensitiveKeysInIssueDetailsMap),
 	}
 }
 

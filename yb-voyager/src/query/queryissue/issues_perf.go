@@ -26,6 +26,7 @@ import (
 )
 
 const (
+	//BEFORE ADDING ANY KEY FOR DETAILS MAP, ADD IT TO THE SensitiveKeysInIssueDetailsMap in query_issue.go
 	COLUMN_NAME                  = "ColumnName"
 	EXISTING_INDEX_SQL_STATEMENT = "ExistingIndexSQLStatement"
 	CARDINALITY                  = "Cardinality"
