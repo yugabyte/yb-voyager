@@ -199,6 +199,9 @@ grant_permission_to_target_user() {
     echo "GRANT USAGE, CREATE ON SCHEMA ${schema} TO ${TARGET_DB_USER};" >> "${permissions_sql_file}"
   done
 
+  echo "-- GRANT yb_extension" >> "${permissions_sql_file}"
+  echo "GRANT yb_extension TO ${TARGET_DB_USER};" >> "${permissions_sql_file}"
+
   ysql_import_file "${TARGET_DB_NAME}" "${permissions_sql_file}"
   rm -f "${permissions_sql_file}"
 }
