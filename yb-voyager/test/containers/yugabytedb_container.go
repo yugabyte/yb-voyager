@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/go-connections/nat"
@@ -18,11 +19,15 @@ import (
 )
 
 type YugabyteDBContainer struct {
+	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
 }
 
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
 	if yb.container != nil {
 		if yb.container.IsRunning() {
 			utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
@@ -89,6 +94,9 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 // The underlying data directory remains intact, so you can call Start() later
 // and the DB will pick up with exactly the same contents.
 func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
 	if yb.container == nil {
 		return nil
 	} else if !yb.container.IsRunning() {
@@ -107,6 +115,9 @@ func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
 	if yb == nil {
 		return
 	}
