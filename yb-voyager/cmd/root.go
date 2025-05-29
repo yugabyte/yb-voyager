@@ -393,7 +393,7 @@ func setControlPlane(cpType string) error {
 	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
-			return fmt.Errorf("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
+			return fmt.Errorf("yugabyted-db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
 		log.Infof("Migration UUID %s", migrationUUID)
@@ -402,7 +402,7 @@ func setControlPlane(cpType string) error {
 			return fmt.Errorf("initialize the target DB for visualization. %s", err)
 		}
 	default:
-		return fmt.Errorf("invalid 'CONTROL_PLANE_TYPE': %q. Allowed values: %v", cpType, []string{YUGABYTED})
+		return fmt.Errorf("invalid value of control-plane-type (or CONTROL_PLANE_TYPE env var): %q. Allowed values: %v", cpType, []string{YUGABYTED})
 	}
 	return nil
 }
