@@ -92,7 +92,7 @@ Therefore, we allow users to override the ssl root cert in export-data-from-targ
 For logical-replication connecter, all SSL modes are supported.
 */
 func verifySSLFlags(cmd *cobra.Command, msr *metadb.MigrationStatusRecord) error {
-	allowedSSLModes := AllSSLModes
+	allowedSSLModes := ValidSSLModesForSourceDB[YUGABYTEDB]
 	// the debezium GRPC connector has some limitations because of which prefer and allow are not supported.
 	allowedSSLModesGRPCConnector := []string{constants.DISABLE, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
 

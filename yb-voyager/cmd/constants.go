@@ -244,7 +244,7 @@ var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGE
 
 var AllSSLModes = []string{constants.DISABLE, constants.PREFER, constants.ALLOW, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
 var ValidSSLModesForSourceDB = map[string][]string{
-	MYSQL:      utils.SetDifference(AllSSLModes, []string{constants.ALLOW}), // MySQL does not support ALLOW mode
+	MYSQL:      {constants.DISABLE, constants.PREFER, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}, // MySQL does not support ALLOW mode
 	POSTGRESQL: AllSSLModes,
 	YUGABYTEDB: AllSSLModes,
 }

@@ -297,6 +297,8 @@ func validatePortRange() {
 }
 
 func validateSSLMode() {
+	// For Oracle, we don't have usual sslmode parameter rather rely on TNS ALIAS, so no need to validate.
+	// Rest the list of supported/valid SSL modes depends on the source DB type
 	if source.DBType == ORACLE || slices.Contains(ValidSSLModesForSourceDB[source.DBType], source.SSLMode) {
 		return
 	} else {

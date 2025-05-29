@@ -357,7 +357,14 @@ func checkOrSetDefaultTargetSSLMode() {
 		return
 	}
 
-	if !slices.Contains(supportedSSLModesOnTargetForImport, tconf.SSLMode) {
+	var sslModes []string
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		sslModes = supportedSSLModesOnTargetForImport
+	} else if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE || importerRole == SOURCE_DB_IMPORTER_ROLE {
+		sslModes = supportedSSLModesOnSourceOrSourceReplica
+	} // there should be no other else case
+
+	if !slices.Contains(sslModes, tconf.SSLMode) {
 		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(supportedSSLModesOnTargetForImport, ", "))
 	}
 }
