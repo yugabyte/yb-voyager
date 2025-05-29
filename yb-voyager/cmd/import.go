@@ -365,7 +365,7 @@ func checkOrSetDefaultTargetSSLMode() {
 	} // there should be no other else case
 
 	if !slices.Contains(sslModes, tconf.SSLMode) {
-		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(supportedSSLModesOnTargetForImport, ", "))
+		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(sslModes, ", "))
 	}
 }
 
