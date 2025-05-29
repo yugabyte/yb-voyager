@@ -1,0 +1,122 @@
+//go:build integration
+
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+package cmd
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/sourcegraph/conc/pool"
+	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
+)
+
+func getErrorsParentDir(lexportDir string) string {
+	return filepath.Join(lexportDir, "data")
+}
+
+func cleanupExportDirDataDir(ldataDir, lexportDir string) {
+	if ldataDir != "" {
+		os.RemoveAll(ldataDir)
+	}
+	if lexportDir != "" {
+		os.RemoveAll(lexportDir)
+	}
+}
+
+func getBatchErrorBaseFilePath(batchBaseFilePath string) string {
+	return fmt.Sprintf("ingestion-error.%s", batchBaseFilePath)
+}
+
+func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	// t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_error (id INT PRIMARY KEY, val TEXT);`,
+		`INSERT INTO test_table_error VALUES (3, 'three');`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_error;`)
+
+	// file import
+	// gets divided into two batches. (1, 2), (3,4)
+	// second batch (with row id 3) should fail with error (PK violation)
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "three"
+4, "four"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	var rowCount int64
+	err = tdb.QueryRow("SELECT count(*) FROM test_table_error").Scan(&rowCount)
+	assert.NoError(t, err)
+	assert.Equal(t, int64(3), rowCount)
+
+	var ids []int64
+	rows, err := tdb.Query("SELECT id FROM test_table_error")
+	defer rows.Close()
+	assert.NoError(t, err)
+
+	for rows.Next() {
+		var id int64
+		err = rows.Scan(&id)
+		testutils.FatalIfError(t, err)
+		ids = append(ids, id)
+	}
+	assert.ElementsMatch(t, []int64{1, 2, 3}, ids, "Expected IDs do not match")
+
+	// check that the batch errored
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+
+	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
+	assert.Equal(t, 2, int(erroredBatches[0].RecordCount), "Expected two rows in the errored batch")
+	batchBaseFilePath := filepath.Base(erroredBatches[0].GetFilePath())
+	assert.Equal(t, "batch::0.4.2.20.E", batchBaseFilePath, "Expected batch file name to match")
+
+	// check that the error file for batch was created with proper contents.
+	taskIdentifier, err := state.GetComputedFileTaskDir(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	batchErrorBaseFilePath := getBatchErrorBaseFilePath(batchBaseFilePath)
+	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", task.TableNameTup.ForMinOutput(), taskIdentifier, batchErrorBaseFilePath)
+	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
+	errorFileContents := string(errorFileContentsBytes)
+
+	assert.Contains(t, errorFileContents, `ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+}
