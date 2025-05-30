@@ -766,7 +766,7 @@ EOF
 reenable_triggers_fkeys_yugabyte() {
 
 	enable_triggers_sql=$(mktemp)
-	formatted_schema_list=$(echo "${TARGET_DB_SCHEMA}" | sed "s/,/','/g")
+	formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g")
 
 	cat <<EOF > "${enable_triggers_sql}"
 DO \$\$
@@ -783,7 +783,7 @@ BEGIN
     END LOOP;
 END \$\$;
 EOF
-	psql_import_file "${SOURCE_DB_NAME}" "${enable_triggers_sql}"
+	ysql_import_file "${TARGET_DB_NAME}" "${enable_triggers_sql}"
 #TODO: Add re-creating FKs
 }
 

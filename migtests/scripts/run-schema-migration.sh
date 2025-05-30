@@ -101,6 +101,9 @@ main() {
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 	run_ysql yugabyte "CREATE DATABASE ${TARGET_DB_NAME} with COLOCATION=TRUE"
 
+	step "Grant permissions to target database user"
+	grant_permission_to_target_user
+
 	step "Import schema."
 	import_schema --continue-on-error t
 	run_ysql ${TARGET_DB_NAME} "\dt"
