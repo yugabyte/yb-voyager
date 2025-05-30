@@ -712,12 +712,12 @@ grant_permissions_for_live_migration() {
     fi
 }
 
-disable_triggers_and_fks_yugabyte() {
+disable_triggers_and_fks() {
   local disable_triggers_sql="disable_triggers.sql"
   local drop_constraints_sql="drop_fks.sql"
 
   # Convert comma-separated list to quoted strings for SQL (e.g., 'public','schema1')
-  local formatted_schema_list=$(echo "${TARGET_DB_SCHEMA}" | sed "s/,/','/g" | sed "s/^/'/" | sed "s/\$/'/")
+  local formatted_schema_list=$(echo "${SOURCE_DB_SCHEMA}" | sed "s/,/','/g" | sed "s/^/'/" | sed "s/\$/'/")
 
   # Generate SQL to disable triggers
   cat <<EOF > "${disable_triggers_sql}"
@@ -783,7 +783,7 @@ BEGIN
     END LOOP;
 END \$\$;
 EOF
-	psql_import_file "${TARGET_DB_NAME}" "${enable_triggers_sql}"
+	psql_import_file "${SOURCE_DB_NAME}" "${enable_triggers_sql}"
 #TODO: Add re-creating FKs
 }
 
