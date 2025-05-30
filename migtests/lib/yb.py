@@ -126,6 +126,10 @@ class PostgresDB:
 			password=self.password,
 			database=self.database
 		)
+
+		# Enable autocommit mode - statement level transactions
+		# Important for YugabyteDB to avoid Restart read required error or old snapshot errors
+		self.conn.autocommit = True
 	  
 	def close(self):
 		self.conn.close()
