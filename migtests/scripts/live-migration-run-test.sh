@@ -152,8 +152,8 @@ main() {
 	cat ${EXPORT_DIR}/data/export_status.json || echo "No export_status.json found."
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
-	step "Disable triggers and foreign keys in YugabyteDB."
-	disable_triggers_and_fks_yugabyte
+	# step "Disable triggers and foreign keys in YugabyteDB."
+	# disable_triggers_and_fks_yugabyte
 
 	step "Import data."
 	import_data || { 
@@ -175,8 +175,8 @@ main() {
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
 	import_schema --post-snapshot-import=true --refresh-mviews=true
 
-	step "Re-enable triggers and foreign keys in YugabyteDB."
-	reenable_triggers_fkeys_yugabyte
+	# step "Re-enable triggers and foreign keys in YugabyteDB."
+	# reenable_triggers_fkeys_yugabyte
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
