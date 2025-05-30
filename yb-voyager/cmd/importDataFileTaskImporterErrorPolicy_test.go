@@ -286,12 +286,24 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
 
-	//	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.28.E")
-	//	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
-	//		`id,val
-	//
-	// 1, "hello"
-	// 2, "world"`,
-	//
-	//	`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
+	assertBatchErrorFileContents(t, erroredBatches[1], lexportDir, state, task,
+		`id,val,not_null_col,num_col,fixed_col
+1,"hello","abc",10,"ab"
+2,"world","xyz","xyz","cd"`,
+		`ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`)
+
+	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.E")
+	assertBatchErrorFileContents(t, erroredBatches[2], lexportDir, state, task,
+		`id,val,not_null_col,num_col,fixed_col
+5,"quux",NULL,40,"ij"
+6,"corge","grault",50,"mn"`,
+		`ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`)
+
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.10.2.57.E")
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		`id,val,not_null_col,num_col,fixed_col
+9,"xyzzy","thud",80,"st"
+10,"wibble","wobble",90,"uvwxyz"`,
+		`ERROR: value too long for type character(2) (SQLSTATE 22001)`)
 }
