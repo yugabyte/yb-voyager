@@ -3,39 +3,6 @@
 import yb
 import common
 
-def main():
-	test_type_flags = common.valparser()
-
-	if test_type_flags['ff_enabled'] == 'true' or test_type_flags['fb_enabled'] == 'true':
-		change_expected_values()
-
-	migration_completed_checks_yb()
-	global EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS
-	EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
-
-	change_expected_values_for_pg()
-
-	if test_type_flags['ff_enabled'] == 'true':
-		migration_completed_checks_ff()
-	
-	if test_type_flags['fb_enabled'] == 'true':
-		migration_completed_checks_fb()
-
-def migration_completed_checks_yb():
-	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB.items():
-		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[table_name] = row_count
-	print("Running tests on YB")
-	yb.run_checks(migration_completed_checks)
-	
-def migration_completed_checks_ff():
-	print("Running tests on PG source replica")
-	yb.run_checks(migration_completed_checks, db_type="source_replica")
-
-def migration_completed_checks_fb():
-	print("Running tests on PG source")
-	yb.run_checks(migration_completed_checks, db_type="source")
-
-
 #=============================================================================
 
 EXPECTED_ROW_COUNT = {
@@ -117,37 +84,44 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
-		"query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
+		"insert_query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
+		"delet_query": "DELETE FROM sales_region WHERE id = 1005",
 		"partition_table_name": "sydney",
 		"schema_name": "public"
 	},
 	"List" : {
-		"query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (200025, 'Branch 1001','Sydney') ",
+		"insert_query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (200025, 'Branch 1001','Sydney') ",
+		"delet_query": "DELETE FROM test_partitions_sequences WHERE amount = 200025",
 		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
 	"List_partitions_in_different_schema" : {
-		"query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
+		"insert_query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
+		"delet_query": "DELETE FROM p1.sales_region WHERE id = 1005",
 		"partition_table_name": "sydney_region",
 		"schema_name": "p2"
 	},
 	"Range" : {
-		"query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1005, 'Person 1001', 5000, '2020-01-04 00:00:00')",
+		"insert_query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1005, 'Person 1001', 5000, '2020-01-04 00:00:00')",
+		"delet_query": "DELETE FROM sales WHERE id = 1005",
 		"partition_table_name": "sales_2020_q1",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
-		"query": "INSERT INTO range_columns_partition_test VALUES (7,7)",
+		"insert_query": "INSERT INTO range_columns_partition_test VALUES (7,7)",
+		"delet_query": "DELETE FROM range_columns_partition_test WHERE id = 7",
 		"partition_table_name": "range_columns_partition_test_p1",
 		"schema_name": "public"
 	},
 	"Hash" : {
-		"query": "INSERT INTO emp VALUES(1021, 'user_1001', 49)",
+		"insert_query": "INSERT INTO emp VALUES(1021, 'user_1001', 49)",
+		"delet_query": "DELETE FROM emp WHERE id = 1021",
 		"partition_table_name": "emp_1",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
-		"query": "INSERT INTO customers (id, statuses, arr) VALUES(1011, 'RECURRING', 282)",
+		"insert_query": "INSERT INTO customers (id, statuses, arr) VALUES(1011, 'RECURRING', 282)",
+		"delet_query": "DELETE FROM customers WHERE id = 1011",
 		"partition_table_name": "cust_part21",
 		"schema_name": "public"
 	}
@@ -181,10 +155,43 @@ EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF = {
 	"p2.sydney":    			331,
 }
 
-def change_expected_values_for_pg():
+def main():
+	test_type_flags = common.valparser()
+
+	if test_type_flags['ff_enabled'] == 'true' or test_type_flags['fb_enabled'] == 'true':
+		change_expected_values()
+
+	migration_completed_checks_yb()
+
+	if test_type_flags['ff_enabled'] == 'true':
+		migration_completed_checks_ff()
+
+	if test_type_flags['fb_enabled'] == 'true':
+		migration_completed_checks_fb()
+
+def migration_completed_checks_yb():
+	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB.items():
+		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[table_name] = row_count
+	print("Running tests on YB")
+	yb.run_checks(migration_completed_checks)
+
+def migration_completed_checks_ff():
+	print("Running tests on PG source replica")
+	update_expected_values_for_pg()
+	yb.run_checks(migration_completed_checks, db_type="source_replica")
+
+def migration_completed_checks_fb():
+	print("Running tests on PG source")
+	update_expected_values_for_pg()
+	yb.run_checks(migration_completed_checks, db_type="source")
+
+
+def update_expected_values_for_pg():
+    # Copy expected row counts from PG-specific source to general structure
 	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG.items():
 		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[table_name] = row_count
 
+	# Update partition table name from p2.sydney_region to p2.sydney
 	for _, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		if query_and_partition_name['schema_name'] == 'p2':
 			query_and_partition_name['partition_table_name'] = 'sydney'
@@ -199,20 +206,7 @@ def change_expected_values():
 	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF.items():
 		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG[table_name] = row_count
 
-def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name):
-	chk_error_returned = tgt.run_query_and_chk_error(query, None)
-	print(f"error returned while insert ({query}) query - {chk_error_returned}")
-	assert chk_error_returned == False
-
-	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
-	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
-	full_partition_name_with_schema_name = f"{schema_name}.{partition_table_name}"
-	if full_partition_name_with_schema_name in EXPECTED_ROW_COUNT:
-		assert count_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
-	else:
-		assert count_partition_table == EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[full_partition_name_with_schema_name] + 1
-
-def migration_completed_checks(tgt):    
+def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
 	print("table_list:", table_list)
 	assert len(table_list) == 28
@@ -225,23 +219,23 @@ def migration_completed_checks(tgt):
 	print("table_list:", table_list)
 	assert len(table_list) == 3
 
-	for table_name, row_count in EXPECTED_ROW_COUNT.items():
+	for table_name, expected_row_count in EXPECTED_ROW_COUNT.items():
 		schema = table_name.split(".")[0]
 		table = table_name.split(".")[1]
-		got_row_count = tgt.get_row_count(table, schema)
-		print(f"table_name: {table_name}, target row_count: {got_row_count}")
-		assert row_count == got_row_count
+		actual_row_count = tgt.get_row_count(table, schema)
+		print(f"table_name: {table_name}, expected row_count: {expected_row_count}, target row_count: {actual_row_count}")
+		assert expected_row_count == actual_row_count
   		
     	# check whether all the indexes on a table are valid
 		print(f"checking all indexes valid on table: {table_name} are valid")
 		assert tgt.invalid_index_present(table, schema) == False
 
-	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS.items():
+	for table_name, expected_row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS.items():
 		schema = table_name.split(".")[0]
 		table = table_name.split(".")[1]
-		got_row_count = tgt.get_row_count(table, schema)
-		print(f"table_name: {table_name}, target row_count: {got_row_count}")
-		assert row_count == got_row_count
+		actual_row_count = tgt.get_row_count(table, schema)
+		print(f"table_name: {table_name}, expected row_count: {expected_row_count}, target row_count: {actual_row_count}")
+		assert expected_row_count == actual_row_count
   		
     	# check whether all the indexes on a table are valid
 		print(f"checking all indexes valid on table: {table_name} are valid")
@@ -257,12 +251,29 @@ def migration_completed_checks(tgt):
 
 	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		print(f"Running the check for Partition type - {type}")
-		query = query_and_partition_name['query']
+		insert_query = query_and_partition_name['insert_query']
+		delete_query = query_and_partition_name['delete_query']
 		partition_table_name = query_and_partition_name['partition_table_name']
 		schema_name = query_and_partition_name['schema_name']
-		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query, partition_table_name, schema_name)
+		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, insert_query, delete_query, partition_table_name, schema_name)
 
-	
+def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, insert_query, delete_query, partition_table_name, schema_name):
+	chk_error_returned = tgt.run_query_and_chk_error(insert_query, None)
+	print(f"error returned while insert ({insert_query}) query - {chk_error_returned}")
+	assert chk_error_returned == False
+
+	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
+	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
+	full_partition_name_with_schema_name = f"{schema_name}.{partition_table_name}"
+	if full_partition_name_with_schema_name in EXPECTED_ROW_COUNT:
+		assert count_partition_table == EXPECTED_ROW_COUNT[full_partition_name_with_schema_name] + 1
+	else:
+		assert count_partition_table == EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[full_partition_name_with_schema_name] + 1
+
+	# Revert the change by deleting the inserted row
+	chk_error_returned = tgt.run_query_and_chk_error(delete_query, None)
+	print(f"error returned while delete ({delete_query}) query - {chk_error_returned}")
+	assert chk_error_returned == False
 
 if __name__ == "__main__":
 	main()
