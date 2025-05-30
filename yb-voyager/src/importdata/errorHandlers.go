@@ -1,0 +1,151 @@
+/*
+Copyright (c) YugabyteDB, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package importdata
+
+import (
+	"crypto/sha1"
+	"encoding/hex"
+	"fmt"
+	"os"
+	"path/filepath"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+type ImportDataErrorHandler interface {
+	ShouldAbort() bool
+	HandleRowProcessingError() error
+	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
+}
+
+type ErroredBatch interface {
+	GetFilePath() string
+	GetTableName() sqlname.NameTuple
+	IsInterrupted() bool
+	MarkError(batchErr error) error
+}
+
+// -----------------------------------------------------------------------------------------------------//
+type ImportDataAbortHandler struct {
+}
+
+func NewImportDataAbortHandler() *ImportDataAbortHandler {
+	return &ImportDataAbortHandler{}
+}
+
+func (handler *ImportDataAbortHandler) ShouldAbort() bool {
+	return true
+}
+
+func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
+	// nothing to do.
+	return nil
+}
+
+func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
+	// nothing to do.
+	return nil
+}
+
+// -----------------------------------------------------------------------------------------------------//
+
+/*
+Stash the error to some file(s) with the relevant error information
+*/
+type ImportDataStashAndContinueHandler struct {
+	dataDir string
+}
+
+func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
+	return &ImportDataStashAndContinueHandler{dataDir: dataDir}
+}
+
+func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
+	return false
+}
+
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() error {
+	return nil
+}
+
+/*
+- Mark the batch as errored out. x.x.x.x.P -> x.x.x.x.E
+- Create a symlink in the errors folder, pointing to metainfo/import_data_state/.../<batch_file_name>
+*/
+func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
+	if batch == nil {
+		return fmt.Errorf("batch cannot be nil")
+	}
+	if taskFilePath == "" {
+		return fmt.Errorf("task file path cannot be empty")
+	}
+
+	err := batch.MarkError(batchErr)
+	if err != nil {
+		return fmt.Errorf("marking batch as errored: %s", err)
+	}
+	err = handler.createBatchSymlinkInErrorsFolder(batch, taskFilePath)
+	if err != nil {
+		return fmt.Errorf("creating symlink in errors folder: %s", err)
+	}
+	return nil
+}
+
+// create a symlink to the batch file in the errors folder so that all errors are in one place.
+// ingestion-error.<batch_file_name> -> metainfo/.../<batch_file_name>
+func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, taskFilePath string) error {
+	err := os.MkdirAll(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), os.ModePerm)
+	if err != nil {
+		return fmt.Errorf("creating errors folder: %s", err)
+	}
+
+	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), symlinkFileName))
+	if err != nil {
+		return fmt.Errorf("creating symlink: %s", err)
+	}
+	return nil
+}
+
+// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/
+func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTask(batch ErroredBatch, taskFilePath string) string {
+	tableFolder := fmt.Sprintf("table::%s", batch.GetTableName().ForMinOutput())
+	// the entire path of the file can be long, so to make it shorter,
+	// we compute a hash of the file path and also include the base file name of the file.
+	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), computePathHash(taskFilePath))
+	return filepath.Join(handler.dataDir, "errors", tableFolder, taskFolder)
+}
+
+func computePathHash(filePath string) string {
+	hash := sha1.New()
+	hash.Write([]byte(filePath))
+	return hex.EncodeToString(hash.Sum(nil))[0:8]
+}
+
+// -----------------------------------------------------------------------------------------------------//
+
+func GetImportDataErrorHandler(errorPolicy errorpolicy.ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
+	switch errorPolicy {
+	case errorpolicy.AbortErrorPolicy:
+		return NewImportDataAbortHandler(), nil
+	case errorpolicy.StashAndContinueErrorPolicy:
+		return NewImportDataStashAndContinueHandler(dataDir), nil
+	default:
+		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
+	}
+}

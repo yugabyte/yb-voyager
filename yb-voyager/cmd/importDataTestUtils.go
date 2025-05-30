@@ -18,12 +18,15 @@ package cmd
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -77,15 +80,15 @@ func setupYugabyteTestDb(t *testing.T) {
 	testutils.FatalIfError(t, err)
 }
 
-func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, error) {
+func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int64) (string, string, *ImportDataState, importdata.ImportDataErrorHandler, error) {
 	lexportDir, err := os.MkdirTemp("/tmp", "export-dir-*")
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 
 	ldataDir, err := os.MkdirTemp("/tmp", "data-dir-*")
 	if err != nil {
-		return "", "", nil, err
+		return "", "", nil, nil, err
 	}
 
 	CreateMigrationProjectIfNotExists(constants.POSTGRESQL, lexportDir)
@@ -98,7 +101,13 @@ func setupExportDirAndImportDependencies(batchSizeRows int64, batchSizeBytes int
 	state := NewImportDataState(lexportDir)
 	TableNameToSchema = utils.NewStructMap[sqlname.NameTuple, map[string]map[string]string]()
 	importerRole = TARGET_DB_IMPORTER_ROLE
-	return ldataDir, lexportDir, state, nil
+
+	errorHandler, err := importdata.GetImportDataErrorHandler(errorpolicy.AbortErrorPolicy, filepath.Join(lexportDir, "data"))
+
+	if err != nil {
+		return "", "", nil, nil, err
+	}
+	return ldataDir, lexportDir, state, errorHandler, nil
 }
 
 func createFileAndTask(lexportDir string, fileContents string, ldataDir string, tableName string, id int) (string, *ImportFileTask, error) {

@@ -25,6 +25,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -36,6 +37,8 @@ It uses a FileBatchProducer to produce batches. It submits each batch to a provi
 worker pool for processing. It also maintains and updates the progress of the task.
 */
 type FileTaskImporter struct {
+	state *ImportDataState
+
 	task                 *ImportFileTask
 	batchProducer        *FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
@@ -47,11 +50,14 @@ type FileTaskImporter struct {
 	totalProgressAmount   int64
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
+
+	errorHandler importdata.ImportDataErrorHandler
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool) (*FileTaskImporter, error) {
-	batchProducer, err := NewFileBatchProducer(task, state)
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
+	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
 	}
@@ -61,6 +67,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	fti := &FileTaskImporter{
+		state:                     state,
 		task:                      task,
 		batchProducer:             batchProducer,
 		workerPool:                workerPool,
@@ -70,6 +77,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		progressReporter:          progressReporter,
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
+		errorHandler:              errorHandler,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -178,11 +186,22 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+		if fti.errorHandler.ShouldAbort() {
+			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		}
+
+		// Handle the error
+		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		var err2 error
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err)
+		if err2 != nil {
+			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
+		}
+	} else {
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+		}
 	}
 }
 

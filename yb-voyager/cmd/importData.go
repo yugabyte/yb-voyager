@@ -40,6 +40,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -73,6 +75,7 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
+var errorPolicyString string
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -185,7 +188,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	importData(importFileTasks)
+	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
@@ -528,13 +531,19 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask) {
+func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.ErrorPolicy) {
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
 			"If a table has secondary indexes, setting --enable-upsert to true may lead to corruption of the indexes. Are you sure you want to proceed?")) {
 			utils.ErrExit("Aborting import.")
 		}
+	}
+
+	exportDirDataDir := filepath.Join(exportDir, "data")
+	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
+	if err != nil {
+		utils.ErrExit("Failed to initialize error handler: %s", err)
 	}
 
 	if importerRole == TARGET_DB_IMPORTER_ROLE {
@@ -647,7 +656,9 @@ func importData(importFileTasks []*ImportFileTask) {
 			useTaskPicker := utils.GetEnvAsBool("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT", true)
 			if useTaskPicker {
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
-				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter, maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress)
+				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
+					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
+					errorHandler)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
@@ -659,7 +670,7 @@ func importData(importFileTasks []*ImportFileTask) {
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -776,7 +787,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler) error {
 
 	var err error
 
@@ -816,7 +827,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -927,7 +938,8 @@ and colocated table batches to the colocatedBatchImportQueue.
 
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
-func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(), tableTypes *utils.StructMap[sqlname.NameTuple, string]) (*FileTaskImporter, error) {
+func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -936,12 +948,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
@@ -1177,7 +1189,7 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 			return nil, nil, fmt.Errorf("get table import state: %w", err)
 		}
 		switch fileImportState {
-		case FILE_IMPORT_COMPLETED:
+		case FILE_IMPORT_COMPLETED, FILE_IMPORT_COMPLETED_WITH_ERRORS:
 			completedTasks = append(completedTasks, task)
 		case FILE_IMPORT_IN_PROGRESS:
 			inProgressTasks = append(inProgressTasks, task)
