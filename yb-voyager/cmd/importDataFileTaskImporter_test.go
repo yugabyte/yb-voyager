@@ -269,6 +269,7 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	testutils.FatalIfError(t, err)
 
 	utils.MonkeyPatchUtilsErrExitWithPanic()
+	t.Cleanup(utils.RestoreUtilsErrExit)
 	assert.Panics(t, func() {
 		for !taskImporter.AllBatchesSubmitted() {
 			err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
