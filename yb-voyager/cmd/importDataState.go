@@ -355,17 +355,17 @@ func computePathHash(filePath, exportDir string) string {
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
 }
 
-func (s *ImportDataState) GetComputedFileTaskDir(filePath string, tableNameTup sqlname.NameTuple) (string, error) {
-	fullPath := s.getFileStateDir(filePath, tableNameTup)
-	// extract last two components of the path
-	// table::<table_name>/file::<base_name>::<path_hash>
-	fileDirPath := filepath.Base(fullPath)
-	if fileDirPath == "" {
-		return "", fmt.Errorf("invalid file path %q. could not retrieve filedirpath %q",
-			fullPath, fileDirPath)
-	}
-	return fileDirPath, nil
-}
+// func (s *ImportDataState) GetComputedFileTaskDir(filePath string, tableNameTup sqlname.NameTuple) (string, error) {
+// 	fullPath := s.getFileStateDir(filePath, tableNameTup)
+// 	// extract last components of the path
+// 	// table::<table_name>/file::<base_name>::<path_hash>
+// 	fileDirPath := filepath.Base(fullPath)
+// 	if fileDirPath == "" {
+// 		return "", fmt.Errorf("invalid file path %q. could not retrieve filedirpath %q",
+// 			fullPath, fileDirPath)
+// 	}
+// 	return fileDirPath, nil
+// }
 
 // func (s *ImportDataState) GetTableFileRelativePath(filePath string, tableNameTup sqlname.NameTuple) (string, error) {
 // 	fullPath := s.getFileStateDir(filePath, tableNameTup)
