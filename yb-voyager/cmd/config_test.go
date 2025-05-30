@@ -34,6 +34,8 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
+var originalErrExit func(string, ...interface{})
+
 // Helper functions
 
 // The function resetCmdAndEnvVars needs to be run before running the config file tests
@@ -51,6 +53,7 @@ func resetCmdAndEnvVars(cmd *cobra.Command) {
 	}
 	// override ErrExit to prevent the test from exiting because of some failed validations.
 	// We only care about testing whether the configuration and CLI flags are set correctly
+	originalErrExit = utils.ErrExit
 	utils.ErrExit = func(formatString string, args ...interface{}) {}
 
 }
@@ -64,6 +67,7 @@ func resetFlags(cmd *cobra.Command) {
 		f.Value.Set(f.DefValue)
 		f.Changed = false
 	})
+	utils.ErrExit = originalErrExit
 }
 
 func setupConfigFile(t *testing.T, configContent string) (string, string) {
