@@ -159,7 +159,7 @@ def main():
 	test_type_flags = common.valparser()
 
 	if test_type_flags['ff_enabled'] == 'true' or test_type_flags['fb_enabled'] == 'true':
-		change_expected_values()
+		update_expected_values_for_yb()
 
 	migration_completed_checks_yb()
 
@@ -185,6 +185,15 @@ def migration_completed_checks_fb():
 	update_expected_values_for_pg()
 	yb.run_checks(migration_completed_checks, db_type="source")
 
+def update_expected_values_for_yb():
+	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
+		EXPECTED_ROW_COUNT[table_name] = row_count
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB_FF.items():
+		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB[table_name] = row_count
+
+	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF.items():
+		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG[table_name] = row_count
 
 def update_expected_values_for_pg():
     # Copy expected row counts from PG-specific source to general structure
@@ -195,16 +204,6 @@ def update_expected_values_for_pg():
 	for _, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		if query_and_partition_name['schema_name'] == 'p2':
 			query_and_partition_name['partition_table_name'] = 'sydney'
-
-def change_expected_values():
-	for table_name, row_count in EXPECTED_ROW_COUNT_FF.items():
-		EXPECTED_ROW_COUNT[table_name] = row_count
-
-	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB_FF.items():
-		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_YB[table_name] = row_count
-
-	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG_FF.items():
-		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG[table_name] = row_count
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
