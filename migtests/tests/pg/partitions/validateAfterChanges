@@ -165,8 +165,7 @@ def main():
 
 	if test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
-
-	if test_type_flags['fb_enabled'] == 'true':
+	elif test_type_flags['fb_enabled'] == 'true':
 		migration_completed_checks_fb()
 
 def migration_completed_checks_yb():
@@ -196,14 +195,25 @@ def update_expected_values_for_yb():
 		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG[table_name] = row_count
 
 def update_expected_values_for_pg():
+    # print both dictionaries
+	print("(before) EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS:", EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS)
+	print("(before) INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION:", INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION)
+    
     # Copy expected row counts from PG-specific source to general structure
+    # This is to clear the existing entries in the dictionary other dual keys will be there
+	EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS.clear()
 	for table_name, row_count in EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS_PG.items():
 		EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[table_name] = row_count
 
 	# Update partition table name from p2.sydney_region to p2.sydney
+	# no need to clear the dictionary as we are updating the existing entries
 	for _, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		if query_and_partition_name['schema_name'] == 'p2':
 			query_and_partition_name['partition_table_name'] = 'sydney'
+
+	# print both dictionaries
+	print("(after) EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS:", EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS)
+	print("(after) INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION:", INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION)
 
 def migration_completed_checks(tgt):
 	table_list = tgt.get_table_names("public")
