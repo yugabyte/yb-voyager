@@ -91,13 +91,13 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	},
 	"Range_Column" : {
 		"insert_query": "INSERT INTO range_columns_partition_test VALUES (5,3)",
-		"delete_query": "DELETE FROM range_columns_partition_test WHERE col1 = 5 AND col2 = 3",
+		"delete_query": "DELETE FROM range_columns_partition_test WHERE a = 5 AND b = 3",
 		"partition_table_name": "range_columns_partition_test_p0",
 		"schema_name": "public"
 	},
 	"Hash" : {
 		"insert_query": "INSERT INTO emp VALUES(1001, 'user_1001', 49)",
-		"delete_query": "DELETE FROM emp WHERE id = 1001",
+		"delete_query": "DELETE FROM emp WHERE emp_id = 1001",
 		"partition_table_name": "emp_1",
 		"schema_name": "public"
 	},

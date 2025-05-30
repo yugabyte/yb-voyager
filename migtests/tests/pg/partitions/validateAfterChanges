@@ -85,43 +85,43 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"insert_query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
-		"delet_query": "DELETE FROM sales_region WHERE id = 1005",
+		"delete_query": "DELETE FROM sales_region WHERE id = 1005",
 		"partition_table_name": "sydney",
 		"schema_name": "public"
 	},
 	"List" : {
 		"insert_query": "INSERT INTO test_partitions_sequences  (amount, branch, region) VALUES (200025, 'Branch 1001','Sydney') ",
-		"delet_query": "DELETE FROM test_partitions_sequences WHERE amount = 200025",
+		"delete_query": "DELETE FROM test_partitions_sequences WHERE amount = 200025",
 		"partition_table_name": "test_partitions_sequences_s",
 		"schema_name": "public"
 	},
 	"List_partitions_in_different_schema" : {
 		"insert_query": "INSERT INTO p1.sales_region  (id, amount, branch, region) VALUES (1005, 2000, 'Branch 1001','Sydney') ",
-		"delet_query": "DELETE FROM p1.sales_region WHERE id = 1005",
+		"delete_query": "DELETE FROM p1.sales_region WHERE id = 1005",
 		"partition_table_name": "sydney_region",
 		"schema_name": "p2"
 	},
 	"Range" : {
 		"insert_query": "INSERT INTO sales(id, p_name, amount, sale_date) VALUES (1005, 'Person 1001', 5000, '2020-01-04 00:00:00')",
-		"delet_query": "DELETE FROM sales WHERE id = 1005",
+		"delete_query": "DELETE FROM sales WHERE id = 1005",
 		"partition_table_name": "sales_2020_q1",
 		"schema_name": "public"
 	},
 	"Range_Column" : {
 		"insert_query": "INSERT INTO range_columns_partition_test VALUES (7,7)",
-		"delet_query": "DELETE FROM range_columns_partition_test WHERE id = 7",
+		"delete_query": "DELETE FROM range_columns_partition_test WHERE a = 7",
 		"partition_table_name": "range_columns_partition_test_p1",
 		"schema_name": "public"
 	},
 	"Hash" : {
 		"insert_query": "INSERT INTO emp VALUES(1021, 'user_1001', 49)",
-		"delet_query": "DELETE FROM emp WHERE id = 1021",
+		"delete_query": "DELETE FROM emp WHERE emp_id = 1021",
 		"partition_table_name": "emp_1",
 		"schema_name": "public"
 	},
 	"Multilevel" : {
 		"insert_query": "INSERT INTO customers (id, statuses, arr) VALUES(1011, 'RECURRING', 282)",
-		"delet_query": "DELETE FROM customers WHERE id = 1011",
+		"delete_query": "DELETE FROM customers WHERE id = 1011",
 		"partition_table_name": "cust_part21",
 		"schema_name": "public"
 	}
