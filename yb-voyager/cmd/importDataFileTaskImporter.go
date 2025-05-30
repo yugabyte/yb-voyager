@@ -31,6 +31,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+var (
+	COPY_MAX_RETRY_COUNT = 10
+	MAX_SLEEP_SECOND     = 60
+)
+
 /*
 FileTaskImporter is responsible for importing an ImportFileTask.
 It uses a FileBatchProducer to produce batches. It submits each batch to a provided

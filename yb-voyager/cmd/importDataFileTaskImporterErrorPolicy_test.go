@@ -92,7 +92,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
-	// t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
@@ -137,4 +137,161 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 3, "three"
 4, "four"`,
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+}
+
+func TestTaskImportStachAndContinueErrorPolicy_NoErrors(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_error (id INT PRIMARY KEY, val TEXT);`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_error;`)
+
+	// file import
+	// gets divided into two batches. (1, 2), (3,4)
+	// no errors expected
+	fileContents := `id,val
+1, "hello"
+2, "world"
+3, "three"
+4, "four"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	assertTableRowCount(t, "test_table_error", 4)
+	assertTableIds(t, "test_table_error", []int64{1, 2, 3, 4})
+
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	assert.Equal(t, 0, len(erroredBatches), "Expected 0 errored batch")
+}
+
+func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_error (id INT PRIMARY KEY, val TEXT);`,
+		`INSERT INTO test_table_error VALUES (2, 'two');`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_error;`)
+
+	// file import
+	// gets divided into one batches. (1, 2)
+	// the single batch will have an error.
+	fileContents := `id,val
+1, "hello"
+2, "world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	assertTableRowCount(t, "test_table_error", 1)
+	assertTableIds(t, "test_table_error", []int64{2})
+
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
+
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.28.E")
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		`id,val
+1, "hello"
+2, "world"`,
+		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
+}
+
+func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentErrors(t *testing.T) {
+	COPY_MAX_RETRY_COUNT = 1 // Disable retry for COPY command to test error handling
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_error (id INT PRIMARY KEY, val TEXT, not_null_col TEXT NOT NULL, num_col INT, fixed_col char(2));`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_error;`)
+
+	// file import
+	// gets divided into five batches (2 per batch)
+	// first batch has error (string into an int column)
+	// third batch has an error (null into a not null column)
+	// fifth batch has an error (more than 2 chars into a fixed char[2] column)
+	// second and fourth batches should be imported successfully.
+	fileContents := `id,val,not_null_col,num_col,fixed_col
+1,"hello","abc",10,"ab"
+2,"world","xyz","xyz","cd"
+3,"foo","bar",20,"ef"
+4,"baz","qux",30,"gh"
+5,"quux",NULL,40,"ij"
+6,"corge","grault",50,"mn"
+7,"garply","waldo",60,"op"
+8,"fred","plugh",70,"qr"
+9,"xyzzy","thud",80,"st"
+10,"wibble","wobble",90,"uvwxyz"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	assertTableRowCount(t, "test_table_error", 4)
+	assertTableIds(t, "test_table_error", []int64{3, 4, 7, 8})
+
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
+
+	//	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.28.E")
+	//	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+	//		`id,val
+	//
+	// 1, "hello"
+	// 2, "world"`,
+	//
+	//	`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 }
