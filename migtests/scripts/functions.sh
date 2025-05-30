@@ -712,7 +712,7 @@ grant_permissions_for_live_migration() {
     fi
 }
 
-disable_triggers_and_fks() {
+disable_triggers_and_fks_yugabyte() {
   local disable_triggers_sql="disable_triggers.sql"
   local drop_constraints_sql="drop_fks.sql"
 

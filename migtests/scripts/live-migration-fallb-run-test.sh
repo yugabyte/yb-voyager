@@ -163,7 +163,7 @@ main() {
 	cat ${EXPORT_DIR}/metainfo/dataFileDescriptor.json
 
 	step "Disable triggers and foreign keys in YugabyteDB."
-	disable_triggers_fkeys_yugabyte
+	disable_triggers_and_fks_yugabyte
 
 	step "Import data."
 	import_data || { 
