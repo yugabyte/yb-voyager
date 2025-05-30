@@ -1389,39 +1389,33 @@ func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
-		batch := pgx.Batch{}
 		for _, column := range columns {
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-			batch.Queue(query)
-		}
-		sleepIntervalSec := 10
-		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-				br := conn.SendBatch(context.Background(), &batch)
-				for i := 0; i < batch.Len(); i++ {
-					_, err := br.Exec()
+			sleepIntervalSec := 10
+			for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+				err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+					// Execute the query to alter the column
+					_, err := conn.Exec(context.Background(), query)
 					if err != nil {
 						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
 					}
+					return false, nil
+				})
+
+				if err != nil {
+					log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
+					if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+						return false, err
+					}
+					log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
+					time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+					continue
 				}
-				if err := br.Close(); err != nil {
-					log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
-					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
-				}
-				return false, nil
-			})
-			if err != nil {
-				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-					return false, err
-				}
-				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-				continue
+				break
 			}
-			break
 		}
+
 		return true, nil
 	})
 }
