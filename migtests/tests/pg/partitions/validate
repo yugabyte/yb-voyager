@@ -202,7 +202,7 @@ def migration_completed_checks(tgt):
 
 def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, insert_query, delete_query, partition_table_name, schema_name):
 	chk_error_returned = tgt.run_query_and_chk_error(insert_query, None)
-	print(f"error returned while insert ({insert_query}) query - {chk_error_returned}")
+	print(f"error returned while query ({insert_query}), insert result - {chk_error_returned}")
 	assert chk_error_returned == False
 
 	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
@@ -215,7 +215,7 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, insert_query, dele
 
 	# Revert the change by deleting the inserted row
 	chk_error_returned = tgt.run_query_and_chk_error(delete_query, None)
-	print(f"error returned while delete ({delete_query}) query - {chk_error_returned}")
+	print(f"error returned while query ({delete_query}), delete result - {chk_error_returned}")
 	assert chk_error_returned == False
 
 if __name__ == "__main__":
