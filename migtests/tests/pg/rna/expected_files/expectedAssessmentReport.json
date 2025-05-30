@@ -1602,26 +1602,32 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with indexes on timestamp as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: expire_date",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "django_session_b7b81f0c ON rnacen.django_session",
 			"SqlStatement": "CREATE INDEX django_session_b7b81f0c ON rnacen.django_session USING btree (expire_date);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "expire_date"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with indexes on timestamp as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: expire_date",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "django_session_de54fa62 ON rnacen.django_session",
 			"SqlStatement": "CREATE INDEX django_session_de54fa62 ON rnacen.django_session USING btree (expire_date);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "expire_date"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -1836,559 +1842,688 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_group_permissions_group_id_permission_id_key ON rnacen.auth_group_permissions USING btree (group_id, permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_group_permissions_0e939a4f ON rnacen.auth_group_permissions",
 			"SqlStatement": "CREATE INDEX auth_group_permissions_0e939a4f ON rnacen.auth_group_permissions USING btree (group_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_group_permissions_group_id_permission_id_key ON rnacen.auth_group_permissions USING btree (group_id, permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX auth_group_permissions_8373b171 ON rnacen.auth_group_permissions USING btree (permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_group_permissions_83df41e ON rnacen.auth_group_permissions",
 			"SqlStatement": "CREATE INDEX auth_group_permissions_83df41e ON rnacen.auth_group_permissions USING btree (permission_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX auth_group_permissions_8373b171 ON rnacen.auth_group_permissions USING btree (permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_user_groups_user_id_group_id_key ON rnacen.auth_user_groups USING btree (user_id, group_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_groups_6340c63c ON rnacen.auth_user_groups",
 			"SqlStatement": "CREATE INDEX auth_user_groups_6340c63c ON rnacen.auth_user_groups USING btree (user_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_user_groups_user_id_group_id_key ON rnacen.auth_user_groups USING btree (user_id, group_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX rnc_rna_precomputed_upi_idx ON rnacen.rnc_rna_precomputed USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "rnc_rna_precomputed_98db0b07 ON rnacen.rnc_rna_precomputed",
 			"SqlStatement": "CREATE INDEX rnc_rna_precomputed_98db0b07 ON rnacen.rnc_rna_precomputed USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX rnc_rna_precomputed_upi_idx ON rnacen.rnc_rna_precomputed USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p10_deleted__upi_taxid ON rnacen.xref_p10_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p10_deleted$upi\" ON rnacen.xref_p10_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p10_deleted$upi\" ON rnacen.xref_p10_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p10_deleted__upi_taxid ON rnacen.xref_p10_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p19_deleted__upi_taxid ON rnacen.xref_p19_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p19_deleted$upi\" ON rnacen.xref_p19_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p19_deleted$upi\" ON rnacen.xref_p19_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p19_deleted__upi_taxid ON rnacen.xref_p19_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_permission_content_type_id_codename_key ON rnacen.auth_permission USING btree (content_type_id, codename)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_permission_37ef4eb4 ON rnacen.auth_permission",
 			"SqlStatement": "CREATE INDEX auth_permission_37ef4eb4 ON rnacen.auth_permission USING btree (content_type_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_permission_content_type_id_codename_key ON rnacen.auth_permission USING btree (content_type_id, codename)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX un_rfam_go_terms__rfam_model_id_ontology_term_id ON rnacen.rfam_go_terms USING btree (rfam_model_id, ontology_term_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "rfam_go_terms_4582906f ON rnacen.rfam_go_terms",
 			"SqlStatement": "CREATE INDEX rfam_go_terms_4582906f ON rnacen.rfam_go_terms USING btree (rfam_model_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX un_rfam_go_terms__rfam_model_id_ontology_term_id ON rnacen.rfam_go_terms USING btree (rfam_model_id, ontology_term_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p13_deleted__upi_taxid ON rnacen.xref_p13_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p13_deleted$upi\" ON rnacen.xref_p13_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p13_deleted$upi\" ON rnacen.xref_p13_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p13_deleted__upi_taxid ON rnacen.xref_p13_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p21_deleted__upi_taxid ON rnacen.xref_p21_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p21_deleted$upi\" ON rnacen.xref_p21_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p21_deleted$upi\" ON rnacen.xref_p21_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p21_deleted__upi_taxid ON rnacen.xref_p21_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p28_deleted__upi_taxid ON rnacen.xref_p28_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p28_deleted$upi\" ON rnacen.xref_p28_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p28_deleted$upi\" ON rnacen.xref_p28_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p28_deleted__upi_taxid ON rnacen.xref_p28_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p28_not_deleted__upi_taxid ON rnacen.xref_p28_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p28_not_deleted$upi\" ON rnacen.xref_p28_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p28_not_deleted$upi\" ON rnacen.xref_p28_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p28_not_deleted__upi_taxid ON rnacen.xref_p28_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p29_deleted__upi_taxid ON rnacen.xref_p29_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p29_deleted$upi\" ON rnacen.xref_p29_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p29_deleted$upi\" ON rnacen.xref_p29_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p29_deleted__upi_taxid ON rnacen.xref_p29_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX django_admin_log_37ef4eb4 ON rnacen.django_admin_log USING btree (content_type_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "django_admin_log_417f1b1c ON rnacen.django_admin_log",
 			"SqlStatement": "CREATE INDEX django_admin_log_417f1b1c ON rnacen.django_admin_log USING btree (content_type_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX django_admin_log_37ef4eb4 ON rnacen.django_admin_log USING btree (content_type_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX django_admin_log_6340c63c ON rnacen.django_admin_log USING btree (user_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "django_admin_log_e8701ad4 ON rnacen.django_admin_log",
 			"SqlStatement": "CREATE INDEX django_admin_log_e8701ad4 ON rnacen.django_admin_log USING btree (user_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX django_admin_log_6340c63c ON rnacen.django_admin_log USING btree (user_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_rnc_sequence_features__upi_taxid_name ON rnacen.rnc_sequence_features USING btree (upi, taxid, feature_name)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "ix_rnx_sequence_features_upi ON rnacen.rnc_sequence_features",
 			"SqlStatement": "CREATE INDEX ix_rnx_sequence_features_upi ON rnacen.rnc_sequence_features USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_rnc_sequence_features__upi_taxid_name ON rnacen.rnc_sequence_features USING btree (upi, taxid, feature_name)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_sequence_regions__assembly_id_chromosome_start_stop ON rnacen.rnc_sequence_regions USING btree (assembly_id, chromosome, region_start, region_stop)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "ix_rnc_sequence_regions__assembly_id ON rnacen.rnc_sequence_regions",
 			"SqlStatement": "CREATE INDEX ix_rnc_sequence_regions__assembly_id ON rnacen.rnc_sequence_regions USING btree (assembly_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_sequence_regions__assembly_id_chromosome_start_stop ON rnacen.rnc_sequence_regions USING btree (assembly_id, chromosome, region_start, region_stop)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref__upi_taxid ON rnacen.xref USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref$upi\" ON rnacen.xref",
 			"SqlStatement": "CREATE INDEX \"xref$upi\" ON rnacen.xref USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref__upi_taxid ON rnacen.xref USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p10_not_deleted__upi_taxid ON rnacen.xref_p10_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p10_not_deleted$upi\" ON rnacen.xref_p10_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p10_not_deleted$upi\" ON rnacen.xref_p10_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p10_not_deleted__upi_taxid ON rnacen.xref_p10_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p5_deleted__upi_taxid ON rnacen.xref_p5_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p5_deleted$upi\" ON rnacen.xref_p5_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p5_deleted$upi\" ON rnacen.xref_p5_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p5_deleted__upi_taxid ON rnacen.xref_p5_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p5_not_deleted__upi_taxid ON rnacen.xref_p5_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p5_not_deleted$upi\" ON rnacen.xref_p5_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p5_not_deleted$upi\" ON rnacen.xref_p5_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p5_not_deleted__upi_taxid ON rnacen.xref_p5_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX rnc_secondary_structure_layout_models_model_name_key ON rnacen.r2dt_models USING btree (model_name)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "fk_rnc_secondary_structure_layout_models__model_name ON rnacen.r2dt_models",
 			"SqlStatement": "CREATE INDEX fk_rnc_secondary_structure_layout_models__model_name ON rnacen.r2dt_models USING btree (model_name)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX rnc_secondary_structure_layout_models_model_name_key ON rnacen.r2dt_models USING btree (model_name)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX un_layout__urs ON rnacen.r2dt_results USING btree (urs)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "ix_layout__urs ON rnacen.r2dt_results",
 			"SqlStatement": "CREATE INDEX ix_layout__urs ON rnacen.r2dt_results USING btree (urs)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX un_layout__urs ON rnacen.r2dt_results USING btree (urs)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_rnc_references__reference_id_accesion ON rnacen.rnc_reference_map USING btree (reference_id, accession)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"rnc_references_map$reference_id\" ON rnacen.rnc_reference_map",
 			"SqlStatement": "CREATE INDEX \"rnc_references_map$reference_id\" ON rnacen.rnc_reference_map USING btree (reference_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_rnc_references__reference_id_accesion ON rnacen.rnc_reference_map USING btree (reference_id, accession)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p27_deleted__upi_taxid ON rnacen.xref_p27_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p27_deleted$upi\" ON rnacen.xref_p27_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p27_deleted$upi\" ON rnacen.xref_p27_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p27_deleted__upi_taxid ON rnacen.xref_p27_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p27_not_deleted__upi_taxid ON rnacen.xref_p27_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p27_not_deleted$upi\" ON rnacen.xref_p27_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p27_not_deleted$upi\" ON rnacen.xref_p27_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p27_not_deleted__upi_taxid ON rnacen.xref_p27_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p29_not_deleted__upi_taxid ON rnacen.xref_p29_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p29_not_deleted$upi\" ON rnacen.xref_p29_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p29_not_deleted$upi\" ON rnacen.xref_p29_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p29_not_deleted__upi_taxid ON rnacen.xref_p29_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX django_session_b7b81f0c ON rnacen.django_session USING btree (expire_date)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "django_session_de54fa62 ON rnacen.django_session",
 			"SqlStatement": "CREATE INDEX django_session_de54fa62 ON rnacen.django_session USING btree (expire_date)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX django_session_b7b81f0c ON rnacen.django_session USING btree (expire_date)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p21_not_deleted__upi_taxid ON rnacen.xref_p21_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p21_not_deleted$upi\" ON rnacen.xref_p21_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p21_not_deleted$upi\" ON rnacen.xref_p21_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p21_not_deleted__upi_taxid ON rnacen.xref_p21_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p22_deleted__upi_taxid ON rnacen.xref_p22_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p22_deleted$upi\" ON rnacen.xref_p22_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p22_deleted$upi\" ON rnacen.xref_p22_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p22_deleted__upi_taxid ON rnacen.xref_p22_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_user_groups_user_id_group_id_key ON rnacen.auth_user_groups USING btree (user_id, group_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_groups_e8701ad4 ON rnacen.auth_user_groups",
 			"SqlStatement": "CREATE INDEX auth_user_groups_e8701ad4 ON rnacen.auth_user_groups USING btree (user_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_user_groups_user_id_group_id_key ON rnacen.auth_user_groups USING btree (user_id, group_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX auth_user_user_permissions7493 ON rnacen.auth_user_user_permissions USING btree (permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_user_permissions_8373b171 ON rnacen.auth_user_user_permissions",
 			"SqlStatement": "CREATE INDEX auth_user_user_permissions_8373b171 ON rnacen.auth_user_user_permissions USING btree (permission_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX auth_user_user_permissions7493 ON rnacen.auth_user_user_permissions USING btree (permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX \"rnc_references_map$accession$reference_id\" ON rnacen.rnc_reference_map USING btree (accession, reference_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"rnc_references_map$accession\" ON rnacen.rnc_reference_map",
 			"SqlStatement": "CREATE INDEX \"rnc_references_map$accession\" ON rnacen.rnc_reference_map USING btree (accession)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX \"rnc_references_map$accession$reference_id\" ON rnacen.rnc_reference_map USING btree (accession, reference_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p22_not_deleted__upi_taxid ON rnacen.xref_p22_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p22_not_deleted$upi\" ON rnacen.xref_p22_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p22_not_deleted$upi\" ON rnacen.xref_p22_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p22_not_deleted__upi_taxid ON rnacen.xref_p22_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_permission_content_type_id_codename_key ON rnacen.auth_permission USING btree (content_type_id, codename)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_permission_417f1b1c ON rnacen.auth_permission",
 			"SqlStatement": "CREATE INDEX auth_permission_417f1b1c ON rnacen.auth_permission USING btree (content_type_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_permission_content_type_id_codename_key ON rnacen.auth_permission USING btree (content_type_id, codename)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX auth_user_groups_0e939a4f ON rnacen.auth_user_groups USING btree (group_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_groups_5f412f9a ON rnacen.auth_user_groups",
 			"SqlStatement": "CREATE INDEX auth_user_groups_5f412f9a ON rnacen.auth_user_groups USING btree (group_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX auth_user_groups_0e939a4f ON rnacen.auth_user_groups USING btree (group_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_user_user_permissions_user_id_permission_id_key ON rnacen.auth_user_user_permissions USING btree (user_id, permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_user_permissionsbd5d ON rnacen.auth_user_user_permissions",
 			"SqlStatement": "CREATE INDEX auth_user_user_permissionsbd5d ON rnacen.auth_user_user_permissions USING btree (user_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_user_user_permissions_user_id_permission_id_key ON rnacen.auth_user_user_permissions USING btree (user_id, permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_rnc_references__reference_id_accesion ON rnacen.rnc_reference_map USING btree (reference_id, accession)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"rnc_reference_map$reference_id\" ON rnacen.rnc_reference_map",
 			"SqlStatement": "CREATE INDEX \"rnc_reference_map$reference_id\" ON rnacen.rnc_reference_map USING btree (reference_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_rnc_references__reference_id_accesion ON rnacen.rnc_reference_map USING btree (reference_id, accession)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_sequence_regions__assembly_id_chromosome_start_stop ON rnacen.rnc_sequence_regions USING btree (assembly_id, chromosome, region_start, region_stop)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "ix_sequence_regions__assembly_id_chromosome ON rnacen.rnc_sequence_regions",
 			"SqlStatement": "CREATE INDEX ix_sequence_regions__assembly_id_chromosome ON rnacen.rnc_sequence_regions USING btree (assembly_id, chromosome)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_sequence_regions__assembly_id_chromosome_start_stop ON rnacen.rnc_sequence_regions USING btree (assembly_id, chromosome, region_start, region_stop)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_group_permissions_group_id_permission_id_key ON rnacen.auth_group_permissions USING btree (group_id, permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_group_permissions_5f4a8d8 ON rnacen.auth_group_permissions",
 			"SqlStatement": "CREATE INDEX auth_group_permissions_5f4a8d8 ON rnacen.auth_group_permissions USING btree (group_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_group_permissions_group_id_permission_id_key ON rnacen.auth_group_permissions USING btree (group_id, permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX auth_user_user_permissions_user_id_permission_id_key ON rnacen.auth_user_user_permissions USING btree (user_id, permission_id)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "auth_user_user_permissions_e8701ad4 ON rnacen.auth_user_user_permissions",
 			"SqlStatement": "CREATE INDEX auth_user_user_permissions_e8701ad4 ON rnacen.auth_user_user_permissions USING btree (user_id)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX auth_user_user_permissions_user_id_permission_id_key ON rnacen.auth_user_user_permissions USING btree (user_id, permission_id)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p13_not_deleted__upi_taxid ON rnacen.xref_p13_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p13_not_deleted$upi\" ON rnacen.xref_p13_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p13_not_deleted$upi\" ON rnacen.xref_p13_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p13_not_deleted__upi_taxid ON rnacen.xref_p13_not_deleted USING btree (upi, taxid)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX ix_xref_p19_not_deleted__upi_taxid ON rnacen.xref_p19_not_deleted USING btree (upi, taxid)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "\"xref_p19_not_deleted$upi\" ON rnacen.xref_p19_not_deleted",
 			"SqlStatement": "CREATE INDEX \"xref_p19_not_deleted$upi\" ON rnacen.xref_p19_not_deleted USING btree (upi)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX ix_xref_p19_not_deleted__upi_taxid ON rnacen.xref_p19_not_deleted USING btree (upi, taxid)"
+			}
 		}
 	],
 	"TableIndexStats": [
