@@ -617,6 +617,18 @@
                                                         {{ end }}
                                                     </td>
                                                 </tr>
+                                               {{ if $issue.Details }}
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            {{ range $key, $value := $issue.Details }}
+                                                                <li>{{ camelCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
+                                                            {{ end }}
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               {{ end }}
                                             </tbody>
                                         </table>
                                     </div>

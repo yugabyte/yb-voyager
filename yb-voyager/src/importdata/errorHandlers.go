@@ -17,12 +17,20 @@ limitations under the License.
 package importdata
 
 import (
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
+
+type ImportDataErrorHandler interface {
+	ShouldAbort() bool
+	HandleRowProcessingError() error
+	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
+}
 
 type ErroredBatch interface {
 	GetFilePath() string
@@ -31,6 +39,7 @@ type ErroredBatch interface {
 	MarkError(batchErr error) error
 }
 
+// -----------------------------------------------------------------------------------------------------//
 type ImportDataAbortHandler struct {
 }
 
@@ -47,10 +56,12 @@ func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
 	return nil
 }
 
-func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error {
+func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
 	// nothing to do.
 	return nil
 }
+
+// -----------------------------------------------------------------------------------------------------//
 
 /*
 Stash the error to some file(s) with the relevant error information
@@ -71,50 +82,61 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() err
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error {
+/*
+- Mark the batch as errored out. x.x.x.x.P -> x.x.x.x.E
+- Create a symlink in the errors folder, pointing to metainfo/import_data_state/.../<batch_file_name>
+*/
+func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
+	if batch == nil {
+		return fmt.Errorf("batch cannot be nil")
+	}
+	if taskFilePath == "" {
+		return fmt.Errorf("task file path cannot be empty")
+	}
+
 	err := batch.MarkError(batchErr)
 	if err != nil {
 		return fmt.Errorf("marking batch as errored: %s", err)
 	}
-	err = handler.createBatchSymlinkInErrorsFolder(batch, importFileTaskId)
+	err = handler.createBatchSymlinkInErrorsFolder(batch, taskFilePath)
 	if err != nil {
 		return fmt.Errorf("creating symlink in errors folder: %s", err)
 	}
 	return nil
 }
 
-func (handler *ImportDataStashAndContinueHandler) getTaskErrorsFolderPath(batch ErroredBatch, importFileTaskId string) string {
-	return filepath.Join(handler.dataDir, "errors", batch.GetTableName().ForMinOutput(), importFileTaskId)
-}
-
-func (handler *ImportDataStashAndContinueHandler) mkdirPErrorsFolder(batch ErroredBatch, importFileTaskId string) error {
-	err := os.MkdirAll(handler.getTaskErrorsFolderPath(batch, importFileTaskId), os.ModePerm)
+// create a symlink to the batch file in the errors folder so that all errors are in one place.
+// ingestion-error.<batch_file_name> -> metainfo/.../<batch_file_name>
+func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, taskFilePath string) error {
+	err := os.MkdirAll(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
-	return nil
-}
 
-func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, importFileTaskId string) error {
-	err := handler.mkdirPErrorsFolder(batch, importFileTaskId)
-	if err != nil {
-		return fmt.Errorf("creating errors folder: %s", err)
-	}
-	// create a symlink to the batch file in the errors folder so that all errors are in one place.
-	// errors/ingestion-error.<batch_file_name> -> <batch_file_name>
 	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
-	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getTaskErrorsFolderPath(batch, importFileTaskId), symlinkFileName))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
 	}
 	return nil
 }
 
-type ImportDataErrorHandler interface {
-	ShouldAbort() bool
-	HandleRowProcessingError() error
-	HandleBatchIngestionError(batch ErroredBatch, importFileTaskId string, batchErr error) error
+// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/
+func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTask(batch ErroredBatch, taskFilePath string) string {
+	tableFolder := fmt.Sprintf("table::%s", batch.GetTableName().ForMinOutput())
+	// the entire path of the file can be long, so to make it shorter,
+	// we compute a hash of the file path and also include the base file name of the file.
+	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), computePathHash(taskFilePath))
+	return filepath.Join(handler.dataDir, "errors", tableFolder, taskFolder)
 }
+
+func computePathHash(filePath string) string {
+	hash := sha1.New()
+	hash.Write([]byte(filePath))
+	return hex.EncodeToString(hash.Sum(nil))[0:8]
+}
+
+// -----------------------------------------------------------------------------------------------------//
 
 func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
 	switch errorPolicy {

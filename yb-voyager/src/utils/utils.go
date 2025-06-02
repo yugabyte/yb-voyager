@@ -761,6 +761,30 @@ func SnakeCaseToTitleCase(snake string) string {
 	return strings.Join(words, " ")
 }
 
+// CamelCaseToTitleCase converts a CamelCase string to a title case string with spaces.
+func CamelCaseToTitleCase(camel string) string {
+	// Handle acronym followed by capital-lowercase, e.g. "SQLStatement" -> "SQL Statement"
+	re := regexp.MustCompile(`([A-Z]+)([A-Z][a-z])`)
+	camel = re.ReplaceAllString(camel, `$1 $2`)
+
+	re = regexp.MustCompile(`([a-z])([A-Z])`)
+	// Insert a space before all caps that are coming after lowercase letters
+	camel = re.ReplaceAllString(camel, `$1 $2`)
+
+	// Split into words and capitalize
+	c := cases.Title(language.English)
+	words := strings.Fields(camel)
+	for i, word := range words {
+		if word == strings.ToUpper(word) {
+			// Keep acronym as-is
+			continue
+		}
+		words[i] = c.String(word)
+	}
+
+	return strings.Join(words, " ")
+}
+
 // MatchesFormatString checks if the final string matches the format string with %s placeholders filled.
 func MatchesFormatString(format, final string) (bool, error) {
 	regexPattern, err := formatToRegex(format)

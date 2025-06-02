@@ -591,52 +591,64 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "title_idx_u1 ON idx_ex.films",
 			"SqlStatement": "CREATE UNIQUE INDEX title_idx_u1 ON idx_ex.films USING btree (title)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "title_idx_with_duplicates ON idx_ex.films",
 			"SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "grect2ind3 ON am_examples.fast_emp4000",
 			"SqlStatement": "CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "title_idx ON idx_ex.films",
 			"SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70')",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX title_idx_u2 ON idx_ex.films USING btree (title) INCLUDE (director, rating)"
+			}
 		},
 		{
 			"Category": "unsupported_features",

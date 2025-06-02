@@ -606,6 +606,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	var pendingTasks, completedTasks []*ImportFileTask
 	state := NewImportDataState(exportDir)
 	if startClean {
+		err := cleanMSRForImportDataStartClean()
+		if err != nil {
+
+		}
 		cleanImportState(state, importFileTasks)
 		pendingTasks = importFileTasks
 	} else {
@@ -1416,4 +1420,31 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 	}
 
 	return result
+}
+
+func saveOnPrimaryKeyConflictActionInMSR() {
+	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+		record.OnPrimaryKeyConflictAction = tconf.OnPrimaryKeyConflictAction
+	})
+}
+
+func cleanMSRForImportDataStartClean() error {
+	if !startClean {
+		log.Infof("skipping cleaning migration status record for import data command start clean")
+		return nil
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("failed to get migration status record: %s", err)
+	}
+
+	if msr == nil {
+		return fmt.Errorf("migration status record not found.")
+	} else {
+		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			msr.OnPrimaryKeyConflictAction = ""
+		})
+	}
+	return nil
 }

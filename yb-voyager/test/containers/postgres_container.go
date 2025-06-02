@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/docker/go-connections/nat"
@@ -16,11 +17,15 @@ import (
 )
 
 type PostgresContainer struct {
+	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
+	pg.mutex.Lock()
+	defer pg.mutex.Unlock()
+
 	// if container is not nil, it means it was already started
 	if pg.container != nil {
 		// already running, do nothing.
@@ -92,6 +97,9 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 // The underlying data directory remains intact, so you can call Start() later
 // and the DB will pick up with exactly the same contents.
 func (pg *PostgresContainer) Stop(ctx context.Context) error {
+	pg.mutex.Lock()
+	defer pg.mutex.Unlock()
+
 	if pg.container == nil {
 		return nil
 	} else if !pg.container.IsRunning() {
@@ -108,6 +116,9 @@ func (pg *PostgresContainer) Stop(ctx context.Context) error {
 }
 
 func (pg *PostgresContainer) Terminate(ctx context.Context) {
+	pg.mutex.Lock()
+	defer pg.mutex.Unlock()
+
 	if pg == nil {
 		return
 	}
