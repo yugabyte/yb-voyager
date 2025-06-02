@@ -382,6 +382,14 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
+			if err != nil {
+				utils.ErrExit("error checking if replication slot is active: %v", err)
+			}
+			if isActive {
+				utils.ErrExit("Replication slot - %s is active. Check using the command `ps -ef | grep voyager` and terminate if there is any other voyager process is running.", msr.PGPublicationName)
+			}
+
 			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
@@ -645,6 +653,16 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 		}
 	}
 	return allLeafPartitions
+}
+
+func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
+	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+	if !ok {
+		return false, fmt.Errorf("source type is not PostgreSQL")
+	}
+
+	return pgDB.CheckIfReplicationSlotIsActive(replicationSlot) 
+
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
