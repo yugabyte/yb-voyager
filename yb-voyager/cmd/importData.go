@@ -74,7 +74,6 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
-var errorPolicyString string
 
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
