@@ -165,14 +165,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
-		obfuscatedIssue := callhome.AssessmentIssueCallhome{
-			Category:            issue.Category,
-			CategoryDescription: issue.CategoryDescription,
-			Type:                issue.Type,
-			Name:                issue.Name,
-			Impact:              issue.Impact,
-			ObjectType:          issue.ObjectType,
-		}
+		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
@@ -253,7 +246,8 @@ func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
 		"Path of the file containing source SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full)")
+		fmt.Sprintf("specify the source SSL mode out of: [%s]",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"Path of the file containing source SSL Key")
@@ -559,6 +553,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
+
 		ybdIssue := AssessmentIssueYugabyteD{
 			Category:               issue.Category,
 			CategoryDescription:    issue.CategoryDescription,
@@ -571,6 +566,8 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+
+			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
 	}
@@ -1619,7 +1616,7 @@ func considerQueryForIssueDetection(collectedSchemaList []string) bool {
 }
 
 const (
-	PREVIEW_FEATURES_NOTE = `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`
+	PREVIEW_FEATURES_NOTE                = `Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.`
 	RANGE_SHARDED_INDEXES_RECOMMENDATION = `If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.
 By default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/develop/postgresql-compatibility/">PostgreSQL compatibility mode</a> in YugabyteDB.`
 	COLOCATED_TABLE_RECOMMENDATION_CAVEAT = `If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
@@ -1787,8 +1784,29 @@ func postProcessingOfAssessmentReport() {
 		for i := range assessmentReport.Issues {
 			assessmentReport.Issues[i].Impact = "-"
 		}
+	case POSTGRESQL:
+		//sort issues based on Category with a defined order and keep all the Performance Optimization ones at the last
+		var categoryOrder = map[string]int{
+			UNSUPPORTED_DATATYPES_CATEGORY:        0,
+			UNSUPPORTED_FEATURES_CATEGORY:         1,
+			UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY: 2,
+			UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY:  3,
+			MIGRATION_CAVEATS_CATEGORY:            4,
+			PERFORMANCE_OPTIMIZATIONS_CATEGORY:    5,
+		}
 
+		sort.Slice(assessmentReport.Issues, func(i, j int) bool {
+			rank := func(cat string) int {
+				if r, ok := categoryOrder[cat]; ok {
+					return r
+				}
+				//New categories are considered last in the ordering
+				return len(categoryOrder)
+			}
+			return rank(assessmentReport.Issues[i].Category) < rank(assessmentReport.Issues[j].Category)
+		})
 	}
+
 }
 
 func generateAssessmentReportJson(reportDir string) error {
@@ -1833,6 +1851,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
 		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"camelCaseToTitleCase":             utils.CamelCaseToTitleCase,
 		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))

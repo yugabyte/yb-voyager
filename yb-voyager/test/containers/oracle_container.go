@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/docker/go-connections/nat"
@@ -15,11 +16,15 @@ import (
 )
 
 type OracleContainer struct {
+	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
 }
 
 func (ora *OracleContainer) Start(ctx context.Context) (err error) {
+	ora.mutex.Lock()
+	defer ora.mutex.Unlock()
+
 	if ora.container != nil {
 		if ora.container.IsRunning() {
 			utils.PrintAndLog("Oracle-%s container already running", ora.DBVersion)
@@ -87,6 +92,9 @@ func (ora *OracleContainer) Start(ctx context.Context) (err error) {
 // The underlying data directory remains intact, so you can call Start() later
 // and the DB will pick up with exactly the same contents.
 func (ora *OracleContainer) Stop(ctx context.Context) error {
+	ora.mutex.Lock()
+	defer ora.mutex.Unlock()
+
 	if ora.container == nil {
 		return nil
 	} else if !ora.container.IsRunning() {
@@ -103,6 +111,9 @@ func (ora *OracleContainer) Stop(ctx context.Context) error {
 }
 
 func (ora *OracleContainer) Terminate(ctx context.Context) {
+	ora.mutex.Lock()
+	defer ora.mutex.Unlock()
+
 	if ora == nil {
 		return
 	}

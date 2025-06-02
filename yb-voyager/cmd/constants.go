@@ -242,10 +242,11 @@ const (
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
-var validSSLModes = map[string][]string{
-	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
-	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
-	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+var AllSSLModes = []string{constants.DISABLE, constants.PREFER, constants.ALLOW, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
+var ValidSSLModesForSourceDB = map[string][]string{
+	MYSQL:      {constants.DISABLE, constants.PREFER, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}, // MySQL does not support ALLOW mode
+	POSTGRESQL: AllSSLModes,
+	YUGABYTEDB: AllSSLModes,
 }
 
 var EVENT_BATCH_MAX_RETRY_COUNT = 50

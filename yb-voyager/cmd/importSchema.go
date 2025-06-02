@@ -47,6 +47,10 @@ var importSchemaCmd = &cobra.Command{
 		if tconf.TargetDBType == "" {
 			tconf.TargetDBType = YUGABYTEDB
 		}
+		if importerRole == "" {
+			importerRole = TARGET_DB_IMPORTER_ROLE
+		}
+
 		err := retrieveMigrationUUID()
 		if err != nil {
 			utils.ErrExit("failed to get migration UUID: %w", err)
