@@ -1844,6 +1844,17 @@
                                                         
                                                     </td>
                                                 </tr>
+
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>combined_tbl_bittv_key</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -2251,6 +2262,17 @@
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Function Names: <code>[lo_manage]</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>
@@ -3928,6 +3950,16 @@ FROM
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>orders2_order_number_key</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -5213,6 +5245,17 @@ WHERE age > 30</pre>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>test_jsonb_id_region_fkey</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>
@@ -6208,6 +6251,17 @@ FROM employees2</pre>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>combined_tbl_pkey</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>
@@ -13435,6 +13489,17 @@ FROM employees2</pre>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>uk</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>
@@ -13827,6 +13892,17 @@ INHERITS (public.parent_table);</pre>
                                                                 <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Large Objects functions are not supported in YugabyteDB.</pre>
                                                             </div>
                                                         
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Function Names: <code>[lo_unlink]</code></li>
+                                                        
+                                                        </ul>
                                                     </td>
                                                 </tr>
                                             </tbody>
@@ -14817,6 +14893,16 @@ INHERITS (public.parent_table);</pre>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>no_same_name_address</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -15394,6 +15480,16 @@ INHERITS (public.parent_table);</pre>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Constraint Name: <code>orders2_order_number_key</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -15685,9 +15781,20 @@ INHERITS (public.parent_table);</pre>
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
                                                                 <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
 To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.
-Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: shipped_date</pre>
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
                                                             </div>
                                                         
+                                                    </td>
+                                                </tr>
+
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Column Name: <code>shipped_date</code></li>
+                                                        
+                                                        </ul>
                                                     </td>
                                                 </tr>
                                             </tbody>
@@ -15785,9 +15892,19 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
                                                                 <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
 To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.
-Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: processed_at</pre>
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.</pre>
                                                             </div>
                                                         
+                                                    </td>
+                                                </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Column Name: <code>processed_at</code></li>
+                                                        
+                                                        </ul>
                                                     </td>
                                                 </tr>
                                             </tbody>
@@ -15883,12 +16000,22 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
-Existing Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)</pre>
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.</pre>
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Existing Index SQL Statement: <code>CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>
@@ -15982,12 +16109,22 @@ Existing Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USIN
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.
-Existing Index SQL Statement: CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)</pre>
+                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.</pre>
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                                <tr>
+                                                    <th class="centered-cell">More Information</th>
+                                                    <td>
+                                                        <ul>
+                                                        
+                                                            <li>Existing Index SQL Statement: <code>CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)</code></li>
+                                                        
+                                                        </ul>
+                                                    </td>
+                                                </tr>
+                                           
                                             </tbody>
                                         </table>
                                     </div>

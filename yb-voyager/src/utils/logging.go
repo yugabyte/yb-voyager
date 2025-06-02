@@ -24,6 +24,8 @@ import (
 	"github.com/tebeka/atexit"
 )
 
+var originalErrExit func(formatString string, args ...interface{})
+
 var ErrExitErr error
 
 var ErrExit = func(formatString string, args ...interface{}) {
@@ -40,4 +42,24 @@ func PrintAndLog(formatString string, args ...interface{}) {
 		formatString = formatString + "\n"
 	}
 	fmt.Printf(formatString, args...)
+}
+
+func MonkeyPatchUtilsErrExitWithPanic() {
+	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+		panic("utils.ErrExit was called with: " + fmt.Sprintf(formatString, args...))
+	})
+}
+
+// monkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
+// It replaces the original function with a new one provided by the caller.
+func monkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
+	originalErrExit = ErrExit
+	ErrExit = newErrExit
+}
+
+// RestoreUtilsErrExit restores the original utils.ErrExit function after monkey patching.
+func RestoreUtilsErrExit() {
+	if originalErrExit != nil {
+		ErrExit = originalErrExit
+	}
 }

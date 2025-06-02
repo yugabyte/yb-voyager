@@ -19,8 +19,20 @@ package queryissue
 import (
 	"fmt"
 
+	"github.com/samber/lo"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/issue"
+)
+
+const (
+	//BEFORE ADDING ANY KEY FOR DETAILS MAP, ADD IT TO THE SensitiveKeysInIssueDetailsMap in query_issue.go
+	COLUMN_NAME                  = "ColumnName"
+	EXISTING_INDEX_SQL_STATEMENT = "ExistingIndexSQLStatement"
+	CARDINALITY                  = "Cardinality"
+	FREQUENCY_OF_NULLS           = "FrequencyOfNulls"
+	VALUE                        = "Value"
+	FREQUENCY_OF_VALUE           = "FrequencyOfTheValue"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{
@@ -34,10 +46,11 @@ var hotspotsOnDateIndexes = issue.Issue{
 
 func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := hotspotsOnDateIndexes
-	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var hotspotsOnTimestampIndexes = issue.Issue{
@@ -51,10 +64,11 @@ var hotspotsOnTimestampIndexes = issue.Issue{
 
 func NewHotspotOnTimestampIndexIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
 	issue := hotspotsOnTimestampIndexes
-	if colName != "" {
-		issue.Description = fmt.Sprintf("%s Affected column: %s", issue.Description, colName)
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var redundantIndexesIssue = issue.Issue{
@@ -67,10 +81,11 @@ var redundantIndexesIssue = issue.Issue{
 
 func NewRedundantIndexIssue(objectType string, objectName string, sqlStatement string, existingDDL string) QueryIssue {
 	issue := redundantIndexesIssue
-	if existingDDL != "" {
-		issue.Description = fmt.Sprintf("%s\nExisting Index SQL Statement: %s", issue.Description, existingDDL)
+	details := map[string]interface{}{
+		EXISTING_INDEX_SQL_STATEMENT: existingDDL,
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var lowCardinalityIndexIssue = issue.Issue{
@@ -83,11 +98,16 @@ var lowCardinalityIndexIssue = issue.Issue{
 func NewLowCardinalityIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, cardinality int64, columnName string) QueryIssue {
 	issue := lowCardinalityIndexIssue
 	if isSingleColumnIndex {
-		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN, columnName, cardinality)
+		issue.Description = fmt.Sprintf("%s %s", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN)
 	} else {
-		issue.Description = fmt.Sprintf("%s %s\nCardinality of the column '%s' is %d.", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN, columnName, cardinality)
+		issue.Description = fmt.Sprintf("%s %s", LOW_CARDINALITY_DESCRIPTION, LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN)
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+
+	details := map[string]interface{}{
+		COLUMN_NAME: columnName,
+		CARDINALITY: cardinality,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var nullValueIndexes = issue.Issue{
@@ -100,12 +120,16 @@ var nullValueIndexes = issue.Issue{
 func NewNullValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, nullFrequency int, columnName string) QueryIssue {
 	issue := nullValueIndexes
 	if isSingleColumnIndex {
-		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN, columnName, nullFrequency)
+		issue.Description = fmt.Sprintf("%s %s", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN)
 	} else {
-		issue.Description = fmt.Sprintf("%s %s\nFrequency of NULLs on the column '%s' is %d%%.", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN, columnName, nullFrequency)
+		issue.Description = fmt.Sprintf("%s %s", NULL_VALUE_INDEXES_DESCRIPTION, NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN)
 
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	details := map[string]interface{}{
+		FREQUENCY_OF_NULLS: fmt.Sprintf("%d%%", nullFrequency),
+		COLUMN_NAME:        columnName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
 var mostFrequentValueIndexIssue = issue.Issue{
@@ -118,10 +142,15 @@ var mostFrequentValueIndexIssue = issue.Issue{
 func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlStatement string, isSingleColumnIndex bool, value string, frequency int, columnName string) QueryIssue {
 	issue := mostFrequentValueIndexIssue
 	if isSingleColumnIndex {
-		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN, value, frequency, columnName)
+		issue.Description = fmt.Sprintf("%s %s", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN)
 	} else {
-		issue.Description = fmt.Sprintf("%s %s\nFrequently occuring value '%s' with frequency %d%% on the column '%s'.", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN, value, frequency, columnName)
+		issue.Description = fmt.Sprintf("%s %s", MOST_FREQUENT_VALUE_INDEX_DESCRIPTION, MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN)
 
 	}
-	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+	details := map[string]interface{}{
+		VALUE:              lo.Ternary(value != "", value, `' '`),
+		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
+		COLUMN_NAME:        columnName,
+	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }

@@ -165,14 +165,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg string) {
 
 	var obfuscatedIssues []callhome.AssessmentIssueCallhome
 	for _, issue := range assessmentReport.Issues {
-		obfuscatedIssue := callhome.AssessmentIssueCallhome{
-			Category:            issue.Category,
-			CategoryDescription: issue.CategoryDescription,
-			Type:                issue.Type,
-			Name:                issue.Name,
-			Impact:              issue.Impact,
-			ObjectType:          issue.ObjectType,
-		}
+		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
 
 		// special handling for extensions issue: adding extname to issue.Name
 		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
@@ -560,6 +553,7 @@ func createMigrationAssessmentCompletedEvent() *cp.MigrationAssessmentCompletedE
 func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []AssessmentIssueYugabyteD {
 	var result []AssessmentIssueYugabyteD
 	for _, issue := range ar.Issues {
+
 		ybdIssue := AssessmentIssueYugabyteD{
 			Category:               issue.Category,
 			CategoryDescription:    issue.CategoryDescription,
@@ -572,6 +566,8 @@ func convertAssessmentIssueToYugabyteDAssessmentIssue(ar AssessmentReport) []Ass
 			SqlStatement:           issue.SqlStatement,
 			DocsLink:               issue.DocsLink,
 			MinimumVersionsFixedIn: issue.MinimumVersionsFixedIn,
+
+			Details: issue.Details,
 		}
 		result = append(result, ybdIssue)
 	}
@@ -1855,6 +1851,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
 		"getSupportedVersionString":        getSupportedVersionString,
 		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
+		"camelCaseToTitleCase":             utils.CamelCaseToTitleCase,
 		"getSqlPreview":                    utils.GetSqlStmtToPrint,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))

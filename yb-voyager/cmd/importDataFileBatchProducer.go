@@ -23,6 +23,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -45,9 +46,11 @@ type FileBatchProducer struct {
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
+
+	errorHandler importdata.ImportDataErrorHandler
 }
 
-func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBatchProducer, error) {
+func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler) (*FileBatchProducer, error) {
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("preparing for file import: %s", err)
@@ -74,6 +77,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 		fileFullySplit:  fileFullySplit,
 		completed:       completed,
 		numLinesTaken:   lastOffset,
+		errorHandler:    errorHandler,
 	}, nil
 }
 
