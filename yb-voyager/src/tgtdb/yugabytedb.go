@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -591,6 +592,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	} else {
 		copyCommand = args.GetYBTxnCopyStatement()
 	}
+
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
@@ -634,8 +636,11 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	rowsAffected = 0
 
 	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
-	// TODO (high priority): fix https://yugabyte.atlassian.net/browse/DB-16276 otherwise syntax error for non public schema data import
-	insertStmt := args.GetInsertPreparedStmtForBatchImport()
+	copyCommand := args.GetYBTxnCopyStatement()
+	header := ""
+	if args.HasHeader {
+		header = df.GetHeader()
+	}
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
@@ -656,23 +661,38 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			}
 		}
 
-		fields := strings.Split(line, args.Delimiter)
-		stmtArgs := make([]interface{}, len(fields))
-		for i, val := range fields {
-			stmtArgs[i] = val
+		var singleLineReader io.Reader
+		if header != "" {
+			singleLineReader = strings.NewReader(header + "\n" + line)
+		} else {
+			singleLineReader = strings.NewReader(line)
 		}
 
-		// 5. Execute the INSERT statement one by one
-		res, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
+		// 5. Execute the COPY statement with the line read from the file
+		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
-			return 0, fmt.Errorf("insert into target table: %w", err)
+			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
+			if strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
+				log.Debugf("ignoring error %q for batch %q, as it is a conflict error", err.Error(), batch.GetFilePath())
+				rowsIgnored++ // increment before continuing to next line
+				continue
+			}
+
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			}
+			return rowsAffected + rowsIgnored, err
 		}
 
+		// rowsAffected will be either 0 or 1
+		// 0 means the row was ignored due to conflict
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
 			rowsIgnored++
 		}
+
 		if readLinErr == io.EOF { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
@@ -693,9 +713,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored",
 		args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 	log.Debugf("(recovery) [conflict_action=%s] %q => insert stmt: %s, rows inserted: %d, rows ignored: %d",
-		args.PKConflictAction, batch.GetFilePath(), insertStmt, rowsAffected, rowsIgnored)
+		args.PKConflictAction, batch.GetFilePath(), copyCommand, rowsAffected, rowsIgnored)
 
-	// 8. returns total number of rows
+	// 8. returns total number of rows so that stats reporting(import data status) is consistent
 	return totalRowsInBatch, nil
 }
 
