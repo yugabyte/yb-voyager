@@ -113,8 +113,6 @@ def main():
 	test_type_flags = common.valparser()
 
 	migration_completed_checks_yb()
-	global EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS
-	EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS = {}
 
 	if test_type_flags['ff_enabled'] == 'true':
 		migration_completed_checks_ff()
