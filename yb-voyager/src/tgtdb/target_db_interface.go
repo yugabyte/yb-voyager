@@ -155,6 +155,7 @@ func (args *ImportBatchArgs) GetPGCopyStatement() string {
 	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
 }
 
+
 /*
 TODOs:
 	1. Handle quoting of identifiers(column/table names) in the insert statement
