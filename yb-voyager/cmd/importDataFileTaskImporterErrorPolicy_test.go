@@ -75,10 +75,10 @@ func assertBatchErrored(t *testing.T, batch *Batch, expectedRecordCount int64, e
 }
 
 func assertBatchErrorFileContents(t *testing.T, batch *Batch, lexportDir string, state *ImportDataState, task *ImportFileTask, rows string, expectedErrorSubstring string) {
-	taskIdentifier, err := state.GetComputedFileTaskDir(task.FilePath, task.TableNameTup)
-	assert.NoError(t, err)
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
 	batchErrorBaseFilePath := getBatchErrorBaseFilePath(filepath.Base(batch.GetFilePath()))
-	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", task.TableNameTup.ForMinOutput(), taskIdentifier, batchErrorBaseFilePath)
+	batchErrorFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, batchErrorBaseFilePath)
 	errorFileContentsBytes, err := os.ReadFile(batchErrorFilePath)
 	assert.NoError(t, err)
 	errorFileContents := string(errorFileContentsBytes)
@@ -92,7 +92,7 @@ func TestBasicTaskImportStachAndContinueErrorPolicy(t *testing.T) {
 	testutils.FatalIfError(t, err)
 	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
 	testutils.FatalIfError(t, err)
-	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+	// t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
 	setupYugabyteTestDb(t)
 	defer testYugabyteDBTarget.Finalize()
