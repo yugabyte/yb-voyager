@@ -49,9 +49,6 @@ func resetCmdAndEnvVars(cmd *cobra.Command) {
 			os.Unsetenv(envVar)
 		}
 	}
-	// override ErrExit to prevent the test from exiting because of some failed validations.
-	// We only care about testing whether the configuration and CLI flags are set correctly
-	utils.ErrExit = func(formatString string, args ...interface{}) {}
 
 }
 
@@ -252,7 +249,11 @@ func setupAssessMigrationContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(assessMigrationCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(assessMigrationCmd)
 	})
 
@@ -504,7 +505,11 @@ func setupExportSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(exportSchemaCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(exportSchemaCmd)
 	})
 
@@ -757,7 +762,11 @@ func setupAnalyzeSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(analyzeSchemaCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(analyzeSchemaCmd)
 	})
 
@@ -899,7 +908,11 @@ func setupExportDataFromSourceContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(exportDataFromSrcCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(exportDataFromSrcCmd)
 	})
 
@@ -1283,7 +1296,11 @@ func setupImportSchemaContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(importSchemaCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(importSchemaCmd)
 	})
 
@@ -1445,7 +1462,11 @@ func setupImportDataContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(importDataCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(importDataCmd)
 	})
 
@@ -1960,7 +1981,11 @@ func setupImportDataFileContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(importDataFileCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(importDataFileCmd)
 	})
 
@@ -2277,7 +2302,11 @@ func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(finalizeSchemaPostDataImportCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(finalizeSchemaPostDataImportCmd)
 	})
 
@@ -2479,7 +2508,11 @@ func setupExportDataFromTargetContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(exportDataFromTargetCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(exportDataFromTargetCmd)
 	})
 
@@ -2677,7 +2710,11 @@ func setupImportDataToSourceContext(t *testing.T) *testContext {
 	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
 
 	resetCmdAndEnvVars(importDataToSourceCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
 	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
 		resetFlags(importDataToSourceCmd)
 	})
 
