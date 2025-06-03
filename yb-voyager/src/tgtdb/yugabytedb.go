@@ -24,7 +24,6 @@ import (
 	"io"
 	"net/url"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -551,6 +550,9 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
+
+		The violation error will be because of PK in this code path, not Non-PK table with unique constraint.
+		Even if table has PK + UK on different columns, violation will be on PK for sure, given that the data is existing on source database with same schema
 	*/
 	if err != nil && strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
 		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
@@ -633,13 +635,11 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
 	var rowsIgnored int64 = 0
-	rowsAffected = 0
-
-	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
+	rowsAffected = 0 // reset to 0
 	copyCommand := args.GetYBTxnCopyStatement()
-	header := ""
+	copyHeader := ""
 	if args.HasHeader {
-		header = df.GetHeader()
+		copyHeader = df.GetHeader()
 	}
 	for {
 		line, _, readLinErr := df.NextLine()
@@ -662,8 +662,8 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		}
 
 		var singleLineReader io.Reader
-		if header != "" {
-			singleLineReader = strings.NewReader(header + "\n" + line)
+		if copyHeader != "" {
+			singleLineReader = strings.NewReader(copyHeader + "\n" + line)
 		} else {
 			singleLineReader = strings.NewReader(line)
 		}
@@ -673,7 +673,8 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		if err != nil {
 			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
 			if strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
-				log.Debugf("ignoring error %q for batch %q, as it is a conflict error", err.Error(), batch.GetFilePath())
+				// logging lineNum might not be useful as batches are truncated later on
+				log.Debugf("ignoring error %q for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line
 				continue
 			}
@@ -686,11 +687,12 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		}
 
 		// rowsAffected will be either 0 or 1
-		// 0 means the row was ignored due to conflict
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
+			// at this point it is not expected to have 0 rows affected
 			rowsIgnored++
+			log.Warnf("COPY command for line=%q in batch %s returned 0 rows affected, incrementing rowsIgnored", batch.GetFilePath(), line)
 		}
 
 		if readLinErr == io.EOF { // handles case 2
@@ -702,14 +704,14 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	totalRowsInBatch := rowsAffected + rowsIgnored
 
 	// 6. Update the Metadata about the batch imported
-	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't
+	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't update the metadata
 	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 		return 0, err
 	}
 
-	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
 	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored",
 		args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 	log.Debugf("(recovery) [conflict_action=%s] %q => insert stmt: %s, rows inserted: %d, rows ignored: %d",
