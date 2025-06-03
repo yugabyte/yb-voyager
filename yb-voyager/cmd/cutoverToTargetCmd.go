@@ -89,7 +89,7 @@ func init() {
 	registerConfigFileFlag(cutoverToTargetCmd)
 	BoolVar(cutoverToTargetCmd.Flags(), &prepareForFallBack, "prepare-for-fall-back", false,
 		"prepare for fallback by streaming changes from target DB back to source DB. Not applicable for fall-forward workflow.")
-	//Keeping the default as false here as the default value as false, 0 etc.. is not added to the usage msg by cobra and as the flag is mandatory there is no default value. 
+	//Keeping the default as false here as the default value as false, 0 etc.. is not added to the usage msg by cobra and as the flag is mandatory there is no default value.
 	BoolVar(cutoverToTargetCmd.Flags(), &useYBgRPCConnector, "use-yb-grpc-connector", BOOL_FLAG_ZERO_VALUE,
 		`Applicable to Fall-forward/fall-back workflows where it is required to export changes from YugabyteDB during 'export data from target'. YugabyteDB provides two types of CDC (Change Data Capture) connectors:
 gRPC Connector: Requires direct access to the cluster's internal ports—specifically, TServer (9100) and Master (7100). This connector is suitable for deployments where these ports are accessible.
