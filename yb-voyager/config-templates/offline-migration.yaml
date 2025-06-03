@@ -153,7 +153,7 @@ target:
 assess-migration:
 
   ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2024.2.2.2.
+  ### Default - latest stable version i.e. 2024.2.2.3.
   target-db-version: 2024.2.2.3
 
   ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
@@ -305,7 +305,7 @@ import-data:
 
   ### Path of the file containing comma-separated list of table names to exclude while importing data
   ### Note - Only one of table-list or table-list-file-path can be used at a time.
-  ### Similary, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
+  ### Similarly, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
   # table-list-file-path: <table-list-file-path>
   # exclude-table-list-file-path: <exclude-table-list-file-path>
 
