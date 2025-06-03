@@ -696,7 +696,7 @@ CREATE table test_schema.test_data (
 				record[0], record[1], record[2]))
 		}
 	}
-	w.Flush()
+	w.Flush() // flush the writer to ensure all data is written
 	if err := w.Error(); err != nil {
 		t.Fatalf("Error flushing CSV writer: %v", err)
 	}
