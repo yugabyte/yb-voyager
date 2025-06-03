@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -221,6 +222,16 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
+		if !utils.FileOrFolderExists(cfgFile) {
+			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+		}
+
+		cfgFile, err := filepath.Abs(cfgFile)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
+		}
+		cfgFile = filepath.Clean(cfgFile)
+
 		v.SetConfigFile(cfgFile)
 	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
 		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
