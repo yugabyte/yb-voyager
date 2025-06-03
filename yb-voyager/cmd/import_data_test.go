@@ -739,14 +739,126 @@ CREATE table test_schema.test_data (
 	assert.Equal(t, 100, rowCount, "Row count mismatch: expected 100, got %d", rowCount)
 }
 
+// Import data file with fast path and primary key conflict action as IGNORE with multi-schema
+func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData_MultiSchema(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;
+	CREATE SCHEMA IF NOT EXISTS public;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;
+	DROP TABLE IF EXISTS public.foo CASCADE;`
+	createTableSQL := `
+CREATE TABLE test_schema.test_data (
+	id INTEGER PRIMARY KEY,
+	name VARCHAR(255)
+);
+CREATE TABLE public.foo (
+	id INTEGER PRIMARY KEY,
+	name VARCHAR(255)
+);`
+
+	// insert 100 rows in the table
+	var pgInsertStmts, ybInsertStmts []string
+	for i := 0; i < 100; i++ {
+		stmt1 := fmt.Sprintf("INSERT INTO test_schema.test_data (id, name) VALUES (%d, 'name_%d');", i+1, i)
+		stmt2 := fmt.Sprintf("INSERT INTO public.foo (id, name) VALUES (%d, 'name_%d');", i+1, i)
+
+		pgInsertStmts = append(pgInsertStmts, stmt1, stmt2)
+		if i%2 == 0 {
+			ybInsertStmts = append(ybInsertStmts, stmt1, stmt2)
+		}
+	}
+
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	postgresContainer.ExecuteSqls(pgInsertStmts...)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Inserting the same data so that import data will have conflicts
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	yugabytedbContainer.ExecuteSqls(ybInsertStmts...)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Export data from Postgres (synchronous run).
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+
+	// create new export dir and run import data file command on this data file
+	exportDir2 := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir2)
+
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir2,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "test_schema",
+		"--on-primary-key-conflict", "IGNORE",
+		"--data-dir", filepath.Join(exportDir, "data"),
+		"--file-table-map", "test_data_data.sql:test_schema.test_data",
+		"--format", "TEXT", // by default hasHeader is false
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to Postgres: %v", err)
+	}
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	if err != nil {
+		t.Fatalf("Error connecting to YugabyteDB: %v", err)
+	}
+
+	cases := []struct {
+		table string
+		pk    string
+	}{
+		{"test_schema.test_data", "id"},
+		{"public.foo", "id"},
+	}
+
+	for _, tc := range cases {
+		if err := testutils.CompareTableData(ctx, pgConn, ybConn, tc.table, tc.pk); err != nil {
+			t.Errorf("table %q mismatch: %v", tc.table, err)
+		} else {
+			t.Logf("table %q matches exactly", tc.table)
+		}
+	}
+}
+
 // TestImportDataResumptionWithInterruptions_FastPath_ForTransientDBErrors
 // Simulates a transient YugabyteDB outage mid-import.
 // Expect: import process fails, but a subsequent resume succeeds.
-// f
 
 /*
 	Add tests:
 	1. TestImportDataResumptionWithInterruptions_FastPath_ForTransientDBErrors 	(retryable errors)
 	2. TestImportDataResumptionWithInterruptions_FastPath_SyntaxError			(non-retryable errors)
 	3. Add/Enable test for --on-primary-key-conflict=UPDATE
+	4. Import Data File tests
 */
