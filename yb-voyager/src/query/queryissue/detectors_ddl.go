@@ -163,6 +163,24 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						))
 				}
 			}
+
+			if c.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+				for idx, col := range c.Columns {
+					columnWithHotspotTypes, tableHasHotspotTypes := d.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
+					if tableHasHotspotTypes && idx == 0 {
+						//If first column is hotspot type then only report hotspot issue
+						hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
+						if isHotspotType {
+							hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, table.GetObjectType(), table.GetObjectName(), col, false)
+							if err != nil {
+								return nil, err
+							}
+							issues = append(issues, hotspotIssues...)
+						}
+					}
+				}
+			}
 		}
 	}
 	for _, col := range table.Columns {
@@ -645,7 +663,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				} else if isHotspotType && idx == 0 {
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
-					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
+					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true)
 					if err != nil {
 						return nil, err
 					}
@@ -672,7 +690,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
-						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName)
+						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName, true)
 						if err != nil {
 							return nil, err
 						}
@@ -733,13 +751,15 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	return issues, nil
 }
 
-func reportHotspotsOnIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
+func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isIndex bool) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case TIMESTAMP, TIMESTAMPTZ:
-		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	case DATE:
-		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
 	}
@@ -962,6 +982,24 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				))
 			}
 
+		}
+
+		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+			for idx, col := range alter.ConstraintColumns {
+				columnWithHotspotTypes, tableHasHotspotTypes := aid.columnsWithHotspotRangeIndexesDatatypes[alter.GetObjectName()]
+				if tableHasHotspotTypes && idx == 0 {
+					//If first column is hotspot type then only report hotspot issue
+					hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
+					if isHotspotType {
+						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, alter.GetObjectType(), alter.GetObjectName(), col, false)
+						if err != nil {
+							return nil, err
+						}
+						issues = append(issues, hotspotIssues...)
+					}
+				}
+			}
 		}
 	case queryparser.DISABLE_RULE:
 		issues = append(issues, NewAlterTableDisableRuleIssue(
