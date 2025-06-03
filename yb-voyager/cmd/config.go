@@ -103,7 +103,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	// environment variables keys
-	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
+	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
@@ -304,6 +304,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-file.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data-file.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
@@ -315,6 +316,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data-to-target.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
