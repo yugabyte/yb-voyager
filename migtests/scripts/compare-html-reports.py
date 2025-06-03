@@ -101,6 +101,17 @@ def extract_html_data(html_content):
     """Main function to extract structured data from HTML content."""
     soup = BeautifulSoup(html_content, 'html.parser')
 
+    spans_inside_tables = set()
+    for td in soup.find_all("td"):
+        for div in td.find_all("div"):
+            spans_inside_tables.update(div.find_all("span"))
+
+    # Step 2: Find all spans in the document
+    all_spans = set(soup.find_all("span"))
+
+    # Step 3: Subtract spans inside tables from all spans
+    spans_without_spans_inside_tables = all_spans - spans_inside_tables
+
     data = {
         "title": normalize_text(soup.title.string) if soup.title and soup.title.string else "No Title",
         "headings": extract_and_normalize_texts(soup.find_all(['h1', 'h2', 'h3', 'h4', 'h5', 'h6'])),
@@ -111,7 +122,7 @@ def extract_html_data(html_content):
                 {normalize_text(a.get("href") or ""): normalize_text(a.text) for a in soup.find_all("a")}.items()
             )
         },
-        "spans": extract_and_normalize_texts(soup.find_all("span")),
+        "spans": extract_and_normalize_texts(spans_without_spans_inside_tables),
         "divs": extract_divs(soup)
     }
 

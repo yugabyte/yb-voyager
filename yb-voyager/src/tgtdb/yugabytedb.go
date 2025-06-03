@@ -959,8 +959,8 @@ func logDiscrepancyInEventBatchIfAny(batch *EventBatch, rowsAffectedInserts, row
 //==============================================================================
 
 const (
-	LB_WARN_MSG = "--target-db-host is a load balancer IP which will be used to create connections for data import.\n" +
-		"\t To control the parallelism and servers used, refer to help for --parallel-jobs and --target-endpoints flags.\n"
+	LB_WARN_MSG = "--target-db-host was detected as a load balancer IP which will be used to create connections for data import.\n" +
+		"\t To explicitly specify the servers to be used, refer to the `target-endpoints` flag.\n"
 
 	GET_YB_SERVERS_QUERY = "SELECT host, port, num_connections, node_type, cloud, region, zone, public_ip FROM yb_servers()"
 )

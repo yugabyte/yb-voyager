@@ -16,7 +16,6 @@ limitations under the License.
 package cmd
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -105,10 +104,6 @@ func updateFilePaths(source *srcdb.Source, exportDir string, tablesProgressMetad
 		for _, key := range sortedKeys {
 			_, tname := tablesProgressMetadata[key].TableName.ForCatalogQuery()
 			targetTableName := tname
-			// required if PREFIX_PARTITION is set in ora2pg.conf file
-			if tablesProgressMetadata[key].IsPartition {
-				targetTableName = tablesProgressMetadata[key].ParentTable + "_" + targetTableName
-			}
 			tablesProgressMetadata[key].InProgressFilePath = filepath.Join(exportDir, "data", "tmp_"+targetTableName+"_data.sql")
 			tablesProgressMetadata[key].FinalFilePath = filepath.Join(exportDir, "data", targetTableName+"_data.sql")
 		}
@@ -909,6 +904,11 @@ func renameTableIfRequired(table string) (string, bool) {
 	if err != nil {
 		utils.ErrExit("Failed to get migration status record: %s", err)
 	}
+
+	if msr == nil || msr.SourceDBConf == nil { // this shouldn't hit in migration flow, adding just to avoid nil pointer dereference error
+		return table, false
+	}
+
 	sourceDBType = msr.SourceDBConf.DBType
 	sourceDBTypeInMigration := msr.SourceDBConf.DBType
 	schema := msr.SourceDBConf.Schema
@@ -943,6 +943,22 @@ func renameTableIfRequired(table string) (string, bool) {
 		return tableTup.ForMinOutput(), true
 	}
 	return table, false
+}
+
+// TODO: ideally original function renameTableIfRequired should be made to return NameTuple instead of string
+// but that will require a lot of changes in the codebase. So, keeping this function as a wrapper to do same but return Tuple
+func getRenamedTableTuple(table sqlname.NameTuple) (sqlname.NameTuple, bool) {
+	renamedTable, isRenamed := renameTableIfRequired(table.ForKey())
+	// no need to lookup the same table
+	if !isRenamed {
+		return table, false
+	}
+
+	tableTuple, err := namereg.NameReg.LookupTableName(renamedTable)
+	if err != nil {
+		utils.ErrExit("lookup table %s in name registry : %v", renamedTable, err)
+	}
+	return tableTuple, isRenamed
 }
 
 func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*utils.StructMap[sqlname.NameTuple, int64], *utils.StructMap[sqlname.NameTuple, []string], error) {
@@ -1088,7 +1104,7 @@ type AssessmentIssue struct {
 	SqlStatement           string                          `json:"SqlStatement"`
 	DocsLink               string                          `json:"DocsLink"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
-	Details                map[string]interface{}          `json:"-"`
+	Details                map[string]interface{}          `json:"Details,omitempty"`
 }
 
 type UnsupportedFeature struct {
@@ -1141,8 +1157,9 @@ Version History
 1.2: Syncing it with original AssessmentIssue(adding fields Category, CategoryDescription, Type, Name, Description, Impact, ObjectType) and MigrationComplexityExplanation;
 1.3: Moved Sizing, TableIndexStats, Notes, fields out from depcreated AssessmentJsonReport field to top level struct
 1.4: Removed field 'ParallelVoyagerJobs` from sizing recommendation
+1.5: Changed type of the Details field from json.RawMessage to map[string]interface{}
 */
-var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.4"
+var ASSESS_MIGRATION_YBD_PAYLOAD_VERSION = "1.5"
 
 // TODO: decouple this struct from utils.AnalyzeSchemaIssue struct, right now its tightly coupled;
 // Similarly for migassessment.SizingAssessmentReport and migassessment.TableIndexStats
@@ -1178,7 +1195,7 @@ type AssessmentIssueYugabyteD struct {
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"` // key: series (2024.1, 2.21, etc)
 
 	// Store Type-specific details - extensible, can refer any struct
-	Details json.RawMessage `json:"Details,omitempty"`
+	Details map[string]interface{} `json:"Details,omitempty"`
 }
 
 // To be deprecated in future

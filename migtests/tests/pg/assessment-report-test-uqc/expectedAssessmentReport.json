@@ -101,6 +101,11 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": {
 				"2.25": "2.25.0.0"
+			},
+			"Details":{
+				"FunctionNames": [
+					"range_agg"
+				]
 			}
 		},
 		{
@@ -116,6 +121,11 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": {
 				"2.25": "2.25.0.0"
+			},
+			"Details":{
+				"FunctionNames":[
+					"range_intersect_agg"
+				]
 			}
 		},
 		{

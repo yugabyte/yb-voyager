@@ -85,7 +85,10 @@
 			"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
 			"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "cnt_solo_agent"
+			}
 		},
 		{
 			"Category": "migration_caveats",

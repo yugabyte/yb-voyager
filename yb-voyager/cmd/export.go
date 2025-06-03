@@ -118,7 +118,8 @@ func registerSourceDBConnFlags(cmd *cobra.Command, includeOracleCDBFlags bool, r
 		"Path of the file containing source SSL Certificate")
 
 	cmd.Flags().StringVar(&source.SSLMode, "source-ssl-mode", "prefer",
-		"specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) \nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode paramters.")
+		fmt.Sprintf("specify the source SSL mode out of: [%s].\nMySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode parameters.",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&source.SSLKey, "source-ssl-key", "",
 		"Path of the file containing source SSL Key")
@@ -296,10 +297,12 @@ func validatePortRange() {
 }
 
 func validateSSLMode() {
-	if source.DBType == ORACLE || slices.Contains(validSSLModes[source.DBType], source.SSLMode) {
+	// For Oracle, we don't have usual sslmode parameter rather rely on TNS ALIAS, so no need to validate.
+	// Rest the list of supported/valid SSL modes depends on the source DB type
+	if source.DBType == ORACLE || slices.Contains(ValidSSLModesForSourceDB[source.DBType], source.SSLMode) {
 		return
 	} else {
-		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, validSSLModes[source.DBType])
+		utils.ErrExit("Invalid sslmode: %q. Valid SSL modes are %v", source.SSLMode, ValidSSLModesForSourceDB[source.DBType])
 	}
 }
 

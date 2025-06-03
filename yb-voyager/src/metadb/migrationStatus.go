@@ -53,6 +53,8 @@ type MigrationStatusRecord struct {
 	ExportDataSourceDebeziumStarted bool `json:"ExportDataSourceDebeziumStarted"`
 	ExportDataTargetDebeziumStarted bool `json:"ExportDataTargetDebeziumStarted"`
 
+	OnPrimaryKeyConflictAction string `json:"OnPrimaryKeyConflictAction"` // only used in import data or import data file commands
+
 	YBCDCStreamID                          string            `json:"YBCDCStreamID"`
 	EndMigrationRequested                  bool              `json:"EndMigrationRequested"`
 	PGReplicationSlotName                  string            `json:"PGReplicationSlotName"` // of the format voyager_<migrationUUID> (with replace "-" -> "_")

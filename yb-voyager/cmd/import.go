@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
@@ -30,6 +31,9 @@ import (
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
+
+var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
+var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
 
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
@@ -92,7 +96,11 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
-	validateOnPrimaryKeyConflictFlag()
+
+	err = validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
 	return nil
 }
 
@@ -128,7 +136,8 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 		"Path of file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "target-ssl-mode", "prefer",
-		"specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full)")
+		fmt.Sprintf("specify the target SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnTargetForImport, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "target-ssl-key", "",
 		"Path of file containing target SSL Key")
@@ -178,8 +187,10 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
 		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
+	// Q: Do we need separate handling for Oracle vs PostgreSQL here?
 	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
-		"specify the Source-Replica DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+		fmt.Sprintf("specify the Source-Replica DB SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "source-replica-ssl-key", "",
 		"Path of the file containing Source-Replica DB SSL Key")
@@ -344,10 +355,22 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 }
 
 func checkOrSetDefaultTargetSSLMode() {
+	tconf.SSLMode = strings.ToLower(tconf.SSLMode) // normalize before comparing
+
 	if tconf.SSLMode == "" {
-		tconf.SSLMode = "prefer"
-	} else if tconf.SSLMode != "disable" && tconf.SSLMode != "prefer" && tconf.SSLMode != "require" && tconf.SSLMode != "verify-ca" && tconf.SSLMode != "verify-full" {
-		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", tconf.SSLMode)
+		tconf.SSLMode = constants.PREFER
+		return
+	}
+
+	var sslModes []string
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		sslModes = supportedSSLModesOnTargetForImport
+	} else if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE || importerRole == SOURCE_DB_IMPORTER_ROLE {
+		sslModes = supportedSSLModesOnSourceOrSourceReplica
+	} // there should be no other else case
+
+	if !slices.Contains(sslModes, tconf.SSLMode) {
+		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(sslModes, ", "))
 	}
 }
 
@@ -455,11 +478,39 @@ var onPrimaryKeyConflictActions = []string{
 	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
 }
 
-func validateOnPrimaryKeyConflictFlag() {
-	conflictAction := strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
-	if conflictAction != "" {
-		if !slices.Contains(onPrimaryKeyConflictActions, conflictAction) {
-			utils.ErrExit("Error: Invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+func validateOnPrimaryKeyConflictFlag() error {
+	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
+	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+
+	// Check if the provided OnPrimaryKeyConflictAction is valid
+	if tconf.OnPrimaryKeyConflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
+			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
 		}
 	}
+
+	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
+	if !startClean {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("error getting migration status record: %v", err)
+		} else if msr == nil {
+			return fmt.Errorf("migration status record not found.")
+		}
+
+		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
+			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
+				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
+		}
+	}
+
+	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
+	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+	}
+
+	// once all validations passed we can save the action value in MSR
+	saveOnPrimaryKeyConflictActionInMSR()
+
+	return nil
 }
