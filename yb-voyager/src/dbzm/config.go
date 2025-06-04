@@ -106,6 +106,8 @@ debezium.source.database.server.name=yb-voyager
 
 debezium.source.errors.max.retries=15
 `
+// errors.max.retries config doesn't work currently as there is a known bug on debezium end https://issues.redhat.com/browse/DBZ-8711, so when we update to latest it will work.
+
 var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
 debezium.sink.ybexporter.dataDir=%s

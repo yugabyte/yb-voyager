@@ -387,7 +387,7 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				utils.ErrExit("Replication slot - %s is active. Check using the command `ps -ef | grep voyager` and terminate if there is any other voyager process is running.", msr.PGPublicationName)
+				utils.ErrExit("Replication slot '%s' is active. Check using the command `ps -ef | grep voyager` and terminate if there is any internal voyager process running.", msr.PGPublicationName)
 			}
 
 			// Setting up sequence values for debezium to start tracking from..
@@ -408,6 +408,15 @@ func exportData() bool {
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
+		if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
+			isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
+			if err != nil {
+				utils.ErrExit("error checking if replication slot is active: %v", err)
+			}
+			if isActive {
+				utils.ErrExit("Replication slot '%s' is active. Check using the command `ps -ef | grep voyager` and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
+			}
+		}
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -656,13 +665,24 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 }
 
 func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
-	pgDB, ok := source.DB().(*srcdb.PostgreSQL)
-	if !ok {
-		return false, fmt.Errorf("source type is not PostgreSQL")
+	switch source.DBType {
+	case POSTGRESQL:
+		pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+		if !ok {
+			return false, fmt.Errorf("source type is not PostgreSQL")
+		}
+
+		return pgDB.CheckIfReplicationSlotIsActive(replicationSlot)
+	case YUGABYTEDB:
+		ybDB, ok := source.DB().(*srcdb.YugabyteDB)
+		if !ok {
+			return false, fmt.Errorf("source type is not YugabyteDB")
+		}
+
+		return ybDB.CheckIfReplicationSlotIsActive(replicationSlot)
 	}
 
-	return pgDB.CheckIfReplicationSlotIsActive(replicationSlot) 
-
+	return false, nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {

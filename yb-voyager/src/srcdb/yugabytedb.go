@@ -940,6 +940,16 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 	return nonPKTables, nil
 }
 
+func (yb *YugabyteDB) CheckIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
+	var isActive bool
+	stmt := fmt.Sprintf("select active from pg_replication_slots where slot_name='%s'", replicationSlot)
+	err := yb.db.QueryRow(stmt).Scan(&isActive)
+	if err != nil {
+		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
+	}
+	return isActive, nil
+}
+
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {
 	return pgconn.Connect(context.Background(), yb.getConnectionUri()+"&replication=database")
 }
