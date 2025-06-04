@@ -386,21 +386,13 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), batch.RecordCount)
 
-	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
-	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
-
-	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
-	assert.FileExists(t, errorsFilePath)
-	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
-	assert.NoError(t, err)
-	errorFileContents := string(errorFileContentsBytes)
-
-	// The error message includes dynamic file paths and line numbers, so match only the static parts.
-	assert.Contains(t, errorFileContents, "ERROR: transforming line number=1")
-	assert.Contains(t, errorFileContents, "mock conversion error")
-	assert.Contains(t, errorFileContents, "ROW: 1, \"hello\"")
-	assert.Contains(t, errorFileContents, "ERROR: transforming line number=2")
-	assert.Contains(t, errorFileContents, "ROW: 2, \"world\"")
+	assertErrorFileContains(t, lexportDir, task,
+		"ERROR: transforming line number=1",
+		"mock conversion error",
+		"ROW: 1, \"hello\"",
+		"ERROR: transforming line number=2",
+		"ROW: 2, \"world\"",
+	)
 }
 
 func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
@@ -435,4 +427,54 @@ func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
 	assert.Error(t, err)
 	assert.Nil(t, batch)
 	assert.Contains(t, err.Error(), "mock conversion error")
+}
+
+func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
+	// Set max batch size in bytes to a small value to trigger the row-too-large error
+	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will be too large for the batch size
+	fileContents := `id,val
+1, "hello"
+2, "this row is too long and should trigger an error because it exceeds the max batch size"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should not return an error, but the batch should only contain the first row
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(1), batch.RecordCount) // second row should be skipped due to error
+
+	assertErrorFileContains(t, lexportDir, task,
+		"larger than max batch size",
+		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
+}
+
+// assertErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
+func assertErrorFileContains(t *testing.T, lexportDir string, task *ImportFileTask, expectedSubstrings ...string) {
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
+	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
+	assert.FileExists(t, errorsFilePath)
+	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
+	assert.NoError(t, err)
+	errorFileContents := string(errorFileContentsBytes)
+	for _, substr := range expectedSubstrings {
+		assert.Contains(t, errorFileContents, substr)
+	}
 }
