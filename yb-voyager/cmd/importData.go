@@ -608,9 +608,13 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	if startClean {
 		err := cleanMSRForImportDataStartClean()
 		if err != nil {
-
+			utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
 		}
 		cleanImportState(state, importFileTasks)
+		err = cleanStoredErrors(errorHandler, importFileTasks)
+		if err != nil {
+			utils.ErrExit("Failed to clean stored errors: %s", err)
+		}
 		pendingTasks = importFileTasks
 	} else {
 		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
@@ -1445,6 +1449,17 @@ func cleanMSRForImportDataStartClean() error {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
+	}
+	return nil
+}
+
+func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*ImportFileTask) error {
+	// clean stored errors for all tasks
+	for _, task := range tasks {
+		err := errorHandler.CleanUpStoredErrors(task.TableNameTup, task.FilePath)
+		if err != nil {
+			return fmt.Errorf("failed to clean up stored errors for task %s: %w", task.TableNameTup.ForOutput(), err)
+		}
 	}
 	return nil
 }
