@@ -191,6 +191,13 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
 	tdb.Finalize()
 	if changeStreamingIsEnabled(importType) {
+
+		err = markCutoverProcessed(importerRole)
+		if err != nil {
+			utils.ErrExit("failed to mark cutover as processed: %s", err)
+		}
+		utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
+			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 		startExportDataFromTargetIfRequired()
 	}
 }
@@ -723,12 +730,6 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.Error
 		}
 
 		utils.PrintAndLog("Completed streaming all relevant changes to %s", tconf.TargetDBType)
-		err = markCutoverProcessed(importerRole)
-		if err != nil {
-			utils.ErrExit("failed to mark cutover as processed: %s", err)
-		}
-		utils.PrintAndLog("\nRun the following command to get the current report of the migration:\n" +
-			color.CyanString("yb-voyager get data-migration-report --export-dir %q", exportDir))
 	} else {
 		// offline migration; either using dbzm or pg_dump/ora2pg
 		if !msr.IsSnapshotExportedViaDebezium() {
