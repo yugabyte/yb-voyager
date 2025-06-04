@@ -51,6 +51,10 @@ type FileBatchProducer struct {
 }
 
 func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler) (*FileBatchProducer, error) {
+	if errorHandler == nil {
+		return nil, fmt.Errorf("errorHandler must not be nil")
+	}
+
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("preparing for file import: %s", err)
@@ -144,14 +148,31 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			return nil, fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			errMsg := fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			if p.errorHandler.ShouldAbort() {
+				return nil, errMsg
+			}
+			handleErr := p.errorHandler.HandleRowProcessingError(line, errMsg, p.task.TableNameTup, p.task.FilePath)
+			if handleErr != nil {
+				return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
+			}
+			continue
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(p.task.TableNameTup)
+			lineBeforeConversion := line
 			line, err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, line)
 			if err != nil {
-				return nil, fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				if p.errorHandler.ShouldAbort() {
+					return nil, errMsg
+				}
+				handleErr := p.errorHandler.HandleRowProcessingError(lineBeforeConversion, errMsg, p.task.TableNameTup, p.task.FilePath)
+				if handleErr != nil {
+					return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
+				}
+				continue
 			}
 			batchBytesCount := p.dataFile.GetBytesRead() // GetBytesRead - returns the total bytes read until now including the currentBytesRead
 			if p.header != "" {
