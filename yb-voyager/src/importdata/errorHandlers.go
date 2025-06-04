@@ -113,7 +113,8 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 		}
 		handler.rowProcessingErrorFiles[tableFilePathKey] = errorFile
 	}
-	msg := fmt.Sprintf("ROW: %s\nERROR: %v\n\n", row, rowErr)
+
+	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
 	_, err = errorFile.Write([]byte(msg))
 	if err != nil {
 		return fmt.Errorf("writing to processing-errors.log: %w", err)
