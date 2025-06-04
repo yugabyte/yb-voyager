@@ -593,7 +593,7 @@
                                                     <td>
                                                         {{ if $issue.SqlStatement }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-family: 'Courier New', Courier, 'Liberation Mono', monospace; font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; font-weight: bold;">{{ $issue.SqlStatement }}</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.SqlStatement }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if Sql Statement not present -->
@@ -626,7 +626,7 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-family: 'Courier New', Courier, 'Liberation Mono', monospace; font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; font-weight: bold;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if description not present -->
