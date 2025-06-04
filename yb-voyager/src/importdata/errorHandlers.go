@@ -114,13 +114,14 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 // create a symlink to the batch file in the errors folder so that all errors are in one place.
 // ingestion-error.<batch_file_name> -> metainfo/.../<batch_file_name>
 func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, taskFilePath string) error {
-	err := os.MkdirAll(handler.getErrorsFolderPathForTableTask(batch.GetTableName(), taskFilePath), os.ModePerm)
+	errorsFolderPathForTableTask := handler.getErrorsFolderPathForTableTask(batch.GetTableName(), taskFilePath)
+	err := os.MkdirAll(errorsFolderPathForTableTask, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 
 	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
-	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getErrorsFolderPathForTableTask(batch.GetTableName(), taskFilePath), symlinkFileName))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
 	}
