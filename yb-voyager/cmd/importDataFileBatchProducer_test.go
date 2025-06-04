@@ -20,12 +20,32 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
+
+// mockValueConverterForTest implements ValueConverter and always returns an error for ConvertRow.
+type mockValueConverterForTest struct{}
+
+func (m *mockValueConverterForTest) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	return row, fmt.Errorf("mock conversion error")
+}
+func (m *mockValueConverterForTest) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	return nil
+}
+func (m *mockValueConverterForTest) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+	return nil, nil
+}
 
 // In cmd package, we have 3 TestMain functions, one for each build tag(unit, integration, integration_voyager_command).
 func TestMain(m *testing.M) {
@@ -328,4 +348,57 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	}
 	assert.Equal(t, len(batches), len(recoveredBatches))
 	assert.ElementsMatch(t, batches, recoveredBatches)
+}
+
+func getErrorsParentDir(lexportDir string) string {
+	return filepath.Join(lexportDir, "data")
+}
+
+func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	fileContents := `id,val
+1, "hello"
+2, "world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Swap in the mock valueConverter
+	origValueConverter := valueConverter
+	valueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should not return an error,
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), batch.RecordCount)
+
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
+
+	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
+	assert.FileExists(t, errorsFilePath)
+	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
+	assert.NoError(t, err)
+	errorFileContents := string(errorFileContentsBytes)
+
+	// The error message includes dynamic file paths and line numbers, so match only the static parts.
+	assert.Contains(t, errorFileContents, "ERROR: transforming line number=1")
+	assert.Contains(t, errorFileContents, "mock conversion error")
+	assert.Contains(t, errorFileContents, "ROW: 1, \"hello\"")
+	assert.Contains(t, errorFileContents, "ERROR: transforming line number=2")
+	assert.Contains(t, errorFileContents, "ROW: 2, \"world\"")
 }

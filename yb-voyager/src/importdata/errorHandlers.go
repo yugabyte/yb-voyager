@@ -103,7 +103,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 		return fmt.Errorf("creating errors dir: %w", err)
 	}
 
-	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), computePathHash(taskFilePath))
+	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
 	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
 	if !ok {
 		errorFilePath := filepath.Join(errorsDir, "processing-errors.log")
@@ -167,7 +167,7 @@ func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTas
 	tableFolder := fmt.Sprintf("table::%s", tableName.ForMinOutput())
 	// the entire path of the file can be long, so to make it shorter,
 	// we compute a hash of the file path and also include the base file name of the file.
-	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), computePathHash(taskFilePath))
+	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), ComputePathHash(taskFilePath))
 	return filepath.Join(handler.dataDir, "errors", tableFolder, taskFolder)
 }
 
@@ -183,7 +183,7 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 	return nil
 }
 
-func computePathHash(filePath string) string {
+func ComputePathHash(filePath string) string {
 	hash := sha1.New()
 	hash.Write([]byte(filePath))
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
