@@ -104,7 +104,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// no info/payload is collected/supported for assess-migration-bulk
 			err = setControlPlane("")
 			if err != nil {
-				utils.ErrExit("ERROR: seting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %v", err)
 			}
 		} else {
 			validateExportDirFlag()
@@ -153,7 +153,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
-				utils.ErrExit("ERROR: seting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %v", err)
 			}
 		}
 
