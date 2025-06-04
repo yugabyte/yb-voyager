@@ -1,4 +1,4 @@
-### Note: This is a template configuration file for YB Voyager offline migration.
+### Note: This is a template configuration file for YB Voyager live migration.
 
 # ---------------------------------------------------------
 # Global configuration
@@ -159,6 +159,8 @@ target:
 # Assess Migration Configuration 
 # ---------------------------------------------------------
 
+### Assess the migration from source (postgresql, oracle) database to YugabyteDB.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/assess-migration/
 ### Uncomment the respective parameters when you want to configure additional assess migration options.
 assess-migration:
 
@@ -179,6 +181,8 @@ assess-migration:
 # Export Schema Configuration
 # ----------------------------------------------------------
 
+### Export schema from source database into export-dir as .sql files
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/
 ### Uncomment the respective parameters when you want to configure additional export schema options.
 export-schema: 
 
@@ -214,6 +218,8 @@ export-schema:
 # Analyze Schema Configuration
 # ----------------------------------------------------------
 
+### Analyze converted source database schema and generate a report about YB incompatible constructs.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/
 ### Uncomment the respective parameters when you want to configure additional analyze schema options.
 analyze-schema:
 
@@ -222,14 +228,16 @@ analyze-schema:
   # output-format: txt    
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2024.2.2.2                                        
-  target-db-version: 2024.2.2.2                            
+  ### Default - latest stable version i.e. 2024.2.2.3                                        
+  target-db-version: 2024.2.2.3                           
                                       
                                   
 # ----------------------------------------------------------
 # Import Schema Configuration
 # ----------------------------------------------------------
 
+### Import schema into the target YugabyteDB database
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/
 ### Uncomment the respective parameters when you want to configure additional import schema options.
 import-schema:
   
@@ -267,12 +275,14 @@ import-schema:
 # Export Data Configuration
 # ----------------------------------------------------------
 
+### Export tables' data and changes from source database to export-dir. 
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/
 ### Uncomment this section and the respective parameters when you want to configure additional export data options.
 export-data-from-source:
 
   ### Export type for migration 
-  ### Accepted values: snapshot-only, snapshot-and-changes[TECH PREVIEW]
-  ### Required                                                 
+  ### Required   
+  ### [DO NOT CHANGE]                                              
   export-type: snapshot-and-changes       
 
   ### Comma-separated list of the table names to include or exclude while exporting data.
@@ -294,31 +304,16 @@ export-data-from-source:
   ### Disable progress bar/stats during data export  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false     
-
-  ### For MySQL and Oracle, you can optionally speed up data export by setting the config parameter beta-fast-data-export: 1.
-  ### In case this parameter is set, parallel-jobs has no effect and its value is fixed to 1. 
-  ### Accepted values (true, false, yes, no, 1, 0)
-  # beta-fast-data-export: 0                                           
+  # disable-pb: false                                               
 
 # ---------------------------------------------------------
 # Import Data Configuration
 # ---------------------------------------------------------
 
+### Import the data exported from the source database into the target database. 
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/
 ### Uncomment this section and the respective parameters when you want to configure additional import data options.
 import-data-to-target:
-
-  ### Comma-separated list of the table names to include or exclude while importing data.
-  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
-  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
-  # table-list: 'table1,table2'                           
-  # exclude-table-list: 'table3,table4'          
-
-  ### Path of the file containing comma-separated list of table names to exclude while importing data
-  ### Note - Only one of table-list or table-list-file-path can be used at a time.
-  ### Similarly, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
-  # table-list-file-path: <table-list-file-path>   
-  # exclude-table-list-file-path: <exclude-table-list-file-path>
 
   ### Control parallelism of data import
   ### By default, Voyager enables adaptive parallelism which adjusts the number 
@@ -383,6 +378,11 @@ import-data-to-target:
 # Archive Changes
 # ---------------------------------------------------------
 
+### This command limits the disk space used by the locally queued CDC events. 
+### Once the changes from the local queue are applied on the target DB, they are eligible for deletion. 
+### The command gives an option to archive the changes before deleting by moving them to some other directory.
+### Note that even if some changes are applied to the target databases, they are deleted only after the disk space utilisation exceeds 70%.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/
 ### Uncomment the respective parameters when you want to configure additional archive changes options.
 archive-changes:
 
@@ -405,12 +405,14 @@ archive-changes:
 # Intitiate cutover to target
 # ---------------------------------------------------------
 
+### Initiate cutover to target DB
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/
 ### Uncomment the respective parameters when you want to configure additional cutover options.
 initiate-cutover-to-target:
 
   ### Prepare for fallback by streaming changes from target DB back to source DB.
   ### Note - This should be set to true only if you are planning for fall-back
-  ### Accepted values (true, false, yes, no, 1, 0)
+  ### [DO NOT CHANGE]
   prepare-for-fall-back: false
 
 
@@ -418,6 +420,8 @@ initiate-cutover-to-target:
 # Finalize Schema Post Data Import Configuration
 # ---------------------------------------------------------
 
+### Finalize schema after data import is complete.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema/
 ### Uncomment the respective parameters when you want to configure additional finalize schema post data import options.
 finalize-schema-post-data-import:
   
@@ -440,6 +444,8 @@ finalize-schema-post-data-import:
 # End Migration Configuration
 # ---------------------------------------------------------
 
+### End the current migration and cleanup all metadata stored in databases(Target and Source) and export-dir
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/end-migration/
 ### Uncomment the respective parameters when you want to configure additional end migration options.
 end-migration:
   

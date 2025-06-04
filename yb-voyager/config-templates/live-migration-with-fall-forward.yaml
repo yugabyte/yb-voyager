@@ -1,4 +1,4 @@
-### Note: This is a template configuration file for YB Voyager offline migration.
+### Note: This is a template configuration file for YB Voyager live migration with fall forward.
 
 # ---------------------------------------------------------
 # Global configuration
@@ -156,9 +156,71 @@ target:
   # ssl-crl: <ssl-crl-path>                               
 
 # ---------------------------------------------------------
+# Source Replica Database Configuration
+# ---------------------------------------------------------
+
+source-replica:
+
+  ### Host on which the Source-Replica DB server is running 
+  ### Default - 127.0.0.1
+  db-host: 127.0.0.1
+
+  ### Port on which the Source-Replica DB server is running 
+  ### Default - ORACLE(1521), POSTGRESQL(5432)
+  db-port: 5432
+
+  ### Name of the database on the Source-Replica DB server on which import needs to be done
+  db-name: test_db
+
+  ### Username with which to connect to the Source-Replica DB server
+  db-user: test_user
+
+  ### Password with which to connect to the Source-Replica DB server. 
+  ### Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. 
+  ### If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. 
+  ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.
+  db-password: test_password
+
+  ### Schema name in Source-Replica DB 
+  ### Note - works only for source as Oracle, in case of PostgreSQL schemas remain same as of source
+  db-schema: public
+
+  ### *********** Source Replica SSL Configuration ************
+
+  ### Path of the file containing Source-Replica DB SSL Certificate Path
+  # ssl-cert: <ssl-cert-path>        
+
+  ### Specify the Source-Replica DB SSL mode
+  ### Accepted Values - [disable, prefer, allow, require, verify-ca, verify-full] 
+  ### Default - prefer 
+  # ssl-mode: prefer           
+
+  ### Path of the file containing Source-Replica DB SSL Key                                                           
+  # ssl-key: <ssl-key-path>      
+
+  ### Path of the file containing Source-Replica DB SSL Root Certificate                       
+  # ssl-root-cert: <ssl-root-cert-path>     
+
+  ### Path of the file containing Source-Replica DB SSL Root Certificate Revocation List (CRL              
+  # ssl-crl: <ssl-crl-path> 
+
+  ### *********** Oracle Specific Configuration ************
+
+  ### [For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances
+  # db-sid: <oracle-db-sid>
+
+  ### [For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin
+  # oracle-home: <oracle-home-path>
+
+  ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases
+  # oracle-tns-alias: <oracle-tns-alias>
+
+# ---------------------------------------------------------
 # Assess Migration Configuration 
 # ---------------------------------------------------------
 
+### Assess the migration from source (postgresql, oracle) database to YugabyteDB.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/assess-migration/
 ### Uncomment the respective parameters when you want to configure additional assess migration options.
 assess-migration:
 
@@ -179,6 +241,8 @@ assess-migration:
 # Export Schema Configuration
 # ----------------------------------------------------------
 
+### Export schema from source database into export-dir as .sql files
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/
 ### Uncomment the respective parameters when you want to configure additional export schema options.
 export-schema: 
 
@@ -214,6 +278,8 @@ export-schema:
 # Analyze Schema Configuration
 # ----------------------------------------------------------
 
+### Analyze converted source database schema and generate a report about YB incompatible constructs.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/
 ### Uncomment the respective parameters when you want to configure additional analyze schema options.
 analyze-schema:
 
@@ -222,14 +288,16 @@ analyze-schema:
   # output-format: txt    
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2024.2.2.2                                        
-  target-db-version: 2024.2.2.2                            
+  ### Default - latest stable version i.e. 2024.2.2.3                                       
+  target-db-version: 2024.2.2.3                           
                                       
                                   
 # ----------------------------------------------------------
 # Import Schema Configuration
 # ----------------------------------------------------------
 
+### Import schema into the target YugabyteDB database
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/
 ### Uncomment the respective parameters when you want to configure additional import schema options.
 import-schema:
   
@@ -267,12 +335,14 @@ import-schema:
 # Export Data Configuration
 # ----------------------------------------------------------
 
+### Export tables' data and changes from source database to export-dir. 
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/
 ### Uncomment this section and the respective parameters when you want to configure additional export data options.
 export-data-from-source:
 
   ### Export type for migration 
-  ### Accepted values: snapshot-only, snapshot-and-changes[TECH PREVIEW]
-  ### Required                                                 
+  ### Required 
+  ### [DO NOT CHANGE]                                                
   export-type: snapshot-and-changes       
 
   ### Comma-separated list of the table names to include or exclude while exporting data.
@@ -294,31 +364,16 @@ export-data-from-source:
   ### Disable progress bar/stats during data export  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false     
-
-  ### For MySQL and Oracle, you can optionally speed up data export by setting the config parameter beta-fast-data-export: 1.
-  ### In case this parameter is set, parallel-jobs has no effect and its value is fixed to 1. 
-  ### Accepted values (true, false, yes, no, 1, 0)
-  # beta-fast-data-export: 0                                           
+  # disable-pb: false                                            
 
 # ---------------------------------------------------------
 # Import Data Configuration
 # ---------------------------------------------------------
 
+### Import the data exported from the source database into the target database. 
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/
 ### Uncomment this section and the respective parameters when you want to configure additional import data options.
 import-data-to-target:
-
-  ### Comma-separated list of the table names to include or exclude while importing data.
-  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
-  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
-  # table-list: 'table1,table2'                           
-  # exclude-table-list: 'table3,table4'          
-
-  ### Path of the file containing comma-separated list of table names to exclude while importing data
-  ### Note - Only one of table-list or table-list-file-path can be used at a time.
-  ### Similarly, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
-  # table-list-file-path: <table-list-file-path>  
-  # exclude-table-list-file-path: <exclude-table-list-file-path>
 
   ### Control parallelism of data import
   ### By default, Voyager enables adaptive parallelism which adjusts the number 
@@ -383,6 +438,8 @@ import-data-to-target:
 # Import data to source-replica
 # ---------------------------------------------------------
 
+### Import data into source-replica database to prepare for fall-forward.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/live-fall-forward/
 ### Uncomment this section and the respective parameters when you want to configure additional import data to source-replica options.
 import-data-to-source-replica:
 
@@ -410,6 +467,11 @@ import-data-to-source-replica:
 # Archive Changes
 # ---------------------------------------------------------
 
+### This command limits the disk space used by the locally queued CDC events. 
+### Once the changes from the local queue are applied on the target DB (and source-replica DB), they are eligible for deletion. 
+### The command gives an option to archive the changes before deleting by moving them to some other directory.
+### Note that even if some changes are applied to the target databases, they are deleted only after the disk space utilisation exceeds 70%.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/archive-changes/
 ### Uncomment the respective parameters when you want to configure additional archive changes options.
 archive-changes:
 
@@ -432,12 +494,14 @@ archive-changes:
 # Intitiate cutover to target
 # ---------------------------------------------------------
 
+### Initiate cutover to target DB
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/cutover-archive/cutover/
 ### Uncomment the respective parameters when you want to configure additional cutover options.
 initiate-cutover-to-target:
 
   ### Prepare for fallback by streaming changes from target DB back to source DB.
   ### Note - This is required to be false for fall forward workflow
-  ### Accepted values (true, false, yes, no, 1, 0)
+  ### [DO NOT CHANGE]
   prepare-for-fall-back: false
 
   ### Use the gRPC connector for YB export. 
@@ -452,6 +516,8 @@ initiate-cutover-to-target:
 # Finalize Schema Post Data Import Configuration
 # ---------------------------------------------------------
 
+### Finalize schema after data import is complete.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema/
 ### Uncomment the respective parameters when you want to configure additional finalize schema post data import options.
 finalize-schema-post-data-import:
   
@@ -474,6 +540,8 @@ finalize-schema-post-data-import:
 # Export Data from Target
 # ---------------------------------------------------------
 
+### Export data from target Yugabyte DB in the fall-forward workflows.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/#export-data-from-target
 ### Uncomment the respective parameters when you want to configure additional export data from target options.
 export-data-from-target:
 
@@ -489,23 +557,12 @@ export-data-from-target:
   ### Default - true
   transaction-ordering: true
 
-  ### ?????????? These are technically not allowed. Should we keep them?
-  ### Comma-separated list of the table names to include or exclude while exporting data.
-  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
-  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
-  # table-list: 'table1, table2'                          
-  # exclude-table-list: 'table3, table4'
-
-  ### Path of the file containing comma-separated list of table names to include or exclude while exporting data
-  ### Note - Only one of table-list or table-list-file-path can be used at a time.
-  ### Similarly, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
-  # table-list-file-path: <table-list-file-path>
-  # exclude-table-list-file-path: <exclude-table-list-file-path>  
-
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
 
+### End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/end-migration/
 ### Uncomment the respective parameters when you want to configure additional end migration options.
 end-migration:
   
