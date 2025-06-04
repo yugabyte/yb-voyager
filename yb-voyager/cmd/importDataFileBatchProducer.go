@@ -156,6 +156,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if handleErr != nil {
 				return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
 			}
+			p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
 			continue
 		}
 		if line != "" {
@@ -172,6 +173,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				if handleErr != nil {
 					return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
 				}
+				p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
 				continue
 			}
 			batchBytesCount := p.dataFile.GetBytesRead() // GetBytesRead - returns the total bytes read until now including the currentBytesRead
