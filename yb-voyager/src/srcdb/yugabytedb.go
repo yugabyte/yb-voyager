@@ -942,12 +942,14 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 
 func (yb *YugabyteDB) CheckIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	var isActive bool
-	stmt := fmt.Sprintf("select active from pg_replication_slots where slot_name='%s'", replicationSlot)
-	err := yb.db.QueryRow(stmt).Scan(&isActive)
+	var activePID sql.NullString
+	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
+	fmt.Printf("%s", stmt)
+	err := yb.db.QueryRow(stmt).Scan(&isActive, &activePID)
 	if err != nil {
 		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
 	}
-	return isActive, nil
+	return isActive && activePID.String != "", nil
 }
 
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {

@@ -631,6 +631,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.Error
 		utils.ErrExit("Error generating table list to import: %v", err)
 	}
 
+	//TODO: check resumption case
 	disableGeneratedAlwaysAsIdentityColumns(importTableList)
 	// restore value for IDENTITY BY DEFAULT columns once IDENTITY ALWAYS columns are enabled back
 	defer restoreGeneratedByDefaultAsIdentityColumns(importTableList)

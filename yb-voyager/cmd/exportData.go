@@ -387,7 +387,7 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				utils.ErrExit("Replication slot '%s' is active. Check using the command `ps -ef | grep voyager` and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
 			}
 
 			// Setting up sequence values for debezium to start tracking from..
@@ -409,12 +409,17 @@ func exportData() bool {
 		}
 
 		if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
+			msr, err := metaDB.GetMigrationStatusRecord()
+			if err != nil {
+				utils.ErrExit("get migration status record: %v", err)
+			}
+
 			isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
 			if err != nil {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				utils.ErrExit("Replication slot '%s' is active. Check using the command `ps -ef | grep voyager` and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
+				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
 			}
 		}
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
