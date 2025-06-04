@@ -23,12 +23,13 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
-	HandleRowProcessingError() error
+	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
 }
 
@@ -51,7 +52,7 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 	return true
 }
 
-func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
+func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do.
 	return nil
 }
@@ -67,18 +68,46 @@ func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBa
 Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
-	dataDir string
+	dataDir                 string
+	rowProcessingErrorFiles map[string]*utils.FileRotator // one per table/task file
 }
 
 func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
-	return &ImportDataStashAndContinueHandler{dataDir: dataDir}
+	return &ImportDataStashAndContinueHandler{
+		dataDir:                 dataDir,
+		rowProcessingErrorFiles: make(map[string]*utils.FileRotator),
+	}
 }
 
 func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 	return false
 }
 
-func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() error {
+// HandleRowProcessingError writes the row and error to a processing-errors.log file using FileRotator.
+// Now takes tableName and taskFilePath to store logs in a unique folder per table/task.
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+	if row == "" && rowErr == nil {
+		return nil
+	}
+	logDir := getErrorsFolderPathForTableTask(handler.dataDir, tableName, taskFilePath)
+	if err := os.MkdirAll(logDir, os.ModePerm); err != nil {
+		return fmt.Errorf("creating errors dir: %w", err)
+	}
+	logFile := filepath.Join(logDir, "processing-errors.log")
+	errorFile, ok := handler.rowProcessingErrorFiles[logFile]
+	if !ok {
+		var err error
+		errorFile, err = utils.NewFileRotator(logFile, 5*1024*1024) // 5MB default
+		if err != nil {
+			return fmt.Errorf("creating file rotator: %w", err)
+		}
+		handler.rowProcessingErrorFiles[logFile] = errorFile
+	}
+	msg := fmt.Sprintf("ROW: %s\nERROR: %v\n\n", row, rowErr)
+	_, err := errorFile.Write([]byte(msg))
+	if err != nil {
+		return fmt.Errorf("writing to processing-errors.log: %w", err)
+	}
 	return nil
 }
 
@@ -108,26 +137,26 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 // create a symlink to the batch file in the errors folder so that all errors are in one place.
 // ingestion-error.<batch_file_name> -> metainfo/.../<batch_file_name>
 func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFolder(batch ErroredBatch, taskFilePath string) error {
-	err := os.MkdirAll(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), os.ModePerm)
+	tableName := batch.GetTableName()
+	errorsDir := getErrorsFolderPathForTableTask(handler.dataDir, tableName, taskFilePath)
+	err := os.MkdirAll(errorsDir, os.ModePerm)
 	if err != nil {
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 
 	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
-	err = os.Symlink(batch.GetFilePath(), filepath.Join(handler.getErrorsFolderPathForTableTask(batch, taskFilePath), symlinkFileName))
+	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsDir, symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
 	}
 	return nil
 }
 
-// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/
-func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTask(batch ErroredBatch, taskFilePath string) string {
-	tableFolder := fmt.Sprintf("table::%s", batch.GetTableName().ForMinOutput())
-	// the entire path of the file can be long, so to make it shorter,
-	// we compute a hash of the file path and also include the base file name of the file.
+// getErrorsFolderPathForTableTask returns the error folder path for a table and task file path.
+func getErrorsFolderPathForTableTask(dataDir string, tableName sqlname.NameTuple, taskFilePath string) string {
+	tableFolder := fmt.Sprintf("table::%s", tableName.ForMinOutput())
 	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), computePathHash(taskFilePath))
-	return filepath.Join(handler.dataDir, "errors", tableFolder, taskFolder)
+	return filepath.Join(dataDir, "errors", tableFolder, taskFolder)
 }
 
 func computePathHash(filePath string) string {
