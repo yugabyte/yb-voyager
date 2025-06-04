@@ -20,8 +20,6 @@ import org.slf4j.LoggerFactory;
 import io.debezium.engine.ChangeEvent;
 import io.debezium.engine.DebeziumEngine;
 import io.debezium.server.BaseChangeConsumer;
-import java.io.*;
-import java.nio.channels.*;
 
 /**
  * Implementation of the consumer that exports the messages to file in a
@@ -82,7 +80,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
-
     }
 
     private ExportMode getExportModeToStartWith(String snapshotMode) {
