@@ -39,7 +39,7 @@ func TestFileRotator_Rotation(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "test.log")
 	maxSize := int64(1024) // 1KB
-	rotator, err := NewFileRotator(logFile, maxSize)
+	rotator, err := NewRotatableFile(logFile, maxSize)
 	if err != nil {
 		t.Fatalf("failed to create FileRotator: %v", err)
 	}
@@ -71,7 +71,7 @@ func TestFileRotator_WriteLargerThanMaxSize(t *testing.T) {
 	dir := t.TempDir()
 	logFile := filepath.Join(dir, "test_large.log")
 	maxSize := int64(1024) // 1KB
-	rotator, err := NewFileRotator(logFile, maxSize)
+	rotator, err := NewRotatableFile(logFile, maxSize)
 	if err != nil {
 		t.Fatalf("failed to create FileRotator: %v", err)
 	}

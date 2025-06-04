@@ -77,13 +77,13 @@ Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
 	dataDir                 string
-	rowProcessingErrorFiles map[string]*utils.FileRotator // one per table/task file
+	rowProcessingErrorFiles map[string]*utils.RotatableFile // one per table/task file
 }
 
 func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
 	return &ImportDataStashAndContinueHandler{
 		dataDir:                 dataDir,
-		rowProcessingErrorFiles: make(map[string]*utils.FileRotator),
+		rowProcessingErrorFiles: make(map[string]*utils.RotatableFile),
 	}
 }
 
@@ -107,7 +107,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
 	if !ok {
 		errorFilePath := filepath.Join(errorsDir, "processing-errors.log")
-		errorFile, err = utils.NewFileRotator(errorFilePath, defaultProcessingErrorFileSize)
+		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
 		if err != nil {
 			return fmt.Errorf("creating file rotator: %w", err)
 		}
