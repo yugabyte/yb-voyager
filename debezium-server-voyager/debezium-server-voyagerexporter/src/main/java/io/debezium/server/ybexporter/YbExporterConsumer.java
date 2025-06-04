@@ -79,39 +79,9 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 sequenceMaxMapString, exportStatus.getSequenceMaxMap());
         recordTransformer = new DebeziumRecordTransformer();
 
-       
-        FileLock lock = null;
-        FileChannel channel = null;
-        RandomAccessFile raf = null;
-        try {
-            String lockFilePath = String.format("%s/.%s_%s.lock", exportStatus.Ge)
-            File file = new File(lockFilePath);
-            raf = new RandomAccessFile(file, "rw");
-            channel = raf.getChannel();
-    
-            // Try acquiring an exclusive lock
-            lock = channel.tryLock();
-            if (lock == null) {
-                throw new Exception("Another process is already holding the lock.");
-            }
-            LOGGER.info("Lock acquired. Doing work...");
-            flusherThread = new Thread(this::flush);
-            flusherThread.setDaemon(true);
-            flusherThread.start();
-        } catch (FileNotFoundException e) {
-            LOGGER.error("error file not found: {}", e);
-        } catch (IOException i){
-            LOGGER.error("error io: {}", i);
-        } finally {
-            try {
-                if (lock != null) lock.release();
-                if (channel != null) channel.close();
-                if (raf != null) raf.close();
-            } catch (IOException e) {
-                LOGGER.error("Error closing resources: {}", e.getMessage(), e);
-            }
-        }
-
+        flusherThread = new Thread(this::flush);
+        flusherThread.setDaemon(true);
+        flusherThread.start();
 
     }
 
