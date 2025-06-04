@@ -1548,6 +1548,7 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 				log.Warnf("failed to get datatype from %s", colInfo.DataType)
 				continue
 			}
+			datatype = strings.TrimSuffix(datatype, "[]") // for the array types we add the '[]' to the type for distinguish between normal type and array based datatype
 
 			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
