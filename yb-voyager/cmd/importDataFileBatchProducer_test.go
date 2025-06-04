@@ -402,3 +402,37 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 	assert.Contains(t, errorFileContents, "ERROR: transforming line number=2")
 	assert.Contains(t, errorFileContents, "ROW: 2, \"world\"")
 }
+
+func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	fileContents := `id,val
+1, "hello"
+2, "world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Swap in the mock valueConverter
+	origValueConverter := valueConverter
+	valueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, abortErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should return an error due to abort policy
+	assert.Error(t, err)
+	assert.Nil(t, batch)
+	assert.Contains(t, err.Error(), "mock conversion error")
+}
