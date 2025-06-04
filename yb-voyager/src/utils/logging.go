@@ -50,6 +50,12 @@ func MonkeyPatchUtilsErrExitWithPanic() {
 	})
 }
 
+func MonkeyPatchUtilsErrExitToIgnore() {
+	monkeyPatchUtilsErrExit(func(formatString string, args ...interface{}) {
+		// do nothing
+	})
+}
+
 // monkeyPatchUtilsErrExit allows monkey patching of the utils.ErrExit function for testing purposes.
 // It replaces the original function with a new one provided by the caller.
 func monkeyPatchUtilsErrExit(newErrExit func(formatString string, args ...interface{})) {
