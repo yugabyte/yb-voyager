@@ -23,7 +23,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -139,11 +138,11 @@ func computePathHash(filePath string) string {
 
 // -----------------------------------------------------------------------------------------------------//
 
-func GetImportDataErrorHandler(errorPolicy errorpolicy.ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
+func GetImportDataErrorHandler(errorPolicy ErrorPolicy, dataDir string) (ImportDataErrorHandler, error) {
 	switch errorPolicy {
-	case errorpolicy.AbortErrorPolicy:
+	case AbortErrorPolicy:
 		return NewImportDataAbortHandler(), nil
-	case errorpolicy.StashAndContinueErrorPolicy:
+	case StashAndContinueErrorPolicy:
 		return NewImportDataStashAndContinueHandler(dataDir), nil
 	default:
 		return nil, fmt.Errorf("unknown error policy: %s", errorPolicy)
