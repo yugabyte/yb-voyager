@@ -10,6 +10,8 @@
             padding: 0;
             background-color: #f4f4f4;
             color: #333;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .wrapper {
@@ -43,6 +45,8 @@
             white-space: normal;
             box-sizing: border-box;
             margin: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         th {
@@ -67,6 +71,18 @@
             overflow-y: scroll;
             border: 1px solid #ccc; /* a visual separator from the body */
             padding: 10px;
+            scrollbar-width: thin; /* Firefox */
+            -ms-overflow-style: auto; /* IE 10+ */
+        }
+
+        .scrollable-div::-webkit-scrollbar {
+            width: 8px;
+            background: #f2f2f2;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
         }
 
         .no-wrap-list li {
@@ -94,15 +110,16 @@
             margin-bottom: 15px;
         }
 
-        pre {
-            width: 100%; /* Ensure the pre/code content takes full width of the container */
-            word-wrap: break-word; /* Break long lines into multiple lines */
-            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
-            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
-            word-break: break-all; /* Prevents long words from overflowing */
-            margin: 0; /* Remove default margins */
-            padding: 5px; /* Remove default padding */
-            font-family: monospace; /* Optional: ensure a monospaced font */
+        pre, code {
+            width: 100%;          /* Ensure content takes full width of container */
+            margin: 0;            /* Remove default margins */
+            padding: 8px;         /* Add consistent padding around code blocks */
+            background: none;     /* Remove any background styling */
+            border: none;         /* Remove any borders */
+            white-space: pre-wrap;      /* CSS3: wrap as needed, preserve whitespace */
+            word-break: break-word;     /* Break long words if needed */
+            overflow-wrap: break-word;  /* Same as above, for newer browsers */
+            box-sizing: border-box;     /* Include padding in element's total width */
         }
 
         /* Highlight Table Styles */
@@ -576,7 +593,7 @@
                                                     <td>
                                                         {{ if $issue.SqlStatement }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.SqlStatement }}</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.SqlStatement }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if Sql Statement not present -->
@@ -609,7 +626,7 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if description not present -->
