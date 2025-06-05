@@ -1627,3 +1627,18 @@ func sendCallhomePayloadAtIntervals() {
 		}
 	}
 }
+
+// Adding it here instead of utils package to avoid circular dependency issues
+func ParseJsonToAnalyzeSchemaReport(reportPath string) (*utils.SchemaReport, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	var report utils.SchemaReport
+	err := jsonfile.NewJsonFile[utils.SchemaReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
