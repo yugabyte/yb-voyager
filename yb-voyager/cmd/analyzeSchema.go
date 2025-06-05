@@ -297,7 +297,21 @@ func addSummaryDetailsForIndexes() {
 	exportedIndexes := summaryMap["INDEX"].objSet
 	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
 	unexportedIdxsPresent := false
+
+	// List for assessment report has suffix " INDEX" added to the original index type
+	suffix := " INDEX"
+	oracleUnsupportedIndexTypesForAnalyze := lo.Map(OracleUnsupportedIndexTypes, func(s string, _ int) string {
+		if strings.HasSuffix(s, suffix) {
+			return strings.TrimSuffix(s, suffix)
+		}
+		return s
+	})
+
 	for _, indexInfo := range indexesInfo {
+		if !slices.Contains(oracleUnsupportedIndexTypesForAnalyze, indexInfo.IndexType) {
+			continue
+		}
+
 		sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
 		if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
 			unexportedIdxsPresent = true
