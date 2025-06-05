@@ -465,6 +465,46 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
 		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
 }
 
+func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsBatchSize(t *testing.T) {
+	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will be too large and should not count towards the batch size
+	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will be too large for the batch size, but the third row is small enough to fit if the second is skipped
+	fileContents := `id,val
+1, "ok"
+2, "this row is way too long to fit in the batch and should be skipped"
+3, "ok2"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is too large and skipped, its size does not count)
+	batch, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+	assert.Equal(t, int64(0), batch.Number) // last batch
+
+	// Error file should contain the error for row 2
+	assertErrorFileContains(t, lexportDir, task,
+		"larger than max batch size",
+		"ROW: 2, \"this row is way too long to fit in the batch and should be skipped\"",
+	)
+}
+
 // assertErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
 func assertErrorFileContains(t *testing.T, lexportDir string, task *ImportFileTask, expectedSubstrings ...string) {
 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
