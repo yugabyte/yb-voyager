@@ -168,19 +168,20 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	log.Debugf("Discovered import file tasks: %v", importFileTasks)
-	if importerRole == TARGET_DB_IMPORTER_ROLE {
-
+	
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
 		importType = record.ExportType
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
-	}
-
-	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.FallbackEnabled {
 			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
 		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
-		//TODO: identity keyt wrong for source db importer
+	case SOURCE_DB_IMPORTER_ROLE:
+		identityColumnsMetaDBKey = metadb.SOURCE_DB_IDENTITY_COLUMNS_KEY
+
 	}
 
 	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
