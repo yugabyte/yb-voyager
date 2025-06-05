@@ -550,6 +550,9 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
+
+		The violation error will be because of PK in this code path, not Non-PK table with unique constraint.
+		Even if table has PK + UK on different columns, violation will be on PK for sure, given that the data is existing on source database with same schema
 	*/
 	if err != nil && strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
 		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
@@ -591,6 +594,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	} else {
 		copyCommand = args.GetYBTxnCopyStatement()
 	}
+
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
@@ -631,11 +635,12 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
 	var rowsIgnored int64 = 0
-	rowsAffected = 0
-
-	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
-	// TODO (high priority): fix https://yugabyte.atlassian.net/browse/DB-16276 otherwise syntax error for non public schema data import
-	insertStmt := args.GetInsertPreparedStmtForBatchImport()
+	rowsAffected = 0 // reset to 0
+	copyCommand := args.GetYBTxnCopyStatement()
+	copyHeader := ""
+	if args.HasHeader {
+		copyHeader = df.GetHeader()
+	}
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
@@ -656,23 +661,40 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			}
 		}
 
-		fields := strings.Split(line, args.Delimiter)
-		stmtArgs := make([]interface{}, len(fields))
-		for i, val := range fields {
-			stmtArgs[i] = val
+		var singleLineReader io.Reader
+		if copyHeader != "" {
+			singleLineReader = strings.NewReader(copyHeader + "\n" + line)
+		} else {
+			singleLineReader = strings.NewReader(line)
 		}
 
-		// 5. Execute the INSERT statement one by one
-		res, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
+		// 5. Execute the COPY statement with the line read from the file
+		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
-			return 0, fmt.Errorf("insert into target table: %w", err)
+			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
+			if strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
+				// logging lineNum might not be useful as batches are truncated later on
+				log.Debugf("ignoring error %q for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
+				rowsIgnored++ // increment before continuing to next line
+				continue
+			}
+
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			}
+			return rowsAffected + rowsIgnored, err
 		}
 
+		// rowsAffected will be either 0 or 1
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
+			// at this point it is not expected to have 0 rows affected
 			rowsIgnored++
+			log.Warnf("COPY command for line=%q in batch %s returned 0 rows affected, incrementing rowsIgnored", batch.GetFilePath(), line)
 		}
+
 		if readLinErr == io.EOF { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
@@ -682,20 +704,20 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	totalRowsInBatch := rowsAffected + rowsIgnored
 
 	// 6. Update the Metadata about the batch imported
-	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't
+	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't update the metadata
 	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 		return 0, err
 	}
 
-	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
 	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored",
 		args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 	log.Debugf("(recovery) [conflict_action=%s] %q => insert stmt: %s, rows inserted: %d, rows ignored: %d",
-		args.PKConflictAction, batch.GetFilePath(), insertStmt, rowsAffected, rowsIgnored)
+		args.PKConflictAction, batch.GetFilePath(), copyCommand, rowsAffected, rowsIgnored)
 
-	// 8. returns total number of rows
+	// 8. returns total number of rows so that stats reporting(import data status) is consistent
 	return totalRowsInBatch, nil
 }
 

@@ -440,6 +440,12 @@ func CreateNameTupleWithSourceName(s string, defaultSchema string, dbType string
 // and then compares every row for an exact match.
 // It returns an error if there’s any difference.
 func CompareTableData(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableName, orderByClause string) error {
+	// Compare row counts first
+	err := CompareRowCount(ctx, srcDB, tgtDB, tableName)
+	if err != nil {
+		return err
+	}
+
 	// Construct the query with an ORDER BY clause for deterministic ordering.
 	query := fmt.Sprintf("SELECT * FROM %s ORDER BY %s", tableName, orderByClause)
 
@@ -491,6 +497,25 @@ func CompareTableData(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableNa
 	// If target has extra rows, that's a mismatch.
 	if tgtRows.Next() {
 		return fmt.Errorf("target has more rows than source; extra rows after row %d", rowNum)
+	}
+	return nil
+}
+
+// CompareRowCount compares the row count of a table in two databases.
+func CompareRowCount(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableName string) error {
+	srcCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	tgtCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	srcCountRow := srcDB.QueryRowContext(ctx, srcCountQuery)
+	tgtCountRow := tgtDB.QueryRowContext(ctx, tgtCountQuery)
+	var srcCount, tgtCount int
+	if err := srcCountRow.Scan(&srcCount); err != nil {
+		return fmt.Errorf("counting rows in source table %s: %w", tableName, err)
+	}
+	if err := tgtCountRow.Scan(&tgtCount); err != nil {
+		return fmt.Errorf("counting rows in target table %s: %w", tableName, err)
+	}
+	if srcCount != tgtCount {
+		return fmt.Errorf("row count mismatch for table %s: source has %d rows, target has %d rows", tableName, srcCount, tgtCount)
 	}
 	return nil
 }
