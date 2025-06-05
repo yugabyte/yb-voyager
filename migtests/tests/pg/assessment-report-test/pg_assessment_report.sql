@@ -226,6 +226,7 @@ create table public.combined_tbl (
     raster lo,
     arr_enum enum_kind[],
     data hstore,
+    xml_data xml[],
     PRIMARY KEY (id, arr_enum)
 );
 

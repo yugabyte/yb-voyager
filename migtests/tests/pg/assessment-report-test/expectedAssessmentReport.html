@@ -1313,8 +1313,8 @@
                                 <td class="centered-cell">Unsupported Datatypes</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">25</td>
-                                <td class="centered-cell">25</td>
+                                <td class="centered-cell">26</td>
+                                <td class="centered-cell">26</td>
                             </tr>
                         
                     </tbody>
@@ -1323,7 +1323,7 @@
 
             <p>
                 <strong>Complexity:</strong> HIGH<br>
-                <strong>Reasoning:</strong> Found 41 Level 2 issue(s) and 29 Level 3 issue(s), resulting in HIGH migration complexity
+                <strong>Reasoning:</strong> Found 41 Level 2 issue(s) and 30 Level 3 issue(s), resulting in HIGH migration complexity
             </p>
 
             <p>
@@ -1339,7 +1339,7 @@
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total Issues:</strong> 148</p>
+                    <p><strong>Total Issues:</strong> 149</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -8143,6 +8143,103 @@ FROM STDIN WITH (FORMAT csv, ON_ERROR IGNORE )</pre>
                             </td>
                         </tr>
                     </tbody>
+                    <tbody class="issue-summary-detail-pair"
+                    data-category="unsupported_datatypes"
+                    data-name="Unsupported datatype - xml"
+                    data-impact="LEVEL_3">
+                    <!-- Summary Row -->
+                    <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10')">
+                        <td class="centered-cell">
+                            <div class="category-cell-flex">
+                                <div class="arrow-container">
+                                    <span id="arrow-10">&#9654;</span>
+                                </div>
+                                <span style="word-break: break-word;">Unsupported Datatypes</span>
+                            </div>
+                        </td>
+                        <td class="centered-cell">Unsupported datatype - xml</td>
+                        <td class="centered-cell">
+                            
+                                public.combined_tbl.xml_data
+                            
+                        </td>
+                        <td class="centered-cell" style="text-align: center;">Level 3</td>
+                    </tr>
+
+                    <!-- Hidden Details of the Row -->
+                    <tr id="details-10" class="details-row">
+                        <td colspan="4">
+                            <div class="details-content-wrapper">
+                                <div class="details-content">
+                                    <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                        <colgroup>
+                                            <col style="width: 25%;">
+                                            <col style="width: 75%;">
+                                        </colgroup>
+                                        <tbody>
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Category Description</th>
+                                                    <td>
+                                                        <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                            Data types of the source database that are not supported on the target YugabyteDB.
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            
+
+                                            <!-- Only show if ObjectType is present -->
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Object Type</th>
+                                                    <td>COLUMN</td>
+                                                </tr>
+                                            
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Object Name</th>
+                                                    <td>public.combined_tbl.xml_data</td>
+                                                </tr>
+                                            
+                                            <tr>
+                                                <th class="centered-cell">SQL Statement</th>
+                                                <td>
+                                                    
+                                                    <!-- display N/A if Sql Statement not present -->
+                                                        N/A
+                                                    
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th class="centered-cell">Docs Link</th>
+                                                <td>
+                                                    
+                                                        <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported">Documentation</a>
+                                                    
+                                                </td>
+                                            </tr>
+
+                                            <!-- Only show if there is a supported version -->
+                                            
+                                            
+                                            <tr>
+                                                <th class="centered-cell">Description</th>
+                                                <td>
+                                                    
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.</pre>
+                                                        </div>
+                                                    
+                                                </td>
+                                            </tr>
+                                           
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
