@@ -47,6 +47,30 @@ func (m *mockValueConverterForTest) GetTableNameToSchema() (*utils.StructMap[sql
 	return nil, nil
 }
 
+// Helper mock for row-specific error
+// Returns a conversion error for a specific row number (rowToError)
+type mockRowErrorValueConverter struct {
+	rowToError int
+}
+
+func (m *mockRowErrorValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	if m.rowToError > 0 {
+		// Extract row number from row string (assuming format: N, ...)
+		if len(row) > 0 && row[0] >= '1' && row[0] <= '9' {
+			if int(row[0]-'0') == m.rowToError {
+				return row, fmt.Errorf("mock conversion error")
+			}
+		}
+	}
+	return row, nil
+}
+func (m *mockRowErrorValueConverter) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	return nil
+}
+func (m *mockRowErrorValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+	return nil, nil
+}
+
 // In cmd package, we have 3 TestMain functions, one for each build tag(unit, integration, integration_voyager_command).
 func TestMain(m *testing.M) {
 	// set logging level to WARN
@@ -502,6 +526,51 @@ func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsB
 	assertErrorFileContains(t, lexportDir, task,
 		"larger than max batch size",
 		"ROW: 2, \"this row is way too long to fit in the batch and should be skipped\"",
+	)
+}
+
+func TestFileBatchProducer_StashAndContinue_ConversionErrorDoesNotCountTowardsBatchSize(t *testing.T) {
+	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will error (conversion error) and should not count towards the batch size
+	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
+	fileContents := `id,val
+1, "ok"
+2, "errorrow"
+3, "ok2"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Use a mock valueConverter that errors on row 2
+	origValueConverter := valueConverter
+	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
+	batch, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+
+	// Error file should contain the error for row 2
+	assertErrorFileContains(t, lexportDir, task,
+		"ERROR: transforming line number=2",
+		"mock conversion error",
+		"ROW: 2, \"errorrow\"",
 	)
 }
 
