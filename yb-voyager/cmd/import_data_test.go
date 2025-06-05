@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -831,6 +832,180 @@ CREATE TABLE public.foo (
 	// Compare the full table data between Postgres and YugabyteDB.
 	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "public.foo", "id"); err != nil {
 		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+}
+
+// Test to ensure that only unique constraint violation errors by Primary Key are ignored
+// If caused by other constraints, the import should fail and not retry/ignore
+// Testing with custom csv file with import data file command
+func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintViolationErrorExit(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+	createTableSQL := `CREATE TABLE test_schema.test_data (
+		id SERIAL PRIMARY KEY,
+		name TEXT,
+		email TEXT UNIQUE
+	);`
+
+	// create csv file with header + data in /tmp/test_data_%s.csv using random uuid
+	dataFilePath := filepath.Join("/tmp", fmt.Sprintf("test_data_%s.csv", uuid.NewString()))
+	t.Logf("Generated Data file path: %s", dataFilePath)
+
+	// create and write data to the csv file
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Error creating data file: %v", err)
+	}
+	defer func() {
+		f.Close()
+		os.Remove(dataFilePath)
+	}()
+
+	w := csv.NewWriter(f)
+	if err := w.Write([]string{"id", "name", "email"}); err != nil { // write header
+		t.Fatalf("Error writing CSV header: %v", err)
+	}
+	for i := 1; i <= 100; i++ {
+		w.Write([]string{
+			fmt.Sprintf("%d", i),
+			fmt.Sprintf("user%d", i),
+			fmt.Sprintf("user%d@gmail.com", i),
+		})
+	}
+	// insert one more row with duplicate email to trigger unique constraint violation
+	w.Write([]string{
+		fmt.Sprintf("%d", 101),
+		"user101",
+		fmt.Sprintf("user100@gmail.com"), // duplicate email
+	})
+
+	w.Flush() // flush the writer to ensure all data is written
+	if err := w.Error(); err != nil {
+		t.Fatalf("Error flushing CSV writer: %v", err)
+	}
+
+	// create the table in YugabyteDB
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// now run import data file command using this data file
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--batch-size", "26",
+		"--target-db-schema", "test_schema",
+		"--on-primary-key-conflict", "IGNORE",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", fmt.Sprintf("%s:test_schema.test_data", filepath.Base(dataFilePath)),
+		"--format", "CSV",
+		"--has-header", "true",
+		"--truncate-splits", "false",
+		"--yes",
+	}
+
+	// TODO: planning to enhance RunVoyagerCommand to return the actual error messages, currently it returns a exit status
+	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err == nil {
+		t.Fatalf(`Expected import command to fail due to "unique constraint violation", but it succeeded`)
+	} else {
+		t.Logf("Import command failed as expected with error: %v", err)
+	}
+}
+
+// Similar to the above test, but with a unique constraint violation on primary key which should be ignored
+func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintViolationErrorIgnore(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+	createTableSQL := `CREATE TABLE test_schema.test_data (
+		id SERIAL PRIMARY KEY,
+		name TEXT,
+		email TEXT UNIQUE
+	);`
+
+	// create csv file with header + data in /tmp/test_data_%s.csv using random uuid
+	dataFilePath := filepath.Join("/tmp", fmt.Sprintf("test_data_%s.csv", uuid.NewString()))
+	t.Logf("Generated Data file path: %s", dataFilePath)
+
+	// create and write data to the csv file
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Error creating data file: %v", err)
+	}
+	defer func() {
+		f.Close()
+		os.Remove(dataFilePath)
+	}()
+
+	w := csv.NewWriter(f)
+	if err := w.Write([]string{"id", "name", "email"}); err != nil { // write header
+		t.Fatalf("Error writing CSV header: %v", err)
+	}
+	for i := 1; i <= 100; i++ {
+		w.Write([]string{
+			fmt.Sprintf("%d", i),
+			fmt.Sprintf("user%d", i),
+			fmt.Sprintf("user%d@gmail.com", i),
+		})
+	}
+	// insert one more row with duplicate id(PK)
+	w.Write([]string{
+		fmt.Sprintf("%d", 100), // duplicate id
+		"user101",
+		fmt.Sprintf("user101@gmail.com"),
+	})
+
+	w.Flush() // flush the writer to ensure all data is written
+	if err := w.Error(); err != nil {
+		t.Fatalf("Error flushing CSV writer: %v", err)
+	}
+
+	// create the table in YugabyteDB
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// now run import data file command using this data file
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "test_schema",
+		"--on-primary-key-conflict", "IGNORE",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", fmt.Sprintf("%s:test_schema.test_data", filepath.Base(dataFilePath)),
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed unexpectedly: %v", err)
+	} else {
+		t.Logf("Import command succeeded as expected, ignoring unique constraint violation on primary key")
 	}
 }
 
