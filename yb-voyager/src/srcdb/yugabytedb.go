@@ -944,7 +944,6 @@ func (yb *YugabyteDB) CheckIfReplicationSlotIsActive(replicationSlot string) (bo
 	var isActive bool
 	var activePID sql.NullString
 	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
-	fmt.Printf("%s", stmt)
 	err := yb.db.QueryRow(stmt).Scan(&isActive, &activePID)
 	if err != nil {
 		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
