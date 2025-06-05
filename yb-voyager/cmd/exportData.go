@@ -382,6 +382,14 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
+			if err != nil {
+				utils.ErrExit("error checking if replication slot is active: %v", err)
+			}
+			if isActive {
+				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+			}
+
 			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
@@ -400,6 +408,21 @@ func exportData() bool {
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
+		// if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
+		// Not having this check right now for the YB as this is not available in all YB versions, TODO: add it later
+		// 	msr, err := metaDB.GetMigrationStatusRecord()
+		// 	if err != nil {
+		// 		utils.ErrExit("get migration status record: %v", err)
+		// 	}
+
+		// 	isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
+		// 	if err != nil {
+		// 		utils.ErrExit("error checking if replication slot is active: %v", err)
+		// 	}
+		// 	if isActive {
+		// 		utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
+		// 	}
+		// }
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -645,6 +668,28 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 		}
 	}
 	return allLeafPartitions
+}
+
+func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
+	switch source.DBType {
+	case POSTGRESQL:
+		pgDB, ok := source.DB().(*srcdb.PostgreSQL)
+		if !ok {
+			return false, fmt.Errorf("source type is not PostgreSQL")
+		}
+
+		return pgDB.CheckIfReplicationSlotIsActive(replicationSlot)
+	case YUGABYTEDB:
+		//Currently not having the check for YB as this active and active_pid information is not present in all YB versions  
+		ybDB, ok := source.DB().(*srcdb.YugabyteDB)
+		if !ok {
+			return false, fmt.Errorf("source type is not YugabyteDB")
+		}
+
+		return ybDB.CheckIfReplicationSlotIsActive(replicationSlot)
+	}
+
+	return false, nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
