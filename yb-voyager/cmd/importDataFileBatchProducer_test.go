@@ -409,6 +409,9 @@ func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
 	// Should not return an error,
 	assert.NoError(t, err)
 	assert.Equal(t, int64(0), batch.RecordCount)
+	// all errors are stashed, so the last batch that is created should have 0 records
+	assert.Equal(t, int64(0), (batch.Number))
+	assert.Equal(t, true, batchproducer.Done())
 
 	assertErrorFileContains(t, lexportDir, task,
 		"ERROR: transforming line number=1",
