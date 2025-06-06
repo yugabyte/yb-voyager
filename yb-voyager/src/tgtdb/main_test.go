@@ -25,6 +25,7 @@ import (
 	_ "github.com/godror/godror"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
@@ -44,7 +45,7 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -74,7 +75,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testPostgresTarget.Finalize()
 
-	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
+	oracleContainer := testcontainers.NewTestContainer("oracle", nil, nil)
 	_ = oracleContainer.Start(ctx)
 	host, port, err = oracleContainer.GetHostPort()
 	if err != nil {
@@ -100,7 +101,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testOracleTarget.Finalize()
 
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
 	err = yugabytedbContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start yugabytedb container: %v", err)
