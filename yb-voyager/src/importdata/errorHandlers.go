@@ -27,6 +27,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	ProcessingErrorsLogFile = "processing-errors.log"
+	IngestionErrorPrefix    = "ingestion-error"
+)
+
 var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
 
 type ImportDataErrorHandler interface {
@@ -91,8 +96,7 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 	return false
 }
 
-// HandleRowProcessingError writes the row and error to a processing-errors.log file using FileRotator.
-// Now takes tableName and taskFilePath to store logs in a unique folder per table/task.
+// HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
 func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
 	var err error
 	if row == "" && rowErr == nil {
@@ -106,7 +110,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
 	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
 	if !ok {
-		errorFilePath := filepath.Join(errorsDir, "processing-errors.log")
+		errorFilePath := filepath.Join(errorsDir, ProcessingErrorsLogFile)
 		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
 		if err != nil {
 			return fmt.Errorf("creating file rotator: %w", err)
@@ -117,7 +121,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
 	_, err = errorFile.Write([]byte(msg))
 	if err != nil {
-		return fmt.Errorf("writing to processing-errors.log: %w", err)
+		return fmt.Errorf("writing to %s: %w", ProcessingErrorsLogFile, err)
 	}
 	return nil
 }
@@ -154,7 +158,7 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 
-	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
+	symlinkFileName := fmt.Sprintf("%s.%s", IngestionErrorPrefix, filepath.Base(batch.GetFilePath()))
 	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
