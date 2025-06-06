@@ -13,13 +13,15 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type PostgresContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
-	container testcontainers.Container
+	ContainerCmd []string
+	container    testcontainers.Container
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
@@ -54,6 +56,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)
 	}
 
+	fmt.Printf("command - %v", pg.ContainerCmd)
 	req := testcontainers.ContainerRequest{
 		// TODO: verify the docker images being used are the correct/certified ones
 		Image:        fmt.Sprintf("postgres:%s", pg.DBVersion),
@@ -74,6 +77,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 				FileMode:          0755,
 			},
 		},
+		Cmd: pg.ContainerCmd,
 	}
 
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
@@ -90,6 +94,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
+
 	return nil
 }
 

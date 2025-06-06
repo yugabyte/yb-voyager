@@ -52,7 +52,7 @@ type TestTargetDB struct {
 var testYugabyteDBTarget *TestTargetDB
 
 func setupYugabyteTestDb(t *testing.T) {
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
 	err := yugabytedbContainer.Start(context.Background())
 	testutils.FatalIfError(t, err)
 	host, port, err := yugabytedbContainer.GetHostPort()

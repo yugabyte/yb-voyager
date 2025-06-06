@@ -25,6 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -116,7 +117,7 @@ func TestExportSchemaRunningAssessmentInternally_ExportAfterAssessCmd(t *testing
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
 	err := postgresContainer.Start(context.Background())
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -207,7 +208,7 @@ func TestExportSchemaRunningAssessmentInternally_ExportSchemaThenAssessCmd(t *te
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
 	err := postgresContainer.Start(context.Background())
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -292,7 +293,7 @@ func TestExportSchemaRunningAssessmentInternally_DisableFlag(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
 	err := postgresContainer.Start(context.Background())
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)

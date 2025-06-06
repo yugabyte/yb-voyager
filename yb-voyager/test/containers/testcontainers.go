@@ -44,9 +44,11 @@ type ContainerConfig struct {
 	Schema    string
 }
 
-func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestContainer {
+func NewTestContainer(dbType string, containerConfig *ContainerConfig, containerCmd []string) TestContainer {
 	registryMutex.Lock()
 	defer registryMutex.Unlock()
+
+	fmt.Printf("new test command = %v", containerCmd)
 
 	// initialise containerConfig struct if nothing is provided
 	if containerConfig == nil {
@@ -66,6 +68,7 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 	case POSTGRESQL:
 		testContainer = &PostgresContainer{
 			ContainerConfig: *containerConfig,
+			ContainerCmd:    containerCmd,
 		}
 	case YUGABYTEDB:
 		testContainer = &YugabyteDBContainer{
