@@ -100,9 +100,11 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
 	"target-endpoints", "truncate-tables", "error-policy-snapshot",
+	"on-primary-key-conflict", "skip-disk-usage-health-checks", "truncate-splits",
+	"continue-on-error", "skip-node-health-checks", "disable-transactional-writes",
+
 	// environment variables keys
-	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
-	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
+	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size", "max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
 )
