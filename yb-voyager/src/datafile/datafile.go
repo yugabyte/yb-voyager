@@ -40,7 +40,6 @@ type DataFile interface {
 var reCopy = regexp.MustCompile(`(?i)COPY .* FROM STDIN;`)
 
 func NewDataFile(fileName string, reader io.ReadCloser, descriptor *Descriptor) (DataFile, error) {
-	fmt.Printf("[debug] batch file descriptor format: %s\n", descriptor.FileFormat)
 	switch descriptor.FileFormat {
 	case CSV:
 		return newCsvDataFile(fileName, reader, descriptor)

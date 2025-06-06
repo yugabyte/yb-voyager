@@ -615,7 +615,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 // importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
 func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (int64, error) {
-	utils.PrintAndLog("importing %q using COPY command FAST PATH RECOVERY MODE!!!!!!", batch.GetFilePath())
+	log.Infof("importing %q using COPY command fast path with recovery", batch.GetFilePath())
 	// 1. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {

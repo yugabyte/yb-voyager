@@ -74,7 +74,6 @@ func (ds *S3DataStore) FileSize(filePath string) (int64, error) {
 }
 
 func (ds *S3DataStore) Open(resourceName string) (io.ReadCloser, error) {
-	fmt.Printf("[debug] Opening S3 resource: %s\n", resourceName)
 	if strings.HasPrefix(resourceName, "s3://") {
 		return s3.NewObjectReader(resourceName)
 	}
