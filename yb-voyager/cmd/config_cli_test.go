@@ -21,14 +21,10 @@ func TestImportDataFlagsMatchAllowedConfigKeys(t *testing.T) {
 	targetFlags := mapset.NewThreadUnsafeSet[string]()
 	globalFlags := mapset.NewThreadUnsafeSet[string]()
 
-	excludedFlags := mapset.NewThreadUnsafeSet[string]("start-clean")
+	excludedFlags := mapset.NewThreadUnsafeSet[string]("start-clean", "profile")
 	globalLevelFlags := mapset.NewThreadUnsafeSet[string]("send-diagnostics", "run-guardrails-checks")
 
-	forceIncludeHiddenFlags := mapset.NewThreadUnsafeSet[string]("max-retries", "error-policy-snapshot")
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
-		if f.Hidden && !forceIncludeHiddenFlags.Contains(f.Name) {
-			return // skip hidden flags except for exceptions
-		}
 		if excludedFlags.Contains(f.Name) {
 			return // skip flags that are never present in config
 		}
