@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -667,7 +666,7 @@ CREATE table test_schema.test_data (
 		t.Fatalf("failed to create directory %q: %v", dataDir, err)
 	}
 
-	f, err := os.Create(dataFilePath)
+	f, err := os.Create(dataFilePath) // truncate or create new
 	if err != nil {
 		t.Fatalf("Error creating data file: %v", err)
 	}
@@ -859,9 +858,14 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		email TEXT UNIQUE
 	);`
 
-	// create csv file with header + data in /tmp/test_data_%s.csv using random uuid
-	dataFilePath := filepath.Join("/tmp", fmt.Sprintf("test_data_%s.csv", uuid.NewString()))
-	t.Logf("Generated Data file path: %s", dataFilePath)
+	// generate CSV file with header + data in /tmp/data-dir/test_data.csv
+	dataFilePath := filepath.Join("/tmp", "data-dir", "test_data.csv")
+
+	// Ensure the directory exists
+	dataDir := filepath.Dir(dataFilePath)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create directory %q: %v", dataDir, err)
+	}
 
 	// create and write data to the csv file
 	f, err := os.Create(dataFilePath)
@@ -904,10 +908,10 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	importDataFileCmdArgs := []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
-		"--batch-size", "26",
+		"--batch-size", "10",
 		"--target-db-schema", "test_schema",
 		"--on-primary-key-conflict", "IGNORE",
-		"--data-dir", filepath.Dir(dataFilePath),
+		"--data-dir", dataDir,
 		"--file-table-map", fmt.Sprintf("%s:test_schema.test_data", filepath.Base(dataFilePath)),
 		"--format", "CSV",
 		"--has-header", "true",
@@ -946,9 +950,14 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		email TEXT UNIQUE
 	);`
 
-	// create csv file with header + data in /tmp/test_data_%s.csv using random uuid
-	dataFilePath := filepath.Join("/tmp", fmt.Sprintf("test_data_%s.csv", uuid.NewString()))
-	t.Logf("Generated Data file path: %s", dataFilePath)
+	// generate CSV file with header + data in /tmp/data-dir/test_data.csv
+	dataFilePath := filepath.Join("/tmp", "data-dir", "test_data.csv")
+
+	// Ensure the directory exists
+	dataDir := filepath.Dir(dataFilePath)
+	if err := os.MkdirAll(dataDir, 0755); err != nil {
+		t.Fatalf("failed to create directory %q: %v", dataDir, err)
+	}
 
 	// create and write data to the csv file
 	f, err := os.Create(dataFilePath)
@@ -994,7 +1003,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		"--batch-size", "10",
 		"--target-db-schema", "test_schema",
 		"--on-primary-key-conflict", "IGNORE",
-		"--data-dir", filepath.Dir(dataFilePath),
+		"--data-dir", dataDir,
 		"--file-table-map", fmt.Sprintf("%s:test_schema.test_data", filepath.Base(dataFilePath)),
 		"--format", "CSV",
 		"--has-header", "true",
