@@ -152,11 +152,10 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if p.errorHandler.ShouldAbort() {
 				return nil, errMsg
 			}
-			handleErr := p.errorHandler.HandleRowProcessingError(line, errMsg, p.task.TableNameTup, p.task.FilePath)
-			if handleErr != nil {
-				return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
+			err := p.handleRowProcessingErrorAndResetBytes(line, errMsg, currentBytesRead)
+			if err != nil {
+				return nil, err
 			}
-			p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
 			continue
 		}
 		if line != "" {
@@ -169,11 +168,10 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 				if p.errorHandler.ShouldAbort() {
 					return nil, errMsg
 				}
-				handleErr := p.errorHandler.HandleRowProcessingError(lineBeforeConversion, errMsg, p.task.TableNameTup, p.task.FilePath)
-				if handleErr != nil {
-					return nil, fmt.Errorf("failed to stash row processing error: %w", handleErr)
+				err := p.handleRowProcessingErrorAndResetBytes(lineBeforeConversion, errMsg, currentBytesRead)
+				if err != nil {
+					return nil, err
 				}
-				p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
 				continue
 			}
 			batchBytesCount := p.dataFile.GetBytesRead() // GetBytesRead - returns the total bytes read until now including the currentBytesRead
@@ -287,4 +285,16 @@ func (p *FileBatchProducer) Close() {
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
+}
+
+func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(row string, rowErr error, currentBytesRead int64) error {
+	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath)
+	if handleErr != nil {
+		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
+	}
+	// datafile.GetBytesRead tracks the total bytes read from the file in the current batch.
+	// Since we are not adding the current row to the batch, we need to reset the bytes read
+	// to the previous value before reading the current row.
+	p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
+	return nil
 }
