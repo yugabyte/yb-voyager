@@ -40,7 +40,7 @@ yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433
 
 source:
 
-  ### Source database type: (oracle, mysql, postgresql)
+  ### Source database type: (oracle, postgresql)
   db-type: postgresql    
 
   ### Source database server host. 
@@ -48,7 +48,7 @@ source:
   db-host: localhost 
 
   ### Source database server port number. 
-  ### Default - Oracle(1521), MySQL(3306), PostgreSQL(5432)                                     
+  ### Default - Oracle(1521), PostgreSQL(5432)                                     
   db-port: 5432    
 
   ### Source database name to be migrated to YugabyteDB                                       
@@ -74,7 +74,7 @@ source:
   # ssl-cert: <ssl-cert-path>  
 
   ### Specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) 
-  ### MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode parameters. 
+  ### Oracle does not use explicit sslmode parameters. 
   ### Default - prefer.                          
   # ssl-mode: prefer    
 
@@ -125,7 +125,7 @@ target:
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
   db-name: yugabyte 
 
-  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  ### Target schema name in YugabyteDB (Note: works only for source as Oracle, in case of PostgreSQL you can ALTER schema name post import)                                    
   # db-schema: public      
 
   ### Username with which to connect to the target YugabyteDB server                                    
@@ -190,8 +190,7 @@ export-schema:
   ### Note - You can only provide either object-type-list or exclude-object-type-list, not both.
   ###   Accepted parameters for the object-type-list and exclude-object-type-list are:
   ###   Oracle - TYPE, SEQUENCE, TABLE, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, SYNONYM, VIEW, MVIEW
-  ###   PostgreSQL - TYPE, DOMAIN, SEQUENCE, TABLE, FUNCTION, PROCEDURE, AGGREGATE, VIEW, MVIEW, TRIGGER, COMMENT
-  ###   MySQL - TABLE, VIEW, TRIGGER, FUNCTION, PROCEDURE                                                 
+  ###   PostgreSQL - TYPE, DOMAIN, SEQUENCE, TABLE, FUNCTION, PROCEDURE, AGGREGATE, VIEW, MVIEW, TRIGGER, COMMENT                                                
   # object-type-list: "TABLE,FUNCTION,VIEW"            
   # exclude-object-type-list: "TRIGGER"   
 
@@ -202,7 +201,7 @@ export-schema:
 
   ### Enable using orafce extension in export schema 
   ### Accepted values (true, false, yes, no, 1, 0) 
-  ### Only valid for Oracle and MySQL source databases
+  ### Only valid for Oracle source databases
   ### Default - true
   # use-orafce: true  
 
@@ -246,7 +245,6 @@ import-schema:
   ### Accepted parameters -
   ###   Oracle - TYPE, SEQUENCE, TABLE, PARTITION, INDEX, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, MVIEW, SYNONYM
   ###   PostgreSQL - SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, INDEX, FUNCTION, AGGREGATE, PROCEDURE, VIEW, TRIGGER, MVIEW, RULE, COMMENT
-  ###   MySQL - TABLE, PARTITION, INDEX, VIEW, TRIGGER, FUNCTION, PROCEDURE 
   # object-type-list: 'TABLE, MVIEW'                              
   # exclude-object-type-list: 'TRIGGER'
 
@@ -411,7 +409,7 @@ archive-changes:
 initiate-cutover-to-target:
 
   ### Prepare for fallback by streaming changes from target DB back to source DB.
-  ### Note - This is required to be true for fall back workflow
+  ### Note - This is required to be true for fall-back workflow
   ### [DO NOT CHANGE]
   prepare-for-fall-back: true
 
@@ -478,7 +476,7 @@ export-data-from-target:
 import-data-to-source:
 
   ### Number of parallel jobs to use while importing data. 
-  ### Default - For PostgreSQL(voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs else it will fall back to 8) and Oracle(16). 
+  ### Default - For PostgreSQL(voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs else it will fall-back to 8) and Oracle(16). 
   ### Any value less than 1 reverts to the default calculation.
   # parallel-jobs: <number-of-parallel-jobs>
 
