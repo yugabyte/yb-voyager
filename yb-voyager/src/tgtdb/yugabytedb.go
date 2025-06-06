@@ -550,9 +550,6 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
-
-		The violation error will be because of PK in this code path, not Non-PK table with unique constraint.
-		Even if table has PK + UK on different columns, violation will be on PK for sure, given that the data is existing on source database with same schema
 	*/
 	if err != nil && strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
 		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
@@ -686,13 +683,13 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			return rowsAffected + rowsIgnored, err
 		}
 
-		// rowsAffected will be either 0 or 1
+		// At this point, rowsAffected should be 1 always
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
-			// at this point it is not expected to have 0 rows affected
+			// since at this point it is not expected to have 0 rows affected, adding warning to logs
 			rowsIgnored++
-			log.Warnf("COPY command for line=%q in batch %s returned 0 rows affected, incrementing rowsIgnored", batch.GetFilePath(), line)
+			log.Warnf("Unexpected: COPY command for line=%q in batch %s returned 0 rows affected which is not expected", line, batch.GetFilePath())
 		}
 
 		if readLinErr == io.EOF { // handles case 2
