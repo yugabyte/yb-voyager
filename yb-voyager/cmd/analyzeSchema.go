@@ -272,7 +272,10 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		dbObject.TotalCount = summaryMap[objType].totalCount
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = strings.Join(summaryMap[objType].objSet, ", ")
-		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
+
+		detailsStr := lo.Keys(summaryMap[objType].details)
+		slices.Sort(detailsStr) // sort the details for consistent output
+		dbObject.Details = strings.Join(detailsStr, "\n")
 		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
 
