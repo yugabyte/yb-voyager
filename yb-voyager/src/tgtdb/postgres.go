@@ -325,7 +325,7 @@ outer:
 
 // GetPrimaryKeyColumns returns the subset of `columns` that belong to the
 // primary‑key definition of the given table.
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// Implementing this for completion but not used in Postgres fall-forward/fall-back
 // This info is only used in fast path import of batches(Target YugabyteDB)
 func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
 	var primaryKeyColumns []string
