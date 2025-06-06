@@ -150,7 +150,7 @@ target:
 # ---------------------------------------------------------
 
 ### Assess the migration from source (postgresql, oracle) database to YugabyteDB.
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/assess-migration/
+
 ### Uncomment the respective parameters when you want to configure additional assess migration options.
 assess-migration:
 
@@ -172,7 +172,7 @@ assess-migration:
 # ----------------------------------------------------------
 
 ### Export schema from source database into export-dir as .sql files
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/export-schema/
+
 ### Uncomment the respective parameters when you want to configure additional export schema options.
 export-schema: 
 
@@ -209,7 +209,7 @@ export-schema:
 # ----------------------------------------------------------
 
 ### Analyze converted source database schema and generate a report about YB incompatible constructs.
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/analyze-schema/
+
 ### Uncomment the respective parameters when you want to configure additional analyze schema options.
 analyze-schema:
 
@@ -227,7 +227,7 @@ analyze-schema:
 # ----------------------------------------------------------
 
 ### Import schema into the target YugabyteDB database
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/import-schema/
+
 ### Uncomment the respective parameters when you want to configure additional import schema options.
 import-schema:
   
@@ -266,11 +266,11 @@ import-schema:
 # ----------------------------------------------------------
 
 ### Export tables' data from source database to export-dir. 
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/export-data/
+
 ### Uncomment this section and the respective parameters when you want to configure additional export data options.
 export-data:
 
-  ### Export type for offline migration (Do not change)
+  ### Export type for offline migration [DO NOT CHANGE]
   ### Required                                                 
   export-type: snapshot-only         
 
@@ -305,7 +305,7 @@ export-data:
 # ---------------------------------------------------------
 
 ### Import the data exported from the source database into the target database. 
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/data-migration/import-data/
+
 ### Uncomment this section and the respective parameters when you want to configure additional import data options.
 import-data:
 
@@ -385,7 +385,7 @@ import-data:
 # ---------------------------------------------------------
 
 ### Finalize schema after data import is complete.
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/
+
 ### Uncomment the respective parameters when you want to configure additional finalize schema post data import options.
 finalize-schema-post-data-import:
   
@@ -409,7 +409,7 @@ finalize-schema-post-data-import:
 # ---------------------------------------------------------
 
 ### End the current migration and cleanup all metadata stored in databases(Target and Source) and export-dir
-### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/reference/end-migration/
+
 ### Uncomment the respective parameters when you want to configure additional end migration options.
 end-migration:
   
