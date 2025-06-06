@@ -23,9 +23,15 @@ package utils
 
 import (
 	"errors"
+	"fmt"
 	"os"
 
 	"gopkg.in/natefinch/lumberjack.v2"
+)
+
+const (
+	lumberjackMaxMB        = 1000            // MB, set high so lumberjack doesn't auto-rotate
+	defaultRotatorMaxBytes = 5 * 1024 * 1024 // 5MB default
 )
 
 // RotatableFile wraps lumberjack.Logger to provide best-effort file rotation based only on maxFileSize.
@@ -45,14 +51,11 @@ type RotatableFile struct {
 // NewRotatableFile creates a new FileRotator with the given filename and maxFileSize (in bytes).
 // If maxFileSize is 0, defaults to 5MB.
 func NewRotatableFile(filename string, maxFileSize int64) (*RotatableFile, error) {
-	const lumberjackMaxMB = 1000 // MB, set high so lumberjack doesn't auto-rotate
-	const lumberjackMaxBytes = lumberjackMaxMB * 1024 * 1024
-
 	if maxFileSize <= 0 {
-		maxFileSize = 5 * 1024 * 1024 // 5MB default
+		maxFileSize = defaultRotatorMaxBytes
 	}
-	if maxFileSize >= lumberjackMaxBytes {
-		return nil, errors.New("maxFileSize must be less than 1000 MB (1048576000 bytes)")
+	if maxFileSize >= lumberjackMaxMB*1024*1024 {
+		return nil, errors.New(fmt.Sprintf("maxFileSize must be less than %d MB", lumberjackMaxMB))
 	}
 	return &RotatableFile{
 		Logger: &lumberjack.Logger{
