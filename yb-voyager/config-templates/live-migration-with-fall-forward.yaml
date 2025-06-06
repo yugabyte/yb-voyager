@@ -465,10 +465,10 @@ import-data-to-source-replica:
 # Archive Changes
 # ---------------------------------------------------------
 
-### This command limits the disk space used by the locally queued CDC events. 
-### Once the changes from the local queue are applied on the target DB (and source-replica DB), they are eligible for deletion. 
-### The command gives an option to archive the changes before deleting by moving them to some other directory.
-### Note that even if some changes are applied to the target databases, they are deleted only after the disk space utilisation exceeds 70%.
+### The archive changes command handles old CDC events that have already been applied to the destination database.
+### These events are kept in the local export directory until disk usage exceeds a threshold (default: 70%).
+### When the threshold is crossed, the command either archives the applied changes to another directory or deletes them.
+### This helps manage disk space usage during live migration.
 
 ### Uncomment the respective parameters when you want to configure additional archive changes options.
 archive-changes:
@@ -482,7 +482,7 @@ archive-changes:
   ### Path to the directory where the imported change events are to be moved to. 
   ### Note that, the changes are deleted from the export-dir only after the disk utilisation exceeds 70%.
   ### Required if delete-changes-without-archiving is set to false.
-  # move-to: <path-to-archive-dir>
+  move-to: <path-to-archive-dir>
 
   ### Disk utilization threshold in percentage
   ### Default - 70
@@ -551,9 +551,10 @@ export-data-from-target:
   ### Setting the flag to false disables the transaction ordering. 
   ### This speeds up change data capture from target YugabyteDB. 
   ### Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.
+  ### Note: This is applicable only when exporting data from target YugabyteDB using the gRPC connector.
   ### Accepted values (true, false, yes, no, 0, 1) 
   ### Default - true
-  transaction-ordering: true
+  # transaction-ordering: true
 
 # ---------------------------------------------------------
 # End Migration Configuration
