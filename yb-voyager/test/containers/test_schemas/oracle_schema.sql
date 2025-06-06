@@ -23,8 +23,6 @@ CREATE TABLE YBVOYAGER.unique_table (
     CONSTRAINT email_phone_unq UNIQUE (email, phone)
 );
 
-CREATE UNIQUE INDEX YBVOYAGER.unique_address_idx ON YBVOYAGER.unique_table (address);
-
 CREATE TABLE YBVOYAGER.table1 (
     id NUMBER PRIMARY KEY,
     name VARCHAR2(100)
@@ -45,3 +43,15 @@ CREATE TABLE YBVOYAGER.non_pk2 (
     id NUMBER,
     name VARCHAR2(10)
 );
+
+
+-- Creating different index types on YBVOYAGER.unique_table for testing
+-- Normal B-tree index on address
+CREATE UNIQUE INDEX YBVOYAGER.unique_address_idx ON YBVOYAGER.unique_table (address);
+
+-- Reverse key index on phone
+CREATE INDEX YBVOYAGER.idx_phone_reverse ON YBVOYAGER.unique_table(phone) REVERSE;
+
+-- Domain index on address column (requires Oracle Text to be installed)
+CREATE INDEX YBVOYAGER.idx_address_text ON YBVOYAGER.unique_table(address)
+  INDEXTYPE IS CTXSYS.CONTEXT;

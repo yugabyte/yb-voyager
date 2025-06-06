@@ -74,6 +74,8 @@ func TestOracleGetTableToUniqueKeyColumnsMap(t *testing.T) {
 
 func TestOracleGetNonPKTables(t *testing.T) {
 	_ = testOracleSource.DB().Connect()
+
+	sqlname.SourceDBType = "oracle"
 	actualTables, err := testOracleSource.DB().GetNonPKTables()
 	assert.NilError(t, err, "Expected nil but non nil error: %v", err)
 
