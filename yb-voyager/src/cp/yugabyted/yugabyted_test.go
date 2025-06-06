@@ -33,6 +33,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -42,7 +43,7 @@ import (
 func TestYugabyteDTableSchema(t *testing.T) {
 	ctx := context.Background()
 
-	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
 	err := yugabyteDBContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start yugabytedb container: %v", err)
