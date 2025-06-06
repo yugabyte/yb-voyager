@@ -47,15 +47,14 @@ func TestImportDataFlagsMatchAllowedConfigKeys(t *testing.T) {
 		}
 	})
 
-	// allowedImportDataConfigKeys is already a mapset.Set[string]
-	envVarOnlyConfigKeys := mapset.NewThreadUnsafeSet[string](
+	expectedConfigOnlyKeys := mapset.NewThreadUnsafeSet[string](
 		"num-event-channels", "max-cpu-threshold", "max-events-per-batch", "adaptive-parallelism-frequency-seconds",
 		"min-available-memory-threshold", "event-channel-size", "max-batch-size-bytes", "max-interval-between-batches",
 		"ybvoyager-max-colocated-batches-in-progress", "ybvoyager-use-task-picker-for-import",
 	)
 
-	missingInConfig := flagNames.Difference(allowedImportDataConfigKeys.Difference(envVarOnlyConfigKeys))
-	missingInFlags := allowedImportDataConfigKeys.Difference(flagNames.Union(envVarOnlyConfigKeys))
+	missingInConfig := flagNames.Difference(allowedImportDataConfigKeys.Difference(expectedConfigOnlyKeys))
+	missingInFlags := allowedImportDataConfigKeys.Difference(flagNames.Union(expectedConfigOnlyKeys))
 
 	assert.True(t, missingInConfig.Cardinality() == 0, "Flags missing in allowedImportDataConfigKeys (excluding env-var-only keys): %v", missingInConfig.ToSlice())
 	assert.True(t, missingInFlags.Cardinality() == 0, "Config keys missing in CLI flags (excluding env-var-only keys): %v", missingInFlags.ToSlice())
