@@ -277,7 +277,8 @@ Example:
 ERROR:  duplicate key value violates unique constraint "orders_pkey"
 DETAIL:  Key (col1, col2)=(1, 2) already exists.
 */
-const VIOLATES_UNIQUE_CONSTRAINT_ERROR = `violates unique constraint "%s"`
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH = `violates unique constraint "%s"`
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
 const SYNTAX_ERROR = "syntax error at"
 const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
 const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
@@ -598,8 +599,9 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		The violation error will be because of PK in this code path, not Non-PK table with unique constraint.
 		Even if table has PK + UK on different columns, violation will be on PK for sure, given that the data is existing on source database with same schema
 	*/
-	expectedErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR, args.PKConstraintName)
+	expectedErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
 	if err != nil && strings.Contains(err.Error(), expectedErr) {
+		log.Debugf("importBatchFast: expectedErr=%s, actualErr=%s\n", expectedErr, err.Error())
 		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
@@ -717,7 +719,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
 			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
-			expectedErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR, args.PKConstraintName)
+			expectedErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
 			if strings.Contains(err.Error(), expectedErr) {
 				// logging lineNum might not be useful as batches are truncated later on
 				log.Debugf("ignoring error %q for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
