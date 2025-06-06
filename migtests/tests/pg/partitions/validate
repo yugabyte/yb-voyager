@@ -65,13 +65,13 @@ TABLE_NAME_TO_PARTITION_COUNT = {
 
 # Validation script will insert and check the incremented row count in partition table and to revert the change DELETE the row
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
-	"List" : {
+	"List_sales_region" : {
 		"insert_query": "INSERT INTO sales_region  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
 		"delete_query": "DELETE FROM sales_region WHERE id = 1001",
 		"partition_table_name": "sydney",
 		"schema_name": "public"
 	},
-	"List" : {
+	"List_test_partitions_sequences" : {
 		"insert_query": "INSERT INTO test_partitions_sequences  (id, amount, branch, region) VALUES (1001, 2000, 'Branch 1001','Sydney') ",
 		"delete_query": "DELETE FROM test_partitions_sequences WHERE id = 1001",
 		"partition_table_name": "test_partitions_sequences_s",
@@ -202,8 +202,8 @@ def migration_completed_checks(tgt):
 		print(f"count of partitions on {parent_table} : {partitions_returned}")
 		assert partitions_returned == count_partitions
 
-	for type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
-		print(f"Running the check for Partition type - {type}")
+	for partition_type, query_and_partition_name in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
+		print(f"Running the check for Partition type - {partition_type}")
 		insert_query = query_and_partition_name['insert_query']
 		delete_query = query_and_partition_name['delete_query']
 		partition_table_name = query_and_partition_name['partition_table_name']
@@ -217,11 +217,11 @@ def run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, insert_query, dele
 
 	count_partition_table = tgt.get_row_count(partition_table_name, schema_name)
 	print(f"count returned for partition ({partition_table_name}) - {count_partition_table} ")
-	qualified_partiton_name = f"{schema_name}.{partition_table_name}"
-	if qualified_partiton_name in EXPECTED_ROW_COUNT:
-		assert count_partition_table == EXPECTED_ROW_COUNT[qualified_partiton_name] + 1
+	qualified_partition_name = f"{schema_name}.{partition_table_name}"
+	if qualified_partition_name in EXPECTED_ROW_COUNT:
+		assert count_partition_table == EXPECTED_ROW_COUNT[qualified_partition_name] + 1
 	else:
-		assert count_partition_table == EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[qualified_partiton_name] + 1
+		assert count_partition_table == EXPECTED_ROW_COUNT_P1_SALES_REGION_PARTITIONS[qualified_partition_name] + 1
 
 	# Revert the change by deleting the inserted row
 	chk_error_returned = tgt.run_query_and_chk_error(delete_query, None)
