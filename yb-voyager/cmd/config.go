@@ -15,13 +15,15 @@ import (
 
 const (
 	// Flag name prefixes (used in CLI flags)
-	SourceDBFlagPrefix = "source-"
-	TargetDBFlagPrefix = "target-"
-	OracleDBFlagPrefix = "oracle-"
+	SourceDBFlagPrefix        = "source-"
+	TargetDBFlagPrefix        = "target-"
+	OracleDBFlagPrefix        = "oracle-"
+	SourceReplicaDBFlagPrefix = "source-replica-"
 
 	// Config key prefixes (used in config file keys)
-	SourceDBConfigPrefix = "source."
-	TargetDBConfigPrefix = "target."
+	SourceDBConfigPrefix        = "source."
+	TargetDBConfigPrefix        = "target."
+	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -624,6 +626,19 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			})
 		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		} else if configKey = SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix); strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) && v.IsSet(configKey) {
+			// Handle source-replica db type flags
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
