@@ -595,9 +595,6 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
-
-		The violation error will be because of PK in this code path, not Non-PK table with unique constraint.
-		Even if table has PK + UK on different columns, violation will be on PK for sure, given that the data is existing on source database with same schema
 	*/
 	expectedErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
 	if err != nil && strings.Contains(err.Error(), expectedErr) {
