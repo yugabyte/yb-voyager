@@ -1,5 +1,3 @@
-//go:build unit
-
 /*
 Copyright (c) YugabyteDB, Inc.
 
