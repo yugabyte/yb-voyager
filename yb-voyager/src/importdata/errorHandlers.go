@@ -23,12 +23,20 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	ProcessingErrorsLogFile = "processing-errors.log"
+	IngestionErrorPrefix    = "ingestion-error"
+)
+
+var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
+
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
-	HandleRowProcessingError() error
+	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 }
@@ -52,7 +60,7 @@ func (handler *ImportDataAbortHandler) ShouldAbort() bool {
 	return true
 }
 
-func (handler *ImportDataAbortHandler) HandleRowProcessingError() error {
+func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do.
 	return nil
 }
@@ -73,18 +81,48 @@ func (handler *ImportDataAbortHandler) CleanUpStoredErrors(tableName sqlname.Nam
 Stash the error to some file(s) with the relevant error information
 */
 type ImportDataStashAndContinueHandler struct {
-	dataDir string
+	dataDir                 string
+	rowProcessingErrorFiles map[string]*utils.RotatableFile // one per table/task file
 }
 
 func NewImportDataStashAndContinueHandler(dataDir string) *ImportDataStashAndContinueHandler {
-	return &ImportDataStashAndContinueHandler{dataDir: dataDir}
+	return &ImportDataStashAndContinueHandler{
+		dataDir:                 dataDir,
+		rowProcessingErrorFiles: make(map[string]*utils.RotatableFile),
+	}
 }
 
 func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 	return false
 }
 
-func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError() error {
+// HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
+func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
+	var err error
+	if row == "" && rowErr == nil {
+		return nil
+	}
+	errorsDir := handler.getErrorsFolderPathForTableTask(tableName, taskFilePath)
+	if err := os.MkdirAll(errorsDir, os.ModePerm); err != nil {
+		return fmt.Errorf("creating errors dir: %w", err)
+	}
+
+	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
+	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
+	if !ok {
+		errorFilePath := filepath.Join(errorsDir, ProcessingErrorsLogFile)
+		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
+		if err != nil {
+			return fmt.Errorf("creating file rotator: %w", err)
+		}
+		handler.rowProcessingErrorFiles[tableFilePathKey] = errorFile
+	}
+
+	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
+	_, err = errorFile.Write([]byte(msg))
+	if err != nil {
+		return fmt.Errorf("writing to %s: %w", ProcessingErrorsLogFile, err)
+	}
 	return nil
 }
 
@@ -120,7 +158,7 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 
-	symlinkFileName := fmt.Sprintf("%s.%s", "ingestion-error", filepath.Base(batch.GetFilePath()))
+	symlinkFileName := fmt.Sprintf("%s.%s", IngestionErrorPrefix, filepath.Base(batch.GetFilePath()))
 	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
@@ -133,7 +171,7 @@ func (handler *ImportDataStashAndContinueHandler) getErrorsFolderPathForTableTas
 	tableFolder := fmt.Sprintf("table::%s", tableName.ForMinOutput())
 	// the entire path of the file can be long, so to make it shorter,
 	// we compute a hash of the file path and also include the base file name of the file.
-	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), computePathHash(taskFilePath))
+	taskFolder := fmt.Sprintf("file::%s:%s", filepath.Base(taskFilePath), ComputePathHash(taskFilePath))
 	return filepath.Join(handler.dataDir, "errors", tableFolder, taskFolder)
 }
 
@@ -149,7 +187,7 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 	return nil
 }
 
-func computePathHash(filePath string) string {
+func ComputePathHash(filePath string) string {
 	hash := sha1.New()
 	hash.Write([]byte(filePath))
 	return hex.EncodeToString(hash.Sum(nil))[0:8]
