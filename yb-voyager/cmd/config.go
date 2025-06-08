@@ -15,13 +15,15 @@ import (
 
 const (
 	// Flag name prefixes (used in CLI flags)
-	SourceDBFlagPrefix = "source-"
-	TargetDBFlagPrefix = "target-"
-	OracleDBFlagPrefix = "oracle-"
+	SourceDBFlagPrefix        = "source-"
+	TargetDBFlagPrefix        = "target-"
+	OracleDBFlagPrefix        = "oracle-"
+	SourceReplicaDBFlagPrefix = "source-replica-"
 
 	// Config key prefixes (used in config file keys)
-	SourceDBConfigPrefix = "source."
-	TargetDBConfigPrefix = "target."
+	SourceDBConfigPrefix        = "source."
+	TargetDBConfigPrefix        = "target."
+	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
@@ -99,7 +101,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
-	"target-endpoints", "truncate-tables",
+	"target-endpoints", "truncate-tables", "error-policy-snapshot",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
@@ -126,7 +128,7 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
-	"quote-char", "file-opts", "null-string", "truncate-tables",
+	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
@@ -624,6 +626,19 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			})
 		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		} else if configKey = SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix); strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) && v.IsSet(configKey) {
+			// Handle source-replica db type flags
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {

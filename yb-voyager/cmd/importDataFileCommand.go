@@ -29,7 +29,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
@@ -96,7 +95,7 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks, errorpolicy.AbortErrorPolicy)
+		importData(importFileTasks, errorPolicySnapshotFlag)
 		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
@@ -509,6 +508,12 @@ If you go ahead without truncating, then yb-voyager starts ingesting the data pr
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag (default false)`)
 
 	BoolVar(importDataFileCmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+
+	importDataFileCmd.Flags().Var(&errorPolicySnapshotFlag, "error-policy",
+		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
+			"\tabort: immediately abort the process. (default)\n"+
+			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+	importDataFileCmd.Flags().MarkHidden("error-policy")
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")

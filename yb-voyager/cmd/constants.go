@@ -64,6 +64,10 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
+
+	//the default value as false, 0 etc.. is not added to the usage msg by cobra so can be used for flags that are mandatory and no default value is shown to user
+	BOOL_FLAG_ZERO_VALUE = false
+
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
