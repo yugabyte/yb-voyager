@@ -720,7 +720,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_USER_DEFINED_DATATYPE",
 			"Name": "Index on column with user defined datatype",
-			"Description": "Indexes on columns with user defined data types are not yet supported in YugabyteDB. ",
+			"Description": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_1 ON composite_type_examples.ordinary_table",

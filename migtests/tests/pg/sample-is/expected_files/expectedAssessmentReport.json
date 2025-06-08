@@ -79,7 +79,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "EXCLUSION_CONSTRAINTS",
 			"Name": "Exclusion Constraints",
-			"Description": "Exclusion constraints are not yet supported in YugabyteDB. ",
+			"Description": "Exclusion constraints are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
