@@ -698,7 +698,7 @@
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total optmizations:</strong> {{ len $performanceOptimizationIssues }}</p>
+                    <p><strong>Total Issues:</strong> {{ len $performanceOptimizationIssues }}</p>
                     <p>Below is a detailed breakdown of each optmization.</p>
                 </div>
                 <!-- Right area: buttons -->
