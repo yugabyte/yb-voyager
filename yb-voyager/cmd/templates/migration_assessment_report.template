@@ -615,9 +615,9 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
                                                                 {{ if $issue.DocsLink }}
-                                                                    <pre style="font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
                                                                 {{ end }}
                                                             </div>
                                                         {{ else }}
