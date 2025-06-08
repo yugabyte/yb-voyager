@@ -1844,15 +1844,17 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split":                            split,
-		"groupByObjectType":                groupByObjectType,
-		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
-		"groupByObjectName":                groupByObjectName,
-		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersionString":        getSupportedVersionString,
-		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
-		"camelCaseToTitleCase":             utils.CamelCaseToTitleCase,
-		"getSqlPreview":                    utils.GetSqlStmtToPrint,
+		"split":                                  split,
+		"groupByObjectType":                      groupByObjectType,
+		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
+		"groupByObjectName":                      groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
+		"getSupportedVersionString":              getSupportedVersionString,
+		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
+		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
+		"getSqlPreview":                          utils.GetSqlStmtToPrint,
+		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
+		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1878,6 +1880,20 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func filterOutPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
+	withoutPerfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Category != PERFORMANCE_OPTIMIZATIONS_CATEGORY
+	})
+	return withoutPerfOptimzationIssues
+}
+
+func getPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
+	perfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY
+	})
+	return perfOptimzationIssues
 }
 
 func groupByObjectType(objects []ObjectInfo) map[string][]ObjectInfo {
