@@ -600,7 +600,7 @@
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
                                                                 <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">{{ $issue.Description }}</pre>
                                                                 {{ if $issue.DocsLink }}
-                                                                    <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs link</a> for more details.</pre>
+                                                                    <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
                                                                 {{ end }}
                                                             </div>
                                                         {{ else }}

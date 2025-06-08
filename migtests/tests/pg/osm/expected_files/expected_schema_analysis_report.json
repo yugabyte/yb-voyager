@@ -46,7 +46,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "EXTENSION",
             "ObjectName": "postgis",
-            "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+            "Reason": "This extension is not supported in YugabyteDB by default.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/osm/export-dir/schema/extensions/extension.sql",
             "Suggestion": "",
