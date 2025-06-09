@@ -3340,6 +3340,271 @@ import-data-to-source:
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
 }
 
+// ///////////////////////// Import Data to Source Replica Tests ////////////////////////////////
+func setupImportDataToSourceReplicaContext(t *testing.T) *testContext {
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	resetCmdAndEnvVars(importDataToSourceReplicaCmd)
+	// override ErrExit to prevent the test from exiting because of some failed validations.
+	// We only care about testing whether the configuration and CLI flags are set correctly
+	utils.MonkeyPatchUtilsErrExitToIgnore()
+	t.Cleanup(func() {
+		utils.RestoreUtilsErrExit()
+		resetFlags(importDataToSourceReplicaCmd)
+	})
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+run-guardrails-checks: false
+control-plane-type: yugabyte
+yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
+java-home: /path/to/java/home
+local-call-home-service-host: localhost
+local-call-home-service-port: 8080
+yb-tserver-port: 9000
+tns-admin: /path/to/tns/admin
+source:
+  oracle-db-sid: test_sid_source
+  oracle-home: /path/to/oracle/home/source
+  oracle-tns-alias: test_tns_alias_source
+source-replica:
+  name: test_source_replica
+  db-host: 127.0.0.1
+  db-port: 1521
+  db-user: test_user
+  db-password: test_password
+  db-name: test_db
+  db-schema: public
+  ssl-cert: /path/to/ssl-cert
+  ssl-mode: require
+  ssl-key: /path/to/ssl-key
+  ssl-root-cert: /path/to/ssl-root-cert
+  ssl-crl: /path/to/ssl-crl
+  db-sid: test_sid_source_replica
+  oracle-home: /path/to/oracle/home/source-replica
+  oracle-tns-alias: test_tns_alias_source_replica
+import-data-to-source-replica:
+  batch-size: 10000
+  parallel-jobs: 5
+  truncate-tables: true
+  disable-pb: true
+  max-retries: 3
+  ybvoyager-max-colocated-batches-in-progress: 2
+  num-event-channels: 4
+  event-channel-size: 5000
+  max-events-per-batch: 2000
+  max-interval-between-batches: 1
+  max-batch-size-bytes: 5242880
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+	return &testContext{
+		tmpExportDir: tmpExportDir,
+		configFile:   configFile,
+	}
+}
+
+func TestImportDataToSourceReplicaConfigBinding_ConfigFileBinding(t *testing.T) {
+	ctx := setupImportDataToSourceReplicaContext(t)
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source-replica",
+		"--config-file", ctx.configFile,
+	})
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on source-replica config
+	assert.Equal(t, "127.0.0.1", tconf.Host, "Source replica host should match the config")
+	assert.Equal(t, 1521, tconf.Port, "Source replica port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Source replica user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Source replica password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Source replica db name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Source replica schema should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Source replica SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Source replica SSL cert should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Source replica SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Source replica SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Source replica SSL CRL should match the config")
+	assert.Equal(t, "test_sid_source_replica", tconf.DBSid, "Source replica SID should match the config")
+	assert.Equal(t, "/path/to/oracle/home/source-replica", tconf.OracleHome, "Source replica Oracle home should match the config")
+	assert.Equal(t, "test_tns_alias_source_replica", tconf.TNSAlias, "Source replica Oracle TNS alias should match the config")
+	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, int64(10000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 5, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries for import should match the config")
+	assert.Equal(t, "2", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "4", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data to source replica should match the config")
+	assert.Equal(t, "5000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data to source replica should match the config")
+	assert.Equal(t, "2000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data to source replica should match the config")
+	assert.Equal(t, "1", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data to source replica should match the config")
+	assert.Equal(t, "5242880", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data to source replica should match the config")
+}
+
+func TestImportDataToSourceReplicaConfigBinding_CLIOverridesConfig(t *testing.T) {
+	ctx := setupImportDataToSourceReplicaContext(t)
+
+	// Creating a new temporary export directory to test the cli override
+	tmpExportDir := setupExportDir(t)
+	t.Cleanup(func() { os.RemoveAll(tmpExportDir) })
+
+	// Test whether CLI overrides config
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source-replica",
+		"--config-file", ctx.configFile,
+		"--export-dir", tmpExportDir,
+		"--log-level", "debug",
+		"--send-diagnostics", "false",
+		"--run-guardrails-checks", "true",
+		"--batch-size", "20000",
+		"--parallel-jobs", "3",
+		"--truncate-tables", "false",
+		"--disable-pb", "false",
+		"--max-retries", "5",
+		"--source-replica-db-host", "localhost-replica",
+		"--source-replica-db-port", "1522",
+		"--source-replica-db-user", "test_user_2",
+		"--source-replica-db-password", "test_password_2",
+		"--source-replica-db-name", "test_db_2",
+		"--source-replica-db-schema", "public_2",
+		"--source-replica-ssl-cert", "/path/to/ssl-cert-2",
+		"--source-replica-ssl-mode", "verify-full",
+		"--source-replica-ssl-key", "/path/to/ssl-key-2",
+		"--source-replica-ssl-root-cert", "/path/to/ssl-root-cert-2",
+		"--source-replica-ssl-crl", "/path/to/ssl-crl-2",
+		"--source-replica-db-sid", "test_sid_source_replica_2",
+		"--oracle-home", "/path/to/oracle/home/source-replica-2",
+		"--oracle-tns-alias", "test_tns_alias_source_replica_2",
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
+	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
+	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
+	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
+	assert.Equal(t, "localhost", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should match the config")
+	assert.Equal(t, "8080", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should match the config")
+	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
+	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
+	// Assertions on source-replica config
+	assert.Equal(t, "localhost-replica", tconf.Host, "Source replica host should be overridden by CLI")
+	assert.Equal(t, 1522, tconf.Port, "Source replica port should be overridden by CLI")
+	assert.Equal(t, "test_user_2", tconf.User, "Source replica user should be overridden by CLI")
+	assert.Equal(t, "test_password_2", tconf.Password, "Source replica password should be overridden by CLI")
+	assert.Equal(t, "test_db_2", tconf.DBName, "Source replica db name should be overridden by CLI")
+	assert.Equal(t, "public_2", tconf.Schema, "Source replica schema should be overridden by CLI")
+	assert.Equal(t, "verify-full", tconf.SSLMode, "Source replica SSL mode should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-cert-2", tconf.SSLCertPath, "Source replica SSL cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-key-2", tconf.SSLKey, "Source replica SSL key should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-root-cert-2", tconf.SSLRootCert, "Source replica SSL root cert should be overridden by CLI")
+	assert.Equal(t, "/path/to/ssl-crl-2", tconf.SSLCRL, "Source replica SSL CRL should be overridden by CLI")
+	assert.Equal(t, "test_sid_source_replica_2", tconf.DBSid, "Source replica SID should be overridden by CLI")
+	assert.Equal(t, "/path/to/oracle/home/source-replica-2", tconf.OracleHome, "Source replica Oracle home should be overridden by CLI")
+	assert.Equal(t, "test_tns_alias_source_replica_2", tconf.TNSAlias, "Source replica Oracle TNS alias should be overridden by CLI")
+	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, int64(20000), batchSizeInNumRows, "Batch size should be overridden by CLI")
+	assert.Equal(t, 3, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables should be overridden by CLI")
+	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
+	assert.Equal(t, 5, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries for import should be overridden by CLI")
+	assert.Equal(t, "2", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the config")
+	assert.Equal(t, "4", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data to source replica should match the config")
+	assert.Equal(t, "5000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data to source replica should be overridden by CLI")
+	assert.Equal(t, "2000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data to source replica should be overridden by CLI")
+	assert.Equal(t, "1", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data to source replica should be overridden by CLI")
+	assert.Equal(t, "5242880", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data to source replica should match the config")
+}
+
+func TestImportDataToSourceReplicaConfigBinding_EnvOverridesConfig(t *testing.T) {
+	ctx := setupImportDataToSourceReplicaContext(t)
+	// Test whether env vars overrides config
+
+	// env related to global flags
+	os.Setenv("CONTROL_PLANE_TYPE", "yugabyte2")
+	os.Setenv("YUGABYTED_DB_CONN_STRING", "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require")
+	os.Setenv("JAVA_HOME", "/path/to/java/home2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_HOST", "localhost2")
+	os.Setenv("LOCAL_CALL_HOME_SERVICE_PORT", "8081")
+	os.Setenv("YB_TSERVER_PORT", "9001")
+	os.Setenv("TNS_ADMIN", "/path/to/tns/admin2")
+
+	// env related to import-data-to-source-replica
+	os.Setenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", "3")
+	os.Setenv("NUM_EVENT_CHANNELS", "6")
+	os.Setenv("EVENT_CHANNEL_SIZE", "6000")
+	os.Setenv("MAX_EVENTS_PER_BATCH", "3000")
+	os.Setenv("MAX_INTERVAL_BETWEEN_BATCHES", "3")
+	os.Setenv("MAX_BATCH_SIZE_BYTES", "10485760")
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source-replica",
+		"--config-file", ctx.configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+	// Assertions on global flags
+	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
+	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
+	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
+	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
+	assert.Equal(t, "localhost2", os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST"), "Local call home service host should be overridden by env var")
+	assert.Equal(t, "8081", os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT"), "Local call home service port should be overridden by env var")
+	assert.Equal(t, "9001", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should be overridden by env var")
+	assert.Equal(t, "/path/to/tns/admin2", os.Getenv("TNS_ADMIN"), "TNS admin should be overridden by env var")
+	// Assertions on source-replica config
+	assert.Equal(t, "127.0.0.1", tconf.Host, "Source replica host should match the config")
+	assert.Equal(t, 1521, tconf.Port, "Source replica port should match the config")
+	assert.Equal(t, "test_user", tconf.User, "Source replica user should match the config")
+	assert.Equal(t, "test_password", tconf.Password, "Source replica password should match the config")
+	assert.Equal(t, "test_db", tconf.DBName, "Source replica db name should match the config")
+	assert.Equal(t, "public", tconf.Schema, "Source replica schema should match the config")
+	assert.Equal(t, "require", tconf.SSLMode, "Source replica SSL mode should match the config")
+	assert.Equal(t, "/path/to/ssl-cert", tconf.SSLCertPath, "Source replica SSL cert should match the config")
+	assert.Equal(t, "/path/to/ssl-key", tconf.SSLKey, "Source replica SSL key should match the config")
+	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Source replica SSL root cert should match the config")
+	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Source replica SSL CRL should match the config")
+	assert.Equal(t, "test_sid_source_replica", tconf.DBSid, "Source replica SID should match the config")
+	assert.Equal(t, "/path/to/oracle/home/source-replica", tconf.OracleHome, "Source replica Oracle home should match the config")
+	assert.Equal(t, "test_tns_alias_source_replica", tconf.TNSAlias, "Source replica Oracle TNS alias should match the config")
+	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, int64(10000), batchSizeInNumRows, "Batch size should match the config")
+	assert.Equal(t, 5, tconf.Parallelism, "Parallel jobs should match the config")
+	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables should match the config")
+	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
+	assert.Equal(t, 3, EVENT_BATCH_MAX_RETRY_COUNT, "Max retries for import should match the config")
+	assert.Equal(t, "3", os.Getenv("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS"), "YBVoyager max colocated batches in progress should match the env var")
+	assert.Equal(t, "6", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data to source replica should match the env var")
+	assert.Equal(t, "6000", os.Getenv("EVENT_CHANNEL_SIZE"), "Event channel size for importing data to source replica should match the env var")
+	assert.Equal(t, "3000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data to source replica should match the env var")
+	assert.Equal(t, "3", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data to source replica should match the env var")
+	assert.Equal(t, "10485760", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data to source replica should match the env var")
+}
+
 ///////////////////////////// Initiate cutover to target Tests ////////////////////////////////
 
 func setupIntitiateCutoverToTargetContext(t *testing.T) *testContext {
