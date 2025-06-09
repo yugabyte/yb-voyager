@@ -154,7 +154,7 @@ func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
 	splits := strings.Split(colDatatype.DataType, ".")
 	typeName, ok := SliceLastElement(splits)
 	if !ok {
-		log.Errorf("failed to get typename from colinfo: %s", colDatatype.DataType)
+		log.Warnf("failed to get typename from colinfo: %s", colDatatype.DataType)
 	}
 	typeName = strings.TrimSuffix(typeName, "[]")
 	return typeName
