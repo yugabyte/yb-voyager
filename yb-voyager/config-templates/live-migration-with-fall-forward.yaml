@@ -14,12 +14,6 @@ export-dir: <export-dir-path>
 ### Default - info
 log-level: info                  
 
-### Run guardrails checks before the command is run. 
-### Note - This is only valid for PostgreSQL source database.
-### Accepted values - (true, false, yes, no, 1, 0)
-### Default - true
-# run-guardrails-checks: true  
-
 ### *********** Control Plane Configuration ************
 ### To see the Voyager migration workflow details in the UI, set the following parameters.
 
@@ -235,7 +229,19 @@ assess-migration:
 
   ### Directory path where assessment metadata like source DB metadata and statistics are stored. 
   ### Optional flag, if not provided, it will be assumed to be present at default path inside the export directory.
-  # assessment-metadata-dir: <assessment-metadata-dir>     
+  # assessment-metadata-dir: <assessment-metadata-dir>    
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info  
 
 # ----------------------------------------------------------
 # Export Schema Configuration
@@ -271,7 +277,19 @@ export-schema:
   # skip-recommendations: false  
 
   ### Path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema                       
-  # assessment-report-path: <assessment-report-path>        
+  # assessment-report-path: <assessment-report-path>
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info         
 
 # ----------------------------------------------------------
 # Analyze Schema Configuration
@@ -288,7 +306,13 @@ analyze-schema:
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
   ### Default - latest stable version i.e. 2024.2.2.3                                       
-  target-db-version: 2024.2.2.3                           
+  target-db-version: 2024.2.2.3 
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info                           
                                       
                                   
 # ----------------------------------------------------------
@@ -327,7 +351,19 @@ import-schema:
   ### Note - This is only valid for Oracle source database.
   ### Accepted values (true, false, yes, no, 1, 0) 
   ### Default - true
-  # enable-orafce: true   
+  # enable-orafce: true 
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info   
 
 # ----------------------------------------------------------
 # Export Data Configuration
@@ -362,7 +398,19 @@ export-data-from-source:
   ### Disable progress bar/stats during data export  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false                                            
+  # disable-pb: false  
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info                                           
 
 # ---------------------------------------------------------
 # Import Data Configuration
@@ -430,7 +478,19 @@ import-data-to-target:
   ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # enable-upsert: false  
+  # enable-upsert: false
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info   
 
 # ---------------------------------------------------------
 # Import data to source-replica
@@ -461,6 +521,18 @@ import-data-to-source-replica:
   ### Default - false
   # disable-pb: false
 
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info 
+
 # ---------------------------------------------------------
 # Archive Changes
 # ---------------------------------------------------------
@@ -487,6 +559,12 @@ archive-changes:
   ### Disk utilization threshold in percentage
   ### Default - 70
   # fs-utilization-threshold: 70
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info 
   
 # ---------------------------------------------------------
 # Intitiate cutover to target
@@ -532,7 +610,19 @@ finalize-schema-post-data-import:
   ### Refreshes the materialised views on target during post snapshot import phase  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  refresh-mviews: false     
+  refresh-mviews: false   
+
+  ### Run guardrails checks before the command is run. 
+  ### Note - This is only valid for PostgreSQL source database.
+  ### Accepted values - (true, false, yes, no, 1, 0)
+  ### Default - true
+  # run-guardrails-checks: true  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info   
 
 # ---------------------------------------------------------
 # Export Data from Target
@@ -554,7 +644,13 @@ export-data-from-target:
   ### Note: This is applicable only when exporting data from target YugabyteDB using the gRPC connector.
   ### Accepted values (true, false, yes, no, 0, 1) 
   ### Default - true
-  # transaction-ordering: true
+  # transaction-ordering: true 
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info 
 
 # ---------------------------------------------------------
 # End Migration Configuration
@@ -587,7 +683,13 @@ end-migration:
   
   ### Backup directory is where all the backup files of schema, data, logs and reports will be saved
   ### Note: Mandatory if any of the following flags are set to true or yes or 1: --backup-data-files, --backup-log-files, --backup-schema-files, --save-migration-reports.
-  # backup-dir: <backup-dir-path>                             
+  # backup-dir: <backup-dir-path> 
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info                             
 
 # ---------------------------------------------------------
 # Config File End
