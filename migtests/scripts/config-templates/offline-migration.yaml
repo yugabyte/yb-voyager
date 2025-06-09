@@ -15,7 +15,7 @@ target:
   db-host: {{ TARGET_DB_HOST }}
   db-port: {{ TARGET_DB_PORT }}
   db-name: {{ TARGET_DB_NAME }}
-  {% if TARGET_DB_SCHEMA %}
+  {% if SOURCE_DB_TYPE != "postgresql" %}
   db-schema: {{ TARGET_DB_SCHEMA }}
   {% endif %}
   db-user: {{ TARGET_DB_USER }}
