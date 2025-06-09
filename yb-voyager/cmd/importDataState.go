@@ -108,6 +108,10 @@ func (s *ImportDataState) GetCompletedBatches(filePath string, tableNameTup sqln
 	return s.getBatches(filePath, tableNameTup, "D")
 }
 
+func (s *ImportDataState) GetErroredBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
+	return s.getBatches(filePath, tableNameTup, "E")
+}
+
 func (s *ImportDataState) GetAllBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
 	return s.getBatches(filePath, tableNameTup, "CPDE")
 }
