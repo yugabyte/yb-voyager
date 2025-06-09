@@ -371,18 +371,100 @@
           <th>Object Names</th>
         </tr>
 
-        <tr>
-          <td class="centered-cell">SCHEMA</td>
-          <td class="centered-cell">3</td>
-          <td>
-            <div class="scrollable-div no-wrap-list">
-              <ul style="margin: 0; padding-left: 1.2em">
-                <li>public</li>
+        
+            <h2>Migration Complexity Explanation</h2>
+            
+                <p>Below is a breakdown of the issues detected in different categories for each impact level.</p>
+                <table border="1" cellpadding="5" cellspacing="0" style="border-collapse: collapse;">
+                    <thead>
+                        <tr>
+                            <th class="centered-cell">Category</th>
+                            <th class="centered-cell">Level 1</th>
+                            <th class="centered-cell">Level 2</th>
+                            <th class="centered-cell">Level 3</th>
+                            <th class="centered-cell">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Datatypes</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">14</td>
+                                <td class="centered-cell">14</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Plpgsql Objects</td>
+                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">13</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">15</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Query Constructs</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">19</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">19</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Features</td>
+                                <td class="centered-cell">33</td>
+                                <td class="centered-cell">7</td>
+                                <td class="centered-cell">4</td>
+                                <td class="centered-cell">44</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Migration Caveats</td>
+                                <td class="centered-cell">22</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">22</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Performance Optimizations</td>
+                                <td class="centered-cell">4</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">4</td>
+                            </tr>
+                        
+                    </tbody>
+                </table>
+            
 
-                <li>schema2</li>
+            <p>
+                <strong>Complexity:</strong> HIGH<br>
+                <strong>Reasoning:</strong> Found 39 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity
+            </p>
 
-                <li>test_views</li>
-              </ul>
+            <p>
+                <strong>Impact Levels:</strong><br>
+                Level 1: Resolutions are available with minimal effort.<br>
+                Level 2: Resolutions are available requiring moderate effort.<br>
+                Level 3: Resolutions may not be available or are complex.
+            </p>
+        
+
+        <h2>Assessment Issues</h2>
+        
+            <div class="assessment-issues-header">
+                <!-- Left area: text about total issues -->
+                <div>
+                    <p><strong>Total Issues:</strong> 118</p>
+                    <p>Below is a detailed breakdown of each issue.</p>
+                </div>
+                <!-- Right area: buttons -->
+                <div class="buttons" id="controlButtons">
+                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues()">Expand All</button>
+                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues()">Collapse All</button>
+                </div>
             </div>
           </td>
         </tr>
@@ -17646,13 +17728,107 @@ Redundant indexes can be dropped when a stronger index is present. A stronger in
                         </td>
                       </tr>
                     </tbody>
-                  </table>
-                </div>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+                    <tbody class="issue-summary-detail-pair"
+                    data-category="unsupported_datatypes"
+                    data-name="Unsupported datatype - xml"
+                    data-impact="LEVEL_3">
+                    <!-- Summary Row -->
+                    <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11')">
+                        <td class="centered-cell">
+                            <div class="category-cell-flex">
+                                <div class="arrow-container">
+                                    <span id="arrow-11">&#9654;</span>
+                                </div>
+                                <span style="word-break: break-word;">Unsupported Datatypes</span>
+                            </div>
+                        </td>
+                        <td class="centered-cell">Unsupported datatype - xml</td>
+                        <td class="centered-cell">
+                            
+                                public.combined_tbl.xml_data
+                            
+                        </td>
+                        <td class="centered-cell" style="text-align: center;">Level 3</td>
+                    </tr>
+
+                    <!-- Hidden Details of the Row -->
+                    <tr id="details-11" class="details-row">
+                        <td colspan="4">
+                            <div class="details-content-wrapper">
+                                <div class="details-content">
+                                    <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                        <colgroup>
+                                            <col style="width: 25%;">
+                                            <col style="width: 75%;">
+                                        </colgroup>
+                                        <tbody>
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Category Description</th>
+                                                    <td>
+                                                        <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                            Data types of the source database that are not supported on the target YugabyteDB.
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            
+
+                                            <!-- Only show if ObjectType is present -->
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Object Type</th>
+                                                    <td>COLUMN</td>
+                                                </tr>
+                                            
+                                            
+                                                <tr>
+                                                    <th class="centered-cell">Object Name</th>
+                                                    <td>public.combined_tbl.xml_data</td>
+                                                </tr>
+                                            
+                                            <tr>
+                                                <th class="centered-cell">SQL Statement</th>
+                                                <td>
+                                                    
+                                                    <!-- display N/A if Sql Statement not present -->
+                                                        N/A
+                                                    
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <th class="centered-cell">Docs Link</th>
+                                                <td>
+                                                    
+                                                        <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported">Documentation</a>
+                                                    
+                                                </td>
+                                            </tr>
+
+                                            <!-- Only show if there is a supported version -->
+                                            
+                                            
+                                            <tr>
+                                                <th class="centered-cell">Description</th>
+                                                <td>
+                                                    
+                                                        <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                            <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.</pre>
+                                                        </div>
+                                                    
+                                                </td>
+                                            </tr>
+                                           
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            
+                
+            </table>
+        
 
       <hr />
       <div>

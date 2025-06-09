@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2.25.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 17 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -568,6 +568,19 @@
 			"ObjectName": "idx_inet ON public.inet_type",
 			"SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_DATATYPE_XML",
+			"Name": "Unsupported datatype - xml",
+			"Description": "XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.combined_tbl.xml_data",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -1791,7 +1804,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 13,
+			"ColumnCount": 14,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,

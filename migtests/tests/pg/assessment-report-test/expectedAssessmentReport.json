@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 41 Level 2 issue(s) and 29 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 41 Level 2 issue(s) and 30 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -745,6 +745,19 @@
 			"Details": {
 				"ConstraintName": "uk"
 			}
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_DATATYPE_XML",
+			"Name": "Unsupported datatype - xml",
+			"Description": "XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.combined_tbl.xml_data",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
+			"MinimumVersionsFixedIn": null
 		},
 		{
 			"Category": "unsupported_features",
@@ -2305,7 +2318,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 13,
+			"ColumnCount": 14,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
