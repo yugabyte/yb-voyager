@@ -406,13 +406,30 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		return val1.Imported > val2.Imported
 	})
 
+	hasErrors := false
+	for _, tableName := range keys {
+		rowCountPair, _ := snapshotRowCount.Get(tableName)
+		if rowCountPair.Errored > 0 {
+			hasErrors = true
+			break
+		}
+	}
+
 	for i, tableName := range keys {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
+			if hasErrors {
+				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT", "ERRORED ROW COUNT")
+			} else {
+				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
+			}
 		}
 		s, t := tableName.ForCatalogQuery()
-		rowCount, _ := snapshotRowCount.Get(tableName)
-		uitable.AddRow(s, t, rowCount)
+		rowCountPair, _ := snapshotRowCount.Get(tableName)
+		if hasErrors {
+			uitable.AddRow(s, t, rowCountPair.Imported, rowCountPair.Errored)
+		} else {
+			uitable.AddRow(s, t, rowCountPair.Imported)
+		}
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")
