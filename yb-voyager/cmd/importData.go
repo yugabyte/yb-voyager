@@ -196,7 +196,7 @@ func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string)
 
 	record, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		fmt.Errorf("Failed to get migration status record: %s", err)
+		return fmt.Errorf("Failed to get migration status record: %s", err)
 	}
 
 	switch importerRole {
@@ -205,7 +205,7 @@ func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string)
 		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		if record.FallbackEnabled {
-			fmt.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
+			return fmt.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
 		}
 		updateFallForwardEnabledInMetaDB()
 		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
