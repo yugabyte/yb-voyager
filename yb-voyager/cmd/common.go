@@ -372,28 +372,37 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	}
 	uitable := uitable.New()
 
-	dbType := "target"
-	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	var dbType string
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		dbType = "target-file"
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		dbType = "source-replica"
+	case TARGET_DB_IMPORTER_ROLE:
+		dbType = "target"
 	}
 
-	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-
-	if importerRole == IMPORT_FILE_ROLE {
-		// TODO: fix. Why are we going to target here? why can't we get the row count from the state?
-		// for _, tableName := range tableList {
-		// 	tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-		// 	if err != nil {
-		// 		utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
-		// 	}
-		// 	snapshotRowCount.Put(tableName, tableRowCount)
-		// }
-	} else {
-		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType)
-		if err != nil {
-			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
-		}
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	if err != nil {
+		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
+	// snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
+
+	// if importerRole == IMPORT_FILE_ROLE {
+	// 	// TODO: fix. Why are we going to target here? why can't we get the row count from the state?
+	// 	// for _, tableName := range tableList {
+	// 	// 	tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
+	// 	// 	if err != nil {
+	// 	// 		utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
+	// 	// 	}
+	// 	// 	snapshotRowCount.Put(tableName, tableRowCount)
+	// 	// }
+	// } else {
+	// 	snapshotRowCount, err = getImportedSnapshotRowsMap(dbType)
+	// 	if err != nil {
+	// 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
+	// 	}
+	// }
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
 	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
@@ -1002,6 +1011,8 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
+	case "target-file":
+		importerRole = IMPORT_FILE_ROLE
 	case "source-replica":
 		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	}
@@ -1009,6 +1020,7 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	var snapshotDataFileDescriptor *datafile.Descriptor
 
 	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+	utils.PrintAndLog("Reading data file descriptor from %s", dataFileDescriptorPath)
 	if utils.FileOrFolderExists(dataFileDescriptorPath) {
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
