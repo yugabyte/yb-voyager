@@ -166,9 +166,10 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 
 			if c.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-				for idx, col := range c.Columns {
+				if len(c.Columns) > 0 {
+					col := c.Columns[0] // checking the first column only.
 					columnWithHotspotTypes, tableHasHotspotTypes := d.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
-					if tableHasHotspotTypes && idx == 0 {
+					if tableHasHotspotTypes {
 						//If first column is hotspot type then only report hotspot issue
 						hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
 						if isHotspotType {
@@ -751,14 +752,14 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	return issues, nil
 }
 
-func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isIndex bool) ([]QueryIssue, error) {
+func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case TIMESTAMP, TIMESTAMPTZ:
-		issue := lo.Ternary(isIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKIssue(objType, objName, "", colName))
 		issues = append(issues, issue)
 	case DATE:
-		issue := lo.Ternary(isIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKIssue(objType, objName, "", colName))
 		issues = append(issues, issue)
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
@@ -986,9 +987,10 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-			for idx, col := range alter.ConstraintColumns {
+			if len(alter.ConstraintColumns) > 0 {
+				col := alter.ConstraintColumns[0]
 				columnWithHotspotTypes, tableHasHotspotTypes := aid.columnsWithHotspotRangeIndexesDatatypes[alter.GetObjectName()]
-				if tableHasHotspotTypes && idx == 0 {
+				if tableHasHotspotTypes {
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
 					if isHotspotType {
