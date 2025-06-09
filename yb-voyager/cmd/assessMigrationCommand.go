@@ -1059,10 +1059,6 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 	var minVersionsFixedInSet bool
 
 	for _, analyzeIssue := range schemaAnalysisReport.Issues {
-
-		if analyzeIssue.ObjectType == "TABLE" {
-			fmt.Printf("issue - %v", analyzeIssue)
-		}
 		if slices.Contains([]string{UNSUPPORTED_DATATYPES_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY}, analyzeIssue.IssueType) {
 			//In case the category is Datatypes or PLPGSQL issues, the no need to check for the issue in those as these are reported separately in other places
 			//e.g. fetchUnsupportedPlPgSQLObjects(),fetchColumnsWithUnsupportedDataTypes()
