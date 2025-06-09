@@ -377,16 +377,17 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		dbType = "source-replica"
 	}
 
-	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
+	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
 
 	if importerRole == IMPORT_FILE_ROLE {
-		for _, tableName := range tableList {
-			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
-			}
-			snapshotRowCount.Put(tableName, tableRowCount)
-		}
+		// TODO: fix. Why are we going to target here? why can't we get the row count from the state?
+		// for _, tableName := range tableList {
+		// 	tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
+		// 	if err != nil {
+		// 		utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
+		// 	}
+		// 	snapshotRowCount.Put(tableName, tableRowCount)
+		// }
 	} else {
 		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType)
 		if err != nil {
@@ -394,7 +395,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		}
 	}
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
-	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v int64) (bool, error) {
+	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
 		return true, nil
 	})
@@ -402,7 +403,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	sort.Slice(keys, func(i, j int) bool {
 		val1, _ := snapshotRowCount.Get(keys[i])
 		val2, _ := snapshotRowCount.Get(keys[j])
-		return val1 > val2
+		return val1.Imported > val2.Imported
 	})
 
 	for i, tableName := range keys {
@@ -980,7 +981,7 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, int64], error) {
+func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -995,7 +996,7 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 	}
 
-	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
 	dataFilePathNtMap := map[string]sqlname.NameTuple{}
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
@@ -1008,12 +1009,20 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
-		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
+		importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 		if err != nil {
-			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
+			return nil, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
 		}
-		existingRows, _ := snapshotRowsMap.Get(nt)
-		snapshotRowsMap.Put(nt, existingRows+snapshotRowCount)
+		erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
+		}
+		existingRowCountPair, _ := snapshotRowsMap.Get(nt)
+		updatedRowCountPair := RowCountPair{
+			Imported: existingRowCountPair.Imported + importedRowCount,
+			Errored:  existingRowCountPair.Errored + erroredRowCount,
+		}
+		snapshotRowsMap.Put(nt, updatedRowCountPair)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1214,6 +1223,12 @@ type AssessmentReportYugabyteD struct {
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
+}
+
+// RowCountPair holds imported and errored row counts for a table.
+type RowCountPair struct {
+	Imported int64
+	Errored  int64
 }
 
 /*

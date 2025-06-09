@@ -112,6 +112,10 @@ func (s *ImportDataState) GetAllBatches(filePath string, tableNameTup sqlname.Na
 	return s.getBatches(filePath, tableNameTup, "CPDE")
 }
 
+func (s *ImportDataState) GetErroredBatches(filePath string, tableNameTup sqlname.NameTuple) ([]*Batch, error) {
+	return s.getBatches(filePath, tableNameTup, "E")
+}
+
 type FileImportState string
 
 const (
@@ -232,6 +236,18 @@ func (s *ImportDataState) GetImportedByteCount(filePath string, tableNameTup sql
 	result := int64(0)
 	for _, batch := range batches {
 		result += batch.ByteCount
+	}
+	return result, nil
+}
+
+func (s *ImportDataState) GetErroredRowCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetErroredBatches(filePath, tableNameTup)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting errored batches for %s: %w", tableNameTup, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.RecordCount
 	}
 	return result, nil
 }
