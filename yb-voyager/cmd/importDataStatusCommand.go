@@ -109,49 +109,27 @@ func runImportDataStatusCmd() error {
 		return nil
 	}
 
-	hasErrors := false
-	for _, row := range rows {
-		if row.ErroredCount > 0 {
-			hasErrors = true
-			break
-		}
-	}
-
 	color.Cyan(importDataStatusMsg)
 	uiTable := uitable.New()
 	for i, row := range rows {
 		perc := fmt.Sprintf("%.2f", row.PercentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
-				if hasErrors {
-					addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "ERRORED SIZE", "PERCENTAGE")
-				} else {
-					addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "PERCENTAGE")
-				}
+				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "ERRORED SIZE", "PERCENTAGE")
 			}
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.TotalCount)
 			importedCount := utils.HumanReadableByteCount(row.ImportedCount)
 			erroredCount := utils.HumanReadableByteCount(row.ErroredCount)
-			if hasErrors {
-				uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, erroredCount, perc)
-			} else {
-				uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, perc)
-			}
+
+			uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, erroredCount, perc)
+
 		} else {
 			if i == 0 {
-				if hasErrors {
-					addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "ERRORED ROWS", "PERCENTAGE")
-				} else {
-					addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
-				}
+				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "ERRORED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			if hasErrors {
-				uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, row.ErroredCount, perc)
-			} else {
-				uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, perc)
-			}
+			uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, row.ErroredCount, perc)
 		}
 	}
 
