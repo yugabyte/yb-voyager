@@ -1482,9 +1482,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		//Using this ContainsAnyStringFromSlice as the catalog we use for fetching datatypes uses the data_type only
 		// which just contains the base type for example VARCHARs it won't include any length, precision or scale information
 		//of these types there are other columns available for these information so we just do string match of types with our list
-		splits := strings.Split(allColumnsDataTypes[i].DataType, ".")
-		typeName := splits[len(splits)-1] //using typename only for the cases we are checking it from the static list of type names
-		typeName = strings.TrimSuffix(typeName, "[]")
+		typeName := allColumnsDataTypes[i].GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 		isUnsupportedDatatype := utils.ContainsAnyStringFromSlice(sourceUnsupportedDatatypes, typeName)
 		isUnsupportedDatatypeInLive := utils.ContainsAnyStringFromSlice(liveUnsupportedDatatypes, typeName)
@@ -1543,17 +1541,13 @@ func addAssessmentIssuesForUnsupportedDatatypes(unsupportedDatatypes []utils.Tab
 			assessmentReport.AppendIssues(issue)
 		case POSTGRESQL:
 			// Datatypes can be of form public.geometry, so we need to extract the datatype from it
-			datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
-			if !ok {
-				log.Warnf("failed to get datatype from %s", colInfo.DataType)
-				continue
-			}
-			datatype = strings.TrimSuffix(datatype, "[]") // for the array types we add the '[]' to the type for distinguish between normal type and array based datatype
+			// for the array types we add the '[]' to the type for distinguish between normal type and array based datatype
+			typeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 			// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 			// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 			// This converted AssessmentIssue is then appended to the assessmentIssues slice
-			queryissue := queryissue.ReportUnsupportedDatatypes(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+			queryissue := queryissue.ReportUnsupportedDatatypes(typeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 			checkIsFixedInAndAddIssueToAssessmentIssues(queryissue)
 
 		default:
@@ -1696,16 +1690,12 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
-				if !ok {
-					log.Warnf("failed to get datatype from %s", colInfo.DataType)
-					continue
-				}
+				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication
 				// This converted AssessmentIssue is then appended to the assessmentIssues slice
-				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+				queryIssue := queryissue.ReportUnsupportedDatatypesInLive(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 			}
 			if len(columns) > 0 {
@@ -1718,11 +1708,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				datatype, ok := utils.SliceLastElement(strings.Split(colInfo.DataType, "."))
-				if !ok {
-					log.Warnf("failed to get datatype from %s", colInfo.DataType)
-					continue
-				}
+				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 				var queryIssue queryissue.QueryIssue
 
@@ -1731,7 +1717,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 						constants.COLUMN,
 						qualifiedColName,
 						"",
-						datatype,
+						fmt.Sprintf("%s[]", baseTypeName), //so the user can understand this is an array type 
 						colInfo.ColumnName,
 					)
 				} else if colInfo.IsUDTType {
@@ -1739,11 +1725,11 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 						constants.COLUMN,
 						qualifiedColName,
 						"",
-						datatype,
+						baseTypeName,
 						colInfo.ColumnName,
 					)
 				} else {
-					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(datatype, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
+					queryIssue = queryissue.ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName, colInfo.ColumnName, constants.COLUMN, qualifiedColName)
 				}
 				checkIsFixedInAndAddIssueToAssessmentIssues(queryIssue)
 

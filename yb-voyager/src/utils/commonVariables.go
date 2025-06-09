@@ -17,7 +17,10 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -145,6 +148,16 @@ type TableColumnsDataTypes struct {
 	IsArrayType bool   `json:"-"`
 	IsEnumType  bool   `json:"-"`
 	IsUDTType   bool   `json:"-"`
+}
+
+func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
+	splits := strings.Split(colDatatype.DataType, ".")
+	typeName, ok := SliceLastElement(splits)
+	if !ok {
+		log.Errorf("failed to get typename from colinfo: %s", colDatatype.DataType)
+	}
+	typeName = strings.TrimSuffix(typeName, "[]")
+	return typeName
 }
 
 type RedundantIndexesInfo struct {
