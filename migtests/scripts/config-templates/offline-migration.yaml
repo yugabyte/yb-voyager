@@ -1,0 +1,34 @@
+export-dir: {{ EXPORT_DIR }}
+
+source:
+  db-type: {{ SOURCE_DB_TYPE }}
+  db-host: {{ SOURCE_DB_HOST }}
+  db-port: {{ SOURCE_DB_PORT }}
+  db-name: {{ SOURCE_DB_NAME }}
+  {% if SOURCE_DB_TYPE != "mysql" %}
+  db-schema: {{ SOURCE_DB_SCHEMA }}
+  {% endif %}
+  db-user: {{ SOURCE_DB_USER }}
+  db-password: {{ SOURCE_DB_PASSWORD }}
+
+target:
+  db-host: {{ TARGET_DB_HOST }}
+  db-port: {{ TARGET_DB_PORT }}
+  db-name: {{ TARGET_DB_NAME }}
+  {% if TARGET_DB_SCHEMA %}
+  db-schema: {{ TARGET_DB_SCHEMA }}
+  {% endif %}
+  db-user: {{ TARGET_DB_USER }}
+  db-password: {{ TARGET_DB_PASSWORD }}
+
+assess-migration:
+  iops-capture-interval: 0
+
+export-data:
+  export-type: snapshot-only
+
+end-migration:
+  backup-schema-files: false                                  
+  backup-data-files: false                                    
+  save-migration-reports: false                               
+  backup-log-files: false                                    
