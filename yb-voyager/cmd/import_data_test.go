@@ -859,7 +859,6 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	if err := postgresContainer.Start(ctx); err != nil {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
-	defer postgresContainer.Terminate(ctx)
 
 	setupYugabyteTestDb(t)
 
@@ -915,5 +914,70 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	}
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(10), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
+}
+
+// TestImportDataFileSnapshotReport verifies the snapshot report after importing data using the import-data-file command.
+func TestImportDataFileSnapshotReport(t *testing.T) {
+	// Create a temporary export directory.
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start YugabyteDB container.
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+
+	// Generate a CSV file with test data.
+	dataFilePath := filepath.Join("/tmp", "test_data.csv")
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Failed to create data file: %v", err)
+	}
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+
+	// Write header and rows to the CSV file.
+	w.Write([]string{"id", "name"})
+	for i := 1; i <= 100; i++ {
+		w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
+	}
+	w.Flush()
+
+	// Import data from the CSV file into YugabyteDB.
+	importDataFileCmdArgs := []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "test_data.csv:public.test_data",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import data file command failed: %v", err)
+	}
+
+	// Verify snapshot report.
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
 }
