@@ -692,13 +692,14 @@
             <p>No issues were found in the assessment.</p>
         {{ end }}
 
-        <h2>Performance optimizations</h2>
-        <p>Recommendations to source schema or queries to optimize performance on YugabyteDB.</p>
-        {{ if $performanceOptimizationIssues }}
+        {{ if and ($performanceOptimizationIssues) (ne (len $performanceOptimizationIssues) 0) }}
+
+            <h2>Performance optimizations</h2>
+            <p>Recommendations to source schema or queries to optimize performance on YugabyteDB.</p>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total Issues:</strong> {{ len $performanceOptimizationIssues }}</p>
+                    <p><strong>Total optimizations:</strong> {{ len $performanceOptimizationIssues }}</p>
                     <p>Below is a detailed breakdown of each optmization.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -717,7 +718,7 @@
                 <thead>
                     <tr style="background-color: #f2f2f2;">
                         <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', true)">
-                            Issue <span class="sort-indicator">&#8597;</span>
+                            Optimization <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
                         <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', true)">
@@ -834,8 +835,6 @@
                     </tbody>
                 {{ end }}
             </table>
-        {{ else }}
-            <p>No performance optmizations were found in the assessment.</p>
         {{ end }}
 
         {{ if .Notes }}
