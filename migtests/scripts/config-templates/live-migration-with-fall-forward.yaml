@@ -64,6 +64,22 @@ assess-migration:
 export-data:
   export-type: snapshot-and-changes
 
+  {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}
+  table-list: '{{ EXPORT_TABLE_LIST }}'
+  {% endif %}
+
+  {% if EXPORT_EX_TABLE_LIST is defined and EXPORT_EX_TABLE_LIST != "" %}
+  exclude-table-list: '{{ EXPORT_EX_TABLE_LIST }}'
+  {% endif %}
+  
+  {% if EXPORT_TABLE_LIST_FILE_PATH is defined and EXPORT_TABLE_LIST_FILE_PATH != "" %}
+  table-list-file-path: '{{ EXPORT_TABLE_LIST_FILE_PATH }}'
+  {% endif %}
+
+  {% if EXPORT_EX_TABLE_LIST_FILE_PATH is defined and EXPORT_EX_TABLE_LIST_FILE_PATH != "" %}
+  exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
+  {% endif %}
+
 archive-changes:
   delete-changes-without-archiving: true
 
