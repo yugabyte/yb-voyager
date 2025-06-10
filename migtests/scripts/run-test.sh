@@ -171,8 +171,8 @@ main() {
 
 	# Sleep for 1100ms: spans at least one full 500ms Raft heartbeat plus 500ms skew,
 	# so that tablet safe‐time ≥ (now – skew) and we avoid “restart read required”.
-	step "Sleeping before read queries in validations script to let tablets safe time get updated"
-	sleep 1.1
+	# step "Sleeping before read queries in validations script to let tablets safe time get updated"
+	# sleep 1.1
 
 	step "Run validations."
 	if [[ "${EXPORT_TABLE_LIST}" != "" && -x "${TEST_DIR}/validate-with-table-list" ]]; then

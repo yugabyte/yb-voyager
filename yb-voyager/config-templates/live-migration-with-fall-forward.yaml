@@ -1,4 +1,4 @@
-### Note: This is a template configuration file for YB Voyager offline migration.
+### Note: This is a template configuration file for YB Voyager live migration with fall-forward.
 
 # ---------------------------------------------------------
 # Global configuration
@@ -32,7 +32,7 @@ control-plane-type: yugabyted
 ### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
 ### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
 ### Required if control-plane-type is set to yugabyted
-yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                           
+yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                            
 
 # ---------------------------------------------------------
 # Source Database Configuration
@@ -40,7 +40,7 @@ yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433
 
 source:
 
-  ### Source database type: (oracle, mysql, postgresql)
+  ### Source database type: (oracle, postgresql)
   db-type: postgresql    
 
   ### Source database server host. 
@@ -48,7 +48,7 @@ source:
   db-host: localhost 
 
   ### Source database server port number. 
-  ### Default - Oracle(1521), MySQL(3306), PostgreSQL(5432)                                     
+  ### Default - Oracle(1521), PostgreSQL(5432)                                     
   db-port: 5432    
 
   ### Source database name to be migrated to YugabyteDB                                       
@@ -74,7 +74,7 @@ source:
   # ssl-cert: <ssl-cert-path>  
 
   ### Specify the source SSL mode out of: (disable, allow, prefer, require, verify-ca, verify-full) 
-  ### MySQL does not support 'allow' sslmode, and Oracle does not use explicit sslmode parameters. 
+  ### Oracle does not use explicit sslmode parameters. 
   ### Default - prefer.                          
   # ssl-mode: prefer    
 
@@ -96,7 +96,17 @@ source:
   # oracle-home: <oracle-home-path>  
 
   ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases                    
-  # oracle-tns-alias: <oracle-tns-alias>                  
+  # oracle-tns-alias: <oracle-tns-alias>    
+
+  ### [For Oracle Only] Oracle System Identifier (SID) of the Container Database that you wish to use while exporting data from Oracle instances.
+  # oracle-cdb-sid: <oracle-cdb-sid>
+
+  ### [For Oracle Only] Oracle Container Database Name in case you are using a multitenant container database.
+  # oracle-cdb-name: <oracle-cdb-name>
+
+  ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle Container Database in case you are using a multitenant container database. Refer to documentation to learn more about configuring tnsnames.ora and aliases.
+  # oracle-cdb-tns-alias: <oracle-cdb-tns-alias>
+
 
 # ---------------------------------------------------------
 # Target Database Configuration
@@ -115,7 +125,7 @@ target:
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
   db-name: yugabyte 
 
-  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  ### Target schema name in YugabyteDB (Note: works only for source as Oracle, in case of PostgreSQL you can ALTER schema name post import)                                    
   # db-schema: public      
 
   ### Username with which to connect to the target YugabyteDB server                                    
@@ -144,6 +154,66 @@ target:
 
   ### Path of the file containing target SSL Root Certificate Revocation List (CRL)              
   # ssl-crl: <ssl-crl-path>                               
+
+# ---------------------------------------------------------
+# Source Replica Database Configuration
+# ---------------------------------------------------------
+
+source-replica:
+
+  ### Host on which the Source-Replica DB server is running 
+  ### Default - 127.0.0.1
+  db-host: 127.0.0.1
+
+  ### Port on which the Source-Replica DB server is running 
+  ### Default - ORACLE(1521), POSTGRESQL(5432)
+  db-port: 5432
+
+  ### Name of the database on the Source-Replica DB server on which import needs to be done
+  db-name: test_db
+
+  ### Username with which to connect to the Source-Replica DB server
+  db-user: test_user
+
+  ### Password with which to connect to the Source-Replica DB server. 
+  ### Alternatively, you can also specify the password by setting the environment variable SOURCE_REPLICA_DB_PASSWORD. 
+  ### If you don't provide a password via the CLI, yb-voyager will prompt you at runtime for a password. 
+  ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.
+  db-password: test_password
+
+  ### Schema name in Source-Replica DB 
+  ### Note - works only for source as Oracle, in case of PostgreSQL schemas remain same as of source
+  # db-schema: public
+
+  ### *********** Source Replica SSL Configuration ************
+
+  ### Path of the file containing Source-Replica DB SSL Certificate Path
+  # ssl-cert: <ssl-cert-path>        
+
+  ### Specify the Source-Replica DB SSL mode
+  ### Accepted Values - [disable, prefer, allow, require, verify-ca, verify-full] 
+  ### Default - prefer 
+  # ssl-mode: prefer           
+
+  ### Path of the file containing Source-Replica DB SSL Key                                                           
+  # ssl-key: <ssl-key-path>      
+
+  ### Path of the file containing Source-Replica DB SSL Root Certificate                       
+  # ssl-root-cert: <ssl-root-cert-path>     
+
+  ### Path of the file containing Source-Replica DB SSL Root Certificate Revocation List (CRL              
+  # ssl-crl: <ssl-crl-path> 
+
+  ### *********** Oracle Specific Configuration ************
+
+  ### [For Oracle Only] Oracle System Identifier (SID) that you wish to use while importing data to Oracle instances
+  # db-sid: <oracle-db-sid>
+
+  ### [For Oracle Only] Path to set $ORACLE_HOME environment variable. tnsnames.ora is found in $ORACLE_HOME/network/admin
+  # oracle-home: <oracle-home-path>
+
+  ### [For Oracle Only] Name of TNS Alias you wish to use to connect to Oracle instance. Refer to documentation to learn more about configuring tnsnames.ora and aliases
+  # oracle-tns-alias: <oracle-tns-alias>
 
 # ---------------------------------------------------------
 # Assess Migration Configuration 
@@ -180,8 +250,7 @@ export-schema:
   ### Note - You can only provide either object-type-list or exclude-object-type-list, not both.
   ###   Accepted parameters for the object-type-list and exclude-object-type-list are:
   ###   Oracle - TYPE, SEQUENCE, TABLE, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, SYNONYM, VIEW, MVIEW
-  ###   PostgreSQL - TYPE, DOMAIN, SEQUENCE, TABLE, FUNCTION, PROCEDURE, AGGREGATE, VIEW, MVIEW, TRIGGER, COMMENT
-  ###   MySQL - TABLE, VIEW, TRIGGER, FUNCTION, PROCEDURE                                                 
+  ###   PostgreSQL - TYPE, DOMAIN, SEQUENCE, TABLE, FUNCTION, PROCEDURE, AGGREGATE, VIEW, MVIEW, TRIGGER, COMMENT                                               
   # object-type-list: "TABLE,FUNCTION,VIEW"            
   # exclude-object-type-list: "TRIGGER"   
 
@@ -192,7 +261,7 @@ export-schema:
 
   ### Enable using orafce extension in export schema 
   ### Accepted values (true, false, yes, no, 1, 0) 
-  ### Only valid for Oracle and MySQL source databases
+  ### Only valid for Oracle source databases
   ### Default - true
   # use-orafce: true  
 
@@ -219,7 +288,7 @@ analyze-schema:
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
   ### Default - latest stable version i.e. 2024.2.2.3                                       
-  target-db-version: 2024.2.2.3                            
+  target-db-version: 2024.2.2.3                           
                                       
                                   
 # ----------------------------------------------------------
@@ -236,7 +305,6 @@ import-schema:
   ### Accepted parameters -
   ###   Oracle - TYPE, SEQUENCE, TABLE, PARTITION, INDEX, PACKAGE, TRIGGER, FUNCTION, PROCEDURE, MVIEW, SYNONYM
   ###   PostgreSQL - SCHEMA, COLLATION, EXTENSION, TYPE, DOMAIN, SEQUENCE, TABLE, INDEX, FUNCTION, AGGREGATE, PROCEDURE, VIEW, TRIGGER, MVIEW, RULE, COMMENT
-  ###   MySQL - TABLE, PARTITION, INDEX, VIEW, TRIGGER, FUNCTION, PROCEDURE 
   # object-type-list: 'TABLE, MVIEW'                              
   # exclude-object-type-list: 'TRIGGER'
 
@@ -265,14 +333,15 @@ import-schema:
 # Export Data Configuration
 # ----------------------------------------------------------
 
-### Export tables' data from source database to export-dir. 
+### Export tables' data and changes from source database to export-dir. 
 
 ### Uncomment this section and the respective parameters when you want to configure additional export data options.
-export-data:
+export-data-from-source:
 
-  ### Export type for offline migration [DO NOT CHANGE]
-  ### Required                                                 
-  export-type: snapshot-only         
+  ### Export type for migration 
+  ### Required 
+  ### [DO NOT CHANGE]                                                
+  export-type: snapshot-and-changes       
 
   ### Comma-separated list of the table names to include or exclude while exporting data.
   ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
@@ -293,12 +362,7 @@ export-data:
   ### Disable progress bar/stats during data export  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # disable-pb: false     
-
-  ### For MySQL and Oracle, you can optionally speed up data export by setting the config parameter beta-fast-data-export: 1.
-  ### In case this parameter is set, parallel-jobs has no effect and its value is fixed to 1. 
-  ### Accepted values (true, false, yes, no, 1, 0)
-  # beta-fast-data-export: 0                                           
+  # disable-pb: false                                            
 
 # ---------------------------------------------------------
 # Import Data Configuration
@@ -307,19 +371,7 @@ export-data:
 ### Import the data exported from the source database into the target database. 
 
 ### Uncomment this section and the respective parameters when you want to configure additional import data options.
-import-data:
-
-  ### Comma-separated list of the table names to include or exclude while importing data.
-  ### Table names can include glob wildcard characters ? (matches one character) and * (matches zero or more characters) 
-  ### In case the table names are case sensitive, double-quote them. For example exclude-table-list: 'orders,"Products",items'
-  # table-list: 'table1,table2'                           
-  # exclude-table-list: 'table3,table4'          
-
-  ### Path of the file containing comma-separated list of table names to exclude while importing data
-  ### Note - Only one of table-list or table-list-file-path can be used at a time.
-  ### Similarly, only one of exclude-table-list or exclude-table-list-file-path can be used at a time.
-  # table-list-file-path: <table-list-file-path>
-  # exclude-table-list-file-path: <exclude-table-list-file-path>
+import-data-to-target:
 
   ### Control parallelism of data import
   ### By default, Voyager enables adaptive parallelism which adjusts the number 
@@ -378,7 +430,85 @@ import-data:
   ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  # enable-upsert: false                                                                 
+  # enable-upsert: false  
+
+# ---------------------------------------------------------
+# Import data to source-replica
+# ---------------------------------------------------------
+
+### Import data into source-replica database to prepare for fall-forward.
+
+### Uncomment this section and the respective parameters when you want to configure additional import data to source-replica options.
+import-data-to-source-replica:
+
+  ### Number of parallel jobs to use while importing data. 
+  ### Default - For PostgreSQL(voyager will try if it can determine the total number of cores N and use N/2 as parallel jobs else it will fall-back to 8) and Oracle(16). 
+  ### Any value less than 1 reverts to the default calculation.
+  # parallel-jobs: <number-of-parallel-jobs>
+
+  ### Truncate tables on source replica DB before importing data. 
+  ### Only applicable along with --start-clean true 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false 
+  truncate-tables: false
+
+  ### Size of batches in the number of rows generated for ingestion during import. 
+  ### Default - ORACLE(10000000), POSTGRESQL(100000)
+  # batch-size: 100000
+
+  ### Disable progress bar/stats during data import 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  # disable-pb: false
+
+# ---------------------------------------------------------
+# Archive Changes
+# ---------------------------------------------------------
+
+### The archive changes command handles old CDC events that have already been applied to the destination database.
+### These events are kept in the local export directory until disk usage exceeds a threshold (default: 70%).
+### When the threshold is crossed, the command either archives the applied changes to another directory or deletes them.
+### This helps manage disk space usage during live migration.
+
+### Uncomment the respective parameters when you want to configure additional archive changes options.
+archive-changes:
+
+  ### Delete the imported changes without archiving them.
+  ### Note that: the changes are deleted from the export-dir only after disk utilisation exceeds 70%. 
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  delete-changes-without-archiving: false
+
+  ### Path to the directory where the imported change events are to be moved to. 
+  ### Note that, the changes are deleted from the export-dir only after the disk utilisation exceeds 70%.
+  ### Required if delete-changes-without-archiving is set to false.
+  move-to: <path-to-archive-dir>
+
+  ### Disk utilization threshold in percentage
+  ### Default - 70
+  # fs-utilization-threshold: 70
+  
+# ---------------------------------------------------------
+# Intitiate cutover to target
+# ---------------------------------------------------------
+
+### Initiate cutover to target DB
+
+### Uncomment the respective parameters when you want to configure additional cutover options.
+initiate-cutover-to-target:
+
+  ### Prepare for fallback by streaming changes from target DB back to source DB.
+  ### Note - This is required to be false for fall-forward workflow
+  ### [DO NOT CHANGE]
+  prepare-for-fall-back: false
+
+  ### Use the gRPC connector for YB export. 
+  ### If set to false, the logical replication connector (supported in YB versions 2024.1.1+) is used. 
+  ### For this new logical replication based connector, ensure no ALTER TABLE commands causing table rewrites (e.g., adding primary keys) 
+  ### were present in the schema during import
+  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Default - true
+  use-yb-grpc-connector: true
 
 # ---------------------------------------------------------
 # Finalize Schema Post Data Import Configuration
@@ -402,13 +532,35 @@ finalize-schema-post-data-import:
   ### Refreshes the materialised views on target during post snapshot import phase  
   ### Accepted values (true, false, yes, no, 1, 0)
   ### Default - false
-  refresh-mviews: false                                       
+  refresh-mviews: false     
+
+# ---------------------------------------------------------
+# Export Data from Target
+# ---------------------------------------------------------
+
+### Export data from target Yugabyte DB in the fall-forward workflows.
+
+### Uncomment the respective parameters when you want to configure additional export data from target options.
+export-data-from-target:
+
+  ### Disable progress bar/stats during data export  
+  ### Accepted values (true, false, yes, no, 0, 1)
+  ### Default - false
+  disable-pb: false
+
+  ### Setting the flag to false disables the transaction ordering. 
+  ### This speeds up change data capture from target YugabyteDB. 
+  ### Disable transaction ordering only if the tables under migration do not have unique keys or the app does not modify/reuse the unique keys.
+  ### Note: This is applicable only when exporting data from target YugabyteDB using the gRPC connector.
+  ### Accepted values (true, false, yes, no, 0, 1) 
+  ### Default - true
+  # transaction-ordering: true
 
 # ---------------------------------------------------------
 # End Migration Configuration
 # ---------------------------------------------------------
 
-### End the current migration and cleanup all metadata stored in databases(Target and Source) and export-dir
+### End the current migration and cleanup all metadata stored in databases(Target, Source-Replica and Source) and export-dir
 
 ### Uncomment the respective parameters when you want to configure additional end migration options.
 end-migration:

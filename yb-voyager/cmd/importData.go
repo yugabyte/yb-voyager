@@ -40,7 +40,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/errorpolicy"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/monitor"
@@ -75,7 +74,9 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
-var errorPolicyString string
+
+// Error policy
+var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
 
 var importDataCmd = &cobra.Command{
 	Use: "data",
@@ -141,12 +142,6 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if err != nil {
 		utils.ErrExit("Failed to initialize the target DB: %s", err)
 	}
-
-	record, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		utils.ErrExit("Failed to get migration status record: %s", err)
-	}
-
 	// Check if target DB has the required permissions
 	if tconf.RunGuardrailsChecks {
 		checkImportDataPermissions()
@@ -168,20 +163,10 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	// quoteTableNameIfRequired()
 	importFileTasks := discoverFilesToImport()
 	log.Debugf("Discovered import file tasks: %v", importFileTasks)
-	
-	switch importerRole {
-	case TARGET_DB_IMPORTER_ROLE:
-		importType = record.ExportType
-		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
-	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		if record.FallbackEnabled {
-			utils.ErrExit("cannot import data to source-replica. Fall-back workflow is already enabled.")
-		}
-		updateFallForwardEnabledInMetaDB()
-		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
-	case SOURCE_DB_IMPORTER_ROLE:
-		identityColumnsMetaDBKey = metadb.SOURCE_DB_IDENTITY_COLUMNS_KEY
 
+	err = setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole)
+	if err != nil {
+		utils.ErrExit("error while setting import type or identity column metadb key: %v", err)
 	}
 
 	if changeStreamingIsEnabled(importType) && (tconf.TableList != "" || tconf.ExcludeTableList != "") {
@@ -190,7 +175,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 		importFileTasks = applyTableListFilter(importFileTasks)
 	}
 
-	importData(importFileTasks, errorpolicy.AbortErrorPolicy)
+	importData(importFileTasks, errorPolicySnapshotFlag)
 	tdb.Finalize()
 	switch importerRole {
 	case TARGET_DB_IMPORTER_ROLE:
@@ -206,6 +191,30 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	if changeStreamingIsEnabled(importType) {
 		startExportDataFromTargetIfRequired()
 	}
+}
+
+func setImportTypeAndIdentityColumnMetaDBKeyForImporterRole(importerRole string) error {
+
+	record, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("Failed to get migration status record: %s", err)
+	}
+
+	switch importerRole {
+	case TARGET_DB_IMPORTER_ROLE:
+		importType = record.ExportType
+		identityColumnsMetaDBKey = metadb.TARGET_DB_IDENTITY_COLUMNS_KEY
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
+		if record.FallbackEnabled {
+			return fmt.Errorf("cannot import data to source-replica. Fall-back workflow is already enabled.")
+		}
+		updateFallForwardEnabledInMetaDB()
+		identityColumnsMetaDBKey = metadb.FF_DB_IDENTITY_COLUMNS_KEY
+	case SOURCE_DB_IMPORTER_ROLE:
+		identityColumnsMetaDBKey = metadb.SOURCE_DB_IDENTITY_COLUMNS_KEY
+
+	}
+	return nil
 }
 
 func checkImportDataPermissions() {
@@ -544,7 +553,7 @@ func updateTargetConfInMigrationStatus() {
 	}
 }
 
-func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.ErrorPolicy) {
+func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorPolicy) {
 
 	if (importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE) && (tconf.EnableUpsert) {
 		if !utils.AskPrompt(color.RedString("WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. " +
@@ -620,9 +629,13 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.Error
 	if startClean {
 		err := cleanMSRForImportDataStartClean()
 		if err != nil {
-
+			utils.ErrExit("Failed to clean MigrationStatusRecord for import data start clean: %s", err)
 		}
 		cleanImportState(state, importFileTasks)
+		err = cleanStoredErrors(errorHandler, importFileTasks)
+		if err != nil {
+			utils.ErrExit("Failed to clean stored errors: %s", err)
+		}
 		pendingTasks = importFileTasks
 	} else {
 		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
@@ -648,7 +661,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy errorpolicy.Error
 	if err != nil {
 		utils.ErrExit("error fetching or storing the generated always identity columns: %v", err)
 	}
-	disableGeneratedAlwaysAsIdentityColumns()
+	err = disableGeneratedAlwaysAsIdentityColumns()
+	if err != nil {
+		utils.ErrExit("error disabling generated always identity columns: %v", err)
+	}
 	// Import snapshots
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		utils.PrintAndLog("Already imported tables: %v", importFileTasksToTableNames(completedTasks))
@@ -1147,7 +1163,7 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 	//Fetching the table to identity columns information from metadb if present
 	found, err := metaDB.GetJsonObject(nil, identityColumnsMetaDBKey, &tableKeyToIdentityColumnNames)
 	if err != nil {
-		utils.ErrExit("failed to get identity columns from meta db: %s", err)
+		return fmt.Errorf("failed to get identity columns from meta db: %s", err)
 	}
 	if found {
 		//IF present in metadb retrieve a map of table NameTuple Key -> columns
@@ -1156,7 +1172,7 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 		for key, columns := range tableKeyToIdentityColumnNames {
 			nameTuple, err := namereg.NameReg.LookupTableName(key)
 			if err != nil {
-				utils.ErrExit("lookup for table name in name reg: %v with: %v", key, err)
+				return fmt.Errorf("lookup for table name in name reg: %v with: %v", key, err)
 			}
 			TableToIdentityColumnNames.Put(nameTuple, columns)
 		}
@@ -1172,15 +1188,16 @@ func fetchAndStoreGeneratedAlwaysIdentityColumnsInMetadb(tables []sqlname.NameTu
 	// saving in metadb for handling restarts
 	err = metaDB.InsertJsonObject(nil, identityColumnsMetaDBKey, tableKeyToIdentityColumnNames)
 	if err != nil {
-		utils.ErrExit("failed to insert into the key '%s': %v", identityColumnsMetaDBKey, err)
+		return fmt.Errorf("failed to insert into the key '%s': %v", identityColumnsMetaDBKey, err)
 	}
 	return nil
 }
-func disableGeneratedAlwaysAsIdentityColumns() {
+func disableGeneratedAlwaysAsIdentityColumns() error {
 	err := tdb.DisableGeneratedAlwaysAsIdentityColumns(TableToIdentityColumnNames)
 	if err != nil {
-		utils.ErrExit("failed to disable generated always as identity columns: %s", err)
+		return fmt.Errorf("failed to disable generated always as identity columns: %s", err)
 	}
+	return nil
 }
 
 func enableGeneratedAlwaysAsIdentityColumns() error {
@@ -1499,6 +1516,17 @@ func cleanMSRForImportDataStartClean() error {
 		metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 			msr.OnPrimaryKeyConflictAction = ""
 		})
+	}
+	return nil
+}
+
+func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*ImportFileTask) error {
+	// clean stored errors for all tasks
+	for _, task := range tasks {
+		err := errorHandler.CleanUpStoredErrors(task.TableNameTup, task.FilePath)
+		if err != nil {
+			return fmt.Errorf("failed to clean up stored errors for task %s: %w", task.TableNameTup.ForOutput(), err)
+		}
 	}
 	return nil
 }
