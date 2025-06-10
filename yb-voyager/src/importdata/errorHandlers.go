@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	ProcessingErrorsLogFile = "processing-errors.log"
-	IngestionErrorPrefix    = "ingestion-error"
+	PROCESSING_ERRORS_LOG_FILE = "processing-errors.log"
+	INGESTION_ERROR_PREFIX     = "ingestion-error"
 )
 
 var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
@@ -97,6 +97,8 @@ func (handler *ImportDataStashAndContinueHandler) ShouldAbort() bool {
 }
 
 // HandleRowProcessingError writes the row and error to a processing-errors.log roratingFile.
+// <export-dir>/data/errors/table::<table-name>/file::<base-path>:<hash>/processing-errors.log
+// On rotation, new files of the format processing-errors-<timestamp>.log will be created.
 func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error {
 	var err error
 	if row == "" && rowErr == nil {
@@ -110,7 +112,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 	tableFilePathKey := fmt.Sprintf("%s::%s", tableName.ForMinOutput(), ComputePathHash(taskFilePath))
 	errorFile, ok := handler.rowProcessingErrorFiles[tableFilePathKey]
 	if !ok {
-		errorFilePath := filepath.Join(errorsDir, ProcessingErrorsLogFile)
+		errorFilePath := filepath.Join(errorsDir, PROCESSING_ERRORS_LOG_FILE)
 		errorFile, err = utils.NewRotatableFile(errorFilePath, defaultProcessingErrorFileSize)
 		if err != nil {
 			return fmt.Errorf("creating file rotator: %w", err)
@@ -118,10 +120,14 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 		handler.rowProcessingErrorFiles[tableFilePathKey] = errorFile
 	}
 
+	/*
+		ERROR: <error message>
+		ROW: <row data>
+	*/
 	msg := fmt.Sprintf("ERROR: %s\nROW: %s\n\n", rowErr, row)
 	_, err = errorFile.Write([]byte(msg))
 	if err != nil {
-		return fmt.Errorf("writing to %s: %w", ProcessingErrorsLogFile, err)
+		return fmt.Errorf("writing to %s: %w", PROCESSING_ERRORS_LOG_FILE, err)
 	}
 	return nil
 }
@@ -158,7 +164,7 @@ func (handler *ImportDataStashAndContinueHandler) createBatchSymlinkInErrorsFold
 		return fmt.Errorf("creating errors folder: %s", err)
 	}
 
-	symlinkFileName := fmt.Sprintf("%s.%s", IngestionErrorPrefix, filepath.Base(batch.GetFilePath()))
+	symlinkFileName := fmt.Sprintf("%s.%s", INGESTION_ERROR_PREFIX, filepath.Base(batch.GetFilePath()))
 	err = os.Symlink(batch.GetFilePath(), filepath.Join(errorsFolderPathForTableTask, symlinkFileName))
 	if err != nil {
 		return fmt.Errorf("creating symlink: %s", err)
