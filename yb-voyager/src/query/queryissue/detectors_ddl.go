@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -162,7 +163,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 							c.ConstraintName,
 						))
 				}
+				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, hotspotIssues...)
 			}
+
 		}
 	}
 	for _, col := range table.Columns {
@@ -263,6 +271,24 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	return issues, nil
+}
+
+func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
+	if len(constraintColumns) <= 0 {
+		log.Warnf("empty columns list for %s constraint %s", constraintType, constraintName)
+		return nil, nil
+	}
+	col := constraintColumns[0] // checking the first column only.
+	columnWithHotspotTypes, tableHasHotspotTypes := columnsWithHotspotRangeIndexesDatatypes[obj.GetObjectName()]
+	if !tableHasHotspotTypes {
+		return nil, nil
+	}
+	//If first column is hotspot type then only report hotspot issue
+	hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
+	if !isHotspotType {
+		return nil, nil
+	}
+	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false)
 }
 
 func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
@@ -645,7 +671,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				} else if isHotspotType && idx == 0 {
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
-					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
+					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true)
 					if err != nil {
 						return nil, err
 					}
@@ -672,7 +698,7 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
-						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName)
+						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName, true)
 						if err != nil {
 							return nil, err
 						}
@@ -733,13 +759,15 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	return issues, nil
 }
 
-func reportHotspotsOnIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
+func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case TIMESTAMP, TIMESTAMPTZ:
-		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKOrUKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	case DATE:
-		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKOrUKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
 	}
@@ -962,7 +990,15 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				))
 			}
 
+			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj)
+			if err != nil {
+				return nil, err
+			}
+			issues = append(issues, hotspotIssues...)
+
 		}
+
 	case queryparser.DISABLE_RULE:
 		issues = append(issues, NewAlterTableDisableRuleIssue(
 			obj.GetObjectType(),
