@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -671,25 +672,17 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 }
 
 func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
-	switch source.DBType {
-	case POSTGRESQL:
-		pgDB, ok := source.DB().(*srcdb.PostgreSQL)
-		if !ok {
-			return false, fmt.Errorf("source type is not PostgreSQL")
-		}
-
-		return pgDB.CheckIfReplicationSlotIsActive(replicationSlot)
-	case YUGABYTEDB:
-		//Currently not having the check for YB as this active and active_pid information is not present in all YB versions  
-		ybDB, ok := source.DB().(*srcdb.YugabyteDB)
-		if !ok {
-			return false, fmt.Errorf("source type is not YugabyteDB")
-		}
-
-		return ybDB.CheckIfReplicationSlotIsActive(replicationSlot)
+	if source.DBType != POSTGRESQL {
+		return false, nil
 	}
-
-	return false, nil
+	var isActive bool
+	var activePID sql.NullString
+	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
+	err := source.DB().QueryRow(stmt).Scan(&isActive, &activePID)
+	if err != nil {
+		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
+	}
+	return isActive && (activePID.String != ""), nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {

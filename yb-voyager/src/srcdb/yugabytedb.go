@@ -90,6 +90,14 @@ func (yb *YugabyteDB) Disconnect() {
 	}
 }
 
+func (yb *YugabyteDB) Query(query string) (*sql.Rows, error) {
+	return yb.db.Query(query)
+}
+
+func (yb *YugabyteDB) QueryRow(query string) *sql.Row {
+	return yb.db.QueryRow(query)
+}
+
 func (yb *YugabyteDB) GetTableRowCount(tableName sqlname.NameTuple) (int64, error) {
 	var rowCount int64
 	query := fmt.Sprintf("select count(*) from %s", tableName.ForUserQuery())
@@ -938,17 +946,6 @@ func (yb *YugabyteDB) GetNonPKTables() ([]string, error) {
 		}
 	}
 	return nonPKTables, nil
-}
-
-func (yb *YugabyteDB) CheckIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
-	var isActive bool
-	var activePID sql.NullString
-	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
-	err := yb.db.QueryRow(stmt).Scan(&isActive, &activePID)
-	if err != nil {
-		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
-	}
-	return isActive && activePID.String != "", nil
 }
 
 func (yb *YugabyteDB) GetReplicationConnection() (*pgconn.PgConn, error) {

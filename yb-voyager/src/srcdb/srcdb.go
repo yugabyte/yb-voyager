@@ -60,6 +60,8 @@ type SourceDB interface {
 	GetMissingAssessMigrationPermissions() ([]string, bool, error)
 	CheckIfReplicationSlotsAreAvailable() (isAvailable bool, usedCount int, maxCount int, err error)
 	GetSchemasMissingUsagePermissions() ([]string, error)
+	Query(query string) (*sql.Rows, error)
+	QueryRow(query string) *sql.Row
 }
 
 func newSourceDB(source *Source) SourceDB {

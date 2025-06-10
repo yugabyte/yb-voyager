@@ -184,6 +184,14 @@ func (pg *PostgreSQL) Disconnect() {
 	}
 }
 
+func (pg *PostgreSQL) Query(query string) (*sql.Rows, error) {
+	return pg.db.Query(query)
+}
+
+func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
+	return pg.db.QueryRow(query)
+}
+
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
@@ -960,17 +968,6 @@ func (pg *PostgreSQL) DropLogicalReplicationSlot(conn *pgconn.PgConn, replicatio
 		}
 	}
 	return nil
-}
-
-func (pg *PostgreSQL) CheckIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
-	var isActive bool
-	var activePID sql.NullString
-	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
-	err := pg.db.QueryRow(stmt).Scan(&isActive, &activePID)
-	if err != nil {
-		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
-	}
-	return isActive && activePID.String != "", nil
 }
 
 func (pg *PostgreSQL) CreatePublication(conn *pgconn.PgConn, publicationName string, tableList []sqlname.NameTuple, dropIfAlreadyExists bool, leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
