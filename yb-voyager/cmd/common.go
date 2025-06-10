@@ -1005,10 +1005,14 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	state := NewImportDataState(exportDir)
 	var snapshotDataFileDescriptor *datafile.Descriptor
 
-	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-	utils.PrintAndLog("Reading data file descriptor from %s", dataFileDescriptorPath)
-	if utils.FileOrFolderExists(dataFileDescriptorPath) {
-		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	if dataFileDescriptor != nil {
+		snapshotDataFileDescriptor = dataFileDescriptor
+	} else {
+		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+		utils.PrintAndLog("Reading data file descriptor from %s", dataFileDescriptorPath)
+		if utils.FileOrFolderExists(dataFileDescriptorPath) {
+			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+		}
 	}
 
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()

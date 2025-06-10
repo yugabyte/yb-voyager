@@ -1120,6 +1120,10 @@ func TestImportDataFileReport(t *testing.T) {
 	}
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	metaDB = initMetaDB(exportDir)
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
@@ -1229,6 +1233,11 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	}
 	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	metaDB = initMetaDB(exportDir)
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
+
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
 	if err != nil {
 		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
