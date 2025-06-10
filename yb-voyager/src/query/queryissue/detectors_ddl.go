@@ -291,15 +291,15 @@ func detectHotspotIssueOnConstraint(constraintType string, constraintName string
 	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false)
 }
 
-func ReportUnsupportedDatatypes(typeName string, columnName string, objType string, objName string) QueryIssue {
+func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "xml":
 		issue = NewXMLDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "xid":
@@ -307,7 +307,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "geometry":
@@ -315,7 +315,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "geography":
@@ -323,7 +323,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box2d":
@@ -331,7 +331,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box3d":
@@ -339,7 +339,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "topogeometry":
@@ -347,7 +347,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "lo":
@@ -363,7 +363,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "int4multirange":
@@ -371,7 +371,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "datemultirange":
@@ -379,7 +379,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "nummultirange":
@@ -387,7 +387,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tsmultirange":
@@ -395,7 +395,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tstzmultirange":
@@ -403,7 +403,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "raster":
@@ -411,7 +411,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "pg_lsn":
@@ -419,7 +419,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "txid_snapshot":
@@ -427,27 +427,27 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 
 	return issue
 }
 
-func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objType string, objName string) QueryIssue {
+func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "point":
 		issue = NewPointDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "line":
@@ -455,7 +455,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "lseg":
@@ -463,7 +463,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box":
@@ -471,7 +471,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "path":
@@ -479,7 +479,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "polygon":
@@ -487,7 +487,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "circle":
@@ -495,27 +495,27 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 
 	return issue
 }
 
-func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName string, objType string, objName string) QueryIssue {
+func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "tsquery":
 		issue = NewTsQueryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tsvector":
@@ -523,7 +523,7 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "hstore":
@@ -531,13 +531,13 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 	return issue
 }

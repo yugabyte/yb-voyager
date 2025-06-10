@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -15,17 +16,20 @@ import (
 
 const (
 	// Flag name prefixes (used in CLI flags)
-	SourceDBFlagPrefix = "source-"
-	TargetDBFlagPrefix = "target-"
-	OracleDBFlagPrefix = "oracle-"
+	SourceDBFlagPrefix        = "source-"
+	TargetDBFlagPrefix        = "target-"
+	OracleDBFlagPrefix        = "oracle-"
+	SourceReplicaDBFlagPrefix = "source-replica-"
 
 	// Config key prefixes (used in config file keys)
-	SourceDBConfigPrefix = "source."
-	TargetDBConfigPrefix = "target."
+	SourceDBConfigPrefix        = "source."
+	TargetDBConfigPrefix        = "target."
+	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+	"profile",
 	// environment variables keys
 	"control-plane-type", "yugabyted-db-conn-string", "java-home",
 	"local-call-home-service-host", "local-call-home-service-port",
@@ -53,6 +57,7 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
+	"invoked-by-export-schema",
 	// environment variables keys
 	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )
@@ -99,9 +104,13 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
-	"target-endpoints", "truncate-tables",
+	"target-endpoints", "truncate-tables", "error-policy-snapshot",
+	"skip-node-health-checks", "skip-disk-usage-health-checks",
+	"on-primary-key-conflict", "disable-transactional-writes",
+	"truncate-splits",
+
 	// environment variables keys
-	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
+	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
@@ -126,7 +135,9 @@ var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
-	"quote-char", "file-opts", "null-string", "truncate-tables",
+	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
+	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
+	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
@@ -211,6 +222,16 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
+		if !utils.FileOrFolderExists(cfgFile) {
+			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
+		}
+
+		cfgFile, err := filepath.Abs(cfgFile)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
+		}
+		cfgFile = filepath.Clean(cfgFile)
+
 		v.SetConfigFile(cfgFile)
 	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
 		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
@@ -302,6 +323,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-file.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data-file.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
@@ -313,6 +335,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data-to-target.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
@@ -624,6 +647,19 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			})
 		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
 			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				bindErr = err
+				return
+			}
+			overrides = append(overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		} else if configKey = SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix); strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) && v.IsSet(configKey) {
+			// Handle source-replica db type flags
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {

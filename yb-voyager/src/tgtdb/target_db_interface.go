@@ -134,23 +134,10 @@ func (args *ImportBatchArgs) GetYBTxnCopyStatement() string {
 
 // returns YB COPY statement for fast path
 // To trigger COPY fast path, no transaction and ROWS_PER_TRANSACTION should be used
+// 1. No ROWS_PER_TRANSACTION set in COPY statement
+// 2. COPY stmt should not be wrapped in a transaction
 func (args *ImportBatchArgs) GetYBNonTxnCopyStatement() string {
 	options := args.copyOptions()
-	columns := ""
-	if len(args.Columns) > 0 {
-		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
-	}
-
-	return fmt.Sprintf(`COPY %s %s FROM STDIN WITH (%s)`, args.TableNameTup.ForUserQuery(), columns, strings.Join(options, ", "))
-}
-
-func (args *ImportBatchArgs) GetYBCopyStatement() string {
-	options := args.copyOptions()
-	if !args.ShouldUseFastPath() {
-		// fast path on DB side not enabled if ROWS_PER_TRANSACTION is set in COPY
-		options = append(options, fmt.Sprintf("ROWS_PER_TRANSACTION %v", args.RowsPerTransaction))
-	}
-
 	columns := ""
 	if len(args.Columns) > 0 {
 		columns = fmt.Sprintf("(%s)", strings.Join(args.Columns, ", "))
