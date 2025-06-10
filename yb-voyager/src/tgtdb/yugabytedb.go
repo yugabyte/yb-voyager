@@ -591,6 +591,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	} else {
 		copyCommand = args.GetYBTxnCopyStatement()
 	}
+
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
@@ -631,11 +632,12 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 	// 3. Read the batch file line by line(row) and build INSERT statment for it based on PK conflict action
 	var rowsIgnored int64 = 0
-	rowsAffected = 0
-
-	// [TODO: Optional] Use PreparedStatement Caching on coonPool for better performance
-	// TODO (high priority): fix https://yugabyte.atlassian.net/browse/DB-16276 otherwise syntax error for non public schema data import
-	insertStmt := args.GetInsertPreparedStmtForBatchImport()
+	rowsAffected = 0 // reset to 0
+	copyCommand := args.GetYBTxnCopyStatement()
+	copyHeader := ""
+	if args.HasHeader {
+		copyHeader = df.GetHeader()
+	}
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
@@ -656,23 +658,40 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			}
 		}
 
-		fields := strings.Split(line, args.Delimiter)
-		stmtArgs := make([]interface{}, len(fields))
-		for i, val := range fields {
-			stmtArgs[i] = val
+		var singleLineReader io.Reader
+		if copyHeader != "" {
+			singleLineReader = strings.NewReader(copyHeader + "\n" + line)
+		} else {
+			singleLineReader = strings.NewReader(line)
 		}
 
-		// 5. Execute the INSERT statement one by one
-		res, err := conn.Exec(context.Background(), insertStmt, stmtArgs...)
+		// 5. Execute the COPY statement with the line read from the file
+		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
-			return 0, fmt.Errorf("insert into target table: %w", err)
+			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
+			if strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
+				// logging lineNum might not be useful as batches are truncated later on
+				log.Debugf("ignoring error %q for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
+				rowsIgnored++ // increment before continuing to next line
+				continue
+			}
+
+			var pgerr *pgconn.PgError
+			if errors.As(err, &pgerr) {
+				err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			}
+			return rowsAffected + rowsIgnored, err
 		}
 
+		// At this point, rowsAffected should be 1 always
 		if res.RowsAffected() > 0 {
 			rowsAffected++
 		} else {
+			// since at this point it is not expected to have 0 rows affected, adding warning to logs
 			rowsIgnored++
+			log.Warnf("Unexpected: COPY command for line=%q in batch %s returned 0 rows affected which is not expected", line, batch.GetFilePath())
 		}
+
 		if readLinErr == io.EOF { // handles case 2
 			log.Infof("reached end of file %s", batch.GetFilePath())
 			break
@@ -682,20 +701,20 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	totalRowsInBatch := rowsAffected + rowsIgnored
 
 	// 6. Update the Metadata about the batch imported
-	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't
+	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't update the metadata
 	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
 	if err != nil {
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 		return 0, err
 	}
 
-	// 7. log the summary about this: how many conflicts, how many inserted, how many update/upserted
+	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
 	log.Infof("(recovery) [conflict_action=%s] %q => %d rows inserted, %d rows ignored",
 		args.PKConflictAction, batch.GetFilePath(), rowsAffected, rowsIgnored)
 	log.Debugf("(recovery) [conflict_action=%s] %q => insert stmt: %s, rows inserted: %d, rows ignored: %d",
-		args.PKConflictAction, batch.GetFilePath(), insertStmt, rowsAffected, rowsIgnored)
+		args.PKConflictAction, batch.GetFilePath(), copyCommand, rowsAffected, rowsIgnored)
 
-	// 8. returns total number of rows
+	// 8. returns total number of rows so that stats reporting(import data status) is consistent
 	return totalRowsInBatch, nil
 }
 
@@ -1389,39 +1408,33 @@ func (yb *TargetYugabyteDB) EnableGeneratedByDefaultAsIdentityColumns(tableColum
 func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlname.NameTuple, []string], alterAction string) error {
 	log.Infof("altering columns for action %s", alterAction)
 	return tableColumnsMap.IterKV(func(table sqlname.NameTuple, columns []string) (bool, error) {
-		batch := pgx.Batch{}
 		for _, column := range columns {
 			query := fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN %s %s`, table.ForUserQuery(), column, alterAction)
-			batch.Queue(query)
-		}
-		sleepIntervalSec := 10
-		for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
-			err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
-				br := conn.SendBatch(context.Background(), &batch)
-				for i := 0; i < batch.Len(); i++ {
-					_, err := br.Exec()
+			sleepIntervalSec := 10
+			for i := 0; i < ALTER_QUERY_RETRY_COUNT; i++ {
+				err := yb.connPool.WithConn(func(conn *pgx.Conn) (bool, error) {
+					// Execute the query to alter the column
+					_, err := conn.Exec(context.Background(), query)
 					if err != nil {
 						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
 					}
+					return false, nil
+				})
+
+				if err != nil {
+					log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
+					if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
+						return false, err
+					}
+					log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
+					time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+					continue
 				}
-				if err := br.Close(); err != nil {
-					log.Errorf("closing batch of queries to alter columns for table(%s): %v", table.ForUserQuery(), err)
-					return false, fmt.Errorf("closing batch of queries to alter columns for table(%s): %w", table.ForUserQuery(), err)
-				}
-				return false, nil
-			})
-			if err != nil {
-				log.Errorf("error in altering columns for table(%s): %v", table.ForUserQuery(), err)
-				if !strings.Contains(err.Error(), "while reaching out to the tablet servers") {
-					return false, err
-				}
-				log.Infof("retrying after %d seconds for table(%s)", sleepIntervalSec, table.ForUserQuery())
-				time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-				continue
+				break
 			}
-			break
 		}
+
 		return true, nil
 	})
 }

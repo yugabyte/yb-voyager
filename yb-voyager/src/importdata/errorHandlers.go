@@ -193,6 +193,8 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 	return nil
 }
 
+// exporting this only to enable unit testing from cmd package.
+// ideally, this should be private to this package.
 func ComputePathHash(filePath string) string {
 	hash := sha1.New()
 	hash.Write([]byte(filePath))

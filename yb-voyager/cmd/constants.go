@@ -38,10 +38,6 @@ const (
 	LAST_SPLIT_NUM                  = 0
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*"
-	COPY_MAX_RETRY_COUNT            = 10
-	BATCH_RECOVERY_MAX_RETRY_COUNT  = 5
-	MAX_SLEEP_SECOND                = 60
-	RECOVERY_MODE_SLEEP_SECOND      = 10
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
 	DEFAULT_BATCH_SIZE_POSTGRESQL   = 100000
@@ -64,6 +60,10 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
+
+	//the default value as false, 0 etc.. is not added to the usage msg by cobra so can be used for flags that are mandatory and no default value is shown to user
+	BOOL_FLAG_ZERO_VALUE = false
+
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
