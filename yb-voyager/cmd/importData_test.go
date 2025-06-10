@@ -23,12 +23,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -69,7 +74,7 @@ func TestImportDataResumptionWithInterruptions(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql",nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
 	err := postgresContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start Postgres container")
 
@@ -639,7 +644,7 @@ CREATE TABLE test_schema.test_data (
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData2(t *testing.T) {
 	ctx := context.Background()
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb",nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -755,7 +760,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData_Def
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb",nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -844,8 +849,6 @@ CREATE TABLE public.foo (
 	3. Add/Enable test for --on-primary-key-conflict=UPDATE
 	4. Import Data File tests
 */
-
-
 
 ////=========================================
 
@@ -1342,7 +1345,6 @@ FROM generate_series(1, 15);`,
 		}
 		time.Sleep(1 * time.Second)
 	}
-
 
 	yugabytedbContainer.ExecuteSqls([]string{
 		`INSERT INTO test_schema.test_live (name, email, description)
