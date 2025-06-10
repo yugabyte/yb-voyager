@@ -140,7 +140,6 @@ func prepareForImportDataCmd(importFileTasks []*ImportFileTask) {
 		escapeCharBytes := []byte(escapeChar)
 		dataFileDescriptor.EscapeChar = escapeCharBytes[0]
 	}
-	dataFileDescriptor.Save()
 
 	escapeFileOptsCharsIfRequired() // escaping for COPY command should be done after saving fileOpts in data file descriptor
 	setImportTableListFlag(importFileTasks)
