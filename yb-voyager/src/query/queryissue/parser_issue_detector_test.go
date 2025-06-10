@@ -1487,7 +1487,6 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 	}
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
-		fmt.Printf("%v", issues)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
