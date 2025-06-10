@@ -2,7 +2,7 @@ export-dir: {{ EXPORT_DIR }}
 
 source:
   db-type: {{ SOURCE_DB_TYPE }}
-  {% if SOURCE_DB_ORACLE_TNS_ALIAS == "" %}
+  {% if SOURCE_DB_ORACLE_TNS_ALIAS is not defined or SOURCE_DB_ORACLE_TNS_ALIAS == "" %}
   db-host: {{ SOURCE_DB_HOST }}
   db-port: {{ SOURCE_DB_PORT }}
   {% endif %}
@@ -13,20 +13,23 @@ source:
   db-user: {{ SOURCE_DB_USER }}
   db-password: {{ SOURCE_DB_PASSWORD }}
   
-  {% if SOURCE_DB_SSL_MODE != "" %}
+  {% if SOURCE_DB_SSL_MODE is defined and SOURCE_DB_SSL_MODE != "" %}
   ssl-mode: {{ SOURCE_DB_SSL_MODE }}
   {% endif %}
-  {% if SOURCE_DB_SSL_CERT != "" %}
+
+  {% if SOURCE_DB_SSL_CERT is defined and SOURCE_DB_SSL_CERT != "" %}
   ssl-cert: {{ SOURCE_DB_SSL_CERT }}
   {% endif %}
-  {% if SOURCE_DB_SSL_KEY != "" %}
+
+  {% if SOURCE_DB_SSL_KEY is defined and SOURCE_DB_SSL_KEY != "" %}
   ssl-key: {{ SOURCE_DB_SSL_KEY }}
   {% endif %}
-  {% if SOURCE_DB_SSL_ROOT_CERT != "" %}
+
+  {% if SOURCE_DB_SSL_ROOT_CERT is defined and SOURCE_DB_SSL_ROOT_CERT != "" %}
   ssl-root-cert: {{ SOURCE_DB_SSL_ROOT_CERT }}
   {% endif %}
 
-  {% if SOURCE_DB_ORACLE_TNS_ALIAS != "" %}
+  {% if SOURCE_DB_ORACLE_TNS_ALIAS is defined and SOURCE_DB_ORACLE_TNS_ALIAS != "" %}
   oracle-tns-alias: {{ SOURCE_DB_ORACLE_TNS_ALIAS }}
   {% endif %}
 
