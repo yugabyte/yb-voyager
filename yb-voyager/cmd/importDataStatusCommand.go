@@ -191,7 +191,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
 		if importerRole == IMPORT_FILE_ROLE {
-			table = append(table, row)
+			outputRows[row.TableName] = row
 		} else {
 			// In import-data, for partitioned tables, we may have multiple data files for the same table.
 			// We aggregate the counts for such tables.
