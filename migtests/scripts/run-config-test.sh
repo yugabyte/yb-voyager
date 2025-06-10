@@ -187,6 +187,11 @@ main() {
 	expected_file="${TEST_DIR}/export_data_status-report.json"
 	actual_file="${EXPORT_DIR}/reports/export-data-status-report.json"
 
+	if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		expected_file="${TEST_DIR}/export-data-status-with-table-list-report.json"
+	fi
+
 	step "Verify export-data-status report"
 	verify_report ${expected_file} ${actual_file}
 
@@ -195,6 +200,11 @@ main() {
 
 	expected_file="${TEST_DIR}/import_data_status-report.json"
 	actual_file="${EXPORT_DIR}/reports/import-data-status-report.json"
+
+	if [ "${EXPORT_TABLE_LIST}" != "" ]
+	then
+		expected_file="${TEST_DIR}/import-data-status-with-table-list-report.json"
+	fi
 
 	verify_report ${expected_file} ${actual_file}
 
