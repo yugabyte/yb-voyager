@@ -50,38 +50,38 @@ export-data:
   export-type: snapshot-only
 
   {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}
-  table-list: {{ EXPORT_TABLE_LIST }}
+  table-list: '{{ EXPORT_TABLE_LIST }}'
   {% endif %}
 
   {% if EXPORT_EX_TABLE_LIST is defined and EXPORT_EX_TABLE_LIST != "" %}
-  exclude-table-list: {{ EXPORT_EX_TABLE_LIST }}
+  exclude-table-list: '{{ EXPORT_EX_TABLE_LIST }}'
   {% endif %}
   
   {% if EXPORT_TABLE_LIST_FILE_PATH is defined and EXPORT_TABLE_LIST_FILE_PATH != "" %}
-  table-list-file-path: {{ EXPORT_TABLE_LIST_FILE_PATH }}
+  table-list-file-path: '{{ EXPORT_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
   {% if EXPORT_EX_TABLE_LIST_FILE_PATH is defined and EXPORT_EX_TABLE_LIST_FILE_PATH != "" %}
-  exclude-table-list-file-path: {{ EXPORT_EX_TABLE_LIST_FILE_PATH }}
+  exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
 import-data:
   enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
 
   {% if IMPORT_TABLE_LIST is defined and IMPORT_TABLE_LIST != "" %}
-  table-list: {{ IMPORT_TABLE_LIST }}
+  table-list: '{{ IMPORT_TABLE_LIST }}'
   {% endif %}
 
   {% if IMPORT_EX_TABLE_LIST is defined and IMPORT_EX_TABLE_LIST != "" %}
-  exclude-table-list: {{ IMPORT_EX_TABLE_LIST }}
+  exclude-table-list: '{{ IMPORT_EX_TABLE_LIST }}'
   {% endif %}
   
   {% if IMPORT_TABLE_LIST_FILE_PATH is defined and IMPORT_TABLE_LIST_FILE_PATH != "" %}
-  table-list-file-path: {{ IMPORT_TABLE_LIST_FILE_PATH }}
+  table-list-file-path: '{{ IMPORT_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
   {% if IMPORT_EX_TABLE_LIST_FILE_PATH is defined and IMPORT_EX_TABLE_LIST_FILE_PATH != "" %}
-  exclude-table-list-file-path: {{ IMPORT_EX_TABLE_LIST_FILE_PATH }}
+  exclude-table-list-file-path: '{{ IMPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
 finalize-schema-post-data-import:
