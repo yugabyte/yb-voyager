@@ -74,8 +74,8 @@ var PerformanceOptimizationIssues = []string{
 	LOW_CARDINALITY_INDEXES,
 	MOST_FREQUENT_VALUE_INDEXES,
 	NULL_VALUE_INDEXES,
-	HOTSPOTS_ON_DATE_PK, 
-	HOTSPOTS_ON_TIMESTAMP_PK,
+	HOTSPOTS_ON_DATE_PK_UK,
+	HOTSPOTS_ON_TIMESTAMP_PK_UK,
 }
 
 var UnsupportedSystemColumnsIssueTypes = []string{

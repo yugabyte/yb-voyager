@@ -1438,6 +1438,11 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		`CREATE TABLE test_pk_timestamp_alter(id int, createdat date);`,
 		`ALTER TABLE test_pk_timestamp_alter ADD CONSTRAINT pk1 PRIMARY KEY(createdat, id);`,
 		`ALTER TABLE test_pk_timestamp_alter ADD CONSTRAINT pk2 PRIMARY KEY(id, createdat);`,
+		`CREATE TABLE schema2.test_uk_timestamp(id int, created_at timestamp UNIQUE);`,
+		`CREATE TABLE test_uk_second_col_timestamp(id int, created_at timestamp with time zone, UNIQUE(id, created_at));`,
+		`CREATE TABLE "Test_uk_timestamp_alter"(id int, createdat date);`,
+		`ALTER TABLE "Test_uk_timestamp_alter" ADD CONSTRAINT pk1 UNIQUE(createdat, id);`,
+		`ALTER TABLE "Test_uk_timestamp_alter" ADD CONSTRAINT pk2 UNIQUE(id, createdat);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		stmts[1]: []QueryIssue{},
@@ -1451,13 +1456,21 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		},
 		stmts[6]: []QueryIssue{},
 		stmts[7]: []QueryIssue{
-			NewHotspotOnTimestampPKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp", stmts[7], "created_at"),
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp", stmts[7], "created_at"),
 		},
 		stmts[8]: []QueryIssue{},
 		stmts[10]: []QueryIssue{
-			NewHotspotOnDatePKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp_alter", stmts[10], "createdat"),
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp_alter", stmts[10], "createdat"),
 		},
 		stmts[11]: []QueryIssue{},
+		stmts[12]: []QueryIssue{
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "schema2.test_uk_timestamp", stmts[12], "created_at"),
+		},
+		stmts[13]: []QueryIssue{},
+		stmts[15]: []QueryIssue{
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "Test_uk_timestamp_alter", stmts[15], "createdat"),
+		},
+		stmts[16]: []QueryIssue{},
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	statementsToParseFirst := []string{
@@ -1465,6 +1478,8 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		stmts[7],
 		stmts[8],
 		stmts[9],
+		stmts[12],
+		stmts[14],
 	}
 	for _, stmt := range statementsToParseFirst {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
@@ -1472,6 +1487,7 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 	}
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		fmt.Printf("%v", issues)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {

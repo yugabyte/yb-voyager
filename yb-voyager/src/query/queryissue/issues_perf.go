@@ -53,17 +53,17 @@ func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStateme
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
-var hotspotsOnTimestampPrimaryKeyConstraint = issue.Issue{
-	Type:        HOTSPOTS_ON_TIMESTAMP_PK,
-	Name:        HOTSPOTS_ON_TIMESTAMP_PK_ISSUE,
+var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
+	Type:        HOTSPOTS_ON_TIMESTAMP_PK_UK,
+	Name:        HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_ISSUE_DESCRIPTION,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION,
 	GH:          "",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnTimestampPKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
-	issue := hotspotsOnTimestampPrimaryKeyConstraint
+func NewHotspotOnTimestampPKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnTimestampPrimaryOrUniqueKeyConstraint
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
@@ -71,17 +71,17 @@ func NewHotspotOnTimestampPKIssue(objectType string, objectName string, sqlState
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
-var hotspotsOnDatePrimaryKeyConstraint = issue.Issue{
-	Type:        HOTSPOTS_ON_DATE_PK,
-	Name:        HOTSPOTS_ON_DATE_PK_ISSUE,
+var hotspotsOnDatePrimaryOrUniqueKeyConstraint = issue.Issue{
+	Type:        HOTSPOTS_ON_DATE_PK_UK,
+	Name:        HOTSPOTS_ON_DATE_PK_UK_ISSUE,
 	Impact:      constants.IMPACT_LEVEL_1,
-	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_ISSUE_DESCRIPTION,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION,
 	GH:          "",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
 }
 
-func NewHotspotOnDatePKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
-	issue := hotspotsOnDatePrimaryKeyConstraint
+func NewHotspotOnDatePKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnDatePrimaryOrUniqueKeyConstraint
 	details := map[string]interface{}{
 		COLUMN_NAME: colName,
 	}
