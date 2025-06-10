@@ -274,7 +274,6 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
-
 	}
 
 	if totalCount != 0 {

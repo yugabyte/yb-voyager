@@ -1029,6 +1029,38 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
+
+	// Verify import data status command output
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data status", []string{
+		"--export-dir", tempExportDir,
+		"--output-format", "json",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Import data status command failed: %v", err)
+	}
+
+	// Verify the report file content
+	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	assert.FileExists(t, reportPath, "Import data status report file should exist")
+
+	reportData, err := os.ReadFile(reportPath)
+	if err != nil {
+		t.Fatalf("Failed to read import data status report file: %v", err)
+	}
+	var statusReport []*tableMigStatusOutputRow
+	err = json.Unmarshal(reportData, &statusReport)
+	testutils.FatalIfError(t, err, "Failed to unmarshal import data status report JSON")
+	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
+
+	assert.Equal(t, &tableMigStatusOutputRow{
+		TableName:          `public."test_data"`,
+		FileName:           "",
+		ImportedCount:      90,
+		ErroredCount:       10,
+		TotalCount:         100,
+		Status:             "DONE_WITH_ERRORS",
+		PercentageComplete: 100,
+	}, statusReport[0], "Status report row mismatch")
 }
 
 // TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
