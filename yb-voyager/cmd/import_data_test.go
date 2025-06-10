@@ -846,8 +846,8 @@ CREATE TABLE public.foo (
 	4. Import Data File tests
 */
 
-// TestExportAndImportDataSnapshot verifies the snapshot report after exporting and importing data.
-func TestExportAndImportDataSnapshot(t *testing.T) {
+// TestExportAndImportDataSnapshotReport verifies the snapshot report after exporting and importing data.
+func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a temporary export directory.
@@ -861,12 +861,6 @@ func TestExportAndImportDataSnapshot(t *testing.T) {
 	}
 	defer postgresContainer.Terminate(ctx)
 
-	// Start YugabyteDB container.
-	// yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
-	// if err := yugabytedbContainer.Start(ctx); err != nil {
-	// 	t.Fatalf("Failed to start YugabyteDB container: %v", err)
-	// }
-	// defer yugabytedbContainer.Terminate(ctx)
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
