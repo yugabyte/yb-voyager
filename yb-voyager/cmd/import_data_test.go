@@ -917,8 +917,8 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
 }
 
-// TestImportDataFileSnapshotReport verifies the snapshot report after importing data using the import-data-file command.
-func TestImportDataFileSnapshotReport(t *testing.T) {
+// TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
+func TestImportDataFileReport(t *testing.T) {
 	// Create a temporary export directory.
 	exportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
