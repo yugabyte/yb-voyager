@@ -27,7 +27,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -843,3 +845,81 @@ CREATE TABLE public.foo (
 	3. Add/Enable test for --on-primary-key-conflict=UPDATE
 	4. Import Data File tests
 */
+
+// TestExportAndImportDataSnapshot verifies the snapshot report after exporting and importing data.
+func TestExportAndImportDataSnapshot(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		t.Fatalf("Failed to start Postgres container: %v", err)
+	}
+	defer postgresContainer.Terminate(ctx)
+
+	// Start YugabyteDB container.
+	// yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	// if err := yugabytedbContainer.Start(ctx); err != nil {
+	// 	t.Fatalf("Failed to start YugabyteDB container: %v", err)
+	// }
+	// defer yugabytedbContainer.Terminate(ctx)
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in Postgres and YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	postgresContainer.ExecuteSqls(createTableSQL)
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+
+	// Insert data into Postgres.
+	for i := 1; i <= 10; i++ {
+		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'name_%d');", i, i)
+		postgresContainer.ExecuteSqls(stmt)
+	}
+
+	// Export data from Postgres.
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", tempExportDir,
+		"--source-db-schema", "public",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Export command failed: %v", err)
+	}
+
+	// Import data into YugabyteDB.
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data", []string{
+		"--export-dir", tempExportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Verify snapshot report.
+	exportDir = tempExportDir
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, true)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(10), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
+}
