@@ -324,10 +324,7 @@
                 if(isPerf){
                     details = 'details-perf-'
                 }
-                console.log(details)
                 const row = document.getElementById(details + i);
-                console.log(details+i)
-                console.log(row)
                 if (row.classList.contains('show')) {
                     someExpanded = true;
                 } else {
