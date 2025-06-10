@@ -372,6 +372,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	}
 	uitable := uitable.New()
 
+	// TODO: refactor this; we don't need to pass the dbType as a parameter,
+	// we can just pass the importerRole directly.
 	var dbType string
 	switch importerRole {
 	case IMPORT_FILE_ROLE:
@@ -386,23 +388,7 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	if err != nil {
 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
-	// snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
 
-	// if importerRole == IMPORT_FILE_ROLE {
-	// 	// TODO: fix. Why are we going to target here? why can't we get the row count from the state?
-	// 	// for _, tableName := range tableList {
-	// 	// 	tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-	// 	// 	if err != nil {
-	// 	// 		utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
-	// 	// 	}
-	// 	// 	snapshotRowCount.Put(tableName, tableRowCount)
-	// 	// }
-	// } else {
-	// 	snapshotRowCount, err = getImportedSnapshotRowsMap(dbType)
-	// 	if err != nil {
-	// 		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
-	// 	}
-	// }
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
 	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
