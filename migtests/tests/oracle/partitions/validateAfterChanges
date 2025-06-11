@@ -118,16 +118,17 @@ def migration_completed_checks_fb():
 def migration_completed_checks(tgt):
 	# Validation to check for matching row counts
 	got_row_count = tgt.row_count_of_all_tables(db_schema)
-	for table_name, row_count in EXPECTED_ROW_COUNT.items():
-		print(f"table_name: {table_name}, row_count: {got_row_count[table_name]}")
-		assert row_count == got_row_count[table_name]
+	for table_name, expected_row_count in EXPECTED_ROW_COUNT.items():
+		actual_row_count = got_row_count[table_name]
+		print(f"table_name: {db_schema}.{table_name}, expected_row_count: {expected_row_count}, actual_row_count: {actual_row_count}")
+		assert expected_row_count == actual_row_count
 
 	for table_name, column_names_with_sum in EXPECTED_SUM_OF_COLUMN.items():
 		print(f"table_name: {db_schema}.{table_name} ---- ")
-		for column, sum in column_names_with_sum.items():
-			col_sum = tgt.get_sum_of_column_of_table(table_name, column, db_schema)
-			print(f"column_name: {column}, sum: {col_sum}")
-			assert sum == str(col_sum)
+		for column, expected_col_sum in column_names_with_sum.items():
+			actual_col_sum = tgt.get_sum_of_column_of_table(table_name, column, db_schema)
+			print(f"column: {column}, expected_col_sum: {expected_col_sum}, actual_col_sum: {actual_col_sum}")
+			assert expected_col_sum == str(actual_col_sum)
 
 if __name__ == "__main__":
 	main()
