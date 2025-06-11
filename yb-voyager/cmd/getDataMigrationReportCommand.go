@@ -104,7 +104,7 @@ type rowData struct {
 var reportData []*rowData
 
 var fBEnabled, fFEnabled bool
-var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
+var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED-IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
 var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
