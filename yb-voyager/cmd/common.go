@@ -1006,10 +1006,13 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	var snapshotDataFileDescriptor *datafile.Descriptor
 
 	if dataFileDescriptor != nil {
+		// in case of import-data and import-data-file, import-data-to-source-replica,
+		// the data file descriptor is already loaded in memory
 		snapshotDataFileDescriptor = dataFileDescriptor
 	} else {
+		// get data-migration-report use-case where
+		// we need to read the data file descriptor from export-dir
 		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-		utils.PrintAndLog("Reading data file descriptor from %s", dataFileDescriptorPath)
 		if utils.FileOrFolderExists(dataFileDescriptorPath) {
 			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 		}
