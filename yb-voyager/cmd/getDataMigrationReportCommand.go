@@ -91,6 +91,7 @@ type rowData struct {
 	DBType               string `json:"db_type"`
 	ExportedSnapshotRows int64  `json:"exported_snapshot_rows"`
 	ImportedSnapshotRows int64  `json:"imported_snapshot_rows"`
+	ErroredSnapshotRows  int64  `json:"errored_snapshot_rows"`
 	ImportedInserts      int64  `json:"imported_inserts"`
 	ImportedUpdates      int64  `json:"imported_updates"`
 	ImportedDeletes      int64  `json:"imported_deletes"`
@@ -103,8 +104,8 @@ type rowData struct {
 var reportData []*rowData
 
 var fBEnabled, fFEnabled bool
-var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
-var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
+var firstHeader = []string{"TABLE", "DB_TYPE", "EXPORTED", "IMPORTED", "ERRORED", "EXPORTED", "EXPORTED", "EXPORTED", "IMPORTED", "IMPORTED", "IMPORTED", "FINAL_ROW_COUNT"}
+var secondHeader = []string{"", "", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "SNAPSHOT_ROWS", "INSERTS", "UPDATES", "DELETES", "INSERTS", "UPDATES", "DELETES", ""}
 
 func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	fBEnabled = msr.FallbackEnabled
@@ -246,6 +247,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		row := rowData{}
 		updateExportedSnapshotRowsInTheRow(msr, &row, nameTup, dbzmNameTupToRowCount, exportedPGSnapshotRowsMap)
 		row.ImportedSnapshotRows = 0
+		row.ErroredSnapshotRows = 0
 		row.TableName = nameTup.ForKey()
 		row.DBType = "source"
 		err := updateExportedEventsCountsInTheRow(&row, nameTup, sourceExportedEventsMap, targetExportedEventsMap) //source OUT counts
@@ -326,7 +328,7 @@ func addRowInTheTable(uitbl *uitable.Table, row rowData, nameTup sqlname.NameTup
 		reportData = append(reportData, &row)
 		return
 	}
-	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
+	uitbl.AddRow(row.TableName, row.DBType, row.ExportedSnapshotRows, row.ImportedSnapshotRows, row.ErroredSnapshotRows, row.ExportedInserts, row.ExportedUpdates, row.ExportedDeletes, row.ImportedInserts, row.ImportedUpdates, row.ImportedDeletes, getFinalRowCount(row))
 }
 
 func updateExportedSnapshotRowsInTheRow(msr *metadb.MigrationStatusRecord, row *rowData, nameTup sqlname.NameTuple, dbzmSnapshotRowCount *utils.StructMap[sqlname.NameTuple, int64], exportedSnapshotPGRowsMap *utils.StructMap[sqlname.NameTuple, int64]) error {
@@ -387,6 +389,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
 		rowCountPair, _ := snapshotImportedRowsMap.Get(tableNameTup)
 		row.ImportedSnapshotRows = rowCountPair.Imported
+		row.ErroredSnapshotRows = rowCountPair.Errored
 	}
 
 	eventCounter, _ := eventsImportedMap.Get(tableNameTup)
