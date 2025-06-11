@@ -28,7 +28,7 @@ const (
 )
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+	"export-dir", "log-level", "send-diagnostics",
 	"profile",
 	// environment variables keys
 	"control-plane-type", "yugabyted-db-conn-string", "java-home",
@@ -56,6 +56,7 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
 	// environment variables keys
@@ -63,12 +64,14 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"output-format", "target-db-version",
 	// environment variables keys
 	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-recommendations", "assessment-report-path",
 	"assess-schema-before-export",
@@ -77,6 +80,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	// environment variables keys
@@ -84,6 +88,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
@@ -91,15 +96,18 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
 	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
@@ -117,6 +125,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
@@ -124,6 +133,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
@@ -132,6 +142,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
@@ -149,10 +160,12 @@ var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
 	"backup-dir",
 )

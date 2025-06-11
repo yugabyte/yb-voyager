@@ -262,7 +262,6 @@ func setupAssessMigrationContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -294,6 +293,7 @@ source:
   oracle-cdb-tns-alias: test_cdb_tns_alias
 
 assess-migration:
+  run-guardrails-checks: false
   iops-capture-interval: 20
   target-db-version: 2.19.0.0
   assessment-metadata-dir: /tmp/assessment-metadata
@@ -326,7 +326,6 @@ func TestAssessMigration_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -355,6 +354,7 @@ func TestAssessMigration_ConfigFileBinding(t *testing.T) {
 	// Dont test CDB fields as they are not available in assess migration command
 
 	// Assertions on assess-migration config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(20), intervalForCapturingIOPS, "intervalForCapturingIOPS should match the config")
 	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should match the config")
 	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should match the config")
@@ -377,7 +377,7 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
-		"--run-guardrails-checks", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--iops-capture-interval", "50",
 		"--target-db-version", "2024.1.1.0",
@@ -407,7 +407,6 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -436,6 +435,7 @@ func TestAssessMigration_CLIOverridesConfig(t *testing.T) {
 	// Dont test CDB fields as they are not available in assess migration command
 
 	// Assertions on assess-migration config
+	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, int64(50), intervalForCapturingIOPS, "intervalForCapturingIOPS should be overridden by CLI")
 	assert.Equal(t, "2024.1.1.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should be overridden by CLI")
 	assert.Equal(t, "/tmp/new-assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should be overridden by CLI")
@@ -472,7 +472,6 @@ func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
@@ -501,12 +500,46 @@ func TestAssessMigration_EnvOverridesConfig(t *testing.T) {
 	// Dont test CDB fields as they are not available in assess migration command
 
 	// Assertions on assess-migration config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(20), intervalForCapturingIOPS, "intervalForCapturingIOPS should match the config")
 	assert.Equal(t, "2.19.0.0", targetDbVersionStrFlag, "targetDbVersionStrFlag should match the config")
 	assert.Equal(t, "/tmp/assessment-metadata", assessmentMetadataDirFlag, "assessmentMetadataDirFlag should match the config")
 	assert.Equal(t, utils.BoolStr(true), invokedByExportSchema, "invokedByExportSchema should match the config")
 	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_QUERY_CONSTRUCTS"), "REPORT_UNSUPPORTED_QUERY_CONSTRUCTS should be overridden by env var")
 	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should be overridden by env var")
+}
+
+func TestAssessMigration_GlobalVsLocalConfigPrecedence(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	// Run command export data from source but the config section is export-data
+	resetCmdAndEnvVars(assessMigrationCmd)
+	defer resetFlags(assessMigrationCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+source:
+  db-type: postgresql
+assess-migration:
+  log-level: debug
+`, tmpExportDir)
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"assess-migration",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command section config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global section config")
 }
 
 ////////////////////////////// Export Schema Tests ////////////////////////////////
@@ -528,7 +561,6 @@ func setupExportSchemaContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -558,6 +590,7 @@ source:
   oracle-cdb-sid: test_cdb_sid
   oracle-cdb-tns-alias: test_cdb_tns_alias
 export-schema:
+  run-guardrails-checks: false
   use-orafce: true
   comments-on-objects: true
   object-type-list: table,index,view
@@ -588,7 +621,6 @@ func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -615,6 +647,7 @@ func TestExportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_tns_alias", source.TNSAlias, "Source Oracle TNS alias should match the config")
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.UseOrafce, "UseOrafce should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.CommentsOnObjects, "CommentsOnObjects should match the config")
 	assert.Equal(t, "table,index,view", source.StrExportObjectTypeList, "Export object type list should match the config")
@@ -639,7 +672,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
-		"--run-guardrails-checks", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--use-orafce", "false",
 		"--comments-on-objects", "false",
@@ -671,7 +704,6 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -698,6 +730,7 @@ func TestExportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_tns_alias2", source.TNSAlias, "Source Oracle TNS alias should be overridden by CLI")
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), source.UseOrafce, "UseOrafce should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), source.CommentsOnObjects, "CommentsOnObjects should be overridden by CLI")
 	assert.Equal(t, "table,view", source.StrExportObjectTypeList, "Export object type list should be overridden by CLI")
@@ -734,7 +767,6 @@ func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
@@ -761,6 +793,7 @@ func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_tns_alias", source.TNSAlias, "Source Oracle TNS alias should match the config")
 	// Dont test CDB fields as they are not available in export schema command
 	// Assertions on export-schema config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.UseOrafce, "UseOrafce should match the config")
 	assert.Equal(t, utils.BoolStr(true), source.CommentsOnObjects, "CommentsOnObjects should match the config")
 	assert.Equal(t, "table,index,view", source.StrExportObjectTypeList, "Export object type list should match the config")
@@ -769,6 +802,38 @@ func TestExportSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/tmp/assessment-report", assessmentReportPath, "Assessment report path should match the config")
 	assert.Equal(t, utils.BoolStr(false), assessSchemaBeforeExport, "Assess schema before export should match the config")
 	assert.Equal(t, "true", os.Getenv("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS"), "YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS should be overridden by env var")
+}
+
+func TestExportSchema_GlobalVsLocalConfigPrecedence(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	// Run command export schema but the config section is export-schema
+	resetCmdAndEnvVars(exportSchemaCmd)
+	defer resetFlags(exportSchemaCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+export-schema:
+  log-level: debug
+`, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"export", "schema",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command section config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the gloabl section config")
 }
 
 ////////////////////////////// Analyze Schema Tests ////////////////////////////////
@@ -790,7 +855,6 @@ func setupAnalyzeSchemaContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -922,6 +986,38 @@ func TestAnalyzeSchemaConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "false", os.Getenv("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS"), "REPORT_UNSUPPORTED_PLPGSQL_OBJECTS should be overridden by env var")
 }
 
+func TestAnalyzeSchema_GlobalVsLocalConfigPrecedence(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+	// Run command analyze schema but the config section is analyze-schema
+	resetCmdAndEnvVars(analyzeSchemaCmd)
+	defer resetFlags(analyzeSchemaCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+analyze-schema:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"analyze-schema",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command section config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global section config")
+}
+
 ////////////////////////////// Export Data Tests ////////////////////////////////
 
 func setupExportDataFromSourceContext(t *testing.T) *testContext {
@@ -941,7 +1037,6 @@ func setupExportDataFromSourceContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -971,6 +1066,7 @@ source:
   oracle-cdb-sid: test_cdb_sid
   oracle-cdb-tns-alias: test_cdb_tns_alias
 export-data-from-source:
+  run-guardrails-checks: false
   disable-pb: true
   exclude-table-list: table1,table2
   table-list: table3,table4
@@ -1003,7 +1099,6 @@ func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1032,6 +1127,7 @@ func TestExportDataFromSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "test_cdb_sid", source.CDBSid, "Source Oracle CDB SID should match the config")
 	assert.Equal(t, "test_cdb_tns_alias", source.CDBTNSAlias, "Source Oracle CDB TNS alias should match the config")
 	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
 	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
@@ -1057,7 +1153,7 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
-		"--run-guardrails-checks", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--disable-pb", "false",
 		"--exclude-table-list", "table5,table6",
@@ -1092,7 +1188,6 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1121,6 +1216,7 @@ func TestExportDataFromSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_cdb_sid2", source.CDBSid, "Source Oracle CDB SID should be overridden by CLI")
 	assert.Equal(t, "test_cdb_tns_alias2", source.CDBTNSAlias, "Source Oracle CDB TNS alias should be overridden by CLI")
 	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
 	assert.Equal(t, "table5,table6", source.ExcludeTableList, "Exclude table list should be overridden by CLI")
 	assert.Equal(t, "table7,table8", source.TableList, "Table list should be overridden by CLI")
@@ -1162,7 +1258,6 @@ func TestExportDataFromSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
@@ -1191,6 +1286,7 @@ func TestExportDataFromSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "test_cdb_sid", source.CDBSid, "Source Oracle CDB SID should match the config")
 	assert.Equal(t, "test_cdb_tns_alias", source.CDBTNSAlias, "Source Oracle CDB TNS alias should match the config")
 	// Assertions on export-data config
+	assert.Equal(t, utils.BoolStr(false), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "table1,table2", source.ExcludeTableList, "Exclude table list should match the config")
 	assert.Equal(t, "table3,table4", source.TableList, "Table list should match the config")
@@ -1315,6 +1411,38 @@ export-data-from-source:
 	assert.Equal(t, "true", os.Getenv("BETA_FAST_DATA_EXPORT"), "BETA_FAST_DATA_EXPORT should match the config")
 }
 
+func TestExportDataFromSource_GlobalVsLocalConfigPrecedence(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(exportDataFromSrcCmd)
+	defer resetFlags(exportDataFromSrcCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: debug
+send-diagnostics: true
+export-data-from-source:
+  log-level: info
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "source",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
+	assert.Equal(t, "info", config.LogLevel, "Log level should match the command section config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global section config")
+}
+
 ////////////////////////////// Import Schema Tests ////////////////////////////////
 
 func setupImportSchemaContext(t *testing.T) *testContext {
@@ -1334,7 +1462,6 @@ func setupImportSchemaContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -1357,6 +1484,7 @@ target:
   ssl-root-cert: /path/to/ssl-root-cert
   ssl-crl: /path/to/ssl-crl
 import-schema:
+  run-guardrails-checks: false
   continue-on-error: true
   object-type-list: table,index,view
   exclude-object-type-list: materialized_view
@@ -1385,7 +1513,6 @@ func TestImportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1407,6 +1534,7 @@ func TestImportSchemaConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
 	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
 	// Assertions on import-schema config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
 	assert.Equal(t, "table,index,view", tconf.ImportObjects, "Object type list should match the config")
 	assert.Equal(t, "materialized_view", tconf.ExcludeImportObjects, "Exclude object type list should match the config")
@@ -1429,7 +1557,7 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
-		"--run-guardrails-checks", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--continue-on-error", "false",
 		"--object-type-list", "table,view",
@@ -1455,7 +1583,6 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1477,12 +1604,47 @@ func TestImportSchemaConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 	// Assertions on import-schema config
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.ContinueOnError, "Continue on error should be overridden by CLI")
 	assert.Equal(t, "table,view", tconf.ImportObjects, "Object type list should be overridden by CLI")
 	assert.Equal(t, "materialized_view,index", tconf.ExcludeImportObjects, "Exclude object type list should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), importObjectsInStraightOrder, "Straight order flag should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.IgnoreIfExists, "Ignore exist flag should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), enableOrafce, "Enable orafce flag should be overridden by CLI")
+}
+
+func TestImportSchemaConfigBinding_GlobalVsLocalConfigPrecedence(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(importSchemaCmd)
+	defer resetFlags(importSchemaCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+target:
+  db-user: test_user
+import-schema:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	defer os.RemoveAll(configDir)
+
+	rootCmd.SetArgs([]string{
+		"import", "schema",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global section config")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command section config")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global section config")
 }
 
 ///////////////////////////// Import Data Tests ////////////////////////////////
@@ -1504,7 +1666,6 @@ func setupImportDataContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -1527,6 +1688,7 @@ target:
   ssl-root-cert: /path/to/ssl-root-cert
   ssl-crl: /path/to/ssl-crl
 import-data:
+  run-guardrails-checks: false
   batch-size: 1000
   parallel-jobs: 4
   enable-adaptive-parallelism: true
@@ -1581,7 +1743,6 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1603,6 +1764,7 @@ func TestImportDataConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
 	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
@@ -1652,7 +1814,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
-		"--run-guardrails-checks", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--batch-size", "2000",
 		"--parallel-jobs", "8",
@@ -1694,7 +1856,6 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -1716,6 +1877,7 @@ func TestImportDataConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert2", tconf.SSLRootCert, "Target SSL root cert should be overridden by CLI")
 	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, int64(2000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should be overridden by CLI")
@@ -1788,7 +1950,6 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
@@ -1810,6 +1971,7 @@ func TestImportDataConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
 	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(1000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 4, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.EnableYBAdaptiveParallelism, "Enable adaptive parallelism should match the config")
@@ -2056,6 +2218,40 @@ import-data-to-target:
 
 }
 
+func TestImportDataToTarget_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(importDataToTargetCmd)
+	defer resetFlags(importDataToTargetCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+target:
+  db-user: test_user
+import-data-to-target:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "target",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
+}
+
 ///////////////////////////// Import Data File Tests ////////////////////////////////
 
 func setupImportDataFileContext(t *testing.T) *testContext {
@@ -2075,7 +2271,6 @@ func setupImportDataFileContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -2153,7 +2348,6 @@ func TestImportDataFileConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -2363,7 +2557,6 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(true), source.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
 	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
@@ -2420,6 +2613,42 @@ func TestImportDataFileConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "false", os.Getenv("YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT"), "YBVoyager use task picker for importing data should match the env var")
 }
 
+func TestImportDataFileConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(importDataFileCmd)
+	defer resetFlags(importDataFileCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+target:
+  db-user: test_user
+import-data-file:
+  log-level: debug
+  data-dir: /path/to/data/dir
+  file-table-map: table1,file1.csv;table2,file2.csv
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "file",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
+}
+
 ////////////////////////// Finalize Schema Post Data Import Tests //////////////////////////
 
 func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
@@ -2439,7 +2668,6 @@ func setupFinalizeSchemaPostDataImportContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -2462,6 +2690,7 @@ target:
   ssl-root-cert: /path/to/ssl-root-cert
   ssl-crl: /path/to/ssl-crl
 finalize-schema-post-data-import:
+  run-guardrails-checks: false
   continue-on-error: true
   ignore-exist: true
   refresh-mviews: true
@@ -2510,6 +2739,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_ConfigFileBinding(t *testing.
 	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
 
 	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exists should match the config")
 	assert.Equal(t, utils.BoolStr(true), flagRefreshMViews, "Refresh materialized views should match the config")
@@ -2529,6 +2759,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_CLIOverridesConfig(t *testing
 		"--export-dir", tmpExportDir,
 		"--log-level", "debug",
 		"--send-diagnostics", "false",
+		"--run-guardrails-checks", "true",
 		"--profile", "false",
 		"--continue-on-error", "false",
 		"--ignore-exist", "false",
@@ -2575,6 +2806,7 @@ func TestFinalizeSchemaPostDataImportConfigBinding_CLIOverridesConfig(t *testing
 	assert.Equal(t, "/path/to/ssl-crl2", tconf.SSLCRL, "Target SSL CRL should be overridden by CLI")
 
 	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.ContinueOnError, "Continue on error should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), tconf.IgnoreIfExists, "Ignore exists should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), flagRefreshMViews, "Refresh materialized views should be overridden by CLI")
@@ -2626,9 +2858,44 @@ func TestFinalizeSchemaPostDataImportConfigBinding_EnvOverridesConfig(t *testing
 	assert.Equal(t, "/path/to/ssl-root-cert", tconf.SSLRootCert, "Target SSL root cert should match the config")
 	assert.Equal(t, "/path/to/ssl-crl", tconf.SSLCRL, "Target SSL CRL should match the config")
 	// Assertions on finalize-schema-post-data-import config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.ContinueOnError, "Continue on error should match the config")
 	assert.Equal(t, utils.BoolStr(true), tconf.IgnoreIfExists, "Ignore exists should match the config")
 	assert.Equal(t, utils.BoolStr(true), flagRefreshMViews, "Refresh materialized views should match the config")
+}
+
+func TestFinalizeSchemaPostDataImportConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(finalizeSchemaPostDataImportCmd)
+	defer resetFlags(finalizeSchemaPostDataImportCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+target:
+  db-user: test_user
+finalize-schema-post-data-import:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"finalize-schema-post-data-import",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
 }
 
 ///////////////////////////// Export Data From Target Tests ////////////////////////////////
@@ -2650,7 +2917,6 @@ func setupExportDataFromTargetContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: true
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -2838,6 +3104,38 @@ func TestExportDataFromTargetConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "2025", os.Getenv("YB_MASTER_PORT"), "YB_MASTER_PORT should be overridden by env var")
 }
 
+func TestExportDataFromTargetConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(exportDataFromTargetCmd)
+	defer resetFlags(exportDataFromTargetCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+export-data-from-target:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"export", "data", "from", "target",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
+}
+
 ///////////////////////////// Import Data to Source Tests ////////////////////////////////
 
 func setupImportDataToSourceContext(t *testing.T) *testContext {
@@ -2857,7 +3155,6 @@ func setupImportDataToSourceContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: false
 profile: true
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
@@ -2867,6 +3164,7 @@ local-call-home-service-port: 8080
 yb-tserver-port: 9000
 tns-admin: /path/to/tns/admin
 import-data-to-source:
+  run-guardrails-checks: false
   parallel-jobs: 10
   disable-pb: true
   num-event-channels: 8
@@ -2896,7 +3194,6 @@ func TestImportDataToSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -2906,6 +3203,7 @@ func TestImportDataToSourceConfigBinding_ConfigFileBinding(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, 10, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
@@ -2941,7 +3239,6 @@ func TestImportDataToSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), perfProfile, "Profile should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
@@ -2951,6 +3248,7 @@ func TestImportDataToSourceConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9000", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should match the config")
 	assert.Equal(t, "/path/to/tns/admin", os.Getenv("TNS_ADMIN"), "TNS admin should match the config")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, 8, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), disablePb, "Disable PB should be overridden by CLI")
 	assert.Equal(t, "8", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the config")
@@ -2991,7 +3289,6 @@ func TestImportDataToSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
@@ -3001,6 +3298,7 @@ func TestImportDataToSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "9001", os.Getenv("YB_TSERVER_PORT"), "YB TServer port should be overridden by env var")
 	assert.Equal(t, "/path/to/tns/admin2", os.Getenv("TNS_ADMIN"), "TNS admin should be overridden by env var")
 	// Assertions on import-data config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, 10, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), disablePb, "Disable PB should match the config")
 	assert.Equal(t, "16", os.Getenv("NUM_EVENT_CHANNELS"), "Num event channels for importing data should match the env var")
@@ -3008,6 +3306,38 @@ func TestImportDataToSourceConfigBinding_EnvOverridesConfig(t *testing.T) {
 	assert.Equal(t, "10000", os.Getenv("MAX_EVENTS_PER_BATCH"), "Max events per batch for importing data should match the env var")
 	assert.Equal(t, "5", os.Getenv("MAX_INTERVAL_BETWEEN_BATCHES"), "Max interval between batches for importing data should match the env var")
 	assert.Equal(t, "20971520", os.Getenv("MAX_BATCH_SIZE_BYTES"), "Max batch size bytes for importing data should match the env var")
+}
+
+func TestImportDataToSourceConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(importDataToSourceCmd)
+	defer resetFlags(importDataToSourceCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+import-data-to-source:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"import", "data", "to", "source",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
 }
 
 ///////////////////////////// Initiate cutover to target Tests ////////////////////////////////
@@ -3154,7 +3484,39 @@ func TestArchiveChangesConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, "path/to/dir2", moveDestination, "Move destination should be overridden by CLI")
 }
 
-///////////////////////////// Archive Changes Tests ////////////////////////////////
+func TestArchiveChangesConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(archiveChangesCmd)
+	defer resetFlags(archiveChangesCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+archive-changes:
+  log-level: debug
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"archive", "changes",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
+}
+
+///////////////////////////// End Migration Tests ////////////////////////////////
 
 func setupEndMigrationContext(t *testing.T) *testContext {
 	tmpExportDir := setupExportDir(t)
@@ -3240,4 +3602,40 @@ func TestEndMigrationConfigBinding_CLIOverridesConfig(t *testing.T) {
 	assert.Equal(t, utils.BoolStr(true), saveMigrationReports, "Save migration reports should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(true), backupLogFiles, "Backup log files should be overridden by CLI")
 	assert.Equal(t, "path/to/dir2", backupDir, "Backup dir should be overridden by CLI")
+}
+
+func TestEndMigrationConfigBinding_GlobalVsLocalConfig(t *testing.T) {
+	tmpExportDir := setupExportDir(t)
+	defer os.RemoveAll(tmpExportDir)
+
+	resetCmdAndEnvVars(endMigrationCmd)
+	defer resetFlags(endMigrationCmd)
+
+	configContent := fmt.Sprintf(`
+export-dir: %s
+log-level: info
+send-diagnostics: true
+end-migration:
+  log-level: debug
+  backup-schema-files: false
+  backup-data-files: false
+  save-migration-reports: false
+  backup-log-files: false
+  `, tmpExportDir)
+
+	configFile, configDir := setupConfigFile(t, configContent)
+	t.Cleanup(func() { os.RemoveAll(configDir) })
+
+	rootCmd.SetArgs([]string{
+		"end", "migration",
+		"--config-file", configFile,
+	})
+
+	err := rootCmd.Execute()
+	require.NoError(t, err)
+
+	// Assertions on global flags
+	assert.Equal(t, tmpExportDir, exportDir, "Export directory should match the global config section")
+	assert.Equal(t, "debug", config.LogLevel, "Log level should match the command level config section")
+	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the global config section")
 }
