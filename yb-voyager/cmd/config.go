@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -26,6 +27,10 @@ const (
 	TargetDBConfigPrefix        = "target."
 	SourceReplicaDBConfigPrefix = "source-replica."
 )
+
+var commandsUsingSourceReplicaConfig = []string{"import-data-to-source-replica"}
+var commandsUsingSourceConfig = []string{"assess-migration", "export-schema", "export-data", "export-data-from-source", "import-data-to-source"}
+var commandsUsingTargetConfig = []string{"import-schema", "import-data", "import-data-to-target", "import-data-file", "export-data-from-target", "finalize-schema-post-data-import"}
 
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics",
@@ -581,8 +586,8 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
 	// Replace spaces with hyphens
-	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
-	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
+	commandNameKey := strings.ReplaceAll(subCmdPath, " ", "-")
+	commandNameKey = setToAliasPrefixIfSet(commandNameKey, v)
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if bindErr != nil || f.Changed {
@@ -591,7 +596,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 
 		// Check for <command_path>.<flagname>
 		var configKey string
-		if configKey = configKeyPrefix + "." + f.Name; v.IsSet(configKey) {
+		if configKey = commandNameKey + "." + f.Name; v.IsSet(configKey) {
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
@@ -617,64 +622,125 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if configKey = SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix); strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle source db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceReplicaConfig, commandNameKey) {
+			// Handle source-replica config flags
+			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = SourceDBConfigPrefix + f.Name; strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle oracle db type flags, since they are also prefixed with source but are special cases
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceConfig, commandNameKey) {
+			// Handle source config flags
+			err := bindSourceFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle target db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingTargetConfig, commandNameKey) {
+			// Handle target config flags
+			err := bindTargetFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix); strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle source-replica db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
-			if err != nil {
-				bindErr = err
-				return
-			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
 		}
 		// If the flag is not set in viper, do nothing and leave it as is
 		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
 	return overrides, bindErr
+}
+
+func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source-replica db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source-replica config, since they are also prefixed with source-replica but are special cases
+			// The oracle db flags should be taken from the source-replica section only in import-data-to-source-replica command
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source config, since they are also prefixed with source but are special cases
+			// This oracle db flags should be taken from the source section only in all commands except import-data-to-source-replica
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, TargetDBFlagPrefix) {
+		configKey := TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
 }
 
 /*
