@@ -624,13 +624,25 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 			})
 		} else if slices.Contains(commandsUsingSourceReplicaConfig, commandNameKey) {
 			// Handle source-replica config flags
-			bindSourceReplicaFlags(cmd, v, f, commandNameKey, &bindErr, &overrides)
+			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &overrides)
+			if err != nil {
+				bindErr = err
+				return
+			}
 		} else if slices.Contains(commandsUsingSourceConfig, commandNameKey) {
 			// Handle source config flags
-			bindSourceFlags(cmd, v, f, commandNameKey, &bindErr, &overrides)
+			err := bindSourceFlags(cmd, v, f, commandNameKey, &overrides)
+			if err != nil {
+				bindErr = err
+				return
+			}
 		} else if slices.Contains(commandsUsingTargetConfig, commandNameKey) {
 			// Handle target config flags
-			bindTargetFlags(cmd, v, f, commandNameKey, &bindErr, &overrides)
+			err := bindTargetFlags(cmd, v, f, commandNameKey, &overrides)
+			if err != nil {
+				bindErr = err
+				return
+			}
 		}
 		// If the flag is not set in viper, do nothing and leave it as is
 		// This allows the flag to retain its default value or the value set by the user in the command line
@@ -639,7 +651,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 	return overrides, bindErr
 }
 
-func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, bindErr *error, overrides *[]ConfigFlagOverride) {
+func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
 	if strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) {
 		configKey := SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -647,8 +659,7 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
-				*bindErr = err
-				return
+				return err
 			}
 			*overrides = append(*overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
@@ -664,8 +675,7 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
-				*bindErr = err
-				return
+				return err
 			}
 			*overrides = append(*overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
@@ -674,9 +684,10 @@ func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, c
 			})
 		}
 	}
+	return nil
 }
 
-func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, bindErr *error, overrides *[]ConfigFlagOverride) {
+func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
 	if strings.HasPrefix(f.Name, SourceDBFlagPrefix) {
 		configKey := SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -684,8 +695,7 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
-				*bindErr = err
-				return
+				return err
 			}
 			*overrides = append(*overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
@@ -701,8 +711,7 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
-				*bindErr = err
-				return
+				return err
 			}
 			*overrides = append(*overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
@@ -711,9 +720,10 @@ func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			})
 		}
 	}
+	return nil
 }
 
-func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, bindErr *error, overrides *[]ConfigFlagOverride) {
+func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
 	if strings.HasPrefix(f.Name, TargetDBFlagPrefix) {
 		configKey := TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix)
 		if v.IsSet(configKey) {
@@ -721,8 +731,7 @@ func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
-				*bindErr = err
-				return
+				return err
 			}
 			*overrides = append(*overrides, ConfigFlagOverride{
 				FlagName:  f.Name,
@@ -731,6 +740,7 @@ func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandN
 			})
 		}
 	}
+	return nil
 }
 
 /*
