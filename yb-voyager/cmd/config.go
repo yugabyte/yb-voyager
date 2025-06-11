@@ -217,9 +217,8 @@ initConfig initializes the configuration for the given Cobra command.
 */
 func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
+	v.SetConfigType("yaml")
 
-	// Precedence of which config file to use:
-	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
@@ -233,20 +232,6 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		cfgFile = filepath.Clean(cfgFile)
 
 		v.SetConfigFile(cfgFile)
-	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
-		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
-		v.SetConfigFile(os.Getenv("YB_VOYAGER_CONFIG_FILE"))
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		// Search config in home directory with name "yb-voyager-config" (without extension).
-		v.AddConfigPath(home)
-		v.SetConfigName("yb-voyager-config")
-		v.SetConfigType("yaml")
 	}
 
 	// If a config file is found, read it in.
