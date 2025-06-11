@@ -65,7 +65,7 @@ EXPECTED_ROW_COUNT_FF = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	"List" : {
 		"insert_query": "INSERT INTO ACCOUNTS_LIST_PARTITIONED values (600, 106, 16,210,'NJ','I');",
-		"delete_query": "DELETE FROM ACCOUNTS_LIST_PARTITIONED WHERE ACCOUNT_ID = 600;",
+		"delete_query": "DELETE FROM ACCOUNTS_LIST_PARTITIONED WHERE ID = 600;",
 		"partition_table_name": "accounts_list_partitioned_p_northeast",
 	},
 	"Range" : {
