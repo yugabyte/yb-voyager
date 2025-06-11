@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testPostgresSource.DB().Disconnect()
 
-	oracleContainer := testcontainers.NewTestContainer("oracle", nil, nil)
+	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
 	err = oracleContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start oracle container: %v", err)
@@ -105,7 +105,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testOracleSource.DB().Disconnect()
 
-	mysqlContainer := testcontainers.NewTestContainer("mysql", nil, nil)
+	mysqlContainer := testcontainers.NewTestContainer("mysql", nil)
 	err = mysqlContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start mysql container: %v", err)

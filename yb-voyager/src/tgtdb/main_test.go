@@ -75,7 +75,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testPostgresTarget.Finalize()
 
-	oracleContainer := testcontainers.NewTestContainer("oracle", nil, nil)
+	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
 	_ = oracleContainer.Start(ctx)
 	host, port, err = oracleContainer.GetHostPort()
 	if err != nil {
