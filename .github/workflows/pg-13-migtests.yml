@@ -93,7 +93,7 @@ jobs:
           docker run -d --name yugabytedb --hostname yb-cluster-test\
             -p7000:7000 -p9000:9000 -p15433:15433 -p5433:5433 -p9042:9042 \
             yugabytedb/yugabyte:${{ matrix.version }} \
-            bin/yugabyted start --tserver_flags="ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false 
+            bin/yugabyted start --tserver_flags="ysql_log_statement=all,ysql_hba_conf_csv={host all yugabyte all trust,host all all all md5}" --background=false --ui=false
           sleep 20
 
       - name: Test YugabyteDB connection
@@ -109,6 +109,23 @@ jobs:
           docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
+
+      - name: "TEST: pg-indexes"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        continue-on-error: true
+        run: migtests/scripts/run-test.sh pg/indexes
+      
+      - name: "copy and zip logs"
+        if: ${{ always() && matrix.test_group == 'offline' }}
+        run: |
+          docker exec yugabytedb bin/yugabyted collect_logs --stdout > yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
+        
+      - name: Upload logs as artifact
+        if: ${{ always() && matrix.test_group == 'offline' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg13gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}
+          path: pg13gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -137,10 +154,6 @@ jobs:
       - name: "TEST: pg-sequences with table list"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sequences env-with-table-list.sh
-
-      - name: "TEST: pg-indexes"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/indexes
 
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
