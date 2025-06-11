@@ -486,7 +486,24 @@ func (cp *YugabyteD) createYugabytedTableMetricsTable() error {
 			PRIMARY KEY (migration_uuid, table_name, migration_phase, schema_name)
 			);`, YUGABYTED_TABLE_METRICS_TABLE_NAME)
 
-	return cp.executeCmdOnTarget(cmd)
+	err := cp.executeCmdOnTarget(cmd)
+	if err != nil {
+		return err
+	}
+
+	// using ALTER to add new columns since TABLE might already exists due to old voyager version migrations
+	alterTableCmds := []string{
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN count_live_rows TYPE BIGINT;`, YUGABYTED_TABLE_METRICS_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN count_total_rows TYPE BIGINT;`, YUGABYTED_TABLE_METRICS_TABLE_NAME),
+	}
+
+	for _, cmd := range alterTableCmds {
+		err := cp.executeCmdOnTarget(cmd)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // Get the latest invocation sequence for a given migration_uuid and migration phase
