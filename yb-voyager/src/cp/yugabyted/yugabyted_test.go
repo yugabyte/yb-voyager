@@ -43,7 +43,7 @@ import (
 func TestYugabyteDTableSchema(t *testing.T) {
 	ctx := context.Background()
 
-	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabyteDBContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err := yugabyteDBContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start yugabytedb container: %v", err)

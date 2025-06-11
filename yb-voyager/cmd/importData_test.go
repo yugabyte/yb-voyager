@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"encoding/csv"
 	"fmt"
 	"os"
@@ -74,12 +75,12 @@ func TestImportDataResumptionWithInterruptions(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start Postgres container")
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)
 	testutils.FatalIfError(t, err, "Failed to start YugabyteDB container")
 
@@ -176,13 +177,13 @@ func TestImportDataResumptionWithInterruptions_FastPath_OnPrimaryKeyConflictActi
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -285,13 +286,13 @@ func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_TableAlreadyHasData(t 
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -366,13 +367,13 @@ func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *t
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -444,13 +445,13 @@ func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_TableAlreadyHasData_Mu
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -553,13 +554,13 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData1(t 
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -644,7 +645,7 @@ CREATE TABLE test_schema.test_data (
 func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData2(t *testing.T) {
 	ctx := context.Background()
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -754,13 +755,13 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_AlreadyHasData_Def
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -852,6 +853,111 @@ CREATE TABLE public.foo (
 
 ////=========================================
 
+// HELPER functions for live
+func isExportDataStreamingStarted(t *testing.T) bool {
+	//check for status until its streaming
+	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
+	status, err := dbzm.ReadExportStatus(statusFilePath)
+	if err != nil {
+		utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
+	}
+	testutils.FatalIfError(t, err, "reading dbzm export status")
+	if status != nil && status.Mode == dbzm.MODE_STREAMING {
+		return true
+	}
+	return false
+}
+
+func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string, snapshotRows int64, tableName string) bool {
+	_, err := testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+		"--source-db-password", postgresPass,
+		"--target-db-password", targetPass,
+	}, nil, true)
+	testutils.FatalIfError(t, err, "get data-migration-report command failed")
+
+	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
+	// Check if the report file exists and is not empty.
+	if ok := utils.FileOrFolderExists(reportFilePath); ok {
+		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		rowData, err := jsonFile.Read()
+		testutils.FatalIfError(t, err, "error reading get data-migration-report")
+		exportSnapshot := 0
+		importSnapshot := 0
+		for _, row := range *rowData {
+			if row.TableName == tableName {
+				if row.DBType == "source" {
+					exportSnapshot = int(row.ExportedSnapshotRows)
+				}
+				if row.DBType == "target" {
+					importSnapshot = int(row.ImportedSnapshotRows)
+				}
+			}
+		}
+		if exportSnapshot == int(snapshotRows) && exportSnapshot == importSnapshot {
+			return true
+		}
+
+	}
+	return false
+}
+
+func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, tableName string) bool {
+	_, err := testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
+		"--export-dir", exportDir,
+		"--output-format", "json",
+		"--source-db-password", postgresPass,
+		"--target-db-password", targetPass,
+	}, nil, true)
+	testutils.FatalIfError(t, err, "get data-migration-report command failed")
+
+	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
+	// Check if the report file exists and is not empty.
+	if ok := utils.FileOrFolderExists(reportFilePath); ok {
+		jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
+		rowData, err := jsonFile.Read()
+		testutils.FatalIfError(t, err, "error reading get data-migration-report")
+		exportInserts := 0
+		importInserts := 0
+		for _, row := range *rowData {
+			if row.TableName == `test_schema."test_live"` {
+				if row.DBType == "source" {
+					exportInserts = int(row.ExportedInserts)
+				}
+				if row.DBType == "target" {
+					importInserts = int(row.ImportedInserts)
+				}
+
+			}
+		}
+		if exportInserts == int(streamingInserts) && exportInserts == importInserts {
+			return true
+		}
+
+	}
+	return false
+}
+
+func validateSequence(t *testing.T, startID int64, endId int64, ybConn *sql.DB, tableName string) {
+	ids := []string{}
+	for i := 16; i <= 25; i++ {
+		ids = append(ids, strconv.Itoa(i))
+	}
+	query := fmt.Sprintf("SELECT id from %s where id IN (%s) ORDER BY id;", tableName, strings.Join(ids, ", "))
+	rows, err := ybConn.Query(query)
+	testutils.FatalIfError(t, err, "failed to read data")
+	var resIds []string
+	for rows.Next() {
+		var id int
+		err = rows.Scan(&id)
+		testutils.FatalIfError(t, err, "error scanning rows")
+		resIds = append(resIds, strconv.Itoa(id))
+	}
+
+	assert.Equal(t, ids, resIds)
+}
+
 // Basic Test for live migration with cutover
 func TestBasicLiveMigrationWithCutover(t *testing.T) {
 	ctx := context.Background()
@@ -877,24 +983,14 @@ SELECT
 FROM generate_series(1, 10);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
-	// Start Postgres container
-	var containerCmd = []string{
-		"postgres",
-		"-c", "wal_level=logical", // <-- set wal_level,
-		"-c", "max_wal_senders=10", // optional for logical replication
-
-	}
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, containerCmd)
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
-	pgConn, err := postgresContainer.GetConnection()
-	var res string
-	err = pgConn.QueryRow("Show wal_level;").Scan(&res)
-	assert.Equal(t, res, "logical")
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -912,7 +1008,7 @@ FROM generate_series(1, 10);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
@@ -922,14 +1018,7 @@ FROM generate_series(1, 10);`
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	for {
-		//check for status until its streaming
-		statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-		status, err := dbzm.ReadExportStatus(statusFilePath)
-		if err != nil {
-			utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
-		}
-		testutils.FatalIfError(t, err, "reading dbzm export status")
-		if status != nil && status.Mode == dbzm.MODE_STREAMING {
+		if isExportDataStreamingStarted(t) {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -944,42 +1033,15 @@ FROM generate_series(1, 10);`
 	time.Sleep(5 * time.Second)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportSnapshot := 0
-			importSnapshot := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportSnapshot = int(row.ExportedSnapshotRows)
-					}
-					if row.DBType == "target" {
-						importSnapshot = int(row.ImportedSnapshotRows)
-					}
-				}
-			}
-			if exportSnapshot == 10 && exportSnapshot == importSnapshot {
-				break
-			}
-
+		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 10, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
 
 	// Connect to both Postgres and YugabyteDB.
-	pgConn, err = postgresContainer.GetConnection()
+	pgConn, err := postgresContainer.GetConnection()
 	testutils.FatalIfError(t, err, "connecting to Postgres")
 
 	ybConn, err := yugabytedbContainer.GetConnection()
@@ -1002,37 +1064,9 @@ FROM generate_series(1, 5);`,
 	}...)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportInserts := 0
-			importInserts := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportInserts = int(row.ExportedInserts)
-					}
-					if row.DBType == "target" {
-						importInserts = int(row.ImportedInserts)
-					}
-
-				}
-			}
-			if exportInserts == 5 && exportInserts == importInserts {
-				break
-			}
-
+		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 5, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -1042,7 +1076,7 @@ FROM generate_series(1, 5);`,
 		t.Errorf("Table data mismatch between Postgres and YugabyteDB after streaming: %v", err)
 	}
 
-	// Perform cutover
+	// Run cutover
 	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{
 		"--export-dir", exportDir,
 		"--yes",
@@ -1070,23 +1104,8 @@ SELECT
 FROM generate_series(1, 10);`,
 	}...)
 
-	//Check if ids from 15001-15010 are present in target this is to verify the sequence serial col is restored properly till last value
-	ids := []string{}
-	for i := 16; i <= 25; i++ {
-		ids = append(ids, strconv.Itoa(i))
-	}
-	query := fmt.Sprintf("SELECT id from test_schema.test_live where id IN (%s) ORDER BY id;", strings.Join(ids, ", "))
-	rows, err := ybConn.Query(query)
-	testutils.FatalIfError(t, err, "failed to read data")
-	var resIds []string
-	for rows.Next() {
-		var id int
-		err = rows.Scan(&id)
-		testutils.FatalIfError(t, err, "error scanning rows")
-		resIds = append(resIds, strconv.Itoa(id))
-	}
-
-	assert.Equal(t, ids, resIds)
+	//Check if ids from 16-25 are present in target this is to verify the sequence serial col is restored properly till last value
+	validateSequence(t, 16, 25, ybConn, `test_schema.test_live`)
 
 }
 
@@ -1115,24 +1134,14 @@ SELECT
 FROM generate_series(1, 20);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
-	// Start Postgres container
-	var containerCmd = []string{
-		"postgres",
-		"-c", "wal_level=logical", // <-- set wal_level,
-		"-c", "max_wal_senders=10", // optional for logical replication
-
-	}
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, containerCmd)
+	// Start Postgres container for live migration
+	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
-	pgConn, err := postgresContainer.GetConnection()
-	var res string
-	err = pgConn.QueryRow("Show wal_level;").Scan(&res)
-	assert.Equal(t, res, "logical")
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -1150,7 +1159,7 @@ FROM generate_series(1, 20);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
@@ -1160,14 +1169,7 @@ FROM generate_series(1, 20);`
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	for {
-		//check for status until its streaming
-		statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-		status, err := dbzm.ReadExportStatus(statusFilePath)
-		if err != nil {
-			utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
-		}
-		testutils.FatalIfError(t, err, "reading dbzm export status")
-		if status != nil && status.Mode == dbzm.MODE_STREAMING {
+		if isExportDataStreamingStarted(t) {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -1183,42 +1185,15 @@ FROM generate_series(1, 20);`
 	time.Sleep(5 * time.Second)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportSnapshot := 0
-			importSnapshot := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportSnapshot = int(row.ExportedSnapshotRows)
-					}
-					if row.DBType == "target" {
-						importSnapshot = int(row.ImportedSnapshotRows)
-					}
-				}
-			}
-			if exportSnapshot == 20 && exportSnapshot == importSnapshot {
-				break
-			}
-
+		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
 
 	// Connect to both Postgres and YugabyteDB.
-	pgConn, err = postgresContainer.GetConnection()
+	pgConn, err := postgresContainer.GetConnection()
 	testutils.FatalIfError(t, err, "connecting to Postgres")
 
 	ybConn, err := yugabytedbContainer.GetConnection()
@@ -1241,37 +1216,9 @@ FROM generate_series(1, 15);`,
 	}...)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportInserts := 0
-			importInserts := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportInserts = int(row.ExportedInserts)
-					}
-					if row.DBType == "target" {
-						importInserts = int(row.ImportedInserts)
-					}
-
-				}
-			}
-			if exportInserts == 15 && exportInserts == importInserts {
-				break
-			}
-
+		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -1286,7 +1233,7 @@ FROM generate_series(1, 15);`,
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Wait for the command to exit.
 	if err := importCmd.Wait(); err != nil {
@@ -1295,7 +1242,7 @@ FROM generate_series(1, 15);`,
 		t.Logf("Async import run completed unexpectedly")
 	}
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	// Perform cutover
 	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{
@@ -1356,23 +1303,8 @@ SELECT
 FROM generate_series(1, 10);`,
 	}...)
 
-	//Check if ids from 15001-15010 are present in target this is to verify the sequence serial col is restored properly till last value
-	ids := []string{}
-	for i := 36; i <= 45; i++ {
-		ids = append(ids, strconv.Itoa(i))
-	}
-	query := fmt.Sprintf("SELECT id from test_schema.test_live where id IN (%s) ORDER BY id;", strings.Join(ids, ", "))
-	rows, err := ybConn.Query(query)
-	testutils.FatalIfError(t, err, "failed to read data")
-	var resIds []string
-	for rows.Next() {
-		var id int
-		err = rows.Scan(&id)
-		testutils.FatalIfError(t, err, "error scanning rows")
-		resIds = append(resIds, strconv.Itoa(id))
-	}
-
-	assert.Equal(t, ids, resIds)
+	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
+	validateSequence(t, 36, 45, ybConn, `test_schema.test_live`)
 
 }
 
@@ -1400,24 +1332,14 @@ SELECT
 FROM generate_series(1, 20);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
-	// Start Postgres container
-	var containerCmd = []string{
-		"postgres",
-		"-c", "wal_level=logical", // <-- set wal_level,
-		"-c", "max_wal_senders=10", // optional for logical replication
-
-	}
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, containerCmd)
+	// Start Postgres container with live migration
+	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
-	pgConn, err := postgresContainer.GetConnection()
-	var res string
-	err = pgConn.QueryRow("Show wal_level;").Scan(&res)
-	assert.Equal(t, res, "logical")
 
 	// Start YugabyteDB container.
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	if err := yugabytedbContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
 	}
@@ -1435,7 +1357,7 @@ FROM generate_series(1, 20);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
@@ -1446,13 +1368,7 @@ FROM generate_series(1, 20);`
 
 	for {
 		//check for status until its streaming
-		statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-		status, err := dbzm.ReadExportStatus(statusFilePath)
-		if err != nil {
-			utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
-		}
-		testutils.FatalIfError(t, err, "reading dbzm export status")
-		if status != nil && status.Mode == dbzm.MODE_STREAMING {
+		if isExportDataStreamingStarted(t) {
 			break
 		}
 		time.Sleep(1 * time.Second)
@@ -1468,42 +1384,15 @@ FROM generate_series(1, 20);`
 	time.Sleep(5 * time.Second)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportSnapshot := 0
-			importSnapshot := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportSnapshot = int(row.ExportedSnapshotRows)
-					}
-					if row.DBType == "target" {
-						importSnapshot = int(row.ImportedSnapshotRows)
-					}
-				}
-			}
-			if exportSnapshot == 20 && exportSnapshot == importSnapshot {
-				break
-			}
-
+		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
 
 	// Connect to both Postgres and YugabyteDB.
-	pgConn, err = postgresContainer.GetConnection()
+	pgConn, err := postgresContainer.GetConnection()
 	testutils.FatalIfError(t, err, "connecting to Postgres")
 
 	ybConn, err := yugabytedbContainer.GetConnection()
@@ -1526,37 +1415,9 @@ FROM generate_series(1, 15);`,
 	}...)
 
 	for {
-		_, err = testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
-			"--export-dir", exportDir,
-			"--output-format", "json",
-			"--source-db-password", postgresContainer.GetConfig().Password,
-			"--target-db-password", yugabytedbContainer.GetConfig().Password,
-		}, nil, true)
-		testutils.FatalIfError(t, err, "get data-migration-report command failed")
-
-		reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
-		// Check if the report file exists and is not empty.
-		if ok := utils.FileOrFolderExists(reportFilePath); ok {
-			jsonFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
-			rowData, err := jsonFile.Read()
-			testutils.FatalIfError(t, err, "error reading get data-migration-report")
-			exportInserts := 0
-			importInserts := 0
-			for _, row := range *rowData {
-				if row.TableName == `test_schema."test_live"` {
-					if row.DBType == "source" {
-						exportInserts = int(row.ExportedInserts)
-					}
-					if row.DBType == "target" {
-						importInserts = int(row.ImportedInserts)
-					}
-
-				}
-			}
-			if exportInserts == 15 && exportInserts == importInserts {
-				break
-			}
-
+		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
+			break
 		}
 		time.Sleep(1 * time.Second)
 	}
@@ -1571,7 +1432,7 @@ FROM generate_series(1, 15);`,
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(5 * time.Second)
 
 	// Wait for the command to exit.
 	if err := importCmd.Wait(); err != nil {
@@ -1580,7 +1441,7 @@ FROM generate_series(1, 15);`,
 		t.Logf("Async import run completed unexpectedly")
 	}
 
-	time.Sleep(30 * time.Second)
+	time.Sleep(10 * time.Second)
 
 	// Perform cutover
 	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{

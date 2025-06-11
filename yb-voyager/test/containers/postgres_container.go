@@ -20,8 +20,8 @@ import (
 type PostgresContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
-	ContainerCmd []string
-	container    testcontainers.Container
+	forLive   bool
+	container testcontainers.Container
 }
 
 func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
@@ -56,7 +56,6 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to write to temp schema file: %w", err)
 	}
 
-	fmt.Printf("command - %v", pg.ContainerCmd)
 	req := testcontainers.ContainerRequest{
 		// TODO: verify the docker images being used are the correct/certified ones
 		Image:        fmt.Sprintf("postgres:%s", pg.DBVersion),
@@ -77,7 +76,14 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 				FileMode:          0755,
 			},
 		},
-		Cmd: pg.ContainerCmd,
+	}
+
+	if pg.forLive {
+		req.Cmd = []string{
+			"postgres",
+			"-c", "wal_level=logical", // <-- set wal_level,
+			"-c", "max_wal_senders=10", // optional for logical replication
+		}
 	}
 
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{

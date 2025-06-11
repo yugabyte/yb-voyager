@@ -44,12 +44,14 @@ type ContainerConfig struct {
 	Schema    string
 }
 
-func NewTestContainer(dbType string, containerConfig *ContainerConfig, containerCmd []string) TestContainer {
+func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestContainer {
 	registryMutex.Lock()
 	defer registryMutex.Unlock()
 
-	fmt.Printf("new test command = %v", containerCmd)
+	return setUpContainer(dbType, containerConfig, false)
+}
 
+func setUpContainer(dbType string, containerConfig *ContainerConfig, forLive bool) TestContainer {
 	// initialise containerConfig struct if nothing is provided
 	if containerConfig == nil {
 		containerConfig = &ContainerConfig{}
@@ -68,7 +70,7 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig, container
 	case POSTGRESQL:
 		testContainer = &PostgresContainer{
 			ContainerConfig: *containerConfig,
-			ContainerCmd:    containerCmd,
+			forLive:         forLive,
 		}
 	case YUGABYTEDB:
 		testContainer = &YugabyteDBContainer{
@@ -88,6 +90,13 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig, container
 
 	containerRegistry[containerName] = testContainer
 	return testContainer
+}
+
+func NewTestContainerForLiveMigration(dbType string, containerConfig *ContainerConfig) TestContainer {
+	registryMutex.Lock()
+	defer registryMutex.Unlock()
+
+	return setUpContainer(dbType, containerConfig, true)
 }
 
 /*

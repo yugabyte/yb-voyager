@@ -54,7 +54,7 @@ func Test_AssessMigration(t *testing.T) {
 	defer testutils.RemoveTempExportDir(exportDir)
 
 	// setting up source test container and source params for assessment
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(context.Background())
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)

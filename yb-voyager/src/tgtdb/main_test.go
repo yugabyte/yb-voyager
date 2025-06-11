@@ -45,7 +45,7 @@ func TestMain(m *testing.M) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	postgresContainer := testcontainers.NewTestContainer("postgresql", nil, nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start postgres container: %v", err)
@@ -101,7 +101,7 @@ func TestMain(m *testing.M) {
 	}
 	defer testOracleTarget.Finalize()
 
-	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil, nil)
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)
 	if err != nil {
 		utils.ErrExit("Failed to start yugabytedb container: %v", err)
