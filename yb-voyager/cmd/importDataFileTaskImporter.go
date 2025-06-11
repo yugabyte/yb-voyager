@@ -142,6 +142,17 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	var rowsAffected int64
 	var err error // Note: make sure to not define any other err variable in this scope
 
+	if batch.RecordCount == 0 {
+		// an empty batch is possible in case there are errors while reading and procesing rows in the file
+		// and the errors are handled by the error handler.
+		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
+		}
+		return
+	}
+
 	/*
 		recoveryBatch means the batch is already in progress state due to partial ingestion or transient errors in last run
 		Need this info for decision making in tgtdb.ImportBatch() to whether follow which of three paths

@@ -33,8 +33,10 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -1479,5 +1481,326 @@ FROM generate_series(1, 15);`,
 	testutils.FatalIfError(t, err, "error checking if table has always or not")
 
 	assert.Equal(t, col, "id")
+}
 
+// TestExportAndImportDataSnapshotReport verifies the snapshot report after exporting and importing data.
+func TestExportAndImportDataSnapshotReport(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		t.Fatalf("Failed to start Postgres container: %v", err)
+	}
+
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in Postgres and YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	postgresContainer.ExecuteSqls(createTableSQL)
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		postgresContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
+
+	// Insert data into Postgres.
+	for i := 1; i <= 10; i++ {
+		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'name_%d');", i, i)
+		postgresContainer.ExecuteSqls(stmt)
+	}
+
+	// Export data from Postgres.
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", tempExportDir,
+		"--source-db-schema", "public",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Export command failed: %v", err)
+	}
+
+	// Import data into YugabyteDB.
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data", []string{
+		"--export-dir", tempExportDir,
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Verify snapshot report.
+	exportDir = tempExportDir
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(10), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
+}
+
+// TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue verifies the behavior of the --error-policy stash-and-continue flag.
+func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		t.Fatalf("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in Postgres and YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	postgresContainer.ExecuteSqls(createTableSQL)
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		postgresContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
+
+	// Insert data into Postgres.
+	for i := 1; i <= 100; i++ {
+		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'name_%d');", i, i)
+		postgresContainer.ExecuteSqls(stmt)
+	}
+
+	// Insert conflicting rows into YugabyteDB to simulate errors.
+	for i := 1; i <= 10; i++ {
+		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'conflict_name_%d');", i, i)
+		testYugabyteDBTarget.TestContainer.ExecuteSqls(stmt)
+	}
+
+	// Export data from Postgres.
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+		"--export-dir", tempExportDir,
+		"--source-db-schema", "public",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Export command failed: %v", err)
+	}
+
+	// Import data into YugabyteDB with --error-policy stash-and-continue.
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data", []string{
+		"--export-dir", tempExportDir,
+		"--disable-pb", "true",
+		"--error-policy-snapshot", "stash-and-continue",
+		"--batch-size", "10",
+		"--yes",
+	}, nil, false)
+	if err != nil {
+		t.Fatalf("Import command failed: %v", err)
+	}
+
+	// Verify snapshot report.
+	exportDir = tempExportDir
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(tempExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
+}
+
+// TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
+func TestImportDataFileReport(t *testing.T) {
+	// Create a temporary export directory.
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// Start YugabyteDB container.
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
+
+	// Generate a CSV file with test data.
+	dataFilePath := filepath.Join("/tmp", "test_data.csv")
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Failed to create data file: %v", err)
+	}
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+
+	// Write header and rows to the CSV file.
+	w.Write([]string{"id", "name"})
+	for i := 1; i <= 100; i++ {
+		w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
+	}
+	w.Flush()
+
+	// Import data from the CSV file into YugabyteDB.
+	importDataFileCmdArgs := []string{
+		"--export-dir", tempExportDir,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "test_data.csv:public.test_data",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import data file command failed: %v", err)
+	}
+
+	// Verify snapshot report.
+	exportDir = tempExportDir
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	metaDB = initMetaDB(exportDir)
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
+}
+
+func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
+	// Create a temporary export directory.
+	tempExportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(tempExportDir)
+
+	// Start YugabyteDB container.
+	setupYugabyteTestDb(t)
+
+	// Create table in the default public schema in YugabyteDB.
+	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
+
+	// Generate a CSV file with test data.
+	dataFilePath := filepath.Join("/tmp", "test_data.csv")
+	f, err := os.Create(dataFilePath)
+	if err != nil {
+		t.Fatalf("Failed to create data file: %v", err)
+	}
+	defer os.Remove(dataFilePath)
+	defer f.Close()
+
+	w := csv.NewWriter(f)
+
+	// Write header and rows to the CSV file.
+	w.Write([]string{"id", "name"})
+	for i := 1; i <= 100; i++ {
+		w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
+	}
+	w.Flush()
+
+	// Insert conflicting rows into YugabyteDB to simulate errors.
+	for i := 1; i <= 10; i++ {
+		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'conflict_name_%d');", i, i)
+		testYugabyteDBTarget.TestContainer.ExecuteSqls(stmt)
+	}
+
+	// Import data from the CSV file into YugabyteDB with --error-policy stash-and-continue.
+	importDataFileCmdArgs := []string{
+		"--export-dir", tempExportDir,
+		"--disable-pb", "true",
+		"--batch-size", "10",
+		"--target-db-schema", "public",
+		"--data-dir", filepath.Dir(dataFilePath),
+		"--file-table-map", "test_data.csv:public.test_data",
+		"--format", "CSV",
+		"--has-header", "true",
+		"--error-policy", "stash-and-continue",
+		"--yes",
+	}
+
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false)
+	if err != nil {
+		t.Fatalf("Import data file command failed: %v", err)
+	}
+	// Verify snapshot report.
+	exportDir = tempExportDir
+	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
+	}
+	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	testutils.FatalIfError(t, err, "Failed to initialize name registry")
+	metaDB = initMetaDB(exportDir)
+	state := NewImportDataState(exportDir)
+	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
+
+	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
+	if err != nil {
+		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
+	}
+	// Ensure the snapshotRowsMap contains the expected data.
+	tblName := sqlname.NameTuple{
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+	}
+	rowCountPair, _ := snapshotRowsMap.Get(tblName)
+	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
+	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
 }

@@ -432,6 +432,14 @@ const (
 To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded on timestamp column.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
+	HOTSPOTS_ON_TIMESTAMP_PK_UK                       = "HOTSPOTS_ON_TIMESTAMP_PK_UK"
+	HOTSPOTS_ON_DATE_PK_UK                            = "HOTSPOTS_ON_DATE_PK_UK"
+	HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE                 = "Hotspots with primary/unique key constraint on timestamp as first column"
+	HOTSPOTS_ON_DATE_PK_UK_ISSUE                      = "Hotspots with primary/unique key constraint on date as first column"
+	HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION = `Primary or Unique key constraints on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
+To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
+
 	REDUNDANT_INDEXES             = "REDUNDANT_INDEXES"
 	REDUNDANT_INDEXES_ISSUE_NAME  = "Redundant index"
 	REDUNDANT_INDEXES_DESCRIPTION = "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."

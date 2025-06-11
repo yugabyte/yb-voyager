@@ -194,7 +194,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
-	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
+	var targetImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
 	var targetEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if msr.TargetDBConf != nil {
 		targetImportedSnapshotRowsMap, err = getImportedSnapshotRowsMap("target")
@@ -207,7 +207,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		}
 	}
 
-	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, int64]
+	var replicaImportedSnapshotRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair]
 	var replicaEventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	if fFEnabled {
 		// In this case we need to lookup in a namereg where role is SOURCE_REPLICA_DB_IMPORTER_ROLE so that
@@ -364,7 +364,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 	return tableNameTupToEventsCounter, nil
 }
 
-func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, int64], eventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
+func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameTuple, snapshotImportedRowsMap *utils.StructMap[sqlname.NameTuple, RowCountPair], eventsImportedMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]) error {
 	switch row.DBType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
@@ -376,8 +376,8 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
 		var err error
 		tblName := tableNameTup.ForKey()
-		//In case of source-replica role namereg is the map of target->source-replica name
-		//and hence ForKey() returns source-relica name so we need to get that from reg
+		// In case of source-replica role namereg is the map of target->source-replica name
+		// and hence ForKey() returns source-replica name so we need to get that from reg
 		tableNameTup, err = nameRegistryForSourceReplicaRole.LookupTableName(tblName)
 		if err != nil {
 			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
@@ -385,7 +385,8 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 	}
 
 	if importerRole != SOURCE_DB_IMPORTER_ROLE {
-		row.ImportedSnapshotRows, _ = snapshotImportedRowsMap.Get(tableNameTup)
+		rowCountPair, _ := snapshotImportedRowsMap.Get(tableNameTup)
+		row.ImportedSnapshotRows = rowCountPair.Imported
 	}
 
 	eventCounter, _ := eventsImportedMap.Get(tableNameTup)
