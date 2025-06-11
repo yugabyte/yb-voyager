@@ -867,6 +867,10 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
 	postgresContainer.ExecuteSqls(createTableSQL)
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		postgresContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
 
 	// Insert data into Postgres.
 	for i := 1; i <= 10; i++ {
@@ -972,6 +976,10 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
 	postgresContainer.ExecuteSqls(createTableSQL)
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		postgresContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
 
 	// Insert data into Postgres.
 	for i := 1; i <= 100; i++ {
@@ -1075,6 +1083,9 @@ func TestImportDataFileReport(t *testing.T) {
 	// Create table in the default public schema in YugabyteDB.
 	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
 
 	// Generate a CSV file with test data.
 	dataFilePath := filepath.Join("/tmp", "test_data.csv")
@@ -1182,6 +1193,9 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	// Create table in the default public schema in YugabyteDB.
 	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
+	t.Cleanup(func() {
+		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
+	})
 
 	// Generate a CSV file with test data.
 	dataFilePath := filepath.Join("/tmp", "test_data.csv")
