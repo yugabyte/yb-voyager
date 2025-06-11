@@ -110,23 +110,6 @@ jobs:
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
 
-      - name: "TEST: pg-indexes"
-        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        continue-on-error: true
-        run: migtests/scripts/run-test.sh pg/indexes
-        
-      - name: "copy and zip logs"
-        if: ${{ always() && matrix.test_group == 'offline' }}
-        run: |
-          docker exec yugabytedb bin/yugabyted collect_logs --stdout > yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
-          
-      - name: Upload logs as artifact
-        if: ${{ always() && matrix.test_group == 'offline' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: pg17gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}
-          path: pg17gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
-
       - name: "TEST: PG sample schemas (sakila)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-schema-migration.sh pg/sakila
@@ -182,6 +165,23 @@ jobs:
       - name: "TEST: pg-sequences"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         run: migtests/scripts/run-test.sh pg/sequences
+
+      - name: "TEST: pg-indexes"
+        if: ${{ !cancelled() && matrix.test_group == 'offline' }}
+        continue-on-error: true
+        run: migtests/scripts/run-test.sh pg/indexes
+        
+      - name: "copy and zip logs"
+        if: ${{ always() && matrix.test_group == 'offline' }}
+        run: |
+          docker exec yugabytedb bin/yugabyted collect_logs --stdout > pg17gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
+          
+      - name: Upload logs as artifact
+        if: ${{ always() && matrix.test_group == 'offline' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: pg17gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}
+          path: pg17gha-yugabyted-logs-${{ matrix.test_group }}-${{ matrix.version }}-${{ matrix.BETA_FAST_DATA_EXPORT }}.tar.gz
 
       - name: "TEST: pg-sequences with table list"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
