@@ -1279,8 +1279,6 @@ func exportDataOffline(ctx context.Context, cancel context.CancelFunc, finalTabl
 		exportDataTableMetrics := createUpdateExportedRowCountEventList(
 			utils.GetSortedKeys(tablesProgressMetadata))
 		controlPlane.UpdateExportedRowCount(exportDataTableMetrics)
-		// utils.PrintAndLog("sleeping")
-		// time.Sleep(time.Second * 1000)
 	}
 
 	updateFilePaths(&source, exportDir, tablesProgressMetadata)
@@ -1650,12 +1648,10 @@ func createUpdateExportedRowCountEventList(tableNames []string) []*cp.UpdateExpo
 					MigrationUUID: migrationUUID,
 					SchemaNames:   []string{schemaName},
 				},
-				TableName: tableName2,
-				Status:    cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[tableMetadata.Status],
-				// TotalRowCount:     tableMetadata.CountTotalRows,
-				// CompletedRowCount: tableMetadata.CountLiveRows,
-				TotalRowCount:     43335675,
-				CompletedRowCount: 83335675,
+				TableName:         tableName2,
+				Status:            cp.EXPORT_OR_IMPORT_DATA_STATUS_INT_TO_STR[tableMetadata.Status],
+				TotalRowCount:     tableMetadata.CountTotalRows,
+				CompletedRowCount: tableMetadata.CountLiveRows,
 			},
 		}
 		result = append(result, &tableMetrics)
