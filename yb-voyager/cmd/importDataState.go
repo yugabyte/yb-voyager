@@ -836,14 +836,16 @@ func (batch *Batch) Open() (*os.File, error) {
 }
 
 func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
-	reader, err := dataStore.Open(batch.GetFilePath())
+	// Bypass DataStore and open the file directly as a local data file,
+	// since generated batches only use local files and don’t require cloud storage.
+	file, err := batch.Open()
 	if err != nil {
-		return nil, fmt.Errorf("open datastore %q: %s", batch.GetFilePath(), err)
+		return nil, fmt.Errorf("open batch file %q: %s", batch.GetFilePath(), err)
 	}
 
-	datafile, err := datafile.NewDataFile(batch.GetFilePath(), reader, dataFileDescriptor)
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor)
 	if err != nil {
-		return nil, fmt.Errorf("open datafile %q: %s", batch.GetFilePath(), err)
+		return nil, fmt.Errorf("create datafile for %q: %s", batch.GetFilePath(), err)
 	}
 
 	return datafile, err
