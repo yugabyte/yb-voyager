@@ -249,6 +249,24 @@
         }
     </style>
     <script>
+
+        const ISSUES_PERF_OPTIMIZATIONS = {
+            false: {                      // other assessment issues
+                count: {{ len (filterOutPerformanceOptimizationIssues .Issues) }},
+                details: 'details-',
+                arrow:   'arrow-',
+                expand:  'expandAllButton',
+                collapse:'collapseAllButton'
+            },
+            true: {                       // performance optimisations
+                count: {{ len (getPerformanceOptimizationIssues .Issues) }},
+                details: 'details-perf-',
+                arrow:   'arrow-perf-',
+                expand:  'expandAllButton-perf',
+                collapse:'collapseAllButton-perf'
+            }
+        };
+
         // Toggle Details Functionality
         function toggleDetails(detailsRowId, arrowId, isPerf) {
             const row = document.getElementById(detailsRowId);
@@ -266,19 +284,11 @@
         // Expand All Issues
         function expandAllIssues(isPerf) {
             // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            let totalIssues = {{ len (filterOutPerformanceOptimizationIssues .Issues ) }};
-            if(isPerf) {
-                totalIssues = {{ len (getPerformanceOptimizationIssues .Issues)  }};
-            }         
-            for (let i = 0; i < totalIssues; i++) {
-                var details = 'details-'
-                var arrow = 'arrow-'
-                if (isPerf) {
-                    details = 'details-perf-'
-                    arrow = 'arrow-perf-'
-                }
-                const row = document.getElementById(details + i);
-                const arrowId = document.getElementById(arrow + i);
+            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+               
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (!row.classList.contains('show')) {
                     row.classList.add('show');
                     arrowId.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
@@ -289,19 +299,11 @@
 
         // Collapse All Issues
         function collapseAllIssues(isPerf) {
-            let totalIssues = {{ len (filterOutPerformanceOptimizationIssues .Issues ) }};
-            if(isPerf) {
-                totalIssues = {{ len (getPerformanceOptimizationIssues .Issues)  }};
-            }                 
-            for (let i = 0; i < totalIssues; i++) {
-                var details = 'details-'
-                var arrow = 'arrow-'
-                if (isPerf) {
-                    details = 'details-perf-'
-                    arrow = 'arrow-perf-'
-                }
-                const row = document.getElementById(details + i);
-                const arrowId = document.getElementById(arrow + i);
+            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]              
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (row.classList.contains('show')) {
                     row.classList.remove('show');
                     arrowId.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
@@ -312,35 +314,22 @@
 
         // Update Button Visibility Based on Row States
         function updateButtonVisibility(isPerf) {
-            let totalIssues = {{ len (filterOutPerformanceOptimizationIssues .Issues ) }};
-            if(isPerf) {
-                totalIssues = {{ len (getPerformanceOptimizationIssues .Issues)  }};
-            }                       
+            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]                      
             let someExpanded = false;
             let someCollapsed = false;
 
-            for (let i = 0; i < totalIssues; i++) {
-                var details = 'details-'
-                if(isPerf){
-                    details = 'details-perf-'
-                }
-                const row = document.getElementById(details + i);
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                const row = document.getElementById(issuesJsInfo.details + i);
                 if (row.classList.contains('show')) {
                     someExpanded = true;
                 } else {
                     someCollapsed = true;
                 }
                 if (someExpanded && someCollapsed) break;
-            }  
-            let expandId = 'expandAllButton'
-            let collapseId = 'collapseAllButton'
-            if(isPerf){
-                expandId='expandAllButton-perf'
-                collapseId='collapseAllButton-perf'
             }
 
-            const expandButton = document.getElementById(expandId);
-            const collapseButton = document.getElementById(collapseId);
+            const expandButton = document.getElementById(issuesJsInfo.expand);
+            const collapseButton = document.getElementById(issuesJsInfo.collapse);
             expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
             collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
         }
