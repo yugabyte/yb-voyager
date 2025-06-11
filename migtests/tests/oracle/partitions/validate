@@ -158,6 +158,6 @@ def migration_completed_checks(tgt):
 
 	for partition_type, query_and_table in INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION.items():
 		run_insert_query_and_chk_incr_cnt_of_partition_table(tgt, query_and_table["query"], query_and_table["partition_table_name"], db_schema)
-	
+
 if __name__ == "__main__":
 	main()
