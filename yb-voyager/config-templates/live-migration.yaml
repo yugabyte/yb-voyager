@@ -294,7 +294,6 @@ import-schema:
   # enable-orafce: true  
 
   ### Run guardrails checks before the command is run. 
-  ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
   # run-guardrails-checks: true  
@@ -421,7 +420,6 @@ import-data-to-target:
   # enable-upsert: false 
 
   ### Run guardrails checks before the command is run. 
-  ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
   # run-guardrails-checks: true  
@@ -505,7 +503,6 @@ finalize-schema-post-data-import:
   refresh-mviews: false
 
   ### Run guardrails checks before the command is run. 
-  ### Note - This is only valid for PostgreSQL source database.
   ### Accepted values - (true, false, yes, no, 1, 0)
   ### Default - true
   # run-guardrails-checks: true  
