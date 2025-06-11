@@ -310,6 +310,7 @@ func addSummaryDetailsForIndexes() {
 		return s
 	})
 
+	// Add only unsupported oracle indexes to the summary details
 	for _, indexInfo := range indexesInfo {
 		if !slices.Contains(oracleUnsupportedIndexTypesForAnalyze, indexInfo.IndexType) {
 			continue

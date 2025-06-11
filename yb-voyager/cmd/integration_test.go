@@ -79,6 +79,7 @@ func TestOracle_ReportUnsupportedIndexTypes(t *testing.T) {
 	expectedJsonString := `Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:
 		Index Name=IDX_ADDRESS_TEXT, Index Type=DOMAIN
 		Index Name=IDX_PHONE_REVERSE, Index Type=NORMAL/REV
+
 There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported.`
 
 	var actualString string
