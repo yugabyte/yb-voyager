@@ -114,7 +114,7 @@ jobs:
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
         continue-on-error: true
         run: migtests/scripts/run-test.sh pg/indexes
-      
+
       - name: "copy and zip logs"
         if: ${{ always() && matrix.test_group == 'offline' }}
         run: |
