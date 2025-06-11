@@ -3367,6 +3367,18 @@ local-call-home-service-port: 8080
 yb-tserver-port: 9000
 tns-admin: /path/to/tns/admin
 source:
+  name: test_source
+  db-host: source_host
+  db-port: 1522
+  db-user: test_user_source
+  db-password: test_password_source
+  db-name: test_db_source
+  db-schema: public_source
+  ssl-cert: /path/to/ssl-cert/source
+  ssl-mode: verify-full
+  ssl-key: /path/to/ssl-key/source
+  ssl-root-cert: /path/to/ssl-root-cert/source
+  ssl-crl: /path/to/ssl-crl/source
   oracle-db-sid: test_sid_source
   oracle-home: /path/to/oracle/home/source
   oracle-tns-alias: test_tns_alias_source
