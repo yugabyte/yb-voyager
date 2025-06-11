@@ -3358,7 +3358,6 @@ func setupImportDataToSourceReplicaContext(t *testing.T) *testContext {
 export-dir: %s
 log-level: info
 send-diagnostics: true
-run-guardrails-checks: false
 control-plane-type: yugabyte
 yugabyted-db-conn-string: postgres://test_user:test_password@localhost:5432/test_db?sslmode=require
 java-home: /path/to/java/home
@@ -3399,6 +3398,7 @@ source-replica:
   oracle-home: /path/to/oracle/home/source-replica
   oracle-tns-alias: test_tns_alias_source_replica
 import-data-to-source-replica:
+  run-guardrails-checks: false
   batch-size: 10000
   parallel-jobs: 5
   truncate-tables: true
@@ -3432,7 +3432,6 @@ func TestImportDataToSourceReplicaConfigBinding_ConfigFileBinding(t *testing.T) 
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -3456,6 +3455,7 @@ func TestImportDataToSourceReplicaConfigBinding_ConfigFileBinding(t *testing.T) 
 	assert.Equal(t, "/path/to/oracle/home/source-replica", tconf.OracleHome, "Source replica Oracle home should match the config")
 	assert.Equal(t, "test_tns_alias_source_replica", tconf.TNSAlias, "Source replica Oracle TNS alias should match the config")
 	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(10000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 5, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables should match the config")
@@ -3511,7 +3511,6 @@ func TestImportDataToSourceReplicaConfigBinding_CLIOverridesConfig(t *testing.T)
 	assert.Equal(t, tmpExportDir, exportDir, "Export directory should be overridden by CLI")
 	assert.Equal(t, "debug", config.LogLevel, "Log level should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), callhome.SendDiagnostics, "Send diagnostics should be overridden by CLI")
-	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
 	assert.Equal(t, "postgres://test_user:test_password@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should match the config")
 	assert.Equal(t, "/path/to/java/home", os.Getenv("JAVA_HOME"), "Java home should match the config")
@@ -3535,6 +3534,7 @@ func TestImportDataToSourceReplicaConfigBinding_CLIOverridesConfig(t *testing.T)
 	assert.Equal(t, "/path/to/oracle/home/source-replica-2", tconf.OracleHome, "Source replica Oracle home should be overridden by CLI")
 	assert.Equal(t, "test_tns_alias_source_replica_2", tconf.TNSAlias, "Source replica Oracle TNS alias should be overridden by CLI")
 	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, utils.BoolStr(true), tconf.RunGuardrailsChecks, "Run guardrails checks should be overridden by CLI")
 	assert.Equal(t, int64(20000), batchSizeInNumRows, "Batch size should be overridden by CLI")
 	assert.Equal(t, 3, tconf.Parallelism, "Parallel jobs should be overridden by CLI")
 	assert.Equal(t, utils.BoolStr(false), truncateTables, "Truncate tables should be overridden by CLI")
@@ -3580,7 +3580,6 @@ func TestImportDataToSourceReplicaConfigBinding_EnvOverridesConfig(t *testing.T)
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
 	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
-	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, "yugabyte2", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should be overridden by env var")
 	assert.Equal(t, "postgres://test_user2:test_password2@localhost:5432/test_db?sslmode=require", os.Getenv("YUGABYTED_DB_CONN_STRING"), "Yugabyted DB connection string should be overridden by env var")
 	assert.Equal(t, "/path/to/java/home2", os.Getenv("JAVA_HOME"), "Java home should be overridden by env var")
@@ -3604,6 +3603,7 @@ func TestImportDataToSourceReplicaConfigBinding_EnvOverridesConfig(t *testing.T)
 	assert.Equal(t, "/path/to/oracle/home/source-replica", tconf.OracleHome, "Source replica Oracle home should match the config")
 	assert.Equal(t, "test_tns_alias_source_replica", tconf.TNSAlias, "Source replica Oracle TNS alias should match the config")
 	// Assertions on import-data-to-source-replica config
+	assert.Equal(t, utils.BoolStr(false), tconf.RunGuardrailsChecks, "Run guardrails checks should match the config")
 	assert.Equal(t, int64(10000), batchSizeInNumRows, "Batch size should match the config")
 	assert.Equal(t, 5, tconf.Parallelism, "Parallel jobs should match the config")
 	assert.Equal(t, utils.BoolStr(true), truncateTables, "Truncate tables should match the config")
