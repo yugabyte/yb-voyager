@@ -80,12 +80,12 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 	},
 	"Hash" : {
 		"insert_query": " Insert into SALES_HASH values (400, to_date('26-NOV-03','DD-MON-YY'), 104, 2129.55);",
-		"delete_query": "DELETE FROM SALES_HASH WHERE SALE_ID = 400;",
+		"delete_query": "DELETE FROM SALES_HASH WHERE S_PRODUCTID = 400 AND S_CUSTID = 104;",
 		"partition_table_name": "sales_hash_p4",
 	},
 	"Sub_Partition": {
 		"insert_query": " Insert into sub_par_test values (23,'emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')); ",
-		"delete_query": "DELETE FROM sub_par_test WHERE emp_id = 23;",
+		"delete_query": "DELETE FROM sub_par_test WHERE id = 23;",
 		"partition_table_name": "sub_par_test_p5_sp5",
 	}
 }
@@ -93,7 +93,7 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION = {
 INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION_FF = {
 	"List" : {
 		"insert_query": "INSERT INTO ACCOUNTS_LIST_PARTITIONED values (600, 106, 16,210,'NJ','I')",
-		"delete_query": "DELETE FROM ACCOUNTS_LIST_PARTITIONED WHERE ACCOUNT_ID = 600",
+		"delete_query": "DELETE FROM ACCOUNTS_LIST_PARTITIONED WHERE ID = 600",
 		"partition_table_name": "accounts_list_partitioned",
 	},
 	"Range" : {
@@ -113,7 +113,7 @@ INSERT_QUERIES_INTO_TABLE_VERIFY_PARTITION_FF = {
 	},
 	"Sub_Partition": {
 		"insert_query": "Insert into sub_par_test values (23,'emp_23','OTHERS',TO_DATE('18-08-2006', 'dd-mm-yyyy')) ",
-		"delete_query": "DELETE FROM sub_par_test WHERE emp_id = 23",
+		"delete_query": "DELETE FROM sub_par_test WHERE id = 23",
 		"partition_table_name": "sub_par_test",
 	}
 }
