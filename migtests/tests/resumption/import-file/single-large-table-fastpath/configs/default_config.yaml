@@ -5,6 +5,7 @@ file_table_map: "accounts_350m_data.sql:accounts_large"
 # Uncomment the below to add any additional flags to the command
 
 additional_flags:
+  --on-primary-key-conflict: "IGNORE"
   --delimiter: "\\t"
   --format: "text"
 

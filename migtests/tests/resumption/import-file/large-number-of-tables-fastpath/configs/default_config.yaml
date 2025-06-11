@@ -1,4 +1,5 @@
 additional_flags:
+  --on-primary-key-conflict: "IGNORE"
   --delimiter: ','
   --format: csv
   --has-header: 'true'

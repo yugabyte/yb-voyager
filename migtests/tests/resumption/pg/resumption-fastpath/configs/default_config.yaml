@@ -7,6 +7,10 @@
 # Import Type
 import_type: offline
 
+# Additional Flags
+additional_flags:
+  --on-primary-key-conflict: "IGNORE"
+
 # Row Count Validation
 row_count:
   Case_Sensitive_Table: 5000000
