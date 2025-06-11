@@ -1075,7 +1075,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 func TestImportDataFileReport(t *testing.T) {
 	// Create a temporary export directory.
 	tempExportDir := testutils.CreateTempExportDir()
-	// defer testutils.RemoveTempExportDir(tempExportDir)
+	defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)

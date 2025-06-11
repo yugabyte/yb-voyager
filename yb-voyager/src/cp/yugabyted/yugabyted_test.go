@@ -107,8 +107,8 @@ func TestYugabyteDTableSchema(t *testing.T) {
 			"schema_name":          {Type: "character varying", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"status":               {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"count_live_rows":      {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"count_total_rows":     {Type: "integer", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"count_live_rows":      {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"count_total_rows":     {Type: "bigint", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 			"invocation_timestamp": {Type: "timestamp with time zone", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 		},
 	}
