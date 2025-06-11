@@ -240,6 +240,18 @@ func (s *ImportDataState) GetImportedByteCount(filePath string, tableNameTup sql
 	return result, nil
 }
 
+func (s *ImportDataState) GetErroredRowCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetErroredBatches(filePath, tableNameTup)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting errored batches for %s: %w", tableNameTup, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.RecordCount
+	}
+	return result, nil
+}
+
 // TODO:TABLENAME: revisit??
 func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, error) {
 	tableNames, err := s.discoverTableNames()

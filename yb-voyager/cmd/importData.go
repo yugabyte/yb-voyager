@@ -1132,10 +1132,10 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-			importDataPayload.TotalRows += value
-			if value > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+			importDataPayload.TotalRows += value.Imported
+			if value.Imported > importDataPayload.LargestTableRows {
+				importDataPayload.LargestTableRows = value.Imported
 			}
 			return true, nil
 		})
