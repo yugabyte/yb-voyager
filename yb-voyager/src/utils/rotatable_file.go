@@ -13,12 +13,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
-
-// Package utils provides utility functions and types for yb-voyager.
-//
-// file_rotator.go: Implements a fileRotator struct on top of lumberjack.Logger
-// that does not error if a single write exceeds maxFileSize. Rotation is best-effort.
-
 package utils
 
 import (
@@ -48,7 +42,7 @@ type RotatableFile struct {
 	MaxFileSize int64 // in bytes
 }
 
-// NewRotatableFile creates a new FileRotator with the given filename and maxFileSize (in bytes).
+// NewRotatableFile creates a new RotatableFile with the given filename and maxFileSize (in bytes).
 // If maxFileSize is 0, defaults to 5MB.
 func NewRotatableFile(filename string, maxFileSize int64) (*RotatableFile, error) {
 	if maxFileSize <= 0 {
