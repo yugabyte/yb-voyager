@@ -815,22 +815,37 @@ func checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTas
 	}
 
 	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
-	// TODO: skip if those are non PK tables?
 	tablesHavingData := tdb.GetNonEmptyTables(pendingTablesList)
 	if len(tablesHavingData) == 0 {
 		return
 	}
 
+	allNonPKTables := true
+	for _, table := range tablesHavingData {
+		colList, err := tdb.GetPrimaryKeyColumns(table)
+		if err != nil {
+			utils.ErrExit("Failed to get primary key columns for table %s: %s", table.ForOutput(), err)
+		}
+		if len(colList) != 0 {
+			allNonPKTables = false
+			log.Infof("found table with PK: %s, no need to prompt user", table.ForOutput())
+			continue
+		}
+	}
+	if allNonPKTables {
+		return // no PK tables, so no need to prompt user
+	}
+
 	utils.PrintAndLog(
-		"Importing into tables that already hold data: %v\n\n"+
-			"Current conflict mode: --on-primary-key-conflict-action=IGNORE\n\n"+
-			"What happens now:\n"+
-			"  • Any incoming row whose PK matches an existing row will be dropped.\n"+
-			"  • No error will be thrown for those skipped rows.\n"+
-			"  • You'll end up with only the new non-conflicting rows added.\n\n"+
-			"Please confirm you understand and want to continue.\n", tablesHavingData,
+		"Target tables with pre-existing data: %v\n\n"+
+			"Selected mode: IGNORE on primary-key conflicts\n"+
+			"This mode offers improved import speed when your data contains no PK constraint violations.\n\n"+
+			"Under this mode:\n"+
+			"  • Duplicate Primary Key rows are silently skipped.\n"+
+			"  • Import proceeds without error for skipped entries.\n"+
+			"  • Only unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(tablesHavingData),
 	)
-	if !utils.AskPrompt("Do you want to continue with the import?") {
+	if !utils.AskPrompt("Please confirm whether to proceed") {
 		utils.ErrExit("Aborting import.")
 	}
 }
