@@ -30,6 +30,16 @@ EXPECTED_ROW_COUNT = {
 	'empty_partition_table2':0
 }
 
+EXPECTED_ROW_COUNT_FF = {
+	'order_items_range_partitioned': 81,
+	'accounts_list_partitioned': 44,
+	'orders_interval_partition': 107,
+	'sales_hash': 30,
+	'sub_par_test': 24,
+	'empty_partition_table':4,
+	'empty_partition_table2':4
+}
+
 EXPECTED_SUM_OF_COLUMN = {
 	'order_items_range_partitioned': {
 		'order_id': '3311' 
@@ -54,15 +64,7 @@ EXPECTED_SUM_OF_COLUMN = {
 	}
 }
 
-EXPECTED_ROW_COUNT_FF = {
-	'order_items_range_partitioned': 81,
-	'accounts_list_partitioned': 44,
-	'orders_interval_partition': 107,
-	'sales_hash': 30,
-	'sub_par_test': 24,
-	'empty_partition_table':4,
-	'empty_partition_table2':4
-}
+
 
 EXPECTED_SUM_OF_COLUMN_FF = {
 	'order_items_range_partitioned': {
