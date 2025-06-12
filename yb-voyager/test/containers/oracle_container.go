@@ -191,5 +191,19 @@ func (ora *OracleContainer) GetVersion() (string, error) {
 }
 
 func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
+	panic("ExecuteSqls not implemented for OracleContainer")
+}
 
+func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	conn, err := ora.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for query: %w", err)
+	}
+	defer conn.Close()
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	return rows, nil
 }

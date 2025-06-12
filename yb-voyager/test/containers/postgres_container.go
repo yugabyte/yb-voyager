@@ -216,3 +216,21 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 		}
 	}
 }
+
+func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+
+	conn, err := pg.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
+	}
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
+}
