@@ -249,7 +249,7 @@
         }
     </style>
     <script>
-        const ISSUES_PERF_OPTIMIZATIONS = {
+        const ISSUES_JS_INFO_IF_PERF_TABLE = {
             false: {                      // other assessment issues
                 count: 114,
                 details: 'details-',
@@ -283,7 +283,7 @@
         // Expand All Issues
         function expandAllIssues(isPerf) {
             // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]
             for (let i = 0; i < issuesJsInfo.count; i++) {
                
                 const row = document.getElementById(issuesJsInfo.details + i);
@@ -298,7 +298,7 @@
 
         // Collapse All Issues
         function collapseAllIssues(isPerf) {
-            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]              
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]              
             for (let i = 0; i < issuesJsInfo.count; i++) {
                 
                 const row = document.getElementById(issuesJsInfo.details + i);
@@ -313,7 +313,7 @@
 
         // Update Button Visibility Based on Row States
         function updateButtonVisibility(isPerf) {
-            let issuesJsInfo = ISSUES_PERF_OPTIMIZATIONS[isPerf]                      
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]                      
             let someExpanded = false;
             let someCollapsed = false;
 

@@ -478,7 +478,6 @@ const (
 	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_SUGGESTION         = "Remove it from the exported schema"
 	ALTER_TABLE_CLUSTER_ON_ISSUE_SUGGESTION                   = "Remove it from the exported schema."
 	ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION                 = "Remove this and the rule '%s' from the exported schema to be not enabled on the table."
-	EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION                     = ""
 	DEFERRABLE_CONSTRAINT_ISSUE_SUGGESTION                    = "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly"
 	POLICY_ROLE_ISSUE_SUGGESTION                              = "Create the Users manually to make the policies work."
 	BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION    = "Create the triggers on individual partitions."
@@ -488,9 +487,6 @@ const (
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION = "Add all Partition columns to Primary Key"
 	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
 	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
-	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = ""
-
-	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION = ""
 
 	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
