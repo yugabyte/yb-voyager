@@ -172,6 +172,26 @@ func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
 	return db, nil
 }
 
+func (ms *MysqlContainer) GetVersion() (string, error) {
+	if ms == nil {
+		return "", fmt.Errorf("mysql container is not started: nil")
+	}
+
+	db, err := ms.GetConnection()
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection for mysql version: %w", err)
+	}
+	defer db.Close()
+
+	var version string
+	err = db.QueryRow("SELECT VERSION()").Scan(&version)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch mysql version: %w", err)
+	}
+
+	return version, nil
+}
+
 func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 	if ms == nil {
 		utils.ErrExit("mysql container is not started: nil")
