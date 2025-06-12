@@ -420,7 +420,7 @@ func Test_DeparsingAPI(t *testing.T) {
 	`
 
 	expectedSqls := []string{
-		// expected: CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');
+		// expected: CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'));
 		// but below is what parser actual returns due to Parser bug: https://github.com/pganalyze/pg_query_go/issues/126
 		`CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');`,
 	}
