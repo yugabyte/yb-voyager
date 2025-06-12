@@ -34,13 +34,19 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 	cmdName string, cmdArgs []string, doDuringCmd func(), async bool) (*exec.Cmd, error) {
 
 	fmt.Printf("Running voyager command: %s %s\n", cmdName, strings.Join(cmdArgs, " "))
-	// Gather DB connection info.
-	host, port, err := container.GetHostPort()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get host port for container: %v", err)
-	}
+	var host string
+	var port int
+	var err error
+	var config testcontainers.ContainerConfig
+	if container != nil {
+		// Gather DB connection info.
+		host, port, err = container.GetHostPort()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get host port for container: %v", err)
+		}
 
-	config := container.GetConfig()
+		config = container.GetConfig()
+	}
 	var connectionArgs []string
 	if isSourceCmd(cmdName) {
 		connectionArgs = []string{

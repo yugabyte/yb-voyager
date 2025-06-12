@@ -13,12 +13,14 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 type PostgresContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
+	forLive   bool
 	container testcontainers.Container
 }
 
@@ -76,6 +78,14 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		},
 	}
 
+	if pg.forLive {
+		req.Cmd = []string{
+			"postgres",
+			"-c", "wal_level=logical", // <-- set wal_level,
+			"-c", "max_wal_senders=10", // optional for logical replication
+		}
+	}
+
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
@@ -90,6 +100,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
+
 	return nil
 }
 
