@@ -77,6 +77,14 @@ func (ora *Oracle) Disconnect() {
 	}
 }
 
+func (ora *Oracle) Query(query string) (*sql.Rows, error) {
+	return ora.db.Query(query)
+}
+
+func (ora *Oracle) QueryRow(query string) *sql.Row {
+	return ora.db.QueryRow(query)
+}
+
 func (ora *Oracle) CheckSchemaExists() bool {
 	schemaName := ora.source.Schema
 	query := fmt.Sprintf(`SELECT username FROM ALL_USERS WHERE username = '%s'`, strings.ToUpper(schemaName))

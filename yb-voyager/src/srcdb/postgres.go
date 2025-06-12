@@ -184,6 +184,14 @@ func (pg *PostgreSQL) Disconnect() {
 	}
 }
 
+func (pg *PostgreSQL) Query(query string) (*sql.Rows, error) {
+	return pg.db.Query(query)
+}
+
+func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
+	return pg.db.QueryRow(query)
+}
+
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
 	list := strings.Split(pg.source.Schema, "|")
 	var trimmedList []string
