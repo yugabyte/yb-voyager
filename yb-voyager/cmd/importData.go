@@ -766,7 +766,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if !msr.IsSnapshotExportedViaDebezium() {
 			errImport := executePostSnapshotImportSqls()
 			if errImport != nil {
-				utils.ErrExit("Error in importing post-snapshot-import sql: %v", err)
+				utils.ErrExit("Error in importing finalize-schema-post-data-import sql: %v", err)
 			}
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
