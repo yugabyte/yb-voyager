@@ -282,7 +282,13 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
 	// Not removing these flags and just hiding them for backward compatibility.
 	cmd.Flags().MarkHidden("post-snapshot-import")
+	cmd.Flags().MarkDeprecated("post-snapshot-import",
+		"use the command 'finalize-schema-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+
 	cmd.Flags().MarkHidden("refresh-mviews")
+	cmd.Flags().MarkDeprecated("refresh-mviews",
+		"it is no longer supported in the 'import schema' command. Use the 'finalize-schema-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+
 }
 
 func validateTargetPortRange() {
