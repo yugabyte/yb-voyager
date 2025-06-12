@@ -32,6 +32,7 @@ type TestContainer interface {
 	GetVersion() (string, error)
 
 	// SQL helpers
+	Query(sql string, args ...interface{}) (*sql.Rows, error)
 	ExecuteSqls(sqls ...string)
 
 	/*

@@ -209,3 +209,18 @@ func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 		}
 	}
 }
+
+func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	db, err := ms.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for query: %w", err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	return rows, nil
+}

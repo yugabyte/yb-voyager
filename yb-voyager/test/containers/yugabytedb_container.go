@@ -230,6 +230,24 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	}
 }
 
+func (yb *YugabyteDBContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	if yb == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+
+	conn, err := yb.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for yugabytedb query: %w", err)
+	}
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
+}
+
 // No need to ping after this, as the wait strategy will ensure that the DB is ready to accept connections
 func yugabyteWait() wait.Strategy {
 	return wait.ForSQL("5433/tcp", "pgx",
