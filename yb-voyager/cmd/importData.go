@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -657,6 +658,8 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	log.Infof("pending tasks: %v", pendingTasks)
 	log.Infof("completed tasks: %v", completedTasks)
 
+	checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTasks)
+
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
 	sourceTableList := msr.TableListExportedFromSource
@@ -796,6 +799,45 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
+}
+
+// For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
+func checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) {
+	if !isFreshStart(importFileTasks, pendingTasks, completedTasks) {
+		log.Infof("Not a fresh start, skipping primary key conflict mode check.")
+		return
+	}
+
+	// in case of ERROR mode, no need to check for non-empty tables
+	// but for IGNORE or UPDATE(in future), we need to prompt user
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		return
+	}
+
+	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
+	// TODO: skip if those are non PK tables?
+	tablesHavingData := tdb.GetNonEmptyTables(pendingTablesList)
+	if len(tablesHavingData) == 0 {
+		return
+	}
+
+	utils.PrintAndLog(
+		"Importing into tables that already hold data: %v\n\n"+
+			"Current conflict mode: --on-primary-key-conflict-action=IGNORE\n\n"+
+			"What happens now:\n"+
+			"  • Any incoming row whose PK matches an existing row will be dropped.\n"+
+			"  • No error will be thrown for those skipped rows.\n"+
+			"  • You'll end up with only the new non-conflicting rows added.\n\n"+
+			"Please confirm you understand and want to continue.\n", tablesHavingData,
+	)
+	if !utils.AskPrompt("Do you want to continue with the import?") {
+		utils.ErrExit("Aborting import.")
+	}
+}
+
+func isFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) bool {
+	// A fresh start is when all tasks are pending(non-zero) and no tasks are completed.
+	return len(pendingTasks) == len(importFileTasks) && len(completedTasks) == 0 && len(pendingTasks) > 0
 }
 
 func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error {
