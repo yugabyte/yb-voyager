@@ -63,7 +63,7 @@ func setUpContainer(dbType string, containerConfig *ContainerConfig, forLive boo
 	// check if container is already created after fetching default configs
 	containerName := fmt.Sprintf("%s-%s", dbType, containerConfig.DBVersion)
 	if container, exists := registryMap[containerName]; exists {
-		log.Infof("container for live '%s' already exists in the registry", containerName)
+		log.Infof("container '%s' already exists in the registry", containerName)
 		return container
 	}
 
