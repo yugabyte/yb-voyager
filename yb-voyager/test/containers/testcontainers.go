@@ -18,21 +18,29 @@ var (
 )
 
 type TestContainer interface {
+	// lifecycle
 	Start(ctx context.Context) error
+	// Stop works for pausing the container, so that it can be restarted later
 	Stop(ctx context.Context) error
 	Terminate(ctx context.Context)
+
+	// connectivity and config
 	GetHostPort() (string, int, error)
 	GetConfig() ContainerConfig
 	GetConnectionString() string
 	GetConnection() (*sql.DB, error)
+	GetVersion() (string, error)
+
+	// SQL helpers
+	ExecuteSqls(sqls ...string)
+
 	/*
 		TODOs
-			// Function to run sql script for a specific test case
-			SetupSqlScript(scriptName string, dbName string) error
+			1. // Function to run sql script for a specific test case
+			   SetupSqlScript(scriptName string, dbName string) error
 
-			// Add Capability to run multiple versions of a dbtype parallely
+			2. // Add Capability to run multiple versions of a dbtype parallely
 	*/
-	ExecuteSqls(sqls ...string)
 }
 
 type ContainerConfig struct {
