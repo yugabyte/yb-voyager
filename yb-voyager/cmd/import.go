@@ -97,10 +97,15 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
 
-	err = validateOnPrimaryKeyConflictFlag()
+	return nil
+}
+
+func validateImportDataFlags() error {
+	err := validateOnPrimaryKeyConflictFlag()
 	if err != nil {
 		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
 	}
+
 	return nil
 }
 

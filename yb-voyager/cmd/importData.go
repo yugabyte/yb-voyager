@@ -101,6 +101,11 @@ var importDataCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
+
+		err = validateImportDataFlags()
+		if err != nil {
+			utils.ErrExit("Error validating import data flags: %s", err.Error())
+		}
 	},
 	Run: importDataCommandFn,
 }
