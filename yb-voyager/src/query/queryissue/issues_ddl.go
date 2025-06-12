@@ -147,7 +147,6 @@ var exclusionConstraintIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: EXCLUSION_CONSTRAINT_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/3944",
-	Suggestion:  EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION,
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
 }
 
@@ -820,8 +819,8 @@ var primaryOrUniqueConstraintOnCitextDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -838,8 +837,8 @@ var primaryOrUniqueConstraintOnTsVectorDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -856,8 +855,8 @@ var primaryOrUniqueConstraintOnTsQueryDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_TSQUERY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -874,8 +873,8 @@ var primaryOrUniqueConstraintOnJsonbDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_JSONB_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnJsonbDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -892,8 +891,8 @@ var primaryOrUniqueConstraintOnInetDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_INET_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnInetDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -910,8 +909,8 @@ var primaryOrUniqueConstraintOnJsonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_JSON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnJsonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -928,8 +927,8 @@ var primaryOrUniqueConstraintOnMacaddrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_MACADDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnMacaddrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -946,8 +945,8 @@ var primaryOrUniqueConstraintOnMacaddr8DatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_MACADDR8_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnMacaddr8DatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -964,8 +963,8 @@ var primaryOrUniqueConstraintOnCidrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_CIDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnCidrDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -982,8 +981,8 @@ var primaryOrUniqueConstraintOnBitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_BIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnBitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1000,8 +999,8 @@ var primaryOrUniqueConstraintOnVarbitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_VARBIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnVarbitDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1018,8 +1017,8 @@ var primaryOrUniqueConstraintOnDaterangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_DATERANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnDaterangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1036,8 +1035,8 @@ var primaryOrUniqueConstraintOnTsrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_TSRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnTsrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1054,8 +1053,8 @@ var primaryOrUniqueConstraintOnTstzrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_TSTZRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnTstzrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1072,8 +1071,8 @@ var primaryOrUniqueConstraintOnNumrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_NUMRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnNumrangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1090,8 +1089,8 @@ var primaryOrUniqueConstraintOnInt4rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_INT4RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnInt4rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1108,8 +1107,8 @@ var primaryOrUniqueConstraintOnInt8rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_INT8RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnInt8rangeDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1126,8 +1125,8 @@ var primaryOrUniqueConstraintOnIntervalDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_INTERVAL_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnIntervalDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1144,8 +1143,8 @@ var primaryOrUniqueConstraintOnCircleDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_CIRCLE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnCircleDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1162,8 +1161,8 @@ var primaryOrUniqueConstraintOnBoxDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_BOX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnBoxDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1180,8 +1179,8 @@ var primaryOrUniqueConstraintOnLineDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_LINE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnLineDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1198,8 +1197,8 @@ var primaryOrUniqueConstraintOnLsegDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_LSEG_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnLsegDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1216,8 +1215,8 @@ var primaryOrUniqueConstraintOnPointDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_POINT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnPointDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1234,8 +1233,8 @@ var primaryOrUniqueConstraintOnPgLsnDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_PGLSN_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1252,8 +1251,8 @@ var primaryOrUniqueConstraintOnPathDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_PATH_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnPathDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1270,8 +1269,8 @@ var primaryOrUniqueConstraintOnPolygonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_POLYGON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1288,8 +1287,8 @@ var primaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1306,8 +1305,8 @@ var primaryOrUniqueConstraintOnArrayDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1324,8 +1323,8 @@ var primaryOrUniqueConstraintOnUserDefinedTypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: PK_UK_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported", //Keeping it similar for now, will see if we need to a separate issue on docs,
 }
 
 func NewPrimaryOrUniqueConstraintOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string, typeName string, constraintName string) QueryIssue {
@@ -1344,8 +1343,8 @@ var indexOnArrayDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_ARRAY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnArrayDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1359,8 +1358,8 @@ var indexOnUserDefinedDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnUserDefinedTypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1374,8 +1373,8 @@ var indexOnCitextDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CITEXT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnCitextDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1389,8 +1388,8 @@ var indexOnTsVectorDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSVECTOR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnTsVectorDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1404,8 +1403,8 @@ var indexOnTsQueryDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSQUERY_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnTsQueryDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1419,8 +1418,8 @@ var indexOnJsonbDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_JSONB_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnJsonbDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1434,8 +1433,8 @@ var indexOnInetDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INET_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnInetDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1449,8 +1448,8 @@ var indexOnJsonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_JSON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnJsonDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1464,8 +1463,8 @@ var indexOnMacaddrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_MACADDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnMacaddrDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1479,8 +1478,8 @@ var indexOnMacaddr8DatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_MACADDR8_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnMacaddr8DatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1494,8 +1493,8 @@ var indexOnCidrDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CIDR_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnCidrDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1509,8 +1508,8 @@ var indexOnBitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_BIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnBitDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1524,8 +1523,8 @@ var indexOnVarbitDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_VARBIT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnVarbitDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1539,8 +1538,8 @@ var indexOnDaterangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_DATERANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnDaterangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1554,8 +1553,8 @@ var indexOnTsrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnTsrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1569,8 +1568,8 @@ var indexOnTstzrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TSTZRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnTstzrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1584,8 +1583,8 @@ var indexOnNumrangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_NUMRANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnNumrangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1599,8 +1598,8 @@ var indexOnInt4rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INT4RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnInt4rangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1614,8 +1613,8 @@ var indexOnInt8rangeDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INT8RANGE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnInt8rangeDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1629,8 +1628,8 @@ var indexOnIntervalDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_INTERVAL_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnIntervalDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1644,8 +1643,8 @@ var indexOnCircleDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_CIRCLE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnCircleDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1659,8 +1658,8 @@ var indexOnBoxDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_BOX_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnBoxDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1674,8 +1673,8 @@ var indexOnLineDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_LINE_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnLineDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1689,8 +1688,8 @@ var indexOnLsegDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_LSEG_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnLsegDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1704,8 +1703,8 @@ var indexOnPointDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_POINT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnPointDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1719,8 +1718,8 @@ var indexOnPgLsnDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_PG_LSN_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnPgLsnDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1734,8 +1733,8 @@ var indexOnPathDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_PATH_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnPathDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1749,8 +1748,8 @@ var indexOnPolygonDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_POLYGON_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnPolygonDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
@@ -1764,8 +1763,8 @@ var indexOnTxidSnapshotDatatypeIssue = issue.Issue{
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: INDEX_ON_TXID_SNAPSHOT_DATATYPE_ISSUE_DESCRIPTION,
 	GH:          "https://github.com/yugabyte/yugabyte-db/issues/25003",
-	Suggestion:  INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION,
-	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+
+	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
 }
 
 func NewIndexOnTxidSnapshotDatatypeIssue(objectType string, objectName string, sqlStatement string) QueryIssue {

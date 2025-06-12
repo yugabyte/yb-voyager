@@ -249,8 +249,26 @@
         }
     </style>
     <script>
+
+        const ISSUES_JS_INFO_IF_PERF_TABLE = {
+            false: {                      // other assessment issues
+                count: {{ len (filterOutPerformanceOptimizationIssues .Issues) }},
+                details: 'details-',
+                arrow:   'arrow-',
+                expand:  'expandAllButton',
+                collapse:'collapseAllButton'
+            },
+            true: {                       // performance optimisations
+                count: {{ len (getPerformanceOptimizationIssues .Issues) }},
+                details: 'details-perf-',
+                arrow:   'arrow-perf-',
+                expand:  'expandAllButton-perf',
+                collapse:'collapseAllButton-perf'
+            }
+        };
+
         // Toggle Details Functionality
-        function toggleDetails(detailsRowId, arrowId) {
+        function toggleDetails(detailsRowId, arrowId, isPerf) {
             const row = document.getElementById(detailsRowId);
             const arrow = document.getElementById(arrowId);
             if (row.classList.contains('show')) {
@@ -260,46 +278,48 @@
                 row.classList.add('show');
                 arrow.innerHTML = "&#x25BC;"; // Down arrow (&#x25BC;) for expanded
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Expand All Issues
-        function expandAllIssues() {
+        function expandAllIssues(isPerf) {
             // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            const totalIssues = {{ len .Issues }};
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+               
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (!row.classList.contains('show')) {
                     row.classList.add('show');
-                    arrow.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
+                    arrowId.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Collapse All Issues
-        function collapseAllIssues() {
-            const totalIssues = {{ len .Issues }};
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+        function collapseAllIssues(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]              
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (row.classList.contains('show')) {
                     row.classList.remove('show');
-                    arrow.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
+                    arrowId.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Update Button Visibility Based on Row States
-        function updateButtonVisibility() {
-            const totalIssues = {{ len .Issues }};
+        function updateButtonVisibility(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]                      
             let someExpanded = false;
             let someCollapsed = false;
 
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                const row = document.getElementById(issuesJsInfo.details + i);
                 if (row.classList.contains('show')) {
                     someExpanded = true;
                 } else {
@@ -308,8 +328,8 @@
                 if (someExpanded && someCollapsed) break;
             }
 
-            const expandButton = document.getElementById('expandAllButton');
-            const collapseButton = document.getElementById('collapseAllButton');
+            const expandButton = document.getElementById(issuesJsInfo.expand);
+            const collapseButton = document.getElementById(issuesJsInfo.collapse);
             expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
             collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
         }
@@ -321,7 +341,7 @@
             impact: 'asc'
         };
 
-        function sortTableBy(field) {
+        function sortTableBy(field, isPerf) {
             // Grab the table element
             const table = document.querySelector(".table-highlight");
 
@@ -345,15 +365,20 @@
             issuePairs.forEach(pair => table.appendChild(pair));
 
             // Update the sort indicator in the table header
-            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
             if (sortIndicator) {
                 sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
+        function updateButtonVisibilities() {
+            updateButtonVisibility(false);
+            updateButtonVisibility(true);
+        }
         // Initialize Button Visibility on Page Load
-        window.onload = updateButtonVisibility;
+        window.onload = updateButtonVisibilities;
+
     </script>
 </head>
 <body>
@@ -491,18 +516,19 @@
             </p>
         {{ end }}
 
+        {{ $allIssuesWithoutPerfOptimzations := filterOutPerformanceOptimizationIssues .Issues }}
         <h2>Assessment Issues</h2>
-        {{ if .Issues }}
+        {{ if $allIssuesWithoutPerfOptimzations }}
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total Issues:</strong> {{ len .Issues }}</p>
+                    <p><strong>Total Issues:</strong> {{ len $allIssuesWithoutPerfOptimzations }}</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
                 <div class="buttons" id="controlButtons">
-                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues()">Expand All</button>
-                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues()">Collapse All</button>
+                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues(false)">Expand All</button>
+                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues(false)">Collapse All</button>
                 </div>
             </div>
             <table class="table-highlight">
@@ -515,25 +541,25 @@
                 </colgroup>
                 <thead>
                     <tr style="background-color: #f2f2f2;">
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', false)">
                             Category <span class="sort-indicator">&#8597;</span>
                         </th>
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', false)">
                             Issue <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
-                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact',false)">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
                     </tr>
                 </thead>
-                {{ range $idx, $issue := .Issues }}
+                {{ range $idx, $issue := $allIssuesWithoutPerfOptimzations }}
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
                         data-name="{{ $issue.Name }}"
                         data-impact="{{ $issue.Impact }}">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}')">
+                        <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -601,17 +627,6 @@
                                                         {{ end }}
                                                     </td>
                                                 </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        {{ if $issue.DocsLink }}
-                                                            <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">Documentation</a>
-                                                        {{ else }}
-                                                        <!-- display N/A if docs link not present -->
-                                                            N/A
-                                                        {{ end }}
-                                                    </td>
-                                                </tr>
 
                                                 <!-- Only show if there is a supported version -->
                                                 {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
@@ -626,7 +641,10 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1.08em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
+                                                                {{ if $issue.DocsLink }}
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
+                                                                {{ end }}
                                                             </div>
                                                         {{ else }}
                                                         <!-- display N/A if description not present -->
@@ -657,6 +675,153 @@
             </table>
         {{ else }}
             <p>No issues were found in the assessment.</p>
+        {{ end }}
+
+        {{ $performanceOptimizationIssues := getPerformanceOptimizationIssues .Issues }}
+
+        {{ if ne (len $performanceOptimizationIssues) 0 }}
+
+            <h2>Performance optimizations</h2>
+            <p>Recommendations to source schema or queries to optimize performance on YugabyteDB.</p>
+            <div class="assessment-issues-header">
+                <!-- Left area: text about total issues -->
+                <div>
+                    <p><strong>Total optimizations:</strong> {{ len $performanceOptimizationIssues }}</p>
+                    <p>Below is a detailed breakdown of each optmization.</p>
+                </div>
+                <!-- Right area: buttons -->
+                <div class="buttons" id="controlButtons">
+                    <button class="rounded-button" id="expandAllButton-perf" onclick="expandAllIssues(true)">Expand All</button>
+                    <button class="rounded-button" id="collapseAllButton-perf" onclick="collapseAllIssues(true)">Collapse All</button>
+                </div>
+            </div>
+            <table class="table-highlight">
+                <!-- Summary Row Header for the issue -->
+                <colgroup>
+                    <col style="width: 40%;"> <!-- Issue Name -->
+                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
+                    <col style="width: 10%;"> <!-- Impact -->
+                </colgroup>
+                <thead>
+                    <tr style="background-color: #f2f2f2;">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', true)">
+                            Optimization <span class="sort-indicator">&#8597;</span>
+                        </th>
+                        <th class="centered-cell">Object/SQL Preview</th>
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', true)">
+                            Impact <span class="sort-indicator">&#8597;</span>
+                        </th>
+                    </tr>
+                </thead>
+                {{ range $idx, $issue := $performanceOptimizationIssues }}
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="{{ $issue.Category }}"
+                        data-name="{{ $issue.Name }}"
+                        data-impact="{{ $issue.Impact }}">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-perf-{{ $idx }}', 'arrow-perf-{{ $idx }}', true)">
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    <div class="arrow-container">
+                                        <span id="arrow-perf-{{ $idx }}">&#9654;</span>
+                                    </div>
+                                    {{ $issue.Name }}
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                {{ if $issue.ObjectName }}
+                                    {{ $issue.ObjectName }}
+                                {{ else }}
+                                    {{ getSqlPreview $issue.SqlStatement }}
+                                {{ end }}
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-perf-{{ $idx }}" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+
+                                                <!-- Only show if ObjectType is present -->
+                                                {{ if $issue.ObjectType }}
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>{{ $issue.ObjectType }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                {{ if $issue.ObjectName }}
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>{{ $issue.ObjectName }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        {{ if $issue.SqlStatement }}
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.SqlStatement }}</pre>
+                                                            </div>
+                                                        {{ else }}
+                                                        <!-- display N/A if Sql Statement not present -->
+                                                            N/A
+                                                        {{ end }}
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
+                                                {{ if $verStr }}
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>{{ $verStr }}</td>
+                                                    </tr>
+                                                {{ end }}
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        {{ if $issue.Description }}
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
+                                                                {{ if $issue.DocsLink }}
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
+                                                                {{ end }}
+                                                            </div>
+                                                        {{ else }}
+                                                        <!-- display N/A if description not present -->
+                                                            N/A
+                                                        {{ end }}
+                                                    </td>
+                                                </tr>
+                                               {{ if $issue.Details }}
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            {{ range $key, $value := $issue.Details }}
+                                                                <li>{{ camelCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
+                                                            {{ end }}
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               {{ end }}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                {{ end }}
+            </table>
         {{ end }}
 
         {{ if .Notes }}
