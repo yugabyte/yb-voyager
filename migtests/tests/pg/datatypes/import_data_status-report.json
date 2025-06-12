@@ -4,55 +4,63 @@
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"datatypes2\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"datetime_type\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"datetime_type2\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"decimal_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"hstore_example\"",
     "status": "DONE",
     "total_count": 13,
     "imported_count": 13,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"null_and_default\"",
     "status": "DONE",
     "total_count": 2,
     "imported_count": 2,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   },
   {
     "table_name": "public.\"num_types\"",
     "status": "DONE",
     "total_count": 3,
     "imported_count": 3,
-    "percentage_complete": 100
+    "percentage_complete": 100,
+    "errored_count": 0
   }
 ]

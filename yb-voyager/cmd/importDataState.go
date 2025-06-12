@@ -252,6 +252,18 @@ func (s *ImportDataState) GetErroredRowCount(filePath string, tableNameTup sqlna
 	return result, nil
 }
 
+func (s *ImportDataState) GetErroredByteCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetErroredBatches(filePath, tableNameTup)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting errored batches for %s: %w", tableNameTup, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.ByteCount
+	}
+	return result, nil
+}
+
 // TODO:TABLENAME: revisit??
 func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, error) {
 	tableNames, err := s.discoverTableNames()
@@ -276,6 +288,7 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 	result := []*Batch{}
 
 	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
+	utils.PrintAndLog("Discovering batches in %q for table %q", fileStateDir, tableNameTup.ForKey())
 	// Check if the fileStateDir exists.
 	_, err := os.Stat(fileStateDir)
 	if err != nil {
@@ -287,6 +300,7 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 	}
 
 	// Find regular files in the `fileStateDir` whose name starts with "batch::"
+
 	files, err := os.ReadDir(fileStateDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir %q: %s", fileStateDir, err)

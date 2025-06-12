@@ -5,6 +5,7 @@
       "status": "DONE",
       "total_count": 29013000804,
       "imported_count": 29013000804,
-      "percentage_complete": 100
+      "percentage_complete": 100,
+      "errored_count": 0
     }
 ]
