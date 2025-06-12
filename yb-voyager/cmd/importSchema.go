@@ -231,7 +231,7 @@ func importSchema() error {
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for TABLEs in finalize-schema-post-data-import phase: %s", err)
+			return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 		}
 		if flagRefreshMViews {
 			refreshMViews(conn)
