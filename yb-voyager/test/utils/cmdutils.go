@@ -88,6 +88,7 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 
 	// If we want synchronous behavior, wait for the command to finish.
 	if !async {
+		// cmd.Wait() err only tells you that the child exited with a non-zero code; not the actual error.
 		if err := cmd.Wait(); err != nil {
 			return nil, fmt.Errorf("voyager command exited with error: %w", err)
 		}

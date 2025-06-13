@@ -318,6 +318,11 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
+	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	if err != nil {
+		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 
@@ -331,6 +336,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
+		PKConstraintName:  pkConstraintName,
 		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,
