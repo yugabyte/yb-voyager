@@ -523,8 +523,5 @@ func validateOnPrimaryKeyConflictFlag() error {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
-	// once all validations passed we can save the action value in MSR
-	saveOnPrimaryKeyConflictActionInMSR()
-
 	return nil
 }

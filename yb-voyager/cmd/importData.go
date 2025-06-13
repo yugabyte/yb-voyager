@@ -128,12 +128,18 @@ var importDataToTargetCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-
 	importPhase = dbzm.MODE_SNAPSHOT
 	ExitIfAlreadyCutover(importerRole)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
+
+	/*
+		Before this point MSR won't not be initialised in case of importDataFileCmd
+		In case of importDataCmd, MSR would be initialised already by previous commands
+	*/
+	saveOnPrimaryKeyConflictActionInMSR()
+
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
