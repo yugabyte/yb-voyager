@@ -23,6 +23,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/fatih/color"
 	"github.com/stretchr/testify/assert"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -90,4 +91,47 @@ There are some GIN indexes present in the schema, but GIN indexes are partially 
 	}
 
 	assert.Equal(t, expectedJsonString, actualString, "The unsupported index types in the report do not match the expected output")
+}
+
+func Test_ContainerResumption(t *testing.T) {
+	mysqlContainer := testcontainers.NewTestContainer(testcontainers.MYSQL, nil)
+	if err := mysqlContainer.Start(context.Background()); err != nil {
+		t.Fatalf("Failed to start PostgreSQL container: %v", err)
+	}
+
+	// create table and insert 1 row
+	mysqlContainer.ExecuteSqls(
+		`CREATE TABLE test_table (id INT PRIMARY KEY, name VARCHAR(50));`,
+		`INSERT INTO test_table (id, name) VALUES (9999, 'test_name');`)
+
+	color.Red("Stopping PostgreSQL container to test resumption...")
+	// Stop the container
+	if err := mysqlContainer.Stop(context.Background()); err != nil {
+		t.Fatalf("Failed to stop PostgreSQL container: %v", err)
+	}
+
+	// Restart the container
+	color.Yellow("Restarting PostgreSQL container to test resumption...")
+	if err := mysqlContainer.Start(context.Background()); err != nil {
+		t.Fatalf("Failed to restart PostgreSQL container: %v", err)
+	}
+
+	color.Green("PostgreSQL container restarted successfully, now checking if data is intact...")
+	rows, err := mysqlContainer.Query("SELECT * FROM test_table;")
+	if err != nil {
+		t.Fatalf("Failed to query PostgreSQL container: %v", err)
+	}
+	defer rows.Close()
+	if !rows.Next() {
+		t.Fatalf("Expected to find a row in the table, but found none")
+	}
+	var id int
+	var name string
+	if err := rows.Scan(&id, &name); err != nil {
+		t.Fatalf("Failed to scan row: %v", err)
+	}
+	if id != 9999 || name != "test_name" {
+		t.Fatalf("Expected row (1, 'test_name'), but got (%d, '%s')", id, name)
+	}
+	utils.PrintAndLog("PostgreSQL container resumed successfully with data intact")
 }
