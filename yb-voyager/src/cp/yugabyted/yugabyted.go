@@ -453,12 +453,15 @@ func (cp *YugabyteD) createYugabytedMetadataTable() error {
 		return err
 	}
 
-	// using ALTER to add new columns since TABLE might already exists due to old voyager version migrations
+	// using ALTER to add new columns and change column types since TABLE might already exists due to old voyager version migrations
 	alterTableCmds := []string{
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS host_ip VARCHAR;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS port INT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS db_version VARCHAR(250);`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 		fmt.Sprintf(`ALTER TABLE %s ADD COLUMN IF NOT EXISTS voyager_info VARCHAR;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN migration_dir TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN database_name TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
+		fmt.Sprintf(`ALTER TABLE %s ALTER COLUMN schema_name TYPE TEXT;`, QUALIFIED_YUGABYTED_METADATA_TABLE_NAME),
 	}
 
 	for _, cmd := range alterTableCmds {
