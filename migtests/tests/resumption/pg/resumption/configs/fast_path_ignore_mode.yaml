@@ -7,7 +7,6 @@
 # Import Type
 import_type: offline
 
-# Additional Flags
 additional_flags:
   --on-primary-key-conflict: "IGNORE"
 
