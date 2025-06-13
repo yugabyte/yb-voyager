@@ -498,18 +498,17 @@ func validateOnPrimaryKeyConflictFlag() error {
 	}
 
 	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
-	if !startClean {
+	/*
+		Most of our cmd validations(including this) run in PreRun phase
+		which can happen before the migration status record or the metaDB is created.
+		For example, in case of import data file command
+	*/
+	if !bool(startClean) && metaDBIsCreated(exportDir) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %v", err)
 		} else if msr == nil {
-			/*
-				Most of our cmd validations(including this) run in PreRun phase
-				which can happen before the migration status record is created.
-				For example, in case of import data file command
-				Hence, its possible to have it as nil and we should ignore
-			*/
-			return nil
+			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
