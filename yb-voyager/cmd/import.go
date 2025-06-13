@@ -497,7 +497,13 @@ func validateOnPrimaryKeyConflictFlag() error {
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %v", err)
 		} else if msr == nil {
-			return fmt.Errorf("migration status record not found.")
+			/*
+				Most of our cmd validations(including this) run in PreRun phase
+				which can happen before the migration status record is created.
+				For example, in case of import data file command
+				Hence, its possible to have it as nil and we should ignore
+			*/
+			return nil
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
