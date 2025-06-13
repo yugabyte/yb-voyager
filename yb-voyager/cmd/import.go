@@ -484,6 +484,12 @@ func validateOnPrimaryKeyConflictFlag() error {
 	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
 	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
 
+	// flag only applicable for import-data-to-target and import-data-file commands
+	// ignore for import-data-to-source-replica and import-data-to-source commands
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return nil
+	}
+
 	// Check if the provided OnPrimaryKeyConflictAction is valid
 	if tconf.OnPrimaryKeyConflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
