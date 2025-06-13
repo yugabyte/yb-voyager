@@ -172,6 +172,26 @@ func (ms *MysqlContainer) GetConnection() (*sql.DB, error) {
 	return db, nil
 }
 
+func (ms *MysqlContainer) GetVersion() (string, error) {
+	if ms == nil {
+		return "", fmt.Errorf("mysql container is not started: nil")
+	}
+
+	db, err := ms.GetConnection()
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection for mysql version: %w", err)
+	}
+	defer db.Close()
+
+	var version string
+	err = db.QueryRow("SELECT VERSION()").Scan(&version)
+	if err != nil {
+		return "", fmt.Errorf("failed to fetch mysql version: %w", err)
+	}
+
+	return version, nil
+}
+
 func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 	if ms == nil {
 		utils.ErrExit("mysql container is not started: nil")
@@ -188,4 +208,19 @@ func (ms *MysqlContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (ms *MysqlContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	db, err := ms.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for query: %w", err)
+	}
+	defer db.Close()
+
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+
+	return rows, nil
 }
