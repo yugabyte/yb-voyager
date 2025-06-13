@@ -792,18 +792,28 @@ CREATE TABLE public.foo (
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
 	// Export data from Postgres (synchronous run).
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	exportDataCmdRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
 
+	err := exportDataCmdRunner.Prepare()
+	if err != nil {
+		t.Fatalf("Failed to prepare export command: %v", err)
+	}
+
+	err = exportDataCmdRunner.Run()
+	if err != nil {
+		t.Fatalf("Export command failed: %v", err)
+	}
+
 	// create new export dir and run import data file command on this data file
 	exportDir2 := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir2)
 
-	importDataFileCmdArgs := []string{
+	importDataFileCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data file", []string{
 		"--export-dir", exportDir2,
 		"--disable-pb", "true",
 		"--batch-size", "10",
@@ -812,9 +822,14 @@ CREATE TABLE public.foo (
 		"--file-table-map", "foo_data.sql:public.foo",
 		"--format", "TEXT", // by default hasHeader is false
 		"--yes",
+	}, nil, false)
+	err = importDataFileCmdRunner.Prepare()
+	if err != nil {
+		t.Fatalf("Failed to prepare import command: %v", err)
 	}
 
-	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	// Run the import command
+	err = importDataFileCmdRunner.Run()
 	if err != nil {
 		t.Fatalf("Import command failed: %v", err)
 	}
