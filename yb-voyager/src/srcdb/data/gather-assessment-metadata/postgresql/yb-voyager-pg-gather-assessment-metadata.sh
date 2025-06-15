@@ -40,6 +40,9 @@ Arguments:
 
   iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
+  yes                         Assume answer as yes for all questions during migration (default 'no') (accepted values: 'y', 'Y','yes')
+
+
 Example:
   PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
 
@@ -56,8 +59,8 @@ fi
 if [ "$#" -lt 4 ]; then
     echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
-elif [ "$#" -gt 5 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
+elif [ "$#" -gt 6 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
     exit 1
 fi
 
@@ -72,10 +75,20 @@ fi
 
 pgss_enabled=$4
 iops_capture_interval=120 # default sleep for calculating iops
-# Override default sleep interval if a fifth argument is provided
-if [ "$#" -eq 5 ]; then
+# Override default sleep interval if a fifth argument is 
+yes='no'
+
+
+if [ "$#" -ge 5 ]; then
     iops_capture_interval=$5
     echo "sleep interval for calculating iops: $iops_capture_interval seconds"
+fi
+
+if [ "$#" -eq 6 ]; then
+    yes=$6
+    if [[ "$yes" != "y" && "$yes" != "Y" && "$yes" != "yes" ]]; then 
+        echo "accepted values for yes parameter are only ('y', 'Y', and 'yes')"
+    fi
 fi
 
 
@@ -169,6 +182,36 @@ main() {
         if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
             print_and_log "INFO" "Exiting..."
             exit 2
+        fi
+    fi
+
+    last_analyze=$(psql $pg_connection_string -tAqc "SELECT schemaname, MAX(last_analyze) FROM pg_stat_all_tables where schemaname=ANY(ARRAY[string_to_array('$schema_list', '|')]) GROUP BY schemaname;")
+
+    null_analyze_schemas=()
+
+    # Read each line
+    while IFS='|' read -r schema ts; do
+    ts_trimmed=$(echo "$ts" | xargs)  # trim any whitespace
+    if [[ -z "$ts_trimmed" ]]; then
+        null_analyze_schemas+=("$schema")
+    fi
+    done <<< "$last_analyze"
+
+    if (( ${#null_analyze_schemas[@]} > 0 )); then
+        echo ""
+        echo "The following schemas do not have ANALYZE statistics:"
+        for s in "${null_analyze_schemas[@]}"; do
+            echo "  - $s"
+        done
+        echo ""
+        echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
+        echo "Do you want to continue without analyzing these schemas? (Y/N)"
+        if [ "$yes" == 'no' ]; then
+            read -r user_input
+            if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
+                echo "You can run ANALYZE manually on the affected schemas before retrying."
+                exit 1
+            fi
         fi
     fi
 

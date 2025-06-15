@@ -682,8 +682,9 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		return err
 	}
 
+	yesParam := lo.Ternary(utils.DoNotPrompt, "yes", "no")
 	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS))
+		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS), yesParam)
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {
