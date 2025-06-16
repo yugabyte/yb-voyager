@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -929,6 +930,15 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
+	// create backupDIr
+	backupDir, err := os.MkdirTemp("", "backup-export-dir-*")
+	testutils.FatalIfError(t, err, "Failed to create backup directory")
+	t.Cleanup(func() {
+		if err := os.RemoveAll(backupDir); err != nil {
+			t.Fatalf("Failed to remove backup directory: %v", err)
+		}
+	})
+
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
@@ -960,7 +970,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	}
 
 	// Export data from Postgres.
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", tempExportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
@@ -1003,6 +1013,51 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
+
+	// Run end-migration to ensure that the errored files are backed up properly
+	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
+	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "end migration", []string{
+		"--export-dir", tempExportDir,
+		"--backup-data-files", "true",
+		"--backup-dir", backupDir,
+		"--backup-log-files", "true",
+		"--backup-schema-files", "false",
+		"--save-migration-reports", "false",
+		"--yes",
+	}, nil, false)
+	testutils.FatalIfError(t, err, "End migration command failed")
+	/*
+	   /var/folders/7k/7hlzpjm172d67qk2cxw9b5bc0000gq/T/backup-export-dir-2474499162/data/errors/table::test_data/file::test_data_data.sql:1960b25c » cat ingestion-error.batch::1.10.10.92.E                                        amakala@am-mbp-2qfp0
+	   1	name_1
+	   2	name_2
+	   3	name_3
+	   4	name_4
+	   5	name_5
+	   6	name_6
+	   7	name_7
+	   8	name_8
+	   9	name_9
+	   10	name_10
+
+	   Error Message: ERROR: duplicate key value violates unique constraint "test_data_pkey" (SQLSTATE 23505),  in /var/folders/7k/7hlzpjm172d67qk2cxw9b5bc0000gq/T/yb-voyager-export171200792/metainfo/import_data_state/target_db_importer/table::public."test_data"/file::test_data_data.sql::3bc1d048/batch::1.10.10.92.P
+
+	*/
+
+	// Verify that the backup directory contains the expected error files.
+	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
+	tableDir := fmt.Sprintf("table::%s", "test_data")
+	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(tempExportDir, "data", "test_data_data.sql")))
+	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
+	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.X")
+	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+	// Verify the content of the error file
+	content, err := os.ReadFile(errorFilePath)
+	if err != nil {
+		t.Fatalf("Failed to read error file %s: %v", errorFilePath, err)
+	}
+	assert.Containsf(t, string(content), "duplicate key value violates unique constraint", "Expected error file to contain 'duplicate key value violates unique constraint' message")
+
 }
 
 // TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
