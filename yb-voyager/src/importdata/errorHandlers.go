@@ -39,6 +39,7 @@ type ImportDataErrorHandler interface {
 	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
+	GetErrorsLocation() string
 }
 
 type ErroredBatch interface {
@@ -73,6 +74,10 @@ func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBa
 func (handler *ImportDataAbortHandler) CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do.
 	return nil
+}
+
+func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
+	return ""
 }
 
 // -----------------------------------------------------------------------------------------------------//
@@ -191,6 +196,10 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 		return fmt.Errorf("removing errors folder for table : %s", err)
 	}
 	return nil
+}
+
+func (handler *ImportDataStashAndContinueHandler) GetErrorsLocation() string {
+	return filepath.Join(handler.dataDir, "errors")
 }
 
 // exporting this only to enable unit testing from cmd package.

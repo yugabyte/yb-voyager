@@ -49,6 +49,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -359,7 +360,7 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
 	} else {
@@ -430,6 +431,9 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		fmt.Printf("\n")
 		fmt.Println(uitable)
 		fmt.Printf("\n")
+	}
+	if hasErrors {
+		utils.PrintAndLog(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
 	}
 }
 
