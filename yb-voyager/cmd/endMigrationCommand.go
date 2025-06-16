@@ -169,6 +169,8 @@ func backupErrorsDir(exportDir, backupDir string) error {
 
 	// Step 2: For each <table-dir>/<file-dir>, check for symlinks directly inside
 	// and move the real file to the symlink location.
+	// batch ingestion errors are actually symlinks to the real files stored in metainfo/import_data_state/...
+	// They need to be resolved to the actual files in the export directory and moved to the backupDir.
 	tableDirs, err := os.ReadDir(errorsDstDir)
 	if err != nil {
 		return fmt.Errorf("reading table dirs in errors: %v", err)
