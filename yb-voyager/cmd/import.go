@@ -97,10 +97,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
 
-	err = validateOnPrimaryKeyConflictFlag()
-	if err != nil {
-		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
-	}
 	return nil
 }
 
@@ -491,6 +487,12 @@ func validateOnPrimaryKeyConflictFlag() error {
 	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
 	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
 
+	// flag only applicable for import-data-to-target and import-data-file commands
+	// ignore for import-data-to-source-replica and import-data-to-source commands
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return nil
+	}
+
 	// Check if the provided OnPrimaryKeyConflictAction is valid
 	if tconf.OnPrimaryKeyConflictAction != "" {
 		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
@@ -499,12 +501,17 @@ func validateOnPrimaryKeyConflictFlag() error {
 	}
 
 	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
-	if !startClean {
+	/*
+		Most of our cmd validations(including this) run in PreRun phase
+		which can happen before the migration status record or the metaDB is created.
+		For example, in case of import data file command
+	*/
+	if !bool(startClean) && metaDBIsCreated(exportDir) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
 			return fmt.Errorf("error getting migration status record: %v", err)
 		} else if msr == nil {
-			return fmt.Errorf("migration status record not found.")
+			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
 
 		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
@@ -517,9 +524,6 @@ func validateOnPrimaryKeyConflictFlag() error {
 	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
-
-	// once all validations passed we can save the action value in MSR
-	saveOnPrimaryKeyConflictActionInMSR()
 
 	return nil
 }
