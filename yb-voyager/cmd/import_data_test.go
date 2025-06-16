@@ -964,7 +964,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	}
 
 	// Export data from Postgres.
-	_, err = testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
 		"--export-dir", tempExportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
