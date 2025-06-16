@@ -99,7 +99,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLog("saved the backup at %q", backupDir)
 	}
 
-	cleanupExportDir()
+	// cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 	packAndSendEndMigrationPayload(COMPLETE, "")
 }
@@ -205,6 +205,7 @@ func moveErrorsDir(exportDir, backupDir string) error {
 			if err != nil {
 				return fmt.Errorf("reading entries in %q: %v", fileDirPath, err)
 			}
+			log.Debugf("checking for symlinks in %q: %v", fileDirPath, entries)
 			for _, entry := range entries {
 				entryPath := filepath.Join(fileDirPath, entry.Name())
 				info, err := os.Lstat(entryPath)
@@ -221,11 +222,10 @@ func moveErrorsDir(exportDir, backupDir string) error {
 					}
 					cmd := exec.Command("mv", realFile, entryPath)
 					output, err := cmd.CombinedOutput()
+					log.Infof("moving real file for symlink %q to %q: output: %s", realFile, entryPath, string(output))
 					if err != nil {
-						return fmt.Errorf("moving real file for symlink %q: %s: %v", entryPath, string(output), err)
+						return fmt.Errorf("moving real file for symlink from %q to %q: %s: %v", realFile, entryPath, string(output), err)
 					}
-					log.Infof("moved real file for symlink %q to %q", entryPath, entryPath)
-					os.Remove(entryPath)
 				}
 			}
 		}
