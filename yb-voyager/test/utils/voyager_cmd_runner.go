@@ -46,7 +46,6 @@ type VoyagerCommandRunner struct {
 	StdoutBuf *bytes.Buffer
 	StderrBuf *bytes.Buffer
 	exitCode  ExitCode
-	lastErr   error // lastErr is used to capture the last error encountered during command execution
 }
 
 func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName string, cmdArgs []string, doDuringCmd func(), isAsync bool) *VoyagerCommandRunner {
@@ -133,9 +132,9 @@ func (this *VoyagerCommandRunner) Run() error {
 	}
 
 	log.Debugf("running command: %s", this.Cmd.String())
-	this.lastErr = this.Cmd.Start()
-	if this.lastErr != nil {
-		return fmt.Errorf("failed to start command: %w", this.lastErr)
+	err := this.Cmd.Start()
+	if err != nil {
+		return fmt.Errorf("failed to start command: %w", err)
 	}
 
 	if this.doDuringCmd != nil {
@@ -145,8 +144,8 @@ func (this *VoyagerCommandRunner) Run() error {
 	}
 
 	if !this.isAsync {
-		this.lastErr = this.Wait()
-		return this.lastErr
+		err = this.Wait()
+		return err
 	}
 	return nil
 }
@@ -163,6 +162,25 @@ func (this *VoyagerCommandRunner) Wait() error {
 	} else {
 		this.exitCode = ExitCodeSuccess
 	}
+	return nil
+}
+
+func (this *VoyagerCommandRunner) Kill() error {
+	if this.Cmd == nil {
+		return fmt.Errorf("command for %s not built yet", this.CmdName)
+	}
+
+	if this.Cmd.Process == nil {
+		return fmt.Errorf("process for command %s is not available", this.CmdName)
+	}
+
+	log.Debugf("killing command: %s", this.Cmd.String())
+	err := this.Cmd.Process.Kill()
+	if err != nil {
+		return fmt.Errorf("failed to kill command: %w", err)
+	}
+
+	this.exitCode = ExitCodeFailure // setting failure code for unsuccessful execution
 	return nil
 }
 
