@@ -183,6 +183,21 @@ func backupDataFilesFn() {
 			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
+
+	// Move queue and errors directories if they exist
+	for _, dirName := range []string{"queue", "errors"} {
+		srcDir := filepath.Join(exportDir, "data", dirName)
+		dstDir := filepath.Join(backupDir, "data", dirName)
+		if utils.FileOrFolderExists(srcDir) {
+			cmd := exec.Command("mv", srcDir, dstDir)
+			output, err := cmd.CombinedOutput()
+			if err != nil {
+				utils.ErrExit("moving %s directory: %s: %v", dirName, string(output), err)
+			} else {
+				log.Infof("moved %s directory %q to %q", dirName, srcDir, dstDir)
+			}
+		}
+	}
 }
 
 func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
