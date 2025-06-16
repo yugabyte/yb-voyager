@@ -152,6 +152,87 @@ func backupSchemaFilesFn() {
 	}
 }
 
+func moveQueueDir(exportDir, backupDir string) error {
+	queueSrcDir := filepath.Join(exportDir, "data", "queue")
+	queueDstDir := filepath.Join(backupDir, "data", "queue")
+	if utils.FileOrFolderExists(queueSrcDir) {
+		cmd := exec.Command("mv", queueSrcDir, queueDstDir)
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("moving queue directory: %s: %v", string(output), err)
+		} else {
+			log.Infof("moved queue directory %q to %q", queueSrcDir, queueDstDir)
+		}
+	}
+	return nil
+}
+
+func moveErrorsDir(exportDir, backupDir string) error {
+	errorsSrcDir := filepath.Join(exportDir, "data", "errors")
+	errorsDstDir := filepath.Join(backupDir, "data", "errors")
+	if !utils.FileOrFolderExists(errorsSrcDir) {
+		return nil
+	}
+
+	// Step 1: Move the entire errors directory
+	cmd := exec.Command("mv", errorsSrcDir, errorsDstDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("moving errors directory: %s: %v", string(output), err)
+	}
+	log.Infof("moved errors directory %q to %q", errorsSrcDir, errorsDstDir)
+
+	// Step 2: For each <table-dir>/<file-dir>, check for symlinks directly inside
+	tableDirs, err := os.ReadDir(errorsDstDir)
+	if err != nil {
+		return fmt.Errorf("reading table dirs in errors: %v", err)
+	}
+	for _, tableDir := range tableDirs {
+		if !tableDir.IsDir() {
+			continue
+		}
+		tableDirPath := filepath.Join(errorsDstDir, tableDir.Name())
+		fileDirs, err := os.ReadDir(tableDirPath)
+		if err != nil {
+			return fmt.Errorf("reading file dirs in %q: %v", tableDirPath, err)
+		}
+		for _, fileDir := range fileDirs {
+			if !fileDir.IsDir() {
+				continue
+			}
+			fileDirPath := filepath.Join(tableDirPath, fileDir.Name())
+			entries, err := os.ReadDir(fileDirPath)
+			if err != nil {
+				return fmt.Errorf("reading entries in %q: %v", fileDirPath, err)
+			}
+			for _, entry := range entries {
+				entryPath := filepath.Join(fileDirPath, entry.Name())
+				info, err := os.Lstat(entryPath)
+				if err != nil {
+					return fmt.Errorf("lstat on %q: %v", entryPath, err)
+				}
+				if info.Mode()&os.ModeSymlink != 0 {
+					realFile, err := os.Readlink(entryPath)
+					if err != nil {
+						return fmt.Errorf("readlink on %q: %v", entryPath, err)
+					}
+					if !filepath.IsAbs(realFile) {
+						realFile = filepath.Join(filepath.Dir(entryPath), realFile)
+					}
+					cmd := exec.Command("mv", realFile, entryPath)
+					output, err := cmd.CombinedOutput()
+					if err != nil {
+						return fmt.Errorf("moving real file for symlink %q: %s: %v", entryPath, string(output), err)
+					}
+					log.Infof("moved real file for symlink %q to %q", entryPath, entryPath)
+					os.Remove(entryPath)
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func backupDataFilesFn() {
 	if !backupDataFiles {
 		return
@@ -184,19 +265,11 @@ func backupDataFilesFn() {
 		}
 	}
 
-	// Move queue and errors directories if they exist
-	for _, dirName := range []string{"queue", "errors"} {
-		srcDir := filepath.Join(exportDir, "data", dirName)
-		dstDir := filepath.Join(backupDir, "data", dirName)
-		if utils.FileOrFolderExists(srcDir) {
-			cmd := exec.Command("mv", srcDir, dstDir)
-			output, err := cmd.CombinedOutput()
-			if err != nil {
-				utils.ErrExit("moving %s directory: %s: %v", dirName, string(output), err)
-			} else {
-				log.Infof("moved %s directory %q to %q", dirName, srcDir, dstDir)
-			}
-		}
+	if err := moveQueueDir(exportDir, backupDir); err != nil {
+		utils.ErrExit("%v", err)
+	}
+	if err := moveErrorsDir(exportDir, backupDir); err != nil {
+		utils.ErrExit("%v", err)
 	}
 }
 
