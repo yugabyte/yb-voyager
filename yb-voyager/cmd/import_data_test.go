@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -921,8 +922,7 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	// now run import data file command using this data file
-	importDataFileCmdArgs := []string{
+	importDataFileCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data file", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
@@ -934,14 +934,20 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		"--has-header", "true",
 		"--truncate-splits", "false",
 		"--yes",
+	}, nil, false)
+
+	// Prepare the command runner
+	err = importDataFileCmdRunner.Prepare()
+	if err != nil {
+		t.Fatalf("Failed to prepare import command: %v", err)
 	}
 
-	// TODO: planning to enhance RunVoyagerCommand to return the actual error messages, currently it returns a exit status
-	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
-	if err == nil {
-		t.Fatalf(`Expected import command to fail due to "unique constraint violation", but it succeeded`)
-	} else {
-		t.Logf("Import command failed as expected with error: %v", err)
+	// Run the import command
+	err = importDataFileCmdRunner.Run()
+	expectedErr := tgtdb.VIOLATES_UNIQUE_CONSTRAINT_ERROR
+	if err != nil && !strings.Contains(importDataFileCmdRunner.Stderr(), expectedErr) {
+		// err message from Run just contains the ExitCode, refer Stderr for actual error message
+		t.Fatalf("Import command failed with expected error: %v\n actual error: %s", expectedErr, importDataFileCmdRunner.Stderr())
 	}
 }
 
@@ -1027,11 +1033,18 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		"--yes",
 	}
 
-	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+	importDataFileCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
+
+	// Prepare the command runner
+	err = importDataFileCmdRunner.Prepare()
 	if err != nil {
-		t.Fatalf("Import command failed unexpectedly: %v", err)
-	} else {
-		t.Logf("Import command succeeded as expected, ignoring unique constraint violation on primary key")
+		t.Fatalf("Failed to prepare import command: %v", err)
+	}
+
+	// Run the import command
+	err = importDataFileCmdRunner.Run()
+	if err != nil {
+		t.Fatalf("Import command failed unexpectedly: %s", importDataFileCmdRunner.Stderr())
 	}
 }
 
