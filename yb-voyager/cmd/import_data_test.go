@@ -1027,29 +1027,13 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 		"--yes",
 	}, nil, false)
 	testutils.FatalIfError(t, err, "End migration command failed")
-	/*
-	   /var/folders/7k/7hlzpjm172d67qk2cxw9b5bc0000gq/T/backup-export-dir-2474499162/data/errors/table::test_data/file::test_data_data.sql:1960b25c » cat ingestion-error.batch::1.10.10.92.E                                        amakala@am-mbp-2qfp0
-	   1	name_1
-	   2	name_2
-	   3	name_3
-	   4	name_4
-	   5	name_5
-	   6	name_6
-	   7	name_7
-	   8	name_8
-	   9	name_9
-	   10	name_10
-
-	   Error Message: ERROR: duplicate key value violates unique constraint "test_data_pkey" (SQLSTATE 23505),  in /var/folders/7k/7hlzpjm172d67qk2cxw9b5bc0000gq/T/yb-voyager-export171200792/metainfo/import_data_state/target_db_importer/table::public."test_data"/file::test_data_data.sql::3bc1d048/batch::1.10.10.92.P
-
-	*/
 
 	// Verify that the backup directory contains the expected error files.
 	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", "test_data")
 	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(tempExportDir, "data", "test_data_data.sql")))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.X")
+	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
 	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
 	// Verify the content of the error file
 	content, err := os.ReadFile(errorFilePath)
