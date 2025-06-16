@@ -31,6 +31,7 @@ func CreateBackupDir(t *testing.T) string {
 			t.Fatalf("Failed to remove backup directory: %v", err)
 		}
 	})
+	return backupDir
 }
 
 func RemoveTempExportDir(exportDir string) {
