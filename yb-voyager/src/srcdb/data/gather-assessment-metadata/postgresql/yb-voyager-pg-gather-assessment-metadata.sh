@@ -40,7 +40,7 @@ Arguments:
 
   iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
-  yes                         Assume answer as yes for all questions during migration (default 'no') (accepted values: 'y', 'Y','yes')
+  answer_to_prompt            Answer for all questions during gathering metadata (default 'no') (accepted values: 'yes' and 'no')
 
 
 Example:
@@ -60,7 +60,7 @@ if [ "$#" -lt 4 ]; then
     echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
 elif [ "$#" -gt 6 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [answer_to_prompt]"
     exit 1
 fi
 
@@ -75,19 +75,19 @@ fi
 
 pgss_enabled=$4
 iops_capture_interval=120 # default sleep for calculating iops
+answer_to_prompt='no'
+
 # Override default sleep interval if a fifth argument is 
-yes='no'
-
-
 if [ "$#" -ge 5 ]; then
     iops_capture_interval=$5
     echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
+# override default answer_to_prompt if 6th arg is given
 if [ "$#" -eq 6 ]; then
-    yes=$6
-    if [[ "$yes" != "y" && "$yes" != "Y" && "$yes" != "yes" ]]; then 
-        echo "accepted values for yes parameter are only ('y', 'Y', and 'yes')"
+    answer_to_prompt=$6
+    if [[ "$answer_to_prompt" != "no" && "$answer_to_prompt" != "yes" ]]; then 
+        echo "accepted values for the answer_to_prompt parameter are only ('yes' and 'no')"
     fi
 fi
 
@@ -206,7 +206,7 @@ main() {
         echo ""
         echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
         echo "Do you want to continue without analyzing these schemas? (Y/N)"
-        if [ "$yes" == 'no' ]; then
+        if [ "$answer_to_prompt" == 'no' ]; then
             read -r user_input
             if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
                 echo "You can run ANALYZE manually on the affected schemas before retrying."
