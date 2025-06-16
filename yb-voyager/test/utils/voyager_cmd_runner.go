@@ -64,7 +64,6 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 		CmdArgs:     cmdArgs,
 		doDuringCmd: doDuringCmd,
 		isAsync:     isAsync,
-		exitCode:    ExitCodeSuccess,
 	}
 	log.Debugf("Creating CommandRunner for command: %s with args: %s", cmdName, strings.Join(cmdArgs, " "))
 	return &cmdRunner
