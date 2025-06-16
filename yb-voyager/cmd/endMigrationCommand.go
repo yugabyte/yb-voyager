@@ -99,7 +99,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 		utils.PrintAndLog("saved the backup at %q", backupDir)
 	}
 
-	// cleanupExportDir()
+	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
 	packAndSendEndMigrationPayload(COMPLETE, "")
 }
