@@ -931,13 +931,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// create backupDIr
-	backupDir, err := os.MkdirTemp("", "backup-export-dir-*")
-	testutils.FatalIfError(t, err, "Failed to create backup directory")
-	t.Cleanup(func() {
-		if err := os.RemoveAll(backupDir); err != nil {
-			t.Fatalf("Failed to remove backup directory: %v", err)
-		}
-	})
+	backupDir := testutils.CreateBackupDir(t)
 
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
@@ -1129,13 +1123,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
 	// create backupDIr
-	backupDir, err := os.MkdirTemp("", "backup-export-dir-*")
-	testutils.FatalIfError(t, err, "Failed to create backup directory")
-	t.Cleanup(func() {
-		if err := os.RemoveAll(backupDir); err != nil {
-			t.Fatalf("Failed to remove backup directory: %v", err)
-		}
-	})
+	backupDir := testutils.CreateBackupDir(t)
 
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)
