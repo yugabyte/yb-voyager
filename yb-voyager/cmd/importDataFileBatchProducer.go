@@ -20,6 +20,7 @@ import (
 	"io"
 	"sort"
 
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
@@ -154,7 +155,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			}
 			err := p.handleRowProcessingErrorAndResetBytes(line, errMsg, currentBytesRead)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("%w\n%s", err, color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 			}
 			continue
 		}

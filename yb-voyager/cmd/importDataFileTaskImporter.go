@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
+	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -203,7 +204,8 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+			utils.ErrExit("import batch: %q into %s: %s\n%s", batch.FilePath, batch.TableNameTup, err,
+				color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
 		}
 
 		// Handle the error
