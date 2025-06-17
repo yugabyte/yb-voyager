@@ -123,6 +123,8 @@ FROM generate_series(1, 500000);`
 		"--yes",
 	}
 
+	runner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
+
 	// Simulate multiple interruptions during the import to YugabyteDB.
 	// We will run the import command asynchronously and then, after a delay, kill the process.
 	interruptionRuns := 2
@@ -130,19 +132,19 @@ FROM generate_series(1, 500000);`
 		fmt.Printf("\n\nStarting async import run #%d with interruption...\n", i+1)
 
 		// Start the import command in async mode.
-		cmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
-		testutils.FatalIfError(t, err, fmt.Sprintf("Failed to start async import command (run #%d)", i+1))
+		err = runner.Run()
+		testutils.FatalIfError(t, err, fmt.Sprintf("Failed to run async import command (run #%d)", i+1))
 
 		// Wait a short while to ensure that the command has gotten underway.
 		time.Sleep(2 * time.Second)
 
 		t.Log("Simulating interruption by sending SIGKILL to the import command process...")
-		if err := testutils.KillVoyagerCommand(cmd); err != nil {
+		if err := runner.Kill(); err != nil {
 			t.Errorf("Failed to kill import command process on run #%d: %v", i+1, err)
 		}
 
 		// Wait for the command to exit.
-		if err := cmd.Wait(); err != nil {
+		if err := runner.Wait(); err != nil {
 			t.Logf("Async import run #%d exited with error (expected): %v", i+1, err)
 		} else {
 			t.Logf("Async import run #%d completed unexpectedly", i+1)
@@ -228,16 +230,13 @@ FROM generate_series(1, 500000);`
 		"--yes",
 	}
 
+	importDataCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
+
 	// Simulate multiple interruptions during the import to YugabyteDB.
 	// We will run the import command asynchronously and then, after a delay, kill the process.
 	interruptionRuns := 2
 	for i := 0; i < interruptionRuns; i++ {
 		t.Logf("\n\nStarting async import run #%d with interruption...\n", i+1)
-
-		importDataCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
-
-		err = importDataCmdRunner.Prepare()
-		testutils.FatalIfError(t, err, "Failed to prepare import command runner")
 
 		// Start the import command in async mode.
 		// cmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", importDataCmdArgs, nil, true)
@@ -809,10 +808,7 @@ CREATE TABLE public.foo (
 		"--yes",
 	}, nil, false)
 
-	err := exportDataCmdRunner.Prepare()
-	testutils.FatalIfError(t, err, "Failed to prepare export command runner")
-
-	err = exportDataCmdRunner.Run()
+	err := exportDataCmdRunner.Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	// create new export dir and run import data file command on this data file
@@ -829,14 +825,10 @@ CREATE TABLE public.foo (
 		"--format", "TEXT", // by default hasHeader is false
 		"--yes",
 	}, nil, false)
-	err = importDataFileCmdRunner.Prepare()
-	testutils.FatalIfError(t, err, "Failed to prepare import command runner")
 
 	// Run the import command
 	err = importDataFileCmdRunner.Run()
-	if err != nil {
-		t.Fatalf("Import command failed: %v", err)
-	}
+	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
@@ -939,10 +931,6 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 		"--yes",
 	}, nil, false)
 
-	// Prepare the command runner
-	err = importDataFileCmdRunner.Prepare()
-	testutils.FatalIfError(t, err, "Failed to prepare import command runner")
-
 	// Run the import command
 	err = importDataFileCmdRunner.Run()
 	expectedErr := tgtdb.VIOLATES_UNIQUE_CONSTRAINT_ERROR
@@ -1035,10 +1023,6 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	}
 
 	importDataFileCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
-
-	// Prepare the command runner
-	err = importDataFileCmdRunner.Prepare()
-	testutils.FatalIfError(t, err, "Failed to prepare import command runner")
 
 	// Run the import command
 	err = importDataFileCmdRunner.Run()
