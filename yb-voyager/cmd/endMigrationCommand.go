@@ -193,6 +193,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 			if err != nil {
 				return fmt.Errorf("reading entries in %q: %v", fileDirPath, err)
 			}
+
 			log.Debugf("checking for symlinks in %q: %v", fileDirPath, entries)
 			for _, entry := range entries {
 				entryPath := filepath.Join(fileDirPath, entry.Name())
@@ -205,6 +206,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 					if err != nil {
 						return fmt.Errorf("readlink on %q: %v", entryPath, err)
 					}
+					// os.Readlink can potentially return a relative path.
 					if !filepath.IsAbs(realFile) {
 						realFile = filepath.Join(filepath.Dir(entryPath), realFile)
 					}
