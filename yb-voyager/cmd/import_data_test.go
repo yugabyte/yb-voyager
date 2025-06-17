@@ -1021,8 +1021,20 @@ func TestImportDataFile_FastPath_OnPrimaryKeyConflictAsIgnore_UniqueConstraintVi
 	importDataFileCmdRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data file", importDataFileCmdArgs, nil, false)
 
 	// Run the import command
-	err = importDataFileCmdRunner.Run()
-	testutils.FatalIfError(t, errors.New(importDataFileCmdRunner.Stderr()), "Import command failed unexpectedly")
+	if err := importDataFileCmdRunner.Run(); err != nil {
+		testutils.FatalIfError(t, errors.New(importDataFileCmdRunner.Stderr()), "Import command failed unexpectedly")
+	}
+
+	// Connect to YugabyteDB.
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// verify the row count
+	var rowCount int
+	err = ybConn.QueryRow("SELECT COUNT(*) FROM test_schema.test_data").Scan(&rowCount)
+	testutils.FatalIfError(t, err, "Error querying row count")
+
+	assert.Equal(t, 100, rowCount, "Row count mismatch: expected 100, got %d", rowCount)
 }
 
 // TestImportDataResumptionWithInterruptions_FastPath_ForTransientDBErrors
