@@ -1029,13 +1029,9 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
 	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
 	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
-	// Verify the content of the error file
-	content, err := os.ReadFile(errorFilePath)
-	if err != nil {
-		t.Fatalf("Failed to read error file %s: %v", errorFilePath, err)
-	}
-	assert.Containsf(t, string(content), "duplicate key value violates unique constraint", "Expected error file to contain 'duplicate key value violates unique constraint' message")
 
+	// Verify the content of the error file
+	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
 }
 
 // TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
@@ -1224,11 +1220,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
 	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
 	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
-	// Verify the content of the error file
-	content, err := os.ReadFile(errorFilePath)
-	if err != nil {
-		t.Fatalf("Failed to read error file %s: %v", errorFilePath, err)
-	}
-	assert.Containsf(t, string(content), "duplicate key value violates unique constraint", "Expected error file to contain 'duplicate key value violates unique constraint' message")
 
+	// Verify the content of the error file
+	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
 }

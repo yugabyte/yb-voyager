@@ -535,3 +535,13 @@ func scanRow(rows *sql.Rows, colCount int) ([]interface{}, error) {
 
 	return values, nil
 }
+
+func AssertFileContains(t *testing.T, filePath string, expectedContent string) {
+	t.Helper()
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", filePath, err)
+	}
+	assert.Containsf(t, string(content), expectedContent,
+		"File %s does not contain expected content: %s", filePath, expectedContent)
+}
