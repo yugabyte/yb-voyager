@@ -102,7 +102,7 @@ CREATE TEMP TABLE indexes AS
       ON oc.oid = opcls.opc
 
     /* Filter on the schema list at this point */
-    WHERE ao.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')])
+    WHERE ao.schemaname = ANY(ARRAY['public', 'test'])
 
     GROUP BY
         i.indrelid,
@@ -176,13 +176,12 @@ JOIN indexes existing
  AND redundant.indnkeyatts <= existing.indnkeyatts
 
  /*
-  * Partial index logic: consider a partial index overshadowed if there's a 
-  * full (no predicate) index on the same columns, or if the partial 
-  * predicates match exactly.
+  * Partial index logic: not consider any partial indexes in the check for
+  * redundant with existing.
   */
  AND (
     existing.partial_pred IS NULL
-    OR redundant.partial_pred = existing.partial_pred
+    AND redundant.partial_pred IS NULL
  )
 
  /*
