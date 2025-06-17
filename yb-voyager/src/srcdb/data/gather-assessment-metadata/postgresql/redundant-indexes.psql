@@ -102,7 +102,7 @@ CREATE TEMP TABLE indexes AS
       ON oc.oid = opcls.opc
 
     /* Filter on the schema list at this point */
-    WHERE ao.schemaname = ANY(ARRAY['public', 'test'])
+    WHERE ao.schemaname = ANY(ARRAY[string_to_array(:'schema_list', '|')]) --schema_list
 
     GROUP BY
         i.indrelid,
