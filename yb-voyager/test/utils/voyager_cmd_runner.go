@@ -203,3 +203,8 @@ func (v *VoyagerCommandRunner) Stderr() string {
 	}
 	return v.StderrBuf.String()
 }
+
+
+func (v *VoyagerCommandRunner) SetAsync(async bool) {
+	v.isAsync = async
+}
