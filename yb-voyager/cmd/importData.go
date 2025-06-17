@@ -102,9 +102,9 @@ var importDataCmd = &cobra.Command{
 			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 
-		err = validateOnPrimaryKeyConflictFlag()
+		err = validateImportDataFlags()
 		if err != nil {
-			utils.ErrExit("Error validating --on-primary-key-conflict flag: %s", err.Error())
+			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
 	},
 	Run: importDataCommandFn,
