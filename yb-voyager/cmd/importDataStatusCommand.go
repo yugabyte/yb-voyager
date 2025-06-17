@@ -76,6 +76,14 @@ func init() {
 	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
+const (
+	STATUS_MIGRATING        = "MIGRATING"
+	STATUS_DONE             = "DONE"
+	STATUS_DONE_WITH_ERRORS = "DONE_WITH_ERRORS"
+	STATUS_NOT_STARTED      = "NOT_STARTED"
+	STATUS_STREAMING        = "STREAMING"
+)
+
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	TableName          string  `json:"table_name"`
@@ -213,21 +221,21 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		row.PercentageComplete = (float64(row.ImportedCount) + float64(row.ErroredCount)) * 100.0 / float64(row.TotalCount)
 		if row.PercentageComplete == 100 {
 			if row.ErroredCount > 0 {
-				row.Status = "DONE_WITH_ERRORS"
+				row.Status = STATUS_DONE_WITH_ERRORS
 			} else {
-				row.Status = "DONE"
+				row.Status = STATUS_DONE
 			}
 		} else if row.PercentageComplete == 0 {
-			row.Status = "NOT_STARTED"
+			row.Status = STATUS_NOT_STARTED
 		} else {
-			row.Status = "MIGRATING"
+			row.Status = STATUS_MIGRATING
 		}
 		table = append(table, row)
 	}
 
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
-		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "DONE_WITH_ERRORS": 3, "NOT STARTED": 4, "STREAMING": 5}
+		ordStates := map[string]int{STATUS_MIGRATING: 1, STATUS_DONE: 2, STATUS_DONE_WITH_ERRORS: 3, STATUS_NOT_STARTED: 4, STATUS_STREAMING: 5}
 		row1 := table[i]
 		row2 := table[j]
 		if row1.Status == row2.Status {
