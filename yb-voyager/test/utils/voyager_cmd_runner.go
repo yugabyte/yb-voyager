@@ -38,6 +38,7 @@ type VoyagerCommandRunner struct {
 	container   testcontainers.TestContainer
 	CmdName     string
 	CmdArgs     []string
+	finalArgs   []string // store final command args after preparation
 	isAsync     bool
 	doDuringCmd func()
 
@@ -69,8 +70,8 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 }
 
 func (this *VoyagerCommandRunner) Prepare() error {
-	if this.Cmd != nil {
-		return fmt.Errorf("command already built: %s with args: %s", this.CmdName, strings.Join(this.CmdArgs, " "))
+	if len(this.finalArgs) != 0 {
+		return nil // already prepared
 	}
 
 	// Appending to CmdArgs based on the command type.
@@ -102,34 +103,36 @@ func (this *VoyagerCommandRunner) Prepare() error {
 		}
 	}
 
-	/*
-		append order is important here as the args passed in CommmandRunner might want to override the default of ContainerConfig
-		For eg: append(this.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
-	*/
-	this.CmdArgs = append(connectionArgs, this.CmdArgs...)
-
-	log.Infof("preparing command: %s with args: %s", this.CmdName, strings.Join(this.CmdArgs, " "))
-	this.StdoutBuf = &bytes.Buffer{}
-	this.StderrBuf = &bytes.Buffer{}
-
 	// split the command name on spaces so that Cobra framework
 	// can detect parent and child commands correctly.
 	// e.g. CmdName == "export data" → parts == ["export", "data"]
 	parts := strings.Fields(this.CmdName)
-	finalArgs := append(parts, this.CmdArgs...)
-	this.Cmd = exec.Command("yb-voyager", finalArgs...)
-	this.Cmd.Stdout = io.MultiWriter(os.Stdout, this.StdoutBuf)
-	this.Cmd.Stderr = io.MultiWriter(os.Stderr, this.StderrBuf)
 
-	// disable callhome diagnostics during tests
-	this.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	/*
+		append order is important here as the CmdArgs passed in CommmandRunner might want to override the default of ContainerConfig
+		For eg: append(this.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
+	*/
+	this.finalArgs = append(parts, append(connectionArgs, this.CmdArgs...)...)
 	return nil
 }
 
+func (this *VoyagerCommandRunner) newCmd() {
+	this.StdoutBuf = &bytes.Buffer{}
+	this.StderrBuf = &bytes.Buffer{}
+
+	this.Cmd = exec.Command("yb-voyager", this.finalArgs...)
+	this.Cmd.Stdout = io.MultiWriter(os.Stdout, this.StdoutBuf)
+	this.Cmd.Stderr = io.MultiWriter(os.Stderr, this.StderrBuf)
+	// disable callhome diagnostics during tests
+	this.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+}
+
 func (this *VoyagerCommandRunner) Run() error {
-	if this.Cmd == nil {
-		return fmt.Errorf("command not built yet: %s with args: %s", this.CmdName, strings.Join(this.CmdArgs, " "))
+	if err := this.Prepare(); err != nil {
+		return fmt.Errorf("failed to prepare command: %w", err)
 	}
+
+	this.newCmd()
 
 	log.Debugf("running command: %s", this.Cmd.String())
 	err := this.Cmd.Start()
@@ -144,8 +147,7 @@ func (this *VoyagerCommandRunner) Run() error {
 	}
 
 	if !this.isAsync {
-		err = this.Wait()
-		return err
+		return this.Wait()
 	}
 	return nil
 }
