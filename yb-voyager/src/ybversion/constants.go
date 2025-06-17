@@ -98,5 +98,6 @@ func init() {
 	}
 
 	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
+	// And in the config file templates as well.
 	LatestStable = V2024_2_3_1
 }
