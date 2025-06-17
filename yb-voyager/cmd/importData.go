@@ -843,7 +843,7 @@ func checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTas
 			"Under this mode:\n"+
 			"  • Duplicate Primary Key rows are silently skipped.\n"+
 			"  • Import proceeds without error for skipped entries.\n"+
-			"  • Only unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(tablesHavingData),
+			"  • Only new unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(tablesHavingData),
 	)
 	if !utils.AskPrompt("Please confirm whether to proceed") {
 		utils.ErrExit("Aborting import.")
