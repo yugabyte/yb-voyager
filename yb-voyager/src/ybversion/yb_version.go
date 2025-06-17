@@ -116,21 +116,6 @@ func (ybv *YBVersion) String() string {
 	return ybv.Original()
 }
 
-func (ybv *YBVersion) GreaterThanOrEqualMajorVersionUpto3Segments(other *YBVersion) bool {
-	ybvSegs := ybv.Segments()
-	otherSegs := other.Segments()
-
-	// Compare only up to 3 segments (A.B.C)
-	for i := 0; i < 3; i++ {
-		if ybvSegs[i] > otherSegs[i] {
-			return true
-		} else if ybvSegs[i] < otherSegs[i] {
-			return false
-		}
-	}
-	return true // all three segments are equal
-}
-
 // override the UnmarshalText method of Version.
 // UnmarshalText implements encoding.TextUnmarshaler interface.
 func (ybv *YBVersion) UnmarshalText(b []byte) error {

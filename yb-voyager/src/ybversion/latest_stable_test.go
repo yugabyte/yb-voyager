@@ -56,10 +56,15 @@ func TestLatestStable(t *testing.T) {
 			releaseName = releaseName[1:]
 		}
 		releaseName = strings.Trim(releaseName, " ")
-		rVersion, err := NewYBVersion(releaseName)
+		releaseSegs := strings.Split(releaseName, ".")
+		assert.Equal(t, 4, len(releaseSegs), "invalid release version: %s. It has %d segments. Version should have exactly 4 segments (A.B.C.D).")
+		//Changing the minor version segment to 0 to be able to compare only the major version i.e. aaaa.b.b 
+		//e.g. 2024.2.3.1 -> 2024.2.3.0
+		releaseSegs[3] = "0"
+		rVersion, err := NewYBVersion(strings.Join(releaseSegs, "."))
 		assert.NoErrorf(t, err, "could not create version %q", releaseName)
 		if rVersion.ReleaseType() == STABLE {
-			assert.True(t, LatestStable.GreaterThanOrEqualMajorVersionUpto3Segments(rVersion), "%s is not greater than %s", LatestStable, rVersion)
+			assert.True(t, LatestStable.GreaterThanOrEqual(rVersion), "%s is not greater than %s", LatestStable, rVersion)
 		}
 	}
 }
