@@ -240,6 +240,30 @@ func (s *ImportDataState) GetImportedByteCount(filePath string, tableNameTup sql
 	return result, nil
 }
 
+func (s *ImportDataState) GetErroredRowCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetErroredBatches(filePath, tableNameTup)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting errored batches for %s: %w", tableNameTup, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.RecordCount
+	}
+	return result, nil
+}
+
+func (s *ImportDataState) GetErroredByteCount(filePath string, tableNameTup sqlname.NameTuple) (int64, error) {
+	batches, err := s.GetErroredBatches(filePath, tableNameTup)
+	if err != nil {
+		return -1, fmt.Errorf("error while getting errored batches for %s: %w", tableNameTup, err)
+	}
+	result := int64(0)
+	for _, batch := range batches {
+		result += batch.ByteCount
+	}
+	return result, nil
+}
+
 // TODO:TABLENAME: revisit??
 func (s *ImportDataState) DiscoverTableToFilesMapping() (map[string][]string, error) {
 	tableNames, err := s.discoverTableNames()
@@ -275,6 +299,7 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 	}
 
 	// Find regular files in the `fileStateDir` whose name starts with "batch::"
+
 	files, err := os.ReadDir(fileStateDir)
 	if err != nil {
 		return nil, fmt.Errorf("read dir %q: %s", fileStateDir, err)
@@ -824,14 +849,16 @@ func (batch *Batch) Open() (*os.File, error) {
 }
 
 func (batch *Batch) OpenAsDataFile() (datafile.DataFile, error) {
-	reader, err := dataStore.Open(batch.GetFilePath())
+	// Bypass DataStore and open the file directly as a local data file,
+	// since generated batches only use local files and don’t require cloud storage.
+	file, err := batch.Open()
 	if err != nil {
-		return nil, fmt.Errorf("open datastore %q: %s", batch.GetFilePath(), err)
+		return nil, fmt.Errorf("open batch file %q: %s", batch.GetFilePath(), err)
 	}
 
-	datafile, err := datafile.NewDataFile(batch.GetFilePath(), reader, dataFileDescriptor)
+	datafile, err := datafile.NewDataFile(batch.GetFilePath(), file, dataFileDescriptor)
 	if err != nil {
-		return nil, fmt.Errorf("open datafile %q: %s", batch.GetFilePath(), err)
+		return nil, fmt.Errorf("create datafile for %q: %s", batch.GetFilePath(), err)
 	}
 
 	return datafile, err

@@ -231,13 +231,13 @@ func importSchema() error {
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for TABLEs in post-snapshot-import phase: %s", err)
+			return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 		}
 		if flagRefreshMViews {
 			refreshMViews(conn)
 		}
 	} else {
-		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `import schema --post-snapshot-import`.")
+		utils.PrintAndLog("\nNOTE: Materialized Views are not populated by default. To populate them, pass --refresh-mviews while executing `finalize-schema-post-data-import`.")
 	}
 
 	importSchemaCompleteEvent := createImportSchemaCompletedEvent()

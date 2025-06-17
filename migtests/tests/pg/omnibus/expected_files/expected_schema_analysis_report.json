@@ -195,7 +195,7 @@
             "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_basic, _nested).",
             "SqlStatement": "CREATE TABLE composite_type_examples.ordinary_table (basic_ composite_type_examples.basic_comp_type, _basic composite_type_examples.basic_comp_type GENERATED ALWAYS AS (basic_) STORED, nested composite_type_examples.nested, _nested composite_type_examples.nested GENERATED ALWAYS AS (nested) STORED, CONSTRAINT check_f1_gt_1 CHECK ((basic_).f1 \u003e 1), CONSTRAINT check_f1_gt_1_again CHECK ((_basic).f1 \u003e 1), CONSTRAINT check_nested_f1_gt_1 CHECK ((nested).foo.f1 \u003e 1), CONSTRAINT check_nested_f1_gt_1_again CHECK ((_nested).foo.f1 \u003e 1));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
            "MinimumVersionsFixedIn": {
@@ -209,7 +209,7 @@
             "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_status, _severity, info).",
             "SqlStatement": "CREATE TABLE enum_example.bugs (id int NOT NULL, description text, status enum_example.bug_status, _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED, severity enum_example.bug_severity, _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED, info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
             "MinimumVersionsFixedIn": {
@@ -235,7 +235,7 @@
             "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_1 ON composite_type_examples.ordinary_table USING btree (basic_);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null

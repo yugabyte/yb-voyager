@@ -53,6 +53,42 @@ func NewHotspotOnDateIndexIssue(objectType string, objectName string, sqlStateme
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }
 
+var hotspotsOnTimestampPrimaryOrUniqueKeyConstraint = issue.Issue{
+	Type:        HOTSPOTS_ON_TIMESTAMP_PK_UK,
+	Name:        HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+}
+
+func NewHotspotOnTimestampPKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnTimestampPrimaryOrUniqueKeyConstraint
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var hotspotsOnDatePrimaryOrUniqueKeyConstraint = issue.Issue{
+	Type:        HOTSPOTS_ON_DATE_PK_UK,
+	Name:        HOTSPOTS_ON_DATE_PK_UK_ISSUE,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION,
+	GH:          "",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
+}
+
+func NewHotspotOnDatePKOrUKIssue(objectType string, objectName string, sqlStatement string, colName string) QueryIssue {
+	issue := hotspotsOnDatePrimaryOrUniqueKeyConstraint
+	details := map[string]interface{}{
+		COLUMN_NAME: colName,
+	}
+
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
 var hotspotsOnTimestampIndexes = issue.Issue{
 	Type:        HOTSPOTS_ON_TIMESTAMP_INDEX,
 	Name:        HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE,

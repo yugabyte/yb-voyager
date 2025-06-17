@@ -372,29 +372,25 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	}
 	uitable := uitable.New()
 
-	dbType := "target"
-	if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE {
+	// TODO: refactor this; we don't need to pass the dbType as a parameter,
+	// we can just pass the importerRole directly.
+	var dbType string
+	switch importerRole {
+	case IMPORT_FILE_ROLE:
+		dbType = "target-file"
+	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		dbType = "source-replica"
+	case TARGET_DB_IMPORTER_ROLE:
+		dbType = "target"
 	}
 
-	snapshotRowCount := utils.NewStructMap[sqlname.NameTuple, int64]()
-
-	if importerRole == IMPORT_FILE_ROLE {
-		for _, tableName := range tableList {
-			tableRowCount, err := state.GetImportedSnapshotRowCountForTable(tableName)
-			if err != nil {
-				utils.ErrExit("could not fetch snapshot row count for table: %q: %w", tableName, err)
-			}
-			snapshotRowCount.Put(tableName, tableRowCount)
-		}
-	} else {
-		snapshotRowCount, err = getImportedSnapshotRowsMap(dbType)
-		if err != nil {
-			utils.ErrExit("failed to get imported snapshot rows map: %v", err)
-		}
+	snapshotRowCount, err := getImportedSnapshotRowsMap(dbType)
+	if err != nil {
+		utils.ErrExit("failed to get imported snapshot rows map: %v", err)
 	}
+
 	keys := make([]sqlname.NameTuple, 0, len(snapshotRowCount.Keys()))
-	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v int64) (bool, error) {
+	snapshotRowCount.IterKV(func(k sqlname.NameTuple, v RowCountPair) (bool, error) {
 		keys = append(keys, k)
 		return true, nil
 	})
@@ -402,16 +398,33 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 	sort.Slice(keys, func(i, j int) bool {
 		val1, _ := snapshotRowCount.Get(keys[i])
 		val2, _ := snapshotRowCount.Get(keys[j])
-		return val1 > val2
+		return val1.Imported > val2.Imported
 	})
+
+	hasErrors := false
+	for _, tableName := range keys {
+		rowCountPair, _ := snapshotRowCount.Get(tableName)
+		if rowCountPair.Errored > 0 {
+			hasErrors = true
+			break
+		}
+	}
 
 	for i, tableName := range keys {
 		if i == 0 {
-			addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
+			if hasErrors {
+				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT", "ERRORED ROW COUNT")
+			} else {
+				addHeader(uitable, "SCHEMA", "TABLE", "IMPORTED ROW COUNT")
+			}
 		}
 		s, t := tableName.ForCatalogQuery()
-		rowCount, _ := snapshotRowCount.Get(tableName)
-		uitable.AddRow(s, t, rowCount)
+		rowCountPair, _ := snapshotRowCount.Get(tableName)
+		if hasErrors {
+			uitable.AddRow(s, t, rowCountPair.Imported, rowCountPair.Errored)
+		} else {
+			uitable.AddRow(s, t, rowCountPair.Imported)
+		}
 	}
 	if len(tableList) > 0 {
 		fmt.Printf("\n")
@@ -980,22 +993,32 @@ func getExportedSnapshotRowsMap(exportSnapshotStatus *ExportSnapshotStatus) (*ut
 	return snapshotRowsMap, snapshotStatusMap, nil
 }
 
-func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, int64], error) {
+func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTuple, RowCountPair], error) {
 	switch dbType {
 	case "target":
 		importerRole = TARGET_DB_IMPORTER_ROLE
+	case "target-file":
+		importerRole = IMPORT_FILE_ROLE
 	case "source-replica":
 		importerRole = SOURCE_REPLICA_DB_IMPORTER_ROLE
 	}
 	state := NewImportDataState(exportDir)
 	var snapshotDataFileDescriptor *datafile.Descriptor
 
-	dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
-	if utils.FileOrFolderExists(dataFileDescriptorPath) {
-		snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+	if dataFileDescriptor != nil {
+		// in case of import-data and import-data-file, import-data-to-source-replica,
+		// the data file descriptor is already loaded in memory
+		snapshotDataFileDescriptor = dataFileDescriptor
+	} else {
+		// get data-migration-report use-case where
+		// we need to read the data file descriptor from export-dir
+		dataFileDescriptorPath := filepath.Join(exportDir, datafile.DESCRIPTOR_PATH)
+		if utils.FileOrFolderExists(dataFileDescriptorPath) {
+			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
+		}
 	}
 
-	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, int64]()
+	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
 	dataFilePathNtMap := map[string]sqlname.NameTuple{}
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
@@ -1008,12 +1031,20 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 	}
 
 	for dataFilePath, nt := range dataFilePathNtMap {
-		snapshotRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
+		importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 		if err != nil {
-			return nil, fmt.Errorf("could not fetch snapshot row count for table %q: %w", nt, err)
+			return nil, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
 		}
-		existingRows, _ := snapshotRowsMap.Get(nt)
-		snapshotRowsMap.Put(nt, existingRows+snapshotRowCount)
+		erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
+		if err != nil {
+			return nil, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
+		}
+		existingRowCountPair, _ := snapshotRowsMap.Get(nt)
+		updatedRowCountPair := RowCountPair{
+			Imported: existingRowCountPair.Imported + importedRowCount,
+			Errored:  existingRowCountPair.Errored + erroredRowCount,
+		}
+		snapshotRowsMap.Put(nt, updatedRowCountPair)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1214,6 +1245,12 @@ type AssessmentReportYugabyteD struct {
 	UnsupportedQueryConstructs []utils.UnsupportedQueryConstruct     `json:"UnsupportedQueryConstructs"`
 	UnsupportedPlPgSqlObjects  []UnsupportedFeature                  `json:"UnsupportedPlPgSqlObjects"`
 	MigrationCaveats           []UnsupportedFeature                  `json:"MigrationCaveats"`
+}
+
+// RowCountPair holds imported and errored row counts for a table.
+type RowCountPair struct {
+	Imported int64
+	Errored  int64
 }
 
 /*
@@ -1589,4 +1626,19 @@ func sendCallhomePayloadAtIntervals() {
 			packAndSendImportDataFilePayload(INPROGRESS, "")
 		}
 	}
+}
+
+// Adding it here instead of utils package to avoid circular dependency issues
+func ParseJsonToAnalyzeSchemaReport(reportPath string) (*utils.SchemaReport, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	var report utils.SchemaReport
+	err := jsonfile.NewJsonFile[utils.SchemaReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
 }

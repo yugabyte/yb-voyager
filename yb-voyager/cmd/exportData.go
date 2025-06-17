@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -382,6 +383,14 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
+			if err != nil {
+				utils.ErrExit("error checking if replication slot is active: %v", err)
+			}
+			if isActive {
+				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+			}
+
 			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
@@ -400,6 +409,21 @@ func exportData() bool {
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
+		// if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
+		// Not having this check right now for the YB as this is not available in all YB versions, TODO: add it later
+		// 	msr, err := metaDB.GetMigrationStatusRecord()
+		// 	if err != nil {
+		// 		utils.ErrExit("get migration status record: %v", err)
+		// 	}
+
+		// 	isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
+		// 	if err != nil {
+		// 		utils.ErrExit("error checking if replication slot is active: %v", err)
+		// 	}
+		// 	if isActive {
+		// 		utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
+		// 	}
+		// }
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -645,6 +669,20 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 		}
 	}
 	return allLeafPartitions
+}
+
+func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
+	if source.DBType != POSTGRESQL {
+		return false, nil
+	}
+	var isActive bool
+	var activePID sql.NullString
+	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
+	err := source.DB().QueryRow(stmt).Scan(&isActive, &activePID)
+	if err != nil {
+		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
+	}
+	return isActive && (activePID.String != ""), nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {

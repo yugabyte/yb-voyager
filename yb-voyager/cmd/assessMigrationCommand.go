@@ -1171,6 +1171,8 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.LOW_CARDINALITY_INDEX_ISSUE_NAME, "", queryissue.LOW_CARDINALITY_INDEXES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME, "", queryissue.MOST_FREQUENT_VALUE_INDEXES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NULL_VALUE_INDEXES_ISSUE_NAME, "", queryissue.NULL_VALUE_INDEXES, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_PK_UK, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
@@ -1831,15 +1833,17 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	log.Infof("creating template for assessment report...")
 	funcMap := template.FuncMap{
-		"split":                            split,
-		"groupByObjectType":                groupByObjectType,
-		"numKeysInMapStringObjectInfo":     numKeysInMapStringObjectInfo,
-		"groupByObjectName":                groupByObjectName,
-		"totalUniqueObjectNamesOfAllTypes": totalUniqueObjectNamesOfAllTypes,
-		"getSupportedVersionString":        getSupportedVersionString,
-		"snakeCaseToTitleCase":             utils.SnakeCaseToTitleCase,
-		"camelCaseToTitleCase":             utils.CamelCaseToTitleCase,
-		"getSqlPreview":                    utils.GetSqlStmtToPrint,
+		"split":                                  split,
+		"groupByObjectType":                      groupByObjectType,
+		"numKeysInMapStringObjectInfo":           numKeysInMapStringObjectInfo,
+		"groupByObjectName":                      groupByObjectName,
+		"totalUniqueObjectNamesOfAllTypes":       totalUniqueObjectNamesOfAllTypes,
+		"getSupportedVersionString":              getSupportedVersionString,
+		"snakeCaseToTitleCase":                   utils.SnakeCaseToTitleCase,
+		"camelCaseToTitleCase":                   utils.CamelCaseToTitleCase,
+		"getSqlPreview":                          utils.GetSqlStmtToPrint,
+		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
+		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1865,6 +1869,20 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func filterOutPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
+	withoutPerfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Category != PERFORMANCE_OPTIMIZATIONS_CATEGORY
+	})
+	return withoutPerfOptimzationIssues
+}
+
+func getPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
+	perfOptimzationIssues := lo.Filter(issues, func(issue AssessmentIssue, _ int) bool {
+		return issue.Category == PERFORMANCE_OPTIMIZATIONS_CATEGORY
+	})
+	return perfOptimzationIssues
 }
 
 func groupByObjectType(objects []ObjectInfo) map[string][]ObjectInfo {

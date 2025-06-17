@@ -618,7 +618,7 @@
             "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name).",
             "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
                 "2.25": "2.25.0.0"
@@ -631,7 +631,7 @@
             "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (amount).",
             "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
                 "2.25": "2.25.0.0"
@@ -684,7 +684,7 @@
             "ObjectName": "combined_tbl, constraint: (combined_tbl_j_key)",
             "Reason": "Primary key and Unique constraints on columns with json data type are not yet supported in YugabyteDB.",
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -695,7 +695,7 @@
             "ObjectName": "combined_tbl, constraint: (pk)",
             "Reason": "Primary key and Unique constraints on columns with macaddr8 data type are not yet supported in YugabyteDB.",
             "SqlStatement": "create table combined_tbl (\n\tid int,\n\tc cidr,\n\tci circle,\n\tb box,\n\tj json UNIQUE,\n\tl line,\n\tls lseg,\n\tmaddr macaddr,\n\tmaddr8 macaddr8,\n\tp point,\n\tlsn pg_lsn,\n\tp1 path,\n\tp2 polygon,\n\tid1 txid_snapshot,\n\tbitt bit (13),\n\tbittv bit varying(15),\n\tCONSTRAINT pk PRIMARY KEY (id, maddr8)\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -706,7 +706,7 @@
             "ObjectName": "combined_tbl, constraint: (combined_tbl_unique)",
             "Reason": "Primary key and Unique constraints on columns with bit data type are not yet supported in YugabyteDB.",
             "SqlStatement": "ALTER TABLE combined_tbl\n\t\tADD CONSTRAINT combined_tbl_unique UNIQUE(id, bitt);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -717,7 +717,7 @@
             "ObjectName": "combined_tbl1, constraint: (combined_tbl1_i4_key)",
             "Reason": "Primary key and Unique constraints on columns with int4range data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -728,7 +728,7 @@
             "ObjectName": "combined_tbl1, constraint: (combined_tbl1_id_t_n_pkey)",
             "Reason": "Primary key and Unique constraints on columns with tsrange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -739,7 +739,7 @@
             "ObjectName": "combined_tbl1, constraint: (combined_tbl1_id_t_n_pkey)",
             "Reason": "Primary key and Unique constraints on columns with numrange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE combined_tbl1(\n\tid int,\n\tt tsrange,\n\td daterange,\n\ttz tstzrange,\n\tn numrange,\n\ti4 int4range UNIQUE,\n\ti8 int8range,\n\tinym INTERVAL YEAR TO MONTH,\n\tinds INTERVAL DAY TO SECOND(9),\n\tPRIMARY KEY(id, t, n)\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -750,7 +750,7 @@
             "ObjectName": "combined_tbl1, constraint: (combined_tbl1_unique)",
             "Reason": "Primary key and Unique constraints on columns with daterange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "ALTER TABLE combined_tbl1\n\t\tADD CONSTRAINT combined_tbl1_unique UNIQUE(id, d);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -761,7 +761,7 @@
             "ObjectName": "test_interval, constraint: (test_interval_frequency_pkey)",
             "Reason": "Primary key and Unique constraints on columns with interval data type are not yet supported in YugabyteDB.",
             "SqlStatement": "create table test_interval(\n    frequency interval primary key,\n\tcol1 int\n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -856,7 +856,7 @@
             "ObjectName": "tsvector_idx ON public.documents",
             "Reason": "Indexes on columns with tsvector data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX tsvector_idx ON public.documents  (title_tsvector, id);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -867,7 +867,7 @@
             "ObjectName": "tsquery_idx ON public.ts_query_table",
             "Reason": "Indexes on columns with tsquery data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX tsquery_idx ON public.ts_query_table (query);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -878,7 +878,7 @@
             "ObjectName": "idx_citext ON public.citext_type",
             "Reason": "Indexes on columns with citext data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_citext ON public.citext_type USING btree (data);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -889,7 +889,7 @@
             "ObjectName": "idx_inet ON public.inet_type",
             "Reason": "Indexes on columns with inet data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_inet ON public.inet_type USING btree (data);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -900,7 +900,7 @@
             "ObjectName": "idx_json ON public.test_jsonb",
             "Reason": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_json ON public.test_jsonb (data);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -911,7 +911,7 @@
             "ObjectName": "idx_json2 ON public.test_jsonb",
             "Reason": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_json2 ON public.test_jsonb ((data2::jsonb));",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -922,7 +922,7 @@
             "ObjectName": "idx_array ON public.documents",
             "Reason": "Indexes on columns with array data type are not yet supported in YugabyteDB.",
             "SqlStatement": "create index idx_array on public.documents (list_of_sections);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -933,7 +933,7 @@
             "ObjectName": "idx1 ON combined_tbl",
             "Reason": "Indexes on columns with cidr data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx1 on combined_tbl (c);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -944,7 +944,7 @@
             "ObjectName": "idx2 ON combined_tbl",
             "Reason": "Indexes on columns with circle data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx2 on combined_tbl (ci);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -955,7 +955,7 @@
             "ObjectName": "idx3 ON combined_tbl",
             "Reason": "Indexes on columns with box data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx3 on combined_tbl (b);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -966,7 +966,7 @@
             "ObjectName": "idx4 ON combined_tbl",
             "Reason": "Indexes on columns with json data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx4 on combined_tbl (j);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -977,7 +977,7 @@
             "ObjectName": "idx5 ON combined_tbl",
             "Reason": "Indexes on columns with line data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx5 on combined_tbl (l);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -988,7 +988,7 @@
             "ObjectName": "idx6 ON combined_tbl",
             "Reason": "Indexes on columns with lseg data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx6 on combined_tbl (ls);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -999,7 +999,7 @@
             "ObjectName": "idx7 ON combined_tbl",
             "Reason": "Indexes on columns with macaddr data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx7 on combined_tbl (maddr);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1010,7 +1010,7 @@
             "ObjectName": "idx8 ON combined_tbl",
             "Reason": "Indexes on columns with macaddr8 data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx8 on combined_tbl (maddr8);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1021,7 +1021,7 @@
             "ObjectName": "idx9 ON combined_tbl",
             "Reason": "Indexes on columns with point data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx9 on combined_tbl (p);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1032,7 +1032,7 @@
             "ObjectName": "idx10 ON combined_tbl",
             "Reason": "Indexes on columns with pg_lsn data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx10 on combined_tbl (lsn);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1043,7 +1043,7 @@
             "ObjectName": "idx11 ON combined_tbl",
             "Reason": "Indexes on columns with path data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx11 on combined_tbl (p1);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1054,7 +1054,7 @@
             "ObjectName": "idx12 ON combined_tbl",
             "Reason": "Indexes on columns with polygon data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx12 on combined_tbl (p2);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1065,7 +1065,7 @@
             "ObjectName": "idx13 ON combined_tbl",
             "Reason": "Indexes on columns with txid_snapshot data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE index idx13 on combined_tbl (id1);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1076,7 +1076,7 @@
             "ObjectName": "idx14 ON combined_tbl",
             "Reason": "Indexes on columns with bit data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx14 on combined_tbl (bitt);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1087,7 +1087,7 @@
             "ObjectName": "idx15 ON combined_tbl",
             "Reason": "Indexes on columns with varbit data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx15 on combined_tbl (bittv);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1098,7 +1098,7 @@
             "ObjectName": "idx1 ON combined_tbl1",
             "Reason": "Indexes on columns with daterange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx1 on combined_tbl1 (d);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1109,7 +1109,7 @@
             "ObjectName": "idx2 ON combined_tbl1",
             "Reason": "Indexes on columns with tsrange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx2 on combined_tbl1 (t);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1120,7 +1120,7 @@
             "ObjectName": "idx3 ON combined_tbl1",
             "Reason": "Indexes on columns with tstzrange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx3 on combined_tbl1 (tz);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1131,7 +1131,7 @@
             "ObjectName": "idx4 ON combined_tbl1",
             "Reason": "Indexes on columns with numrange data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx4 on combined_tbl1 (n);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1142,7 +1142,7 @@
             "ObjectName": "idx5 ON combined_tbl1",
             "Reason": "Indexes on columns with int4range data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx5 on combined_tbl1 (i4);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1153,7 +1153,7 @@
             "ObjectName": "idx6 ON combined_tbl1",
             "Reason": "Indexes on columns with int8range data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx6 on combined_tbl1 (i8);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1164,7 +1164,7 @@
             "ObjectName": "idx7 ON combined_tbl1",
             "Reason": "Indexes on columns with interval data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx7  on combined_tbl1 (inym);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1175,7 +1175,7 @@
             "ObjectName": "idx8 ON combined_tbl1",
             "Reason": "Indexes on columns with interval data type are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx8  on combined_tbl1 (inds);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1186,7 +1186,7 @@
             "ObjectName": "idx_udt ON test_udt",
             "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_udt on test_udt(home_address);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1197,7 +1197,7 @@
             "ObjectName": "idx_udt1 ON test_udt",
             "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX idx_udt1 on test_udt(home_address1);",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1208,7 +1208,7 @@
             "ObjectName": "idx\u0026_enum2 ON test_udt",
             "Reason": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX \"idx\u0026_enum2\" on test_udt((some_field::non_public.enum_test));",
-            "Suggestion": "Refer to the docs link for the workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25003",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1458,7 +1458,7 @@
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "ALTER TABLE ONLY public.meeting\n    ADD CONSTRAINT no_time_overlap EXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-            "Suggestion": "Refer docs link for details on possible workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "MinimumVersionsFixedIn": null
         },
@@ -1468,7 +1468,7 @@
             "ObjectName": "Test, constraint: (no_time_overlap_constr)",
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
-            "Suggestion": "Refer docs link for details on possible workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "MinimumVersionsFixedIn": null
@@ -1480,7 +1480,7 @@
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TABLE \"Test\"(\n\tid int,\n\troom_id int,\n\ttime_range trange,\n\troomid int,\n\ttimerange tsrange,\n\tEXCLUDE USING gist (room_id WITH =, time_range WITH \u0026\u0026),\n\tCONSTRAINT no_time_overlap_constr EXCLUDE USING gist (roomid WITH =, timerange WITH \u0026\u0026)\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-            "Suggestion": "Refer docs link for details on possible workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "MinimumVersionsFixedIn": null
         },
@@ -1620,7 +1620,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "EXTENSION",
             "ObjectName": "aws_commons",
-            "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+            "Reason": "This extension is not supported in YugabyteDB by default.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS aws_commons WITH SCHEMA public;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
@@ -1631,7 +1631,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "EXTENSION",
             "ObjectName": "plperl",
-            "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+            "Reason": "This extension is not supported in YugabyteDB by default.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
@@ -1642,7 +1642,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "EXTENSION",
             "ObjectName": "hstore_plperl",
-            "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+            "Reason": "This extension is not supported in YugabyteDB by default.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS hstore_plperl WITH SCHEMA public;",
             "DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
             "Suggestion": "",
@@ -1677,7 +1677,7 @@
             "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_status, _severity, info).",
             "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
                 "2.25": "2.25.0.0"

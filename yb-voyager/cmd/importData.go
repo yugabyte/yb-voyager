@@ -101,6 +101,11 @@ var importDataCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
+
+		err = validateOnPrimaryKeyConflictFlag()
+		if err != nil {
+			utils.ErrExit("Error validating --on-primary-key-conflict flag: %s", err.Error())
+		}
 	},
 	Run: importDataCommandFn,
 }
@@ -123,12 +128,18 @@ var importDataToTargetCmd = &cobra.Command{
 }
 
 func importDataCommandFn(cmd *cobra.Command, args []string) {
-
 	importPhase = dbzm.MODE_SNAPSHOT
 	ExitIfAlreadyCutover(importerRole)
 	reportProgressInBytes = false
 	tconf.ImportMode = true
 	checkExportDataDoneFlag()
+
+	/*
+		Before this point MSR won't not be initialised in case of importDataFileCmd
+		In case of importDataCmd, MSR would be initialised already by previous commands
+	*/
+	saveOnPrimaryKeyConflictActionInMSR()
+
 	sourceDBType = GetSourceDBTypeFromMSR()
 	sqlname.SourceDBType = sourceDBType
 
@@ -766,7 +777,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if !msr.IsSnapshotExportedViaDebezium() {
 			errImport := executePostSnapshotImportSqls()
 			if errImport != nil {
-				utils.ErrExit("Error in importing post-snapshot-import sql: %v", err)
+				utils.ErrExit("Error in importing finalize-schema-post-data-import sql: %v", err)
 			}
 		} else {
 			status, err := dbzm.ReadExportStatus(filepath.Join(exportDir, "data", "export_status.json"))
@@ -1132,10 +1143,10 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 	if err != nil {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-			importDataPayload.TotalRows += value
-			if value > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+			importDataPayload.TotalRows += value.Imported
+			if value.Imported > importDataPayload.LargestTableRows {
+				importDataPayload.LargestTableRows = value.Imported
 			}
 			return true, nil
 		})

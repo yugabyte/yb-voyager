@@ -30,6 +30,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
+//TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
+//we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
 type ParserIssueDetector struct {
 	/*
 		this will contain the information in this format:
