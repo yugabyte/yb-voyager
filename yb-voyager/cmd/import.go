@@ -404,7 +404,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 
 	// TODO: restrict changing of flag value after import data has started
 	// TODO: Detailed description of the flag
-	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "IGNORE",
 		`Action to take on primary key conflict during data import.
 Supported values:
 ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
