@@ -288,7 +288,6 @@ func (s *ImportDataState) getBatches(filePath string, tableNameTup sqlname.NameT
 	result := []*Batch{}
 
 	fileStateDir := s.getFileStateDir(filePath, tableNameTup)
-	utils.PrintAndLog("Discovering batches in %q for table %q", fileStateDir, tableNameTup.ForKey())
 	// Check if the fileStateDir exists.
 	_, err := os.Stat(fileStateDir)
 	if err != nil {

@@ -254,8 +254,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
 	}
-	utils.PrintAndLog("dataFileNt: %s, FilePath: %s, RowCount: %d, FileSize: %d",
-		dataFileNt.ForKey(), dataFile.FilePath, dataFile.RowCount, dataFile.FileSize)
+
 	if reportProgressInBytes {
 		totalCount = dataFile.FileSize
 		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFileNt)
@@ -266,8 +265,6 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 		if err != nil {
 			return nil, fmt.Errorf("compute errored data size: %w", err)
 		}
-		utils.PrintAndLog("totalCount: %d, importedCount: %d, erroredCount: %d",
-			totalCount, importedCount, erroredCount)
 	} else {
 		totalCount = dataFile.RowCount
 		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
