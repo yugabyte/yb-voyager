@@ -116,90 +116,90 @@ func (this *VoyagerCommandRunner) Prepare() error {
 	return nil
 }
 
-func (this *VoyagerCommandRunner) newCmd() {
-	this.StdoutBuf = &bytes.Buffer{}
-	this.StderrBuf = &bytes.Buffer{}
+func (v *VoyagerCommandRunner) newCmd() {
+	v.StdoutBuf = &bytes.Buffer{}
+	v.StderrBuf = &bytes.Buffer{}
 
-	this.Cmd = exec.Command("yb-voyager", this.finalArgs...)
-	this.Cmd.Stdout = io.MultiWriter(os.Stdout, this.StdoutBuf)
-	this.Cmd.Stderr = io.MultiWriter(os.Stderr, this.StderrBuf)
+	v.Cmd = exec.Command("yb-voyager", v.finalArgs...)
+	v.Cmd.Stdout = io.MultiWriter(os.Stdout, v.StdoutBuf)
+	v.Cmd.Stderr = io.MultiWriter(os.Stderr, v.StderrBuf)
 	// disable callhome diagnostics during tests
-	this.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
+	v.Cmd.Env = append(os.Environ(), "YB_VOYAGER_SEND_DIAGNOSTICS=false")
 }
 
-func (this *VoyagerCommandRunner) Run() error {
-	if err := this.Prepare(); err != nil {
+func (v *VoyagerCommandRunner) Run() error {
+	if err := v.Prepare(); err != nil {
 		return fmt.Errorf("failed to prepare command: %w", err)
 	}
 
-	this.newCmd()
+	v.newCmd()
 
-	log.Debugf("running command: %s", this.Cmd.String())
-	err := this.Cmd.Start()
+	log.Debugf("running command: %s", v.Cmd.String())
+	err := v.Cmd.Start()
 	if err != nil {
 		return fmt.Errorf("failed to start command: %w", err)
 	}
 
-	if this.doDuringCmd != nil {
+	if v.doDuringCmd != nil {
 		// Small delay to let the command initiate.
 		time.Sleep(2 * time.Second)
-		this.doDuringCmd()
+		v.doDuringCmd()
 	}
 
-	if !this.isAsync {
-		return this.Wait()
+	if !v.isAsync {
+		return v.Wait()
 	}
 	return nil
 }
 
-func (this *VoyagerCommandRunner) Wait() error {
-	err := this.Cmd.Wait()
+func (v *VoyagerCommandRunner) Wait() error {
+	err := v.Cmd.Wait()
 	if err != nil {
 		if ee, ok := err.(*exec.ExitError); ok {
-			this.exitCode = ExitCode(ee.ExitCode())
+			v.exitCode = ExitCode(ee.ExitCode())
 		} else {
-			this.exitCode = ExitCodeFailure
+			v.exitCode = ExitCodeFailure
 		}
 		return fmt.Errorf("command failed: %w", err)
 	} else {
-		this.exitCode = ExitCodeSuccess
+		v.exitCode = ExitCodeSuccess
 	}
 	return nil
 }
 
-func (this *VoyagerCommandRunner) Kill() error {
-	if this.Cmd == nil {
-		return fmt.Errorf("command for %s not built yet", this.CmdName)
+func (v *VoyagerCommandRunner) Kill() error {
+	if v.Cmd == nil {
+		return fmt.Errorf("command for %s not built yet", v.CmdName)
 	}
 
-	if this.Cmd.Process == nil {
-		return fmt.Errorf("process for command %s is not available", this.CmdName)
+	if v.Cmd.Process == nil {
+		return fmt.Errorf("process for command %s is not available", v.CmdName)
 	}
 
-	log.Debugf("killing command: %s", this.Cmd.String())
-	err := this.Cmd.Process.Kill()
+	log.Debugf("killing command: %s", v.Cmd.String())
+	err := v.Cmd.Process.Kill()
 	if err != nil {
 		return fmt.Errorf("failed to kill command: %w", err)
 	}
 
-	this.exitCode = ExitCodeFailure // setting failure code for unsuccessful execution
+	v.exitCode = ExitCodeFailure // setting failure code for unsuccessful execution
 	return nil
 }
 
-func (this *VoyagerCommandRunner) ExitCode() ExitCode {
-	return this.exitCode
+func (v *VoyagerCommandRunner) ExitCode() ExitCode {
+	return v.exitCode
 }
 
-func (this *VoyagerCommandRunner) Stdout() string {
-	if this.StdoutBuf == nil {
+func (v *VoyagerCommandRunner) Stdout() string {
+	if v.StdoutBuf == nil {
 		return ""
 	}
-	return this.StdoutBuf.String()
+	return v.StdoutBuf.String()
 }
 
-func (this *VoyagerCommandRunner) Stderr() string {
-	if this.StderrBuf == nil {
+func (v *VoyagerCommandRunner) Stderr() string {
+	if v.StderrBuf == nil {
 		return ""
 	}
-	return this.StderrBuf.String()
+	return v.StderrBuf.String()
 }
