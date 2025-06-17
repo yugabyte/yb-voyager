@@ -27,7 +27,7 @@ def main():
 
     rendered = render_template(args.template, os.environ)
 
-    # Optional: validate YAML syntax
+    # Validate YAML syntax
     try:
         yaml.safe_load(rendered)
     except yaml.YAMLError as e:

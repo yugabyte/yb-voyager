@@ -52,7 +52,7 @@ target:
 assess-migration:
   iops-capture-interval: 0
 
-export-data:
+export-data-from-source:
   export-type: snapshot-and-changes
   
   {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}

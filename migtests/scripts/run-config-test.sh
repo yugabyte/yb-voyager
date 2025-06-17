@@ -3,8 +3,8 @@
 set -e
 
 if [ $# -gt 2 ]; then
-    echo "Usage: $0 TEST_NAME [env.sh]"
-    exit 1
+	echo "Usage: $0 TEST_NAME [env.sh]"
+	exit 1
 fi
 
 set -x
@@ -25,7 +25,7 @@ CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_config.py"
 # Order of env.sh import matters.
 if [ $2 != "" ] #if env.sh is passed as an argument, source it
 then
-    if [ ! -f "${TEST_DIR}/$2" ]
+	if [ ! -f "${TEST_DIR}/$2" ]
 	then
 		echo "$2 file not found in the test directory"
 		exit 1
@@ -56,23 +56,23 @@ main() {
 	step "START: ${TEST_NAME}"
 	print_env
 
-    # Generate the config dynamically
-    python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
+	# Generate the config dynamically
+	python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
 
 	pushd ${TEST_DIR}
 
 	step "Initialise source database."
 	if [[ "${SKIP_DB_CREATION}" != "true" ]]; then
-	    if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
-	        create_source_db "${SOURCE_DB_NAME}"
-	    elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
-	        create_source_db "${SOURCE_DB_SCHEMA}"
-	    else
-	        echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
-	        exit 1
-	    fi
+		if [[ "${SOURCE_DB_TYPE}" == "postgresql" || "${SOURCE_DB_TYPE}" == "mysql" ]]; then
+			create_source_db "${SOURCE_DB_NAME}"
+		elif [[ "${SOURCE_DB_TYPE}" == "oracle" ]]; then
+			create_source_db "${SOURCE_DB_SCHEMA}"
+		else
+			echo "ERROR: Unsupported SOURCE_DB_TYPE: ${SOURCE_DB_TYPE}"
+			exit 1
+		fi
 	else
-	    echo "Skipping database creation as SKIP_DB_CREATION is set to true."
+		echo "Skipping database creation as SKIP_DB_CREATION is set to true."
 	fi
 	./init-db
 
@@ -108,13 +108,13 @@ main() {
 	find ${EXPORT_DIR}/schema -name '*.sql' -printf "'%p'\n"| xargs grep -wh CREATE
 
 	step "Analyze schema."
-    yb-voyager analyze-schema -c "${GENERATED_CONFIG}" --yes
+	yb-voyager analyze-schema -c "${GENERATED_CONFIG}" --yes
 	tail -20 ${EXPORT_DIR}/reports/schema_analysis_report.json
 
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema"
+		"${TEST_DIR}/fix-schema"
 	fi
 
 	step "Analyze schema."
@@ -136,9 +136,9 @@ main() {
 
 	step "Verify the pg_dump version being used"
 	if [ "${SOURCE_DB_TYPE}" = "postgresql" ] && { [ -z "${BETA_FAST_DATA_EXPORT}" ] || [ "${BETA_FAST_DATA_EXPORT}" = "0" ]; }; then
-	    if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
-	        echo "Error: pg_dump version not found in the log file." >&2
-	    fi
+		if ! grep "Dumped by pg_dump version:" "${EXPORT_DIR}/logs/yb-voyager-export-data.log"; then
+			echo "Error: pg_dump version not found in the log file." >&2
+		fi
 	fi
 
 	step "Fix data."
@@ -162,7 +162,7 @@ main() {
 	step "Run Schema validations."
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then
-		 "${TEST_DIR}/validate-schema"
+		"${TEST_DIR}/validate-schema"
 	fi
 
 	step "Import data."

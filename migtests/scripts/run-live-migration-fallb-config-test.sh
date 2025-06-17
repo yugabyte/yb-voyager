@@ -27,9 +27,9 @@ CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_config.py"
 
 # Order of env.sh import matters.
 if [ -f "${TEST_DIR}/live_env.sh" ]; then
-    source "${TEST_DIR}/live_env.sh"
+	source "${TEST_DIR}/live_env.sh"
 else
-    source "${TEST_DIR}/env.sh"
+	source "${TEST_DIR}/env.sh"
 fi
 
 if [ "${SOURCE_DB_TYPE}" = "oracle" ]
@@ -58,7 +58,7 @@ main() {
 	print_env
 
 	# Generate the config dynamically
-    python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
+	python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
 
 	pushd ${TEST_DIR}
 
@@ -119,7 +119,7 @@ main() {
 	step "Fix schema."
 	if [ -x "${TEST_DIR}/fix-schema" ]
 	then
-		 "${TEST_DIR}/fix-schema"
+		"${TEST_DIR}/fix-schema"
 	fi
 
 	step "Analyze schema."
@@ -141,7 +141,7 @@ main() {
 	step "Run Schema validations."
 	if [ -x "${TEST_DIR}/validate-schema" ]
 	then
-		 "${TEST_DIR}/validate-schema"
+		"${TEST_DIR}/validate-schema"
 	fi
 
 	step "Export data."
@@ -208,18 +208,18 @@ main() {
 	yb-voyager initiate cutover to target -c "${GENERATED_CONFIG}" --yes 
 
 	for ((i = 0; i < 20; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
-        echo "Waiting for cutover to be COMPLETED..."
-        sleep 20
-        if [ "$i" -eq 19 ]; then
-            tail_log_file "yb-voyager-export-data.log"
-            tail_log_file "yb-voyager-import-data.log"
+	if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then
+		echo "Waiting for cutover to be COMPLETED..."
+		sleep 20
+		if [ "$i" -eq 19 ]; then
+			tail_log_file "yb-voyager-export-data.log"
+			tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
 			exit 1
-        fi
-    else
-        break
-    fi
+		fi
+	else
+		break
+	fi
 	done
 	
 	sleep 120
@@ -241,18 +241,18 @@ main() {
 	yb-voyager initiate cutover to source --export-dir ${EXPORT_DIR} --yes
 
 	for ((i = 0; i < 15; i++)); do
-    if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
-        echo "Waiting for switchover to be COMPLETED..."
-        sleep 20
-        if [ "$i" -eq 14 ]; then
-            tail_log_file "yb-voyager-import-data-to-source.log"
-            tail_log_file "yb-voyager-export-data-from-target.log"
+	if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to source status" | cut -d ':'  -f 2 | tr -d '[:blank:]')"  != "COMPLETED" ]; then
+		echo "Waiting for switchover to be COMPLETED..."
+		sleep 20
+		if [ "$i" -eq 14 ]; then
+			tail_log_file "yb-voyager-import-data-to-source.log"
+			tail_log_file "yb-voyager-export-data-from-target.log"
 			tail_log_file "debezium-target_db_exporter_fb.log"
 			exit 1
-        fi
-    else
-        break
-    fi
+		fi
+	else
+		break
+	fi
 	done
 
 	run_ysql ${TARGET_DB_NAME} "\di"
