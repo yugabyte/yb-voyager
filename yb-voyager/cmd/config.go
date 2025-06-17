@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -27,8 +28,12 @@ const (
 	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
+var commandsUsingSourceReplicaConfig = []string{"import-data-to-source-replica"}
+var commandsUsingSourceConfig = []string{"assess-migration", "export-schema", "export-data", "export-data-from-source", "import-data-to-source"}
+var commandsUsingTargetConfig = []string{"import-schema", "import-data", "import-data-to-target", "import-data-file", "export-data-from-target", "finalize-schema-post-data-import"}
+
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+	"export-dir", "log-level", "send-diagnostics",
 	"profile",
 	// environment variables keys
 	"control-plane-type", "yugabyted-db-conn-string", "java-home",
@@ -56,6 +61,7 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
 	"invoked-by-export-schema",
 	// environment variables keys
@@ -63,12 +69,14 @@ var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"output-format", "target-db-version",
 	// environment variables keys
 	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-recommendations", "assessment-report-path",
 	"assess-schema-before-export",
@@ -77,6 +85,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	// environment variables keys
@@ -84,6 +93,7 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
@@ -91,15 +101,18 @@ var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
 	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
@@ -117,6 +130,7 @@ var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
@@ -124,6 +138,7 @@ var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
@@ -132,6 +147,7 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
@@ -149,10 +165,12 @@ var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
 	"backup-dir",
 )
@@ -217,9 +235,8 @@ initConfig initializes the configuration for the given Cobra command.
 */
 func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
+	v.SetConfigType("yaml")
 
-	// Precedence of which config file to use:
-	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
 		if !utils.FileOrFolderExists(cfgFile) {
@@ -233,20 +250,6 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		cfgFile = filepath.Clean(cfgFile)
 
 		v.SetConfigFile(cfgFile)
-	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
-		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
-		v.SetConfigFile(os.Getenv("YB_VOYAGER_CONFIG_FILE"))
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, nil, nil, err
-		}
-
-		// Search config in home directory with name "yb-voyager-config" (without extension).
-		v.AddConfigPath(home)
-		v.SetConfigName("yb-voyager-config")
-		v.SetConfigType("yaml")
 	}
 
 	// If a config file is found, read it in.
@@ -255,7 +258,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("%v\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 
@@ -583,8 +586,8 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
 	// Replace spaces with hyphens
-	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
-	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
+	commandNameKey := strings.ReplaceAll(subCmdPath, " ", "-")
+	commandNameKey = setToAliasPrefixIfSet(commandNameKey, v)
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if bindErr != nil || f.Changed {
@@ -593,7 +596,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 
 		// Check for <command_path>.<flagname>
 		var configKey string
-		if configKey = configKeyPrefix + "." + f.Name; v.IsSet(configKey) {
+		if configKey = commandNameKey + "." + f.Name; v.IsSet(configKey) {
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
@@ -619,64 +622,125 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if configKey = SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix); strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle source db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceReplicaConfig, commandNameKey) {
+			// Handle source-replica config flags
+			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = SourceDBConfigPrefix + f.Name; strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle oracle db type flags, since they are also prefixed with source but are special cases
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceConfig, commandNameKey) {
+			// Handle source config flags
+			err := bindSourceFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle target db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingTargetConfig, commandNameKey) {
+			// Handle target config flags
+			err := bindTargetFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix); strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle source-replica db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
-			if err != nil {
-				bindErr = err
-				return
-			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
 		}
 		// If the flag is not set in viper, do nothing and leave it as is
 		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
 	return overrides, bindErr
+}
+
+func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source-replica db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source-replica config, since they are also prefixed with source-replica but are special cases
+			// The oracle db flags should be taken from the source-replica section only in import-data-to-source-replica command
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source config, since they are also prefixed with source but are special cases
+			// This oracle db flags should be taken from the source section only in all commands except import-data-to-source-replica
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, TargetDBFlagPrefix) {
+		configKey := TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
 }
 
 /*

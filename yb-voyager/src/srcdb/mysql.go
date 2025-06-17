@@ -77,6 +77,14 @@ func (ms *MySQL) Disconnect() {
 	}
 }
 
+func (ms *MySQL) Query(query string) (*sql.Rows, error) {
+	return ms.db.Query(query)
+}
+
+func (ms *MySQL) QueryRow(query string) *sql.Row {
+	return ms.db.QueryRow(query)
+}
+
 func (ms *MySQL) CheckSchemaExists() bool {
 	// no concept of schema in MySQL, only database
 	// also if Connect() passed already that means database is present
