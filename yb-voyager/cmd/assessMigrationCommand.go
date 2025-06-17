@@ -682,7 +682,7 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		return err
 	}
 
-	yesParam := lo.Ternary(utils.DoNotPrompt, "yes", "no")
+	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
 	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
 		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS), yesParam)
 }

@@ -40,7 +40,7 @@ Arguments:
 
   iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
-  answer_to_prompt            Answer for all questions during gathering metadata (default 'no') (accepted values: 'yes' and 'no')
+  yes                         Answer yes for all questions during gathering metadata (default 'false') (accepted values: 'false' and 'true')
 
 
 Example:
@@ -60,7 +60,7 @@ if [ "$#" -lt 4 ]; then
     echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
     exit 1
 elif [ "$#" -gt 6 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [answer_to_prompt]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
     exit 1
 fi
 
@@ -74,8 +74,8 @@ if [ ! -d "$assessment_metadata_dir" ]; then
 fi
 
 pgss_enabled=$4
+yes=false
 iops_capture_interval=120 # default sleep for calculating iops
-answer_to_prompt='no'
 
 # Override default sleep interval if a fifth argument is 
 if [ "$#" -ge 5 ]; then
@@ -83,11 +83,12 @@ if [ "$#" -ge 5 ]; then
     echo "sleep interval for calculating iops: $iops_capture_interval seconds"
 fi
 
-# override default answer_to_prompt if 6th arg is given
+# override default yes if 6th arg is given
 if [ "$#" -eq 6 ]; then
-    answer_to_prompt=$6
-    if [[ "$answer_to_prompt" != "no" && "$answer_to_prompt" != "yes" ]]; then 
-        echo "accepted values for the answer_to_prompt parameter are only ('yes' and 'no')"
+    yes=$6
+    if [[ "$yes" != false && "$yes" != true ]]; then 
+        echo "accepted values for the yes parameter are only ('true' and 'false')"
+        exit 1
     fi
 fi
 
@@ -185,17 +186,15 @@ main() {
         fi
     fi
 
-    last_analyze=$(psql $pg_connection_string -tAqc "SELECT schemaname, MAX(last_analyze) FROM pg_stat_all_tables where schemaname=ANY(ARRAY[string_to_array('$schema_list', '|')]) GROUP BY schemaname;")
-
-    null_analyze_schemas=()
-
-    # Read each line
-    while IFS='|' read -r schema ts; do
-    ts_trimmed=$(echo "$ts" | xargs)  # trim any whitespace
-    if [[ -z "$ts_trimmed" ]]; then
-        null_analyze_schemas+=("$schema")
-    fi
-    done <<< "$last_analyze"
+    null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
+FROM pg_stat_all_tables pgst1 
+WHERE schemaname = ANY(ARRAY['public','test_schema1'])
+  AND NOT EXISTS (
+    SELECT 1 
+    FROM pg_stat_all_tables pgst2 
+    WHERE pgst2.schemaname = pgst1.schemaname 
+      AND pgst2.last_analyze IS NOT NULL
+  );")
 
     if (( ${#null_analyze_schemas[@]} > 0 )); then
         echo ""
@@ -206,7 +205,7 @@ main() {
         echo ""
         echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
         echo "Do you want to continue without analyzing these schemas? (Y/N)"
-        if [ "$answer_to_prompt" == 'no' ]; then
+        if [ "$yes" == false ]; then
             read -r user_input
             if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
                 echo "You can run ANALYZE manually on the affected schemas before retrying."
