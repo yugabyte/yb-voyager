@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -1113,6 +1114,9 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
+	// create backupDIr
+	backupDir := testutils.CreateBackupDir(t)
+
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
@@ -1187,6 +1191,31 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
+
+	// Run end-migration to ensure that the errored files are backed up properly
+	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
+	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "end migration", []string{
+		"--export-dir", tempExportDir,
+		"--backup-data-files", "true",
+		"--backup-dir", backupDir,
+		"--backup-log-files", "true",
+		"--backup-schema-files", "false",
+		"--save-migration-reports", "false",
+		"--yes",
+	}, nil, false)
+	testutils.FatalIfError(t, err, "End migration command failed")
+
+	// Verify that the backup directory contains the expected error files.
+	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
+	tableDir := fmt.Sprintf("table::%s", "test_data")
+	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(tempExportDir, "data", "test_data_data.sql")))
+	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
+	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
+	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+
+	// Verify the content of the error file
+	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
 }
 
 // TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
@@ -1273,6 +1302,9 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
+	// create backupDIr
+	backupDir := testutils.CreateBackupDir(t)
+
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)
 
@@ -1350,4 +1382,29 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	rowCountPair, _ := snapshotRowsMap.Get(tblName)
 	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
+
+	// Run end-migration to ensure that the errored files are backed up properly
+	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
+	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
+	_, err = testutils.RunVoyagerCommand(testYugabyteDBTarget.TestContainer, "end migration", []string{
+		"--export-dir", tempExportDir,
+		"--backup-data-files", "true",
+		"--backup-dir", backupDir,
+		"--backup-log-files", "true",
+		"--backup-schema-files", "false",
+		"--save-migration-reports", "false",
+		"--yes",
+	}, nil, false)
+	testutils.FatalIfError(t, err, "End migration command failed")
+
+	// Verify that the backup directory contains the expected error files.
+	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
+	tableDir := fmt.Sprintf("table::%s", "test_data")
+	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
+	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
+	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
+	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
+
+	// Verify the content of the error file
+	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
 }

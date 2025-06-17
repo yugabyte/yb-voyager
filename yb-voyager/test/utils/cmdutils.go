@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -20,6 +21,17 @@ func CreateTempExportDir() string {
 	}
 
 	return exportDir
+}
+
+func CreateBackupDir(t *testing.T) string {
+	backupDir, err := os.MkdirTemp("", "backup-export-dir-*")
+	FatalIfError(t, err, "Failed to create backup directory")
+	t.Cleanup(func() {
+		if err := os.RemoveAll(backupDir); err != nil {
+			t.Fatalf("Failed to remove backup directory: %v", err)
+		}
+	})
+	return backupDir
 }
 
 func RemoveTempExportDir(exportDir string) {
