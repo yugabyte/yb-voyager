@@ -658,7 +658,10 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	log.Infof("pending tasks: %v", pendingTasks)
 	log.Infof("completed tasks: %v", completedTasks)
 
-	checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTasks)
+	err = runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks)
+	if err != nil {
+		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
+	}
 
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
@@ -802,39 +805,48 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
-func checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) {
-	if !isFreshStart(importFileTasks, pendingTasks, completedTasks) {
-		log.Infof("Not a fresh start, skipping primary key conflict mode check.")
-		return
-	}
-
+func runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
 	// but for IGNORE or UPDATE(in future), we need to prompt user
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
-		return
+		return nil
+	}
+
+	if !isTargetDBImporter(importerRole) {
+		return nil
+	}
+
+	if !isFreshStart(importFileTasks, pendingTasks, completedTasks) {
+		log.Infof("Not a fresh start, skipping primary key conflict mode check.")
+		return nil
 	}
 
 	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
-	tablesHavingData := tdb.GetNonEmptyTables(pendingTablesList)
-	if len(tablesHavingData) == 0 {
-		return
+	nonEmptyTables := tdb.GetNonEmptyTables(pendingTablesList)
+	if len(nonEmptyTables) == 0 {
+		return nil
 	}
 
-	allNonPKTables := true
-	for _, table := range tablesHavingData {
+	nonPKTables := map[sqlname.NameTuple]bool{}
+	for _, table := range nonEmptyTables {
 		colList, err := tdb.GetPrimaryKeyColumns(table)
 		if err != nil {
-			utils.ErrExit("Failed to get primary key columns for table %s: %s", table.ForOutput(), err)
+			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
 		}
 		if len(colList) != 0 {
-			allNonPKTables = false
-			log.Infof("found table with PK: %s, no need to prompt user", table.ForOutput())
-			continue
+			nonPKTables[table] = true
 		}
 	}
-	if allNonPKTables {
-		return // no PK tables, so no need to prompt user
+
+	// all nonEmptyTables have no primary key columns
+	if len(nonPKTables) == len(nonEmptyTables) {
+		log.Infof("All tables in %v have no primary key columns, skipping primary key conflict mode check.", sqlname.NameTupleListToStrings(nonEmptyTables))
+		return nil
 	}
+
+	pkTables := lo.Filter(nonEmptyTables, func(table sqlname.NameTuple, _ int) bool {
+		return !nonPKTables[table]
+	})
 
 	utils.PrintAndLog(
 		"Target tables with pre-existing data: %v\n\n"+
@@ -843,11 +855,13 @@ func checkPKConflictModeOnFreshStart(importFileTasks, pendingTasks, completedTas
 			"Under this mode:\n"+
 			"  • Duplicate Primary Key rows are silently skipped.\n"+
 			"  • Import proceeds without error for skipped entries.\n"+
-			"  • Only new unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(tablesHavingData),
+			"  • Only new unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(pkTables),
 	)
 	if !utils.AskPrompt("Please confirm whether to proceed") {
 		utils.ErrExit("Aborting import.")
 	}
+
+	return nil
 }
 
 func isFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) bool {
@@ -1603,4 +1617,8 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 		}
 	}
 	return nil
+}
+
+func isTargetDBImporter(importerRole string) bool {
+	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
 }
