@@ -71,6 +71,10 @@ export-data-from-source:
   exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
   {% endif %}
 
+
+import-data-to-target:
+  enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+
 archive-changes:
   delete-changes-without-archiving: true
 
