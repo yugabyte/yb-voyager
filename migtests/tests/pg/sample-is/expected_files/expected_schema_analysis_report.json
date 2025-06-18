@@ -67,7 +67,7 @@
             "Reason": "Exclusion constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "ALTER TABLE ONLY public.secret_missions ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/sample-is/export-dir/schema/tables/table.sql",
-            "Suggestion": "Refer docs link for details on possible workaround",
+            "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/3944",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
             "MinimumVersionsFixedIn": null

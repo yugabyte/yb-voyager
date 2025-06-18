@@ -77,6 +77,14 @@ func (ora *Oracle) Disconnect() {
 	}
 }
 
+func (ora *Oracle) Query(query string) (*sql.Rows, error) {
+	return ora.db.Query(query)
+}
+
+func (ora *Oracle) QueryRow(query string) *sql.Row {
+	return ora.db.QueryRow(query)
+}
+
 func (ora *Oracle) CheckSchemaExists() bool {
 	schemaName := ora.source.Schema
 	query := fmt.Sprintf(`SELECT username FROM ALL_USERS WHERE username = '%s'`, strings.ToUpper(schemaName))
@@ -685,10 +693,12 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 	LEFT JOIN (
 		SELECT COUNT(constraint_name) AS count, table_name
 		FROM ALL_CONSTRAINTS
-		WHERE constraint_type = 'P' AND owner = '%s'
+		WHERE constraint_type = 'P' AND owner = '%[1]s'
 		GROUP BY table_name
 	) pk_count ON at.table_name = pk_count.table_name
-	WHERE at.owner = '%s'`, ora.source.Schema, ora.source.Schema)
+	WHERE at.owner = '%[1]s'
+	AND   at.table_name NOT LIKE 'DR$%%'   -- exclude Oracle-Text internal tables`,
+		ora.source.Schema)
 	rows, err := ora.db.Query(query)
 	if err != nil {
 		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)

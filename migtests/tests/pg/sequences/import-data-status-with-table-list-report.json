@@ -4,6 +4,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -11,6 +12,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -18,6 +20,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -25,6 +28,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -32,6 +36,7 @@
       "status": "DONE",
       "total_count": 666,
       "imported_count": 666,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -39,6 +44,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -46,6 +52,7 @@
       "status": "DONE",
       "total_count": 3,
       "imported_count": 3,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -53,6 +60,7 @@
       "status": "DONE",
       "total_count": 3,
       "imported_count": 3,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -60,6 +68,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -67,6 +76,7 @@
       "status": "DONE",
       "total_count": 1,
       "imported_count": 1,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -74,6 +84,7 @@
       "status": "DONE",
       "total_count": 6,
       "imported_count": 6,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -81,6 +92,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     },
     {
@@ -88,6 +100,7 @@
       "status": "DONE",
       "total_count": 2,
       "imported_count": 2,
+      "errored_count": 0,
       "percentage_complete": 100
     }
   ]

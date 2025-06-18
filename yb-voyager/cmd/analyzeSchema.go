@@ -272,7 +272,10 @@ func reportSchemaSummary(sourceDBConf *srcdb.Source) utils.SchemaSummary {
 		dbObject.TotalCount = summaryMap[objType].totalCount
 		dbObject.InvalidCount = len(lo.Keys(summaryMap[objType].invalidCount))
 		dbObject.ObjectNames = strings.Join(summaryMap[objType].objSet, ", ")
-		dbObject.Details = strings.Join(lo.Keys(summaryMap[objType].details), "\n")
+
+		detailsStr := lo.Keys(summaryMap[objType].details)
+		slices.Sort(detailsStr) // sort the details for consistent output
+		dbObject.Details = strings.Join(detailsStr, "\n")
 		schemaSummary.DBObjects = append(schemaSummary.DBObjects, dbObject)
 	}
 
@@ -297,7 +300,22 @@ func addSummaryDetailsForIndexes() {
 	exportedIndexes := summaryMap["INDEX"].objSet
 	unexportedIdxsMsg := "Indexes which are neither exported by yb-voyager as they are unsupported in YB and needs to be handled manually:\n"
 	unexportedIdxsPresent := false
+
+	// List for assessment report has suffix " INDEX" added to the original index type
+	suffix := " INDEX"
+	oracleUnsupportedIndexTypesForAnalyze := lo.Map(OracleUnsupportedIndexTypes, func(s string, _ int) string {
+		if strings.HasSuffix(s, suffix) {
+			return strings.TrimSuffix(s, suffix)
+		}
+		return s
+	})
+
+	// Add only unsupported oracle indexes to the summary details
 	for _, indexInfo := range indexesInfo {
+		if !slices.Contains(oracleUnsupportedIndexTypesForAnalyze, indexInfo.IndexType) {
+			continue
+		}
+
 		sourceIdxName := indexInfo.TableName + "_" + strings.Join(indexInfo.Columns, "_")
 		if !slices.Contains(exportedIndexes, strings.ToLower(sourceIdxName)) {
 			unexportedIdxsPresent = true
