@@ -69,50 +69,56 @@ func NewVoyagerCommandRunner(container testcontainers.TestContainer, cmdName str
 	return &cmdRunner
 }
 
-func (this *VoyagerCommandRunner) Prepare() error {
-	if len(this.finalArgs) != 0 {
+func (v *VoyagerCommandRunner) Prepare() error {
+	if len(v.finalArgs) != 0 {
 		return nil // already prepared
 	}
 
-	// Appending to CmdArgs based on the command type.
-	host, port, err := this.container.GetHostPort()
-	if err != nil {
-		return fmt.Errorf("failed to get host port for container: %v", err)
-	}
-
-	config := this.container.GetConfig()
 	var connectionArgs []string
-	if isSourceCmd(this.CmdName) {
-		connectionArgs = []string{
-			"--source-db-type", config.DBType,
-			"--source-db-user", config.User,
-			"--source-db-password", config.Password,
-			"--source-db-name", config.DBName,
-			"--source-db-host", host,
-			"--source-db-port", strconv.Itoa(port),
-			"--source-ssl-mode", "disable",
+	if isSourceCmd(v.CmdName) || isTargetCmd(v.CmdName) {
+		if v.container == nil {
+			return fmt.Errorf("container cannot be nil for source/target commands")
 		}
-	} else if isTargetCmd(this.CmdName) {
-		connectionArgs = []string{
-			"--target-db-user", config.User,
-			"--target-db-password", config.Password,
-			"--target-db-name", config.DBName,
-			"--target-db-host", host,
-			"--target-db-port", strconv.Itoa(port),
-			"--target-ssl-mode", "disable",
+
+		// Appending to CmdArgs based on the command type.
+		host, port, err := v.container.GetHostPort()
+		if err != nil {
+			return fmt.Errorf("failed to get host port for container: %v", err)
+		}
+
+		config := v.container.GetConfig()
+		if isSourceCmd(v.CmdName) {
+			connectionArgs = []string{
+				"--source-db-type", config.DBType,
+				"--source-db-user", config.User,
+				"--source-db-password", config.Password,
+				"--source-db-name", config.DBName,
+				"--source-db-host", host,
+				"--source-db-port", strconv.Itoa(port),
+				"--source-ssl-mode", "disable",
+			}
+		} else {
+			connectionArgs = []string{
+				"--target-db-user", config.User,
+				"--target-db-password", config.Password,
+				"--target-db-name", config.DBName,
+				"--target-db-host", host,
+				"--target-db-port", strconv.Itoa(port),
+				"--target-ssl-mode", "disable",
+			}
 		}
 	}
 
 	// split the command name on spaces so that Cobra framework
 	// can detect parent and child commands correctly.
 	// e.g. CmdName == "export data" → parts == ["export", "data"]
-	parts := strings.Fields(this.CmdName)
+	parts := strings.Fields(v.CmdName)
 
 	/*
 		append order is important here as the CmdArgs passed in CommmandRunner might want to override the default of ContainerConfig
-		For eg: append(this.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
+		For eg: append(v.CmdArgs, connectionArgs...) the default connection args with override the ones passed to CommandRunner
 	*/
-	this.finalArgs = append(parts, append(connectionArgs, this.CmdArgs...)...)
+	v.finalArgs = append(parts, append(connectionArgs, v.CmdArgs...)...)
 	return nil
 }
 
@@ -203,7 +209,6 @@ func (v *VoyagerCommandRunner) Stderr() string {
 	}
 	return v.StderrBuf.String()
 }
-
 
 func (v *VoyagerCommandRunner) SetAsync(async bool) {
 	v.isAsync = async
