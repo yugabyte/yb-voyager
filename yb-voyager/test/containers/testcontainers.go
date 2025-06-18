@@ -13,9 +13,8 @@ import (
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
 // Limitation - go test spawns different process for running tests of each package, hence the containers won't be shared across packages.
 var (
-	containerRegistry        = make(map[string]TestContainer)
-	containerRegistryForLive = make(map[string]TestContainer)
-	registryMutex            sync.Mutex
+	containerRegistry = make(map[string]TestContainer)
+	registryMutex     sync.Mutex
 )
 
 type TestContainer interface {
@@ -52,26 +51,25 @@ type ContainerConfig struct {
 	Password  string
 	DBName    string
 	Schema    string
+	ForLive   bool
 }
 
 func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestContainer {
 	registryMutex.Lock()
 	defer registryMutex.Unlock()
 
-	return setUpContainer(dbType, containerConfig, false)
-}
-
-func setUpContainer(dbType string, containerConfig *ContainerConfig, forLive bool) TestContainer {
 	// initialise containerConfig struct if nothing is provided
 	if containerConfig == nil {
 		containerConfig = &ContainerConfig{}
 	}
 	setContainerConfigDefaultsIfNotProvided(dbType, containerConfig)
 
-	registryMap := lo.Ternary(forLive, containerRegistryForLive, containerRegistry)
 	// check if container is already created after fetching default configs
 	containerName := fmt.Sprintf("%s-%s", dbType, containerConfig.DBVersion)
-	if container, exists := registryMap[containerName]; exists {
+	if containerConfig.ForLive {
+		containerName = fmt.Sprintf("%s-live-%s", dbType, containerConfig.DBVersion)
+	}
+	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
 		return container
 	}
@@ -81,7 +79,6 @@ func setUpContainer(dbType string, containerConfig *ContainerConfig, forLive boo
 	case POSTGRESQL:
 		testContainer = &PostgresContainer{
 			ContainerConfig: *containerConfig,
-			forLive:         forLive,
 		}
 	case YUGABYTEDB:
 		testContainer = &YugabyteDBContainer{
@@ -99,15 +96,8 @@ func setUpContainer(dbType string, containerConfig *ContainerConfig, forLive boo
 		panic(fmt.Sprintf("unsupported db type '%q' for creating test container\n", dbType))
 	}
 
-	registryMap[containerName] = testContainer
+	containerRegistry[containerName] = testContainer
 	return testContainer
-}
-
-func NewTestContainerForLiveMigration(dbType string, containerConfig *ContainerConfig) TestContainer {
-	registryMutex.Lock()
-	defer registryMutex.Unlock()
-
-	return setUpContainer(dbType, containerConfig, true)
 }
 
 /*

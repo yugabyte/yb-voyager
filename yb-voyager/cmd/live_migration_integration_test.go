@@ -40,6 +40,8 @@ import (
 ////=========================================
 
 // HELPER functions for live
+
+// Checks for streaming started or not using dbzm status
 func isExportDataStreamingStarted(t *testing.T) bool {
 	//check for status until its streaming
 	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
@@ -54,6 +56,7 @@ func isExportDataStreamingStarted(t *testing.T) bool {
 	return false
 }
 
+// checks for the snapshot phase completed in export and import both by checking the get data migration report
 func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string, snapshotRows int64, tableName string) bool {
 	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
 		"--export-dir", exportDir,
@@ -89,6 +92,7 @@ func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string
 	return false
 }
 
+// checks for the streaming phase completed in export and import both by checking the get data migration report
 func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, tableName string) bool {
 	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
 		"--export-dir", exportDir,
@@ -125,6 +129,7 @@ func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass strin
 	return false
 }
 
+// This inserts some rows in target table having sequence and validates if the ids ingested are correct or not
 func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) {
 	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO test_schema.test_live (name, email, description)
 SELECT
@@ -152,9 +157,10 @@ FROM generate_series(%d, %d);`, startID, endId))
 	assert.Equal(t, ids, resIds)
 }
 
-// Basic Test for live migration with cutover 
+// Basic Test for live migration with cutover
+// cutover -> validate sequence restoration
+//
 //export data -> import data (streaming for some events) -> once all data is streamed to target
-//cutover -> validate sequence restoration
 func TestBasicLiveMigrationWithCutover(t *testing.T) {
 	ctx := context.Background()
 
@@ -180,7 +186,9 @@ FROM generate_series(1, 10);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Start Postgres container for live migration
-	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
@@ -213,7 +221,8 @@ FROM generate_series(1, 10);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	for {
+	start := time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if isExportDataStreamingStarted(t) {
 			break
 		}
@@ -230,7 +239,8 @@ FROM generate_series(1, 10);`
 
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 10, `test_schema."test_live"`) {
 			break
@@ -261,7 +271,8 @@ SELECT
 FROM generate_series(1, 5);`,
 	}...)
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 5, `test_schema."test_live"`) {
 			break
@@ -285,7 +296,8 @@ FROM generate_series(1, 5);`,
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		status := getCutoverStatus()
 		if status == COMPLETED {
 			break
@@ -298,10 +310,11 @@ FROM generate_series(1, 5);`,
 }
 
 // test for live migration with resumption and failure during restore sequences
-//export data -> import data (streaming some data) -> once done kill import 
-//cutover -> drop sequence on target -> start import again (validate its failing at restore sequences)
-//create sequence back on target -> re-run import again 
-//validate sequence by inserting data 
+// cutover -> drop sequence on target -> start import again (validate its failing at restore sequences)
+// create sequence back on target -> re-run import again
+// validate sequence by inserting data
+//
+//export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionOnFailureAtRestoreSequences(t *testing.T) {
 	ctx := context.Background()
 
@@ -327,7 +340,9 @@ FROM generate_series(1, 20);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Start Postgres container for live migration
-	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
@@ -360,7 +375,8 @@ FROM generate_series(1, 20);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	for {
+	start := time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if isExportDataStreamingStarted(t) {
 			break
 		}
@@ -377,7 +393,8 @@ FROM generate_series(1, 20);`
 	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
 			break
@@ -408,7 +425,8 @@ SELECT
 FROM generate_series(1, 15);`,
 	}...)
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
 			break
@@ -481,7 +499,8 @@ FROM generate_series(1, 15);`,
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		status := getCutoverStatus()
 		if status == COMPLETED {
 			break
@@ -495,9 +514,10 @@ FROM generate_series(1, 15);`,
 }
 
 // test live migration with import resumption with  generated always schema
-//export data -> import data (streaming some data) -> once done kill import 
-//cutover -> start import again
-//validate ALWAYS type on the target 
+// cutover -> start import again
+// validate ALWAYS type on the target
+//
+//export data -> import data (streaming some data) -> once done kill import
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
 	ctx := context.Background()
 
@@ -523,7 +543,9 @@ FROM generate_series(1, 20);`
 	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
 
 	// Start Postgres container with live migration
-	postgresContainer := testcontainers.NewTestContainerForLiveMigration("postgresql", nil)
+	postgresContainer := testcontainers.NewTestContainer("postgresql", &testcontainers.ContainerConfig{
+		ForLive: true,
+	})
 	if err := postgresContainer.Start(ctx); err != nil {
 		utils.ErrExit("Failed to start Postgres container: %v", err)
 	}
@@ -556,7 +578,8 @@ FROM generate_series(1, 20);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	for {
+	start := time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		//check for status until its streaming
 		if isExportDataStreamingStarted(t) {
 			break
@@ -574,7 +597,8 @@ FROM generate_series(1, 20);`
 
 	time.Sleep(5 * time.Second)
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
 			break
@@ -605,7 +629,8 @@ SELECT
 FROM generate_series(1, 15);`,
 	}...)
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
 			break
@@ -653,7 +678,8 @@ FROM generate_series(1, 15);`,
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	for {
+	start = time.Now()
+	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
 		status := getCutoverStatus()
 		if status == COMPLETED {
 			break

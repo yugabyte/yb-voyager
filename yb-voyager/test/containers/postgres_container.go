@@ -20,7 +20,6 @@ import (
 type PostgresContainer struct {
 	mutex sync.Mutex
 	ContainerConfig
-	forLive   bool
 	container testcontainers.Container
 }
 
@@ -78,7 +77,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		},
 	}
 
-	if pg.forLive {
+	if pg.ContainerConfig.ForLive {
 		req.Cmd = []string{
 			"postgres",
 			"-c", "wal_level=logical", // <-- set wal_level,
