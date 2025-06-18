@@ -406,9 +406,9 @@ func WaitForDBToBeReady(db *sql.DB) error {
 
 // context is OPTIONAL functional arg for caller but should be appended in error message
 func FatalIfError(t *testing.T, err error, context ...string) {
-	context = lo.Ternary(len(context) > 1, context, []string{"error"})
+	contextStr := lo.Ternary(len(context) >= 1, strings.Join(context, " "), "error")
 	if err != nil {
-		t.Fatalf("%s: %v", context[0], err)
+		t.Fatalf("%s: %v", contextStr, err)
 	}
 }
 

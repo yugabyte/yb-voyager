@@ -188,6 +188,26 @@ func (pg *PostgresContainer) GetConnection() (*sql.DB, error) {
 	return conn, nil
 }
 
+func (pg *PostgresContainer) GetVersion() (string, error) {
+	if pg == nil {
+		return "", fmt.Errorf("postgres container is not started: nil")
+	}
+
+	conn, err := pg.GetConnection()
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection for postgres version: %w", err)
+	}
+	defer conn.Close()
+
+	var version string
+	err = conn.QueryRow("SELECT version()").Scan(&version)
+	if err != nil {
+		return "", fmt.Errorf("failed to query postgres version: %w", err)
+	}
+
+	return version, nil
+}
+
 func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 	if pg == nil {
 		utils.ErrExit("postgres container is not started: nil")
@@ -206,4 +226,22 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+
+	conn, err := pg.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
+	}
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
 }
