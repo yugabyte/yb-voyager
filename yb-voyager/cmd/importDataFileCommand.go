@@ -224,6 +224,11 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateTargetPortRange()
 	validateTargetSchemaFlag()
 	validateParallelismFlags()
+
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		utils.ErrExit("Error validating --on-primary-key-conflict flag: %w", err)
+	}
 }
 
 func checkFileFormat() {

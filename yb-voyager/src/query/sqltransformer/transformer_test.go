@@ -420,9 +420,8 @@ func Test_DeparsingAPI(t *testing.T) {
 	`
 
 	expectedSqls := []string{
-		// expected: CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');
-		// but below is what parser actual returns due to Parser bug: https://github.com/pganalyze/pg_query_go/issues/126
-		`CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT current_timestamp AT TIME ZONE 'UTC');`,
+		// Voyager also upgrade pg_query_go module to a version supporting this, but let's keep this test to detect future regressions.
+		`CREATE TABLE my_table (created_at timestamptz NOT NULL DEFAULT (current_timestamp AT TIME ZONE 'UTC'));`,
 	}
 
 	tempFilePath, err := testutils.CreateTempFile("/tmp", sqlFileContent, "sql")
