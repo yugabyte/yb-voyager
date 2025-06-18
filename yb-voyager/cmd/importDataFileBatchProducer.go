@@ -18,10 +18,12 @@ package cmd
 import (
 	"fmt"
 	"io"
+	"sort"
 
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -31,7 +33,7 @@ type FileBatchProducer struct {
 	task  *ImportFileTask
 	state *ImportDataState
 
-	pendingBatches  []*Batch //pending batches after recovery
+	pendingBatches  []*Batch // pending batches after recovery
 	lastBatchNumber int64    // batch number of the last batch that was produced
 	lastOffset      int64    // file offset from where the last batch was produced, only used in recovery
 	fileFullySplit  bool     // if the file is fully split into batches
@@ -44,18 +46,31 @@ type FileBatchProducer struct {
 	// line that was read from file while producing the previous batch
 	// but not added to the batch because adding it would breach size/row based thresholds.
 	lineFromPreviousBatch string
+
+	errorHandler importdata.ImportDataErrorHandler
 }
 
-func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBatchProducer, error) {
+func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHandler importdata.ImportDataErrorHandler) (*FileBatchProducer, error) {
+	if errorHandler == nil {
+		return nil, fmt.Errorf("errorHandler must not be nil")
+	}
+
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("preparing for file import: %s", err)
 	}
+
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
 		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
 	}
 	completed := len(pendingBatches) == 0 && fileFullySplit
+
+	// sort the pending batches by placing interrupted batches at front so that they are ingested first for that file ensuring recovery first.
+	// TODO: Need to ensure the file/tasks picked are the priortised based on the inprogress ones being prioritised than the new ones.
+	sort.Slice(pendingBatches, func(i, j int) bool {
+		return pendingBatches[i].IsInterrupted()
+	})
 
 	return &FileBatchProducer{
 		task:            task,
@@ -66,6 +81,7 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState) (*FileBa
 		fileFullySplit:  fileFullySplit,
 		completed:       completed,
 		numLinesTaken:   lastOffset,
+		errorHandler:    errorHandler,
 	}, nil
 }
 
@@ -132,14 +148,31 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if tconf.TargetDBType == YUGABYTEDB {
 				ybSpecificMsg = ", but should be strictly lower than the the rpc_max_message_size on YugabyteDB (default 267386880 bytes)"
 			}
-			return nil, fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			errMsg := fmt.Errorf("record of size %d larger than max batch size: record num=%d for table %q in file %s is larger than the max batch size %d bytes. Max Batch size can be changed using env var MAX_BATCH_SIZE_BYTES%s", currentBytesRead, p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, tdb.MaxBatchSizeInBytes(), ybSpecificMsg)
+			if p.errorHandler.ShouldAbort() {
+				return nil, errMsg
+			}
+			err := p.handleRowProcessingErrorAndResetBytes(line, errMsg, currentBytesRead)
+			if err != nil {
+				return nil, err
+			}
+			continue
 		}
 		if line != "" {
 			// can't use importBatchArgsProto.Columns as to use case insenstiive column names
 			columnNames, _ := TableToColumnNames.Get(p.task.TableNameTup)
+			lineBeforeConversion := line
 			line, err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, line)
 			if err != nil {
-				return nil, fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				if p.errorHandler.ShouldAbort() {
+					return nil, errMsg
+				}
+				err := p.handleRowProcessingErrorAndResetBytes(lineBeforeConversion, errMsg, currentBytesRead)
+				if err != nil {
+					return nil, err
+				}
+				continue
 			}
 			batchBytesCount := p.dataFile.GetBytesRead() // GetBytesRead - returns the total bytes read until now including the currentBytesRead
 			if p.header != "" {
@@ -252,4 +285,16 @@ func (p *FileBatchProducer) Close() {
 	if p.dataFile != nil {
 		p.dataFile.Close()
 	}
+}
+
+func (p *FileBatchProducer) handleRowProcessingErrorAndResetBytes(row string, rowErr error, currentBytesRead int64) error {
+	handleErr := p.errorHandler.HandleRowProcessingError(row, rowErr, p.task.TableNameTup, p.task.FilePath)
+	if handleErr != nil {
+		return fmt.Errorf("failed to handle row processing error: %w", handleErr)
+	}
+	// datafile.GetBytesRead tracks the total bytes read from the file in the current batch.
+	// Since we are not adding the current row to the batch, we need to reset the bytes read
+	// to the previous value before reading the current row.
+	p.dataFile.ResetBytesRead(p.dataFile.GetBytesRead() - currentBytesRead)
+	return nil
 }

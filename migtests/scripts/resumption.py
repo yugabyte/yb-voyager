@@ -25,6 +25,7 @@ import tempfile
 # max_interrupt_seconds: Maximum interval between interrupts.
 # min_restart_wait_seconds: Minimum wait time before resuming.
 # max_restart_wait_seconds: Maximum wait time before resuming.
+# varying_flags: Flags which are run with varying values on each invocation.
 
 import_type = None
 additional_flags = {}
@@ -46,6 +47,7 @@ target_db_password = ''
 target_db_schema = ''
 target_db_name = ''
 data_dir = ''
+varying_flags = {}
 
 def parse_arguments():
     parser = argparse.ArgumentParser(description="YB Voyager Resumption Test")
@@ -64,15 +66,15 @@ def load_config(config_file):
 def initialize_globals(config):
     """Initialize global variables from configuration."""
     global import_type, resumption, row_count, max_restarts, min_interrupt_seconds, max_interrupt_seconds, min_restart_wait_seconds, max_restart_wait_seconds
-    global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir
+    global export_dir, additional_flags, file_table_map, run_without_adaptive_parallelism, source_db_type, target_db_host, target_db_port, target_db_user, target_db_password, target_db_schema, target_db_name, data_dir, varying_flags
 
     resumption = config.get('resumption', {})
     import_type = config.get('import_type', 'file')  # Default to 'file'
     additional_flags = config.get('additional_flags', {})
     file_table_map = config.get('file_table_map', '')
+    varying_flags = config.get("varying_flags", {})
 
     # Resumption settings
-    # resumption = config['resumption']
     max_restarts = resumption.get('max_restarts', 5)
     min_interrupt_seconds = resumption.get('min_interrupt_seconds', 30)
     max_interrupt_seconds = resumption.get('max_interrupt_seconds', 60)
@@ -113,7 +115,8 @@ def prepare_import_data_file_command():
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
         '--data-dir', data_dir,
-        '--file-table-map', file_table_map
+        '--file-table-map', file_table_map,
+        '--skip-replication-checks', 'true',
     ]
 
     if run_without_adaptive_parallelism:
@@ -126,7 +129,7 @@ def prepare_import_data_file_command():
     return args
 
 
-def prepare_import_data_command(config):
+def prepare_import_data_command():
     """
     Prepares the yb-voyager import data command based on the given configuration.
     """
@@ -141,6 +144,7 @@ def prepare_import_data_command(config):
         '--target-db-name', target_db_name,
         '--disable-pb', 'true',
         '--send-diagnostics', 'false',
+        '--skip-replication-checks', 'true',
     ]
     
     if source_db_type != 'postgresql':
@@ -155,6 +159,21 @@ def prepare_import_data_command(config):
 
     return args
 
+def inject_varying_flags_values(command):
+    global varying_flags
+
+    for flag, setting in varying_flags.items():
+        value_list = setting["value"]
+        if setting["type"] == "range":
+            value = random.randint(value_list[0], value_list[1])
+        elif setting["type"] == "choice":
+            value = random.choice(value_list)
+        else:
+            raise ValueError(f"Unknown type for '{flag}': {setting['type']}")
+        command.extend([flag, str(value)])
+
+    return command
+
 def run_command(command, allow_interruption=False, interrupt_after=None):
     with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
         process = subprocess.Popen(
@@ -162,23 +181,32 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
         )
         start_time = time.time()
         interrupted = False
+        chosen_signal = None
 
         while process.poll() is None:
             if allow_interruption and interrupt_after is not None:
                 elapsed_time = time.time() - start_time
                 if elapsed_time > interrupt_after:
-                    print("Interrupting the process (PID: {})...".format(process.pid), flush=True)
+                    # Choose a random signal to send
+                    interrupt_signals = [
+                        signal.SIGTERM,
+                        signal.SIGINT,
+                        signal.SIGKILL
+                    ]
+                    chosen_signal = random.choice(interrupt_signals)
+                    print(f"Interrupting the process (PID: {process.pid}) with signal {chosen_signal.name}...", flush=True)
+
                     try:
-                        process.terminate()
-                        print("Terminate signal sent to process (PID: {}). Waiting for process to exit...".format(process.pid), flush=True)
+                        process.send_signal(chosen_signal)
+                        print(f"{chosen_signal.name} sent to process (PID: {process.pid}). Waiting for process to exit...", flush=True)
 
                         process.wait(timeout=10)  # Wait for the process to exit
                         print(f"Process (PID: {process.pid}) terminated gracefully with exit code: {process.returncode}", flush=True)
 
                     except subprocess.TimeoutExpired:
-                        print("Process (PID: {}) did not terminate in time. Forcing termination...".format(process.pid), flush=True)
+                        print(f"Process (PID: {process.pid}) did not terminate in time. Forcing termination...", flush=True)
                         process.kill()
-                        print(f"Process (PID: {process.pid}) killed with exit code: {process.returncode}", flush=True)
+                        print(f"Process (PID: {process.pid}) force-killed with exit code: {process.returncode}", flush=True)
 
                     interrupted = True
                     break
@@ -204,23 +232,38 @@ def run_command(command, allow_interruption=False, interrupt_after=None):
 
         # If interrupted, check the exit code
         if interrupted:
-            if process.returncode not in {1, -9, 137}:  # -9 and 137 are SIGKILL variations
-                print(f"Unexpected exit code after interruption: {process.returncode}", flush=True)
+            # These exit codes are considered valid for interrupted processes:
+            # Negative signal numbers (e.g., -SIGKILL) indicate termination by a specific signal.
+            # 128 + signal number (e.g., 128 + SIGKILL) is the convention for processes terminated by signals.
+            # Exit code 1 is expected for graceful termination by SIGTERM or SIGINT.
+            valid_interrupt_exit_codes = {
+                -signal.SIGKILL, 128 + signal.SIGKILL,
+                1
+            }
+
+            if process.returncode not in valid_interrupt_exit_codes:
+                print(f"Unexpected exit code after interruption ({chosen_signal.name}): {process.returncode}", flush=True)
                 sys.exit(1)
 
         completed = process.returncode == 0 and not interrupted
         return completed, stdout, stderr
 
 
-def run_and_resume_voyager(command):
+def run_and_resume_voyager(base_command):
     """
     Handles the interruption logic and manages retries for the command.
 
     Args:
-        command (list): The command to execute.
+        base_command (list): The base command to execute.
     """
     for attempt in range(1, max_restarts + 1):
         print(f"\n--- Attempt {attempt} of {max_restarts} ---")
+
+        # Clone base command
+        command = base_command.copy()
+
+        # Inject varying flags on each retry
+        command = inject_varying_flags_values(command)
 
         # Randomly determine interruption timing
         interruption_time = random.randint(min_interrupt_seconds, max_interrupt_seconds)
@@ -238,6 +281,9 @@ def run_and_resume_voyager(command):
 
     # Final attempt without interruption
     print("\n--- Final attempt to complete the import ---\n", flush=True)
+
+    # Inject final set of varying flags before final run
+    command = inject_varying_flags_values(base_command.copy())
     completed, stdout, stderr = run_command(command, allow_interruption=False)
 
     if not completed:
@@ -291,7 +337,7 @@ def validate_row_counts():
     else:
         print("\nAll table row counts validated successfully.")
 
-def run_import_with_resumption(config):
+def run_import_with_resumption():
     """
     Runs the import process with resumption logic based on the provided configuration.
 
@@ -302,7 +348,7 @@ def run_import_with_resumption(config):
     if import_type == 'file':
         command = prepare_import_data_file_command()
     elif import_type == 'offline':
-        command = prepare_import_data_command(config)
+        command = prepare_import_data_command()
     else:
         raise ValueError(f"Unsupported import_type: {import_type}")
         sys.exit(1)
@@ -319,7 +365,7 @@ if __name__ == "__main__":
         print(f"Loaded configuration from {args.config_file}")
 
         # Run import process
-        run_import_with_resumption(config)
+        run_import_with_resumption()
 
         # Validate rows
         validate_row_counts()

@@ -49,7 +49,12 @@ func testAdvisoryLocks(t *testing.T) {
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, "SELECT pg_advisory_unlock_shared(100);")
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, "advisory locks are not yet implemented", advisoryLocksIssue)
+
+	expectedMsg := "advisory locks are not yet implemented"
+	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+		expectedMsg = `advisory locks feature is currently in preview`
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedMsg, advisoryLocksIssue)
 }
 
 func testSystemColumns(t *testing.T) {
@@ -80,6 +85,10 @@ func testSystemColumns(t *testing.T) {
 			_, err := conn.Exec(ctx, query)
 
 			expectedMsg := fmt.Sprintf(`System column "%s" is not supported yet`, col)
+			if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+				expectedMsg = fmt.Sprintf(`system column "%s" is not supported yet`, col)
+			}
+
 			expectedIssue, ok := systemColumnIssueMap[col]
 			if !ok {
 				t.Fatalf("Missing expected QueryIssue mapping for system column: %s", col)

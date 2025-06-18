@@ -38,8 +38,6 @@ const (
 	LAST_SPLIT_NUM                  = 0
 	SPLIT_INFO_PATTERN              = "[0-9]*.[0-9]*.[0-9]*.[0-9]*"
 	LAST_SPLIT_PATTERN              = "0.[0-9]*.[0-9]*.[0-9]*"
-	COPY_MAX_RETRY_COUNT            = 10
-	MAX_SLEEP_SECOND                = 60
 	DEFAULT_BATCH_SIZE_ORACLE       = 10000000
 	DEFAULT_BATCH_SIZE_YUGABYTEDB   = 20000
 	DEFAULT_BATCH_SIZE_POSTGRESQL   = 100000
@@ -62,6 +60,10 @@ const (
 	ROW_UPDATE_STATUS_IN_PROGRESS   = 1
 	ROW_UPDATE_STATUS_COMPLETED     = 3
 	COLOCATION_CLAUSE               = "colocation"
+
+	//the default value as false, 0 etc.. is not added to the usage msg by cobra so can be used for flags that are mandatory and no default value is shown to user
+	BOOL_FLAG_ZERO_VALUE = false
+
 	//phase names used in call-home payload
 	ANALYZE_PHASE                    = "analyze-schema"
 	EXPORT_SCHEMA_PHASE              = "export-schema"
@@ -240,10 +242,11 @@ const (
 var supportedSourceDBTypes = []string{ORACLE, MYSQL, POSTGRESQL, YUGABYTEDB}
 var validExportTypes = []string{SNAPSHOT_ONLY, CHANGES_ONLY, SNAPSHOT_AND_CHANGES}
 
-var validSSLModes = map[string][]string{
-	"mysql":      {"disable", "prefer", "require", "verify-ca", "verify-full"},
-	"postgresql": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
-	"yugabytedb": {"disable", "allow", "prefer", "require", "verify-ca", "verify-full"},
+var AllSSLModes = []string{constants.DISABLE, constants.PREFER, constants.ALLOW, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}
+var ValidSSLModesForSourceDB = map[string][]string{
+	MYSQL:      {constants.DISABLE, constants.PREFER, constants.REQUIRE, constants.VERIFY_CA, constants.VERIFY_FULL}, // MySQL does not support ALLOW mode
+	POSTGRESQL: AllSSLModes,
+	YUGABYTEDB: AllSSLModes,
 }
 
 var EVENT_BATCH_MAX_RETRY_COUNT = 50

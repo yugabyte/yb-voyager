@@ -36,4 +36,5 @@ var cutoverToSourceReplicaCmd = &cobra.Command{
 func init() {
 	cutoverToCmd.AddCommand(cutoverToSourceReplicaCmd)
 	registerExportDirFlag(cutoverToSourceReplicaCmd)
+	registerConfigFileFlag(cutoverToSourceReplicaCmd)
 }

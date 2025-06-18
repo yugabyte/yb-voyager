@@ -29,7 +29,7 @@
             {
                 "ObjectType": "INDEX",
                 "TotalCount": 5,
-                "InvalidCount": 2,
+                "InvalidCount": 1,
                 "ObjectNames": "changeset_geom_gist ON public.osm_changeset, created_idx ON public.osm_changeset, tags_idx ON public.osm_changeset, user_id_idx ON public.osm_changeset, user_name_idx ON public.osm_changeset",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
@@ -46,7 +46,7 @@
             "IssueType": "unsupported_features",
             "ObjectType": "EXTENSION",
             "ObjectName": "postgis",
-            "Reason": "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions.",
+            "Reason": "This extension is not supported in YugabyteDB by default.",
             "SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/osm/export-dir/schema/extensions/extension.sql",
             "Suggestion": "",
@@ -64,18 +64,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/11323",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-yugabytedb",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "performance_optimizations",
-            "ObjectType": "INDEX",
-            "ObjectName": "created_idx ON public.osm_changeset",
-            "Reason": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: created_at",
-            "SqlStatement": "CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);",
-            "FilePath": "/Users/priyanshigupta/Documents/voyager/yb-voyager/migtests/tests/pg/osm/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "",
-            "GH": "",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
             "MinimumVersionsFixedIn": null
         },
         {

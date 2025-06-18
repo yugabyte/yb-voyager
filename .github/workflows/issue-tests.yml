@@ -12,7 +12,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        version: [2.25.0.0-b489, 2024.1.4.0-b108, LATEST_STABLE, 2.20.9.0-b47]
+        version: [2.25.1.0-b381, 2024.1.4.0-b108, LATEST_STABLE, 2.20.9.0-b47]
     env:
       YB_VERSION: ${{ matrix.version }}
       YB_CONN_STR: "postgres://yugabyte:yugabyte@127.0.0.1:5433/yugabyte"
@@ -31,7 +31,7 @@ jobs:
       run: |
         # Note: Update val for LATEST_STABLE here along with 'src/ybversion/constants.go/LATEST_STABLE' variable
         if [ "${YB_VERSION}" == "LATEST_STABLE" ]; then
-          YB_VERSION="2024.2.2.2-b2"
+          YB_VERSION="2024.2.3.1-b3"
 
           # write it to GitHub's environment to override previous value
           echo "YB_VERSION=${YB_VERSION}" >> $GITHUB_ENV

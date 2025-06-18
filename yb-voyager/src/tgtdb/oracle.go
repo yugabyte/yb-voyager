@@ -175,6 +175,49 @@ func (tdb *TargetOracleDB) CreateVoyagerSchema() error {
 	return nil
 }
 
+// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// This info is only used in fast path import of batches(Target YugabyteDB)
+func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	sname, tname := table.ForCatalogQuery()
+	query := fmt.Sprintf("SELECT COLUMN_NAME FROM ALL_TAB_COLUMNS WHERE TABLE_NAME = '%s' AND OWNER = '%s'", tname, sname)
+	rows, err := tdb.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to query primary key columns: %w", err)
+	}
+	defer rows.Close()
+
+	var columns []string
+	for rows.Next() {
+		var column string
+		err := rows.Scan(&column)
+		if err != nil {
+			return nil, fmt.Errorf("error while scanning rows returned from Oracle DB: %w", err)
+		}
+		columns = append(columns, column)
+	}
+
+	return columns, nil
+}
+
+// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// This info is only used in fast path import of batches(Target YugabyteDB)
+func (tdb *TargetOracleDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
+	sname, tname := table.ForCatalogQuery()
+	query := fmt.Sprintf(`SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = '%s' AND OWNER = '%s' AND CONSTRAINT_TYPE = 'P'`, tname, sname)
+	row := tdb.QueryRow(query)
+
+	var constraintName string
+	err := row.Scan(&constraintName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // No primary key constraint found
+		}
+		return "", fmt.Errorf("failed to get primary key constraint name: %w", err)
+	}
+
+	return constraintName, nil
+}
+
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -232,7 +275,11 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+	if nonTxnPath {
+		panic("non-transactional path for import batch is not supported in Oracle")
+	}
+
 	tdb.Lock()
 	defer tdb.Unlock()
 

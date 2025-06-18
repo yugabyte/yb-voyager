@@ -147,13 +147,16 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with indexes on timestamp as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: rental_date",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental",
 			"SqlStatement": "CREATE UNIQUE INDEX idx_unq_rental_rental_date_inventory_id_customer_id ON public.rental USING btree (rental_date, inventory_id, customer_id);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "rental_date"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -1017,6 +1020,7 @@
 		}
 	],
 	"Notes": [
+		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"

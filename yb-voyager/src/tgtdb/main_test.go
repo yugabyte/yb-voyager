@@ -74,31 +74,31 @@ func TestMain(m *testing.M) {
 	}
 	defer testPostgresTarget.Finalize()
 
-	// oracleContainer := testcontainers.NewTestContainer("oracle", nil)
-	// _ = oracleContainer.Start(ctx)
-	// host, port, err = oracleContainer.GetHostPort()
-	// if err != nil {
-	// 	utils.ErrExit("%v", err)
-	// }
-	// testOracleTarget = &TestDB2{
-	// 	Container: oracleContainer,
-	// 	TargetDB: NewTargetDB(&TargetConf{
-	// 		TargetDBType: "oracle",
-	// 		DBVersion:    oracleContainer.GetConfig().DBVersion,
-	// 		User:         oracleContainer.GetConfig().User,
-	// 		Password:     oracleContainer.GetConfig().Password,
-	// 		Schema:       oracleContainer.GetConfig().Schema,
-	// 		DBName:       oracleContainer.GetConfig().DBName,
-	// 		Host:         host,
-	// 		Port:         port,
-	// 	}),
-	// }
+	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
+	_ = oracleContainer.Start(ctx)
+	host, port, err = oracleContainer.GetHostPort()
+	if err != nil {
+		utils.ErrExit("%v", err)
+	}
+	testOracleTarget = &TestDB{
+		TestContainer: oracleContainer,
+		TargetDB: NewTargetDB(&TargetConf{
+			TargetDBType: "oracle",
+			DBVersion:    oracleContainer.GetConfig().DBVersion,
+			User:         oracleContainer.GetConfig().User,
+			Password:     oracleContainer.GetConfig().Password,
+			Schema:       oracleContainer.GetConfig().Schema,
+			DBName:       oracleContainer.GetConfig().DBName,
+			Host:         host,
+			Port:         port,
+		}),
+	}
 
-	// err = testOracleTarget.Init()
-	// if err != nil {
-	// 	utils.ErrExit("Failed to connect to oracle database: %w", err)
-	// }
-	// defer testOracleTarget.Finalize()
+	err = testOracleTarget.Init()
+	if err != nil {
+		utils.ErrExit("Failed to connect to oracle database: %w", err)
+	}
+	defer testOracleTarget.Finalize()
 
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)

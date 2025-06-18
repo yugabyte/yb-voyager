@@ -2,9 +2,11 @@ package testcontainers
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/docker/go-connections/nat"
@@ -17,14 +19,30 @@ import (
 )
 
 type YugabyteDBContainer struct {
+	mutex sync.Mutex
 	ContainerConfig
 	container testcontainers.Container
 }
 
 func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
-	if yb.container != nil && yb.container.IsRunning() {
-		utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
-		return nil
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
+	if yb.container != nil {
+		if yb.container.IsRunning() {
+			utils.PrintAndLog("YugabyteDB-%s container already running", yb.DBVersion)
+			return nil
+		}
+
+		// but if it’s stopped, so start it back up in place
+		utils.PrintAndLog("Restarting YugabyteDB-%s container", yb.DBVersion)
+		if err := yb.container.Start(ctx); err != nil {
+			return fmt.Errorf("failed to restart yugabytedb container: %w", err)
+		}
+
+		if err := yugabyteWait().WaitUntilReady(ctx, yb.container); err != nil {
+			return err
+		}
 	}
 
 	// since these Start() can be called from anywhere so need a way to ensure that correct files(without needing abs path) are picked from project directories
@@ -50,10 +68,7 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 			"--ui=false",
 			"--initial_scripts_dir=/home/yugabyte/initial-scripts",
 		},
-		WaitingFor: wait.ForAll(
-			wait.ForListeningPort("5433/tcp").WithStartupTimeout(2*time.Minute).WithPollInterval(5*time.Second),
-			wait.ForLog("Data placement constraint successfully verified").WithStartupTimeout(3*time.Minute).WithPollInterval(1*time.Second),
-		),
+		WaitingFor: yugabyteWait(),
 		Files: []testcontainers.ContainerFile{
 			{
 				HostFilePath:      tmpFile.Name(),
@@ -72,14 +87,37 @@ func (yb *YugabyteDBContainer) Start(ctx context.Context) (err error) {
 		return fmt.Errorf("failed to start yugabytedb container: %w", err)
 	}
 
-	err = pingDatabase("pgx", yb.GetConnectionString())
-	if err != nil {
-		return fmt.Errorf("failed to ping yugabytedb container: %w", err)
+	return nil
+}
+
+// Stop simulates a database outage by stopping (but not removing) the Docker container.
+// The underlying data directory remains intact, so you can call Start() later
+// and the DB will pick up with exactly the same contents.
+func (yb *YugabyteDBContainer) Stop(ctx context.Context) error {
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
+	if yb.container == nil {
+		return nil
+	} else if !yb.container.IsRunning() {
+		utils.PrintAndLog("YugabyteDB-%s container already stopped", yb.DBVersion)
+		return nil
 	}
+
+	timeout := 10 * time.Second
+	// Stop with a 10s timeout—this sends SIGTERM and waits, but does NOT remove the container.
+	if err := yb.container.Stop(ctx, &timeout); err != nil {
+		return fmt.Errorf("failed to stop postgres container: %w", err)
+	}
+
+	utils.PrintAndLog("🛑 YugabyteDB-%s container stopped", yb.DBVersion)
 	return nil
 }
 
 func (yb *YugabyteDBContainer) Terminate(ctx context.Context) {
+	yb.mutex.Lock()
+	defer yb.mutex.Unlock()
+
 	if yb == nil {
 		return
 	}
@@ -123,6 +161,19 @@ func (yb *YugabyteDBContainer) GetConnectionString() string {
 	return fmt.Sprintf("postgresql://%s:%s@%s:%d/%s", config.User, config.Password, host, port, config.DBName)
 }
 
+func (yb *YugabyteDBContainer) GetConnection() (*sql.DB, error) {
+	if yb.container == nil {
+		utils.ErrExit("yugabytedb container is not started: nil")
+	}
+
+	connStr := yb.GetConnectionString()
+	conn, err := sql.Open("pgx", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to connect to yugabytedb: %w", err)
+	}
+	return conn, nil
+}
+
 func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 	if yb == nil {
 		utils.ErrExit("yugabytedb container is not started: nil")
@@ -157,4 +208,16 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sql, err)
 		}
 	}
+}
+
+// No need to ping after this, as the wait strategy will ensure that the DB is ready to accept connections
+func yugabyteWait() wait.Strategy {
+	return wait.ForSQL("5433/tcp", "pgx",
+		func(host string, port nat.Port) string {
+			return fmt.Sprintf(
+				"postgres://yugabyte:password@%s:%s/yugabyte?sslmode=disable",
+				host, port.Port())
+		},
+	).WithQuery("SELECT 1").
+		WithStartupTimeout(3 * time.Minute)
 }

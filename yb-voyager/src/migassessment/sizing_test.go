@@ -20,6 +20,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"math"
 	"testing"
 
@@ -1661,6 +1662,51 @@ func TestFindImportTimeFromExpDataLoadTime_SizePreferredIfRowsAreSame(t *testing
 	if actualImportTime != expectedImportTime {
 		t.Errorf("Expected %v but got %v", expectedImportTime, actualImportTime)
 	}
+}
+
+/*
+===== 	Test functions to test findClosestVersion function	=====
+*/
+// closest version to respective targetYbVersion should be actual closest or default
+func TestFindClosestVersion(t *testing.T) {
+	defaultYbVersionId := 2
+	targetVersionAndClosest := map[string]int64{
+		"2024.1.0.0": 1,
+		"2024.1.2.0": 1,
+		"2024.2.0.0": 2,
+		"2024.2.3.0": 2,
+		// in case of no closest found, default should be used
+		"2.21.0.0": 2,
+		"2.23.0.0": 2,
+		"2.25.0.0": 2,
+		"2.14.1.0": 2,
+		"2.18.2.0": 2,
+		"2.20.1.2": 2,
+	}
+	version20241, _ := ybversion.NewYBVersion("2024.1.0.0")
+	version20242, _ := ybversion.NewYBVersion("2024.2.0.0")
+
+	experimentDataAvailableVersions := []ExperimentDataAvailableYbVersion{
+		{
+			versionId:        1,
+			expDataYbVersion: version20241,
+			expDataIsDefault: false,
+		},
+		{
+			versionId:        2,
+			expDataYbVersion: version20242,
+			expDataIsDefault: true,
+		},
+	}
+
+	for tagetVersion, expectedClosestId := range targetVersionAndClosest {
+		targetDBVersion, _ := ybversion.NewYBVersion(tagetVersion)
+		actualClosestId := findClosestVersion(targetDBVersion, experimentDataAvailableVersions, int64(defaultYbVersionId))
+		if actualClosestId != expectedClosestId {
+			t.Errorf("Expected %v but got %v", expectedClosestId, actualClosestId)
+		}
+	}
+
 }
 
 /*

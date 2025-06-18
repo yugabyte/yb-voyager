@@ -34,7 +34,7 @@ DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar"
-DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.1/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.1-jar-with-dependencies.jar"
+DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.2.3/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.2.3-jar-with-dependencies.jar"
 
 # only rebuild voyager
 REBUILD_VOYAGER_LOCAL="false"
@@ -147,6 +147,7 @@ centos_main() {
 	$YUM_INSTALL postgresql17 1>&2
 	$YUM_INSTALL sqlite 1>&2
 	create_guardrail_scripts_dir
+	create_config_templates_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	install_golang linux
@@ -192,6 +193,7 @@ ubuntu_main() {
 	install_golang linux
 	ubuntu_install_postgres
 	create_guardrail_scripts_dir
+	create_config_templates_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	if [ $ONLY_PG == "false" ] ; then
@@ -236,6 +238,7 @@ macos_main() {
 
 	macos_install_pg_dump
 	create_guardrail_scripts_dir
+	create_config_templates_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
 	brew install wget
@@ -538,6 +541,7 @@ rebuild_voyager_local() {
 	VERSION="local"
 	install_yb_voyager
 	create_guardrail_scripts_dir
+	create_config_templates_dir
 	create_gather_assessment_metadata_dir
 	rebuild_debezium_server_voyager_plugin_local
 }
@@ -901,6 +905,27 @@ create_guardrail_scripts_dir() {
 	else
 		pushd $REPO_ROOT > /dev/null
 		sudo rsync -avc --delete $REPO_ROOT/$scripts_dir_name $scripts_parent_dir 1>&2
+		popd > /dev/null
+	fi
+}
+
+create_config_templates_dir() {
+	scripts_parent_dir="/opt/yb-voyager"
+	scripts_dir_name="config-templates"
+	sudo mkdir -p $scripts_parent_dir/$scripts_dir_name
+
+	output "Installing the config templates"
+	if [ "${VERSION}" != "local" ]
+	then
+		TAR_URL="https://github.com/yugabyte/yb-voyager/archive/$YB_VOYAGER_GIT_HASH.tar.gz"
+		sudo wget -nv -O /tmp/yb-voyager.tar.gz $TAR_URL
+		sudo tar -xzf /tmp/yb-voyager.tar.gz -C /tmp 1>&2
+		sudo cp -r /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH/yb-voyager/config-templates/* $scripts_parent_dir/$scripts_dir_name 1>&2
+		sudo rm -rf /tmp/yb-voyager-$YB_VOYAGER_GIT_HASH
+		sudo rm /tmp/yb-voyager.tar.gz
+	else
+		pushd $REPO_ROOT > /dev/null
+		sudo rsync -avc --delete $REPO_ROOT/yb-voyager/config-templates $scripts_parent_dir 1>&2
 		popd > /dev/null
 	fi
 }

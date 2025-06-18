@@ -1,14 +1,18 @@
 #!/usr/bin/env bash
 
 set -e
+set -x
 
-if [ $# -gt 2 ]
-then
-	echo "Usage: $0 TEST_NAME [env.sh]"
-	exit 1
+if [ $# -gt 3 ]; then
+    echo "Usage: $0 TEST_NAME [env.sh] [config_file]"
+    exit 1
 fi
 
-set -x
+# If exactly 2 arguments are passed, and the second argument ends with .yaml,
+# treat it as the config_file and leave env.sh as an empty string
+if [ $# -eq 2 ] && [[ "$2" == *.yaml ]]; then
+    set -- "$1" "" "$2"
+fi
 
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
@@ -40,6 +44,20 @@ fi
 
 source ${SCRIPTS}/yugabytedb/env.sh
 source ${SCRIPTS}/functions.sh
+
+export CONFIG_FILE="${TEST_DIR}/configs/default_config.yaml"
+
+# Handle optional additional config file ($3)
+if [ -n "$3" ]; then
+    CONFIG_FILE="${TEST_DIR}/configs/$3"
+    if [ ! -f "${CONFIG_FILE}" ]; then
+        echo "Error: Config file $3 not found in the test directory."
+        exit 1
+    fi
+	export CONFIG_FILE
+else
+    echo "No Config file provided. Using default_config.yaml."
+fi
 
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
@@ -84,14 +102,8 @@ main() {
 		}
 	fi
 
-	step "Generate the YAML file"
-	if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	  ./generate_config.py
-	fi
-
 	step "Run import with resumptions"
-
-	${SCRIPTS}/resumption.py config.yaml
+	${SCRIPTS}/resumption.py ${CONFIG_FILE}
 
 	step "Run import-data-status"
 	import_data_status
@@ -101,12 +113,10 @@ main() {
 
 	step "Verify import-data-status report"
 	verify_report ${expected_file} ${actual_file}
-	
+
 	step "Clean up"
 	rm -rf "${EXPORT_DIR}"
-	if [ -f "${TEST_DIR}/generate_config.py" ]; then
-	  rm config.yaml
-	fi
+
 	if [ -n "${SOURCE_DB_NAME}" ]; then
 		run_psql postgres "DROP DATABASE ${SOURCE_DB_NAME};"
 	fi

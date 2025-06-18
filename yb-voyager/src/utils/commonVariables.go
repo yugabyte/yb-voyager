@@ -17,7 +17,10 @@ package utils
 
 import (
 	"fmt"
+	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -40,7 +43,7 @@ type TableProgressMetadata struct {
 	CountTotalRows       int64
 	FileOffsetToContinue int64 // This might be removed later
 	IsPartition          bool
-	ParentTable          string
+	ParentTable          sqlname.NameTuple
 	//timeTakenByLast1000Rows int64; TODO: for ESTIMATED time calculation
 }
 
@@ -115,6 +118,7 @@ type AnalyzeSchemaIssue struct {
 	GH                     string                          `json:"GH"`
 	DocsLink               string                          `json:"DocsLink,omitempty"`
 	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn" xml:"-"` // key: series (2024.1, 2.21, etc)
+	Details                map[string]interface{}          `json:"-" xml:"-"`
 }
 
 func (i AnalyzeSchemaIssue) IsFixedIn(v *ybversion.YBVersion) (bool, error) {
@@ -146,6 +150,16 @@ type TableColumnsDataTypes struct {
 	IsUDTType   bool   `json:"-"`
 }
 
+func (colDatatype *TableColumnsDataTypes) GetBaseTypeNameFromDatatype() string {
+	splits := strings.Split(colDatatype.DataType, ".")
+	typeName, ok := SliceLastElement(splits)
+	if !ok {
+		log.Warnf("failed to get typename from colinfo: %s", colDatatype.DataType)
+	}
+	typeName = strings.TrimSuffix(typeName, "[]")
+	return typeName
+}
+
 type RedundantIndexesInfo struct {
 	DBType              string
 	RedundantSchemaName string
@@ -168,6 +182,27 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
 	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
 	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+}
+
+type ColumnStatistics struct {
+	DBType              string
+	SchemaName          string
+	TableName           string
+	ColumnName          string
+	NullFraction        float64
+	DistinctValues      int64
+	MostCommonFrequency float64
+	MostCommonValue     string
+}
+
+func (c *ColumnStatistics) GetTableName() string {
+	tableObjectName := sqlname.NewObjectName(c.DBType, "", c.SchemaName, c.TableName)
+	//Get Unquoted table name as the parse gets the unquoted name after parsing index statement
+	return tableObjectName.Qualified.Unquoted
+}
+
+func (c *ColumnStatistics) GetQualifiedColumnName() string {
+	return fmt.Sprintf("%s.%s", c.GetTableName(), c.ColumnName)
 }
 
 type UnsupportedQueryConstruct struct {

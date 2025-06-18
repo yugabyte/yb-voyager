@@ -323,6 +323,66 @@ outer:
 	return nil
 }
 
+// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
+// primary‑key definition of the given table.
+// Implementing this for completion but not used in Postgres fall-forward/fall-back
+// This info is only used in fast path import of batches(Target YugabyteDB)
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	var primaryKeyColumns []string
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_class      c ON c.oid = i.indrelid
+		JOIN pg_namespace  n ON n.oid = c.relnamespace
+		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+		WHERE n.nspname = '%s'
+			AND c.relname  = '%s'
+			AND i.indisprimary;`, schemaName, tableName)
+
+	rows, err := pg.Query(query)
+	if err != nil {
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan PK column: %w", err)
+		}
+		primaryKeyColumns = append(primaryKeyColumns, col)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return primaryKeyColumns, nil
+}
+
+// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// This info is only used in fast path import of batches(Target YugabyteDB)
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT constraint_name
+		FROM information_schema.table_constraints
+		WHERE table_schema = '%s'
+			AND table_name = '%s'
+			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+
+	var constraintName string
+	err := pg.QueryRow(query).Scan(&constraintName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // No primary key constraint found
+		}
+		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+	}
+
+	return constraintName, nil
+}
+
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -356,7 +416,11 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string) (int64, error) {
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+	if nonTxnPath {
+		panic("non-transactional path for import batch is not supported in PostgreSQL")
+	}
+
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {

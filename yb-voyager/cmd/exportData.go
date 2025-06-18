@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
@@ -236,6 +237,15 @@ func exportData() bool {
 		log.Errorf("error getting database size: %v", err) //can just log as this is used for call-home only
 	}
 
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		utils.ErrExit("error getting migration status record: %v", err)
+	}
+
+	if source.DBType == YUGABYTEDB {
+		source.IsYBGrpcConnector = msr.UseYBgRPCConnector
+	}
+
 	res := source.DB().CheckSchemaExists()
 	if !res {
 		utils.ErrExit("schema does not exist : %q", source.Schema)
@@ -295,7 +305,7 @@ func exportData() bool {
 		}
 	})
 
-	msr, err := metaDB.GetMigrationStatusRecord()
+	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
 		utils.ErrExit("get migration status record: %v", err)
 	}
@@ -373,6 +383,14 @@ func exportData() bool {
 				utils.ErrExit("get migration status record: %v", err)
 			}
 
+			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
+			if err != nil {
+				utils.ErrExit("error checking if replication slot is active: %v", err)
+			}
+			if isActive {
+				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+			}
+
 			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
@@ -391,6 +409,21 @@ func exportData() bool {
 			config.InitSequenceMaxMapping = sequenceInitValues.String()
 		}
 
+		// if source.DBType == YUGABYTEDB && !msr.UseYBgRPCConnector {
+		// Not having this check right now for the YB as this is not available in all YB versions, TODO: add it later
+		// 	msr, err := metaDB.GetMigrationStatusRecord()
+		// 	if err != nil {
+		// 		utils.ErrExit("get migration status record: %v", err)
+		// 	}
+
+		// 	isActive, err := checkIfReplicationSlotIsActive(msr.YBReplicationSlotName)
+		// 	if err != nil {
+		// 		utils.ErrExit("error checking if replication slot is active: %v", err)
+		// 	}
+		// 	if isActive {
+		// 		utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.YBReplicationSlotName)
+		// 	}
+		// }
 		err = debeziumExportData(ctx, config, tableNametoApproxRowCountMap)
 		if err != nil {
 			log.Errorf("Export Data using debezium failed: %v", err)
@@ -636,6 +669,20 @@ func GetAllLeafPartitions(table sqlname.NameTuple) []sqlname.NameTuple {
 		}
 	}
 	return allLeafPartitions
+}
+
+func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
+	if source.DBType != POSTGRESQL {
+		return false, nil
+	}
+	var isActive bool
+	var activePID sql.NullString
+	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
+	err := source.DB().QueryRow(stmt).Scan(&isActive, &activePID)
+	if err != nil {
+		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
+	}
+	return isActive && (activePID.String != ""), nil
 }
 
 func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, finalTableList []sqlname.NameTuple, tablesColumnList *utils.StructMap[sqlname.NameTuple, []string], leafPartitions *utils.StructMap[sqlname.NameTuple, []string]) error {
@@ -1517,18 +1564,52 @@ func startFallBackSetupIfRequired() {
 	if utils.DoNotPrompt {
 		cmd = append(cmd, "--yes")
 	}
-	if disablePb {
+
+	passImportDataToSourceSpecificCLIFlags := map[string]bool{
+		"disable-pb": true,
+	}
+
+	// Check whether the command specifc flags have been set in the config file
+	keysSetInConfig, err := readConfigFileAndGetImportDataToSourceKeys()
+	var displayCmdAndExit bool
+	var configFileErr error
+	if err != nil {
+		displayCmdAndExit = true
+		configFileErr = err
+	} else {
+		for key := range passImportDataToSourceSpecificCLIFlags {
+			if slices.Contains(keysSetInConfig, key) {
+				passImportDataToSourceSpecificCLIFlags[key] = false
+			}
+		}
+	}
+
+	// Log which command specific flags are to be passed to the command
+	log.Infof("Command specific flags to be passed to import data to source: %v", passImportDataToSourceSpecificCLIFlags)
+
+	// Command specific flags
+	if bool(disablePb) && passImportDataToSourceSpecificCLIFlags["disable-pb"] {
 		cmd = append(cmd, "--disable-pb=true")
 	}
+
 	cmdStr := "SOURCE_DB_PASSWORD=*** " + strings.Join(cmd, " ")
 
 	utils.PrintAndLog("Starting import data to source with command:\n %s", color.GreenString(cmdStr))
+
+	// If error had occurred while reading the config file, display the command and exit
+	if displayCmdAndExit {
+		// We are delaying this error message to be displayed here so that we can display the command
+		// after it has been constructed
+		utils.ErrExit("failed to read config file: %s\nPlease check the config file and re-run the command with only the required flags", configFileErr)
+	}
+
 	binary, lookErr := exec.LookPath(os.Args[0])
 	if lookErr != nil {
 		utils.ErrExit("could not find yb-voyager: %w", err)
 	}
 	env := os.Environ()
 	env = slices.Insert(env, 0, "SOURCE_DB_PASSWORD="+source.Password)
+
 	execErr := syscall.Exec(binary, cmd, env)
 	if execErr != nil {
 		utils.ErrExit("failed to run yb-voyager import data to source: %w\n Please re-run with command :\n%s", err, cmdStr)

@@ -63,7 +63,7 @@ run_pg_restore() {
 run_ysql() {
 	db_name=$1
 	sql=$2
-	psql "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
+	psql -P pager=off "postgresql://${TARGET_DB_ADMIN_USER}:${TARGET_DB_ADMIN_PASSWORD}@${TARGET_DB_HOST}:${TARGET_DB_PORT}/${db_name}" -c "${sql}"
 }
 
 ysql_import_file() {
@@ -930,6 +930,8 @@ normalize_json() {
             .FilePath? = "IGNORED" |
             .OptimalSelectConnectionsPerNode? = "IGNORED" |
             .OptimalInsertConnectionsPerNode? = "IGNORED" |
+			.SizeInBytes? = "IGNORED" |
+			.ColocatedReasoning? = "IGNORED" |
             .RowCount? = "IGNORED" |
 			.FeatureDescription? = "IGNORED" | # Ignore FeatureDescription instead of fixing it in all tests since it will be removed soon
             # Replace newline characters in SqlStatement with spaces
@@ -1122,7 +1124,9 @@ cutover_to_target() {
 	"    
     if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
         args="${args} --use-yb-grpc-connector false"
-    fi
+    else 
+		args="${args} --use-yb-grpc-connector true"
+	fi
     
     yb-voyager initiate cutover to target ${args} $*
 }

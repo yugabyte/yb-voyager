@@ -77,6 +77,9 @@ jobs:
         run: |
           ./migtests/scripts/postgresql/create_pg_user
 
+      - name: "TEST: Assessment Report Test For Performance optimization"
+        run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-perf-optimization-test
+
       - name: "TEST: Assessment Report Test"
         run: migtests/scripts/run-validate-assessment-report.sh pg/assessment-report-test
 
@@ -99,7 +102,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         if: ${{ !cancelled() }}
         run: |
-          versions=("2024.2.2.2-b2" "2.20.9.0-b47" "2024.1.4.0-b108" "2.25.0.0-b489")
+          versions=("2024.2.2.3-b1" "2.20.9.0-b47" "2024.1.4.0-b108" "2.25.0.0-b489")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 

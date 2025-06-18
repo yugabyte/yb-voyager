@@ -16,9 +16,13 @@ limitations under the License.
 package cmd
 
 import (
+	"bufio"
+	"bytes"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/fatih/color"
@@ -39,6 +43,7 @@ import (
 var skipRecommendations utils.BoolStr
 var assessmentReportPath string
 var assessmentRecommendationsApplied bool
+var assessSchemaBeforeExport utils.BoolStr
 
 var exportSchemaCmd = &cobra.Command{
 	Use: "schema",
@@ -60,14 +65,14 @@ var exportSchemaCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		source.ApplyExportSchemaObjectListFilter()
-		err := exportSchema()
+		err := exportSchema(cmd)
 		if err != nil {
 			utils.ErrExit("%v", err)
 		}
 	},
 }
 
-func exportSchema() error {
+func exportSchema(cmd *cobra.Command) error {
 	if metaDBIsCreated(exportDir) && schemaIsExported() {
 		if startClean {
 			proceed := utils.AskPrompt(
@@ -98,8 +103,6 @@ func exportSchema() error {
 		return fmt.Errorf("failed to get migration UUID during export schema: %w", err)
 	}
 
-	utils.PrintAndLog("export of schema for source type as '%s'\n", source.DBType)
-	// Check connection with source database.
 	err = source.DB().Connect()
 	if err != nil {
 		log.Errorf("failed to connect to the source db: %s", err)
@@ -124,6 +127,7 @@ func exportSchema() error {
 		}
 	}
 
+	utils.PrintAndLog("\nexport of schema for source type as '%s'\n", source.DBType)
 	checkSourceDBCharset()
 	sourceDBVersion := source.DB().GetVersion()
 	source.DBVersion = sourceDBVersion
@@ -160,7 +164,10 @@ func exportSchema() error {
 		}
 	}
 
-	nudgeUserToRunAssessment()
+	err = runAssessMigrationCmdBeforExportSchemaIfRequired(cmd)
+	if err != nil {
+		log.Warnf("failed to run assess-migration command before export schema: %v", err)
+	}
 
 	exportSchemaStartEvent := createExportSchemaStartedEvent()
 	controlPlane.ExportSchemaStarted(&exportSchemaStartEvent)
@@ -195,24 +202,89 @@ func exportSchema() error {
 	return nil
 }
 
-func nudgeUserToRunAssessment() error {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return fmt.Errorf("failed to get migration status record: %w", err)
+func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
+	if !bool(assessSchemaBeforeExport) {
+		log.Infof("skipping running assess-migration command before export schema as flag --assess-schema-before-export is set as false.")
+		return nil
 	}
 
-	if msr.MigrationAssessmentDone {
-		return nil
-	}
 	if source.DBType != POSTGRESQL {
-		// At this point, we are only interested in nudging postgres users to run assessment
-		// because it is far more advanced and useful for them.
+		log.Infof("skipping running assess-migration command before export schema as source DB type is not PostgreSQL.")
 		return nil
 	}
-	if !utils.AskPrompt("It is recommended to run assess-migration before exporting schema. https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/assess-migration/ \n" +
-		"Do you want to continue anyway without running assess-migration") {
-		utils.ErrExit("Aborting...")
+
+	if ok, _ := IsMigrationAssessmentDoneDirectly(metaDB); ok {
+		log.Infof("migration assessment is already done, skipping running assess-migration command.")
+		return nil
+	} else if ok, _ := IsMigrationAssessmentDoneViaExportSchema(); ok {
+		log.Infof("migration assessment is already done via export schema, skipping running assess-migration command.")
+		return nil
 	}
+
+	var assessFlagsWithValues []string
+	commonFlags := utils.GetCommonFlags(exportSchemaCmd, assessMigrationCmd)
+	for _, flag := range commonFlags {
+		// don't pass start-clean flag to assess-migration command here
+		if flag.Name == "start-clean" || !flag.Changed {
+			continue
+		}
+
+		// bool flags: --flag=value
+		// everything else: --flag value
+		if flag.Value.Type() == "bool" {
+			assessFlagsWithValues = append(assessFlagsWithValues,
+				fmt.Sprintf("--%s=%s", flag.Name, flag.Value.String()),
+			)
+		} else {
+			assessFlagsWithValues = append(assessFlagsWithValues,
+				"--"+flag.Name,
+				flag.Value.String(),
+			)
+		}
+	}
+
+	// Append --yes=true(irrespective) at the end to override any --yes=false if set in export schema cmd
+	assessFlagsWithValues = append(assessFlagsWithValues,
+		"--invoked-by-export-schema", "true",
+		"--iops-capture-interval", "0", // TODO: any small but significant duration will be better than 0
+		"--yes",
+	)
+
+	// locate voyager binary
+	voyagerExecutable, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %v", err)
+	}
+
+	var stderrBuf, stdoutBuf bytes.Buffer
+
+	utils.PrintAndLog("Assessing migration before exporting schema...")
+
+	// Invoke the assess-migration command as a subprocess
+	cmd := exec.Command(voyagerExecutable, append([]string{"assess-migration"}, assessFlagsWithValues...)...)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
+
+	// run and ignore exit status
+	if err := cmd.Run(); err != nil {
+		utils.PrintAndLog("Failed to assess the migration, continuing with export schema...\n")
+		return fmt.Errorf("assess migration cmd exit err: %s and stderr: %s", err.Error(), stderrBuf.String())
+	}
+
+	utils.PrintAndLog("Migration assessment completed successfully.")
+
+	// fetching assessment report path output line from stdout of assess-migration command process
+	re := regexp.MustCompile(`^\s*generated (?:JSON|HTML) assessment report at: .+`)
+	scanner := bufio.NewScanner(strings.NewReader(stdoutBuf.String()))
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if re.MatchString(line) {
+			fmt.Println(line)
+		}
+	}
+
+	fmt.Println()
 	return nil
 }
 
@@ -268,6 +340,11 @@ func init() {
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
 		"path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema")
+
+	// temporary flag to disable this change if user encounters any issues
+	BoolVar(exportSchemaCmd.Flags(), &assessSchemaBeforeExport, "assess-schema-before-export", true,
+		"run migration assessment before exporting schema. (default true)")
+	exportSchemaCmd.Flags().MarkHidden("assess-schema-before-export") // hide this flag from help output
 }
 
 func schemaIsExported() bool {
@@ -324,6 +401,16 @@ func applyMigrationAssessmentRecommendations() error {
 		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
 		return nil
 	} else if source.DBType == MYSQL {
+		return nil
+	}
+
+	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
+	if err != nil {
+		return fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+	}
+
+	if !bool(skipRecommendations) && assessViaExportSchema {
+		utils.PrintAndLog("no recommendations to apply: run `assess-migration` command to generate recommendations")
 		return nil
 	}
 

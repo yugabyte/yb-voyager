@@ -21,6 +21,7 @@ import (
 	"slices"
 
 	"github.com/samber/lo"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
@@ -162,7 +163,14 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 							c.ConstraintName,
 						))
 				}
+				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, hotspotIssues...)
 			}
+
 		}
 	}
 	for _, col := range table.Columns {
@@ -265,15 +273,33 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	return issues, nil
 }
 
-func ReportUnsupportedDatatypes(typeName string, columnName string, objType string, objName string) QueryIssue {
+func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
+	if len(constraintColumns) <= 0 {
+		log.Warnf("empty columns list for %s constraint %s", constraintType, constraintName)
+		return nil, nil
+	}
+	col := constraintColumns[0] // checking the first column only.
+	columnWithHotspotTypes, tableHasHotspotTypes := columnsWithHotspotRangeIndexesDatatypes[obj.GetObjectName()]
+	if !tableHasHotspotTypes {
+		return nil, nil
+	}
+	//If first column is hotspot type then only report hotspot issue
+	hotspotTypeName, isHotspotType := columnWithHotspotTypes[col]
+	if !isHotspotType {
+		return nil, nil
+	}
+	return reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), col, false)
+}
+
+func ReportUnsupportedDatatypes(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "xml":
 		issue = NewXMLDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "xid":
@@ -281,7 +307,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "geometry":
@@ -289,7 +315,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "geography":
@@ -297,7 +323,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box2d":
@@ -305,7 +331,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box3d":
@@ -313,7 +339,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "topogeometry":
@@ -321,7 +347,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "lo":
@@ -337,7 +363,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "int4multirange":
@@ -345,7 +371,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "datemultirange":
@@ -353,7 +379,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "nummultirange":
@@ -361,7 +387,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tsmultirange":
@@ -369,7 +395,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tstzmultirange":
@@ -377,7 +403,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "raster":
@@ -385,7 +411,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "pg_lsn":
@@ -393,7 +419,7 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "txid_snapshot":
@@ -401,27 +427,27 @@ func ReportUnsupportedDatatypes(typeName string, columnName string, objType stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 
 	return issue
 }
 
-func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objType string, objName string) QueryIssue {
+func ReportUnsupportedDatatypesInLive(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "point":
 		issue = NewPointDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "line":
@@ -429,7 +455,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "lseg":
@@ -437,7 +463,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "box":
@@ -445,7 +471,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "path":
@@ -453,7 +479,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "polygon":
@@ -461,7 +487,7 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "circle":
@@ -469,27 +495,27 @@ func ReportUnsupportedDatatypesInLive(typeName string, columnName string, objTyp
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 
 	return issue
 }
 
-func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName string, objType string, objName string) QueryIssue {
+func ReportUnsupportedDatatypesInLiveWithFFOrFB(baseTypeName string, columnName string, objType string, objName string) QueryIssue {
 	var issue QueryIssue
-	switch typeName {
+	switch baseTypeName {
 	case "tsquery":
 		issue = NewTsQueryDatatypeIssue(
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "tsvector":
@@ -497,7 +523,7 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	case "hstore":
@@ -505,13 +531,13 @@ func ReportUnsupportedDatatypesInLiveWithFFOrFB(typeName string, columnName stri
 			objType,
 			objName,
 			"",
-			typeName,
+			baseTypeName,
 			columnName,
 		)
 	default:
 		// Unrecognized types
 		// Throwing error for now
-		utils.ErrExit("Unrecognized unsupported data type %s", typeName)
+		utils.ErrExit("Unrecognized unsupported data type %s", baseTypeName)
 	}
 	return issue
 }
@@ -645,19 +671,11 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				} else if isHotspotType && idx == 0 {
 					//If first column is hotspot type then only report hotspot issue
 					//For expression case not adding any colName for now in the issue
-					hotspotIssues, err := reportHotspotsOnIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
+					hotspotIssues, err := reportHotspotsOnTimestampTypes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "", true)
 					if err != nil {
 						return nil, err
 					}
 					issues = append(issues, hotspotIssues...)
-				} else if isHotspotType && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
-					//If its a hotspot type and ASC DESC clause is not present in definition
-					//For expression case not adding any colName for now in the issue
-					rangeShardingIssues, err := reportUseRangeShardingIndexes(param.ExprCastTypeName, obj.GetObjectType(), obj.GetObjectName(), "")
-					if err != nil {
-						return nil, err
-					}
-					issues = append(issues, rangeShardingIssues...)
 				}
 			} else {
 				colName := param.ColName
@@ -680,53 +698,78 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					//If first column is hotspot type then only report hotspot issue
 					hotspotTypeName, isHotspotType := columnWithHotspotTypes[colName]
 					if isHotspotType {
-						hotspotIssues, err := reportHotspotsOnIndexes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName)
+						hotspotIssues, err := reportHotspotsOnTimestampTypes(hotspotTypeName, obj.GetObjectType(), obj.GetObjectName(), colName, true)
 						if err != nil {
 							return nil, err
 						}
 						issues = append(issues, hotspotIssues...)
 					}
-				} else if tableHasHotspotTypes && !slices.Contains(queryparser.RangeShardingClauses, param.SortByOrder) {
-
-					//column is hotspot type and ASC DESC clause is not present then only report use range-sharding issue
-					rangeShardingType, isRangeShardingType := columnWithHotspotTypes[colName]
-					if isRangeShardingType {
-						rangeShardingIssues, err := reportUseRangeShardingIndexes(rangeShardingType, obj.GetObjectType(), obj.GetObjectName(), colName)
-						if err != nil {
-							return nil, err
-						}
-						issues = append(issues, rangeShardingIssues...)
-					}
 				}
+			}
+			if idx == 0 && !param.IsExpression {
+				//if this is first column and not an expression index
+				indexIssues, err := d.reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index)
+				if err != nil {
+					return nil, err
+				}
+				issues = append(issues, indexIssues...)
 			}
 		}
 	}
+	return issues, nil
+}
+
+func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfIndex(index *queryparser.Index) ([]QueryIssue, error) {
+	var issues []QueryIssue
+
+	firstColumnParam := index.Params[0]
+	firstColumnName := fmt.Sprintf("%s.%s", index.GetTableName(), firstColumnParam.ColName)
+
+	isSingleColumnIndex := len(index.Params) == 1
+
+	stat, ok := i.columnStatistics[firstColumnName]
+	if !ok {
+		return nil, nil
+	}
+
+	maxFrequencyPerc := int(stat.MostCommonFrequency * 100)
+	nullFrequencyPerc := int(stat.NullFraction * 100)
+
+	//Precendence here is if the index has low-cardinality issue then most frequent value issue is not relevant as the user will have to fix the low cardinality index
+	//and the solution of that should also resolve the most frequent value issue as after resolution the key won't remain same
+	if stat.DistinctValues > LOW_CARDINALITY_MIN_THRESHOLD && stat.DistinctValues <= LOW_CARDINALITY_MAX_THRESHOLD {
+		// LOW CARDINALITY INDEX ISSUE
+		issues = append(issues, NewLowCardinalityIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(),
+			"", isSingleColumnIndex, stat.DistinctValues, stat.ColumnName))
+	} else if maxFrequencyPerc >= MOST_FREQUENT_VALUE_THRESHOLD {
+
+		//If the index is not LOW cardinality one then see if that has most frequent value or not
+		//MOST FREQUENT VALUE INDEX ISSUE
+		issues = append(issues, NewMostFrequentValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "",
+			isSingleColumnIndex, stat.MostCommonValue, maxFrequencyPerc, stat.ColumnName))
+
+	}
+
+	if nullFrequencyPerc >= NULL_FREQUENCY_THRESHOLD {
+
+		// NULL VALUE INDEX ISSUE
+		issues = append(issues, NewNullValueIndexesIssue(INDEX_OBJECT_TYPE, index.GetObjectName(), "", isSingleColumnIndex, nullFrequencyPerc, stat.ColumnName))
+	}
 
 	return issues, nil
 }
 
-func reportHotspotsOnIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
+func reportHotspotsOnTimestampTypes(typeName string, objType string, objName string, colName string, isSecondaryIndex bool) ([]QueryIssue, error) {
 	var issues []QueryIssue
 	switch typeName {
 	case TIMESTAMP, TIMESTAMPTZ:
-		issues = append(issues, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnTimestampIndexIssue(objType, objName, "", colName), NewHotspotOnTimestampPKOrUKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	case DATE:
-		issues = append(issues, NewHotspotOnDateIndexIssue(objType, objName, "", colName))
+		issue := lo.Ternary(isSecondaryIndex, NewHotspotOnDateIndexIssue(objType, objName, "", colName), NewHotspotOnDatePKOrUKIssue(objType, objName, "", colName))
+		issues = append(issues, issue)
 	default:
 		return issues, fmt.Errorf("unexpected type for the Hotspots on range indexes with timestamp/date types")
-	}
-	return issues, nil
-}
-
-func reportUseRangeShardingIndexes(typeName string, objType string, objName string, colName string) ([]QueryIssue, error) {
-	var issues []QueryIssue
-	switch typeName {
-	case TIMESTAMP, TIMESTAMPTZ:
-		issues = append(issues, NewSuggestionOnTimestampIndexesForRangeSharding(objType, objName, "", colName))
-	case DATE:
-		issues = append(issues, NewSuggestionOnDateIndexesForRangeSharding(objType, objName, "", colName))
-	default:
-		return issues, fmt.Errorf("unexpected type for the range indexes")
 	}
 	return issues, nil
 }
@@ -947,7 +990,15 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				))
 			}
 
+			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
+			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj)
+			if err != nil {
+				return nil, err
+			}
+			issues = append(issues, hotspotIssues...)
+
 		}
+
 	case queryparser.DISABLE_RULE:
 		issues = append(issues, NewAlterTableDisableRuleIssue(
 			obj.GetObjectType(),

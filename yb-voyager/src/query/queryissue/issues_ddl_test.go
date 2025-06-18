@@ -307,9 +307,14 @@ func testDeterministicCollationIssue(t *testing.T) {
 
 	defer conn.Close(context.Background())
 	_, err = conn.Exec(ctx, `
-	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = false);`)
+	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = true);`)
 
-	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `collation attribute "deterministic" not recognized`, deterministicOptionCollationIssue)
+	expectedMsg := `collation attribute "deterministic" not recognized`
+	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+		assert.NoError(t, err)
+		expectedMsg = ""
+	}
+	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedMsg, deterministicOptionCollationIssue)
 }
 
 func testForeignKeyReferencesPartitionedTableIssue(t *testing.T) {
@@ -473,7 +478,10 @@ INSERT INTO collation_ex (name) VALUES
 ('andrÉ');
 	;`)
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0):
+		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `nondeterministic collation is not supported`, nonDeterministicCollationIssue)
+
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.Equal(ybversion.V2_25_0_0):
 		assert.NoError(t, err)
 		rows, err := conn.Query(context.Background(), `SELECT name
 FROM collation_ex
@@ -542,7 +550,7 @@ func testCompressionClauseIssue(t *testing.T) {
 	//ALTER not supported in 2.25
 	switch {
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
-		errMsg = "This ALTER TABLE command is not yet supported."
+		errMsg = "ALTER TABLE command is not yet supported"
 	default:
 		errMsg = `syntax error at or near "COMPRESSION"`
 	}

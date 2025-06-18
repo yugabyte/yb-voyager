@@ -37,6 +37,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/cobra"
+	"github.com/spf13/pflag"
 	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
@@ -759,6 +761,30 @@ func SnakeCaseToTitleCase(snake string) string {
 	return strings.Join(words, " ")
 }
 
+// CamelCaseToTitleCase converts a CamelCase string to a title case string with spaces.
+func CamelCaseToTitleCase(camel string) string {
+	// Handle acronym followed by capital-lowercase, e.g. "SQLStatement" -> "SQL Statement"
+	re := regexp.MustCompile(`([A-Z]+)([A-Z][a-z])`)
+	camel = re.ReplaceAllString(camel, `$1 $2`)
+
+	re = regexp.MustCompile(`([a-z])([A-Z])`)
+	// Insert a space before all caps that are coming after lowercase letters
+	camel = re.ReplaceAllString(camel, `$1 $2`)
+
+	// Split into words and capitalize
+	c := cases.Title(language.English)
+	words := strings.Fields(camel)
+	for i, word := range words {
+		if word == strings.ToUpper(word) {
+			// Keep acronym as-is
+			continue
+		}
+		words[i] = c.String(word)
+	}
+
+	return strings.Join(words, " ")
+}
+
 // MatchesFormatString checks if the final string matches the format string with %s placeholders filled.
 func MatchesFormatString(format, final string) (bool, error) {
 	regexPattern, err := formatToRegex(format)
@@ -884,4 +910,24 @@ func SliceLastElement[T any](slice []T) (T, bool) {
 		return zeroValue, false
 	}
 	return slice[len(slice)-1], true
+}
+
+// GetCommonFlags returns the list of *pflag.Flag that are registered
+// on both cmdA and cmdB.
+func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
+	var common []*pflag.Flag
+	cmdA.Flags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.Flags().Lookup(f.Name) != nil {
+			common = append(common, f)
+		}
+	})
+
+	// also return common persistent flags like --export-dir --yes
+	cmdA.PersistentFlags().VisitAll(func(f *pflag.Flag) {
+		if cmdB.PersistentFlags().Lookup(f.Name) != nil {
+			common = append(common, f)
+		}
+	})
+
+	return common
 }

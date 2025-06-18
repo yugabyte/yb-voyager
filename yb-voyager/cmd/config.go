@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	mapset "github.com/deckarep/golang-set/v2"
@@ -11,21 +12,29 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"golang.org/x/exp/slices"
 )
 
 const (
 	// Flag name prefixes (used in CLI flags)
-	SourceDBFlagPrefix = "source-"
-	TargetDBFlagPrefix = "target-"
-	OracleDBFlagPrefix = "oracle-"
+	SourceDBFlagPrefix        = "source-"
+	TargetDBFlagPrefix        = "target-"
+	OracleDBFlagPrefix        = "oracle-"
+	SourceReplicaDBFlagPrefix = "source-replica-"
 
 	// Config key prefixes (used in config file keys)
-	SourceDBConfigPrefix = "source."
-	TargetDBConfigPrefix = "target."
+	SourceDBConfigPrefix        = "source."
+	TargetDBConfigPrefix        = "target."
+	SourceReplicaDBConfigPrefix = "source-replica."
 )
 
+var commandsUsingSourceReplicaConfig = []string{"import-data-to-source-replica"}
+var commandsUsingSourceConfig = []string{"assess-migration", "export-schema", "export-data", "export-data-from-source", "import-data-to-source"}
+var commandsUsingTargetConfig = []string{"import-schema", "import-data", "import-data-to-target", "import-data-file", "export-data-from-target", "finalize-schema-post-data-import"}
+
 var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"export-dir", "log-level", "send-diagnostics", "run-guardrails-checks",
+	"export-dir", "log-level", "send-diagnostics",
+	"profile",
 	// environment variables keys
 	"control-plane-type", "yugabyted-db-conn-string", "java-home",
 	"local-call-home-service-host", "local-call-home-service-port",
@@ -52,25 +61,31 @@ var allowedTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedAssessMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"iops-capture-interval", "target-db-version", "assessment-metadata-dir",
+	"invoked-by-export-schema",
 	// environment variables keys
 	"report-unsupported-query-constructs", "report-unsupported-plpgsql-objects",
 )
 
 var allowedAnalyzeSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"output-format", "target-db-version",
 	// environment variables keys
 	"report-unsupported-plpgsql-objects",
 )
 
 var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-recommendations", "assessment-report-path",
+	"assess-schema-before-export",
 	// environment variables keys
 	"ybvoyager-skip-merge-constraints-transformation",
 )
 
 var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
 	"table-list-file-path", "parallel-jobs", "export-type",
 	// environment variables keys
@@ -78,42 +93,52 @@ var allowedExportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedExportDataFromTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "exclude-table-list", "table-list", "exclude-table-list-file-path",
-	"table-list-file-path",
+	"table-list-file-path", "transaction-ordering",
 	// environment variables keys
 	"yb-master-port", "queue-segment-max-bytes", "debezium-dist-dir",
 )
 
 var allowedImportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "object-type-list", "exclude-object-type-list", "straight-order",
 	"ignore-exist", "enable-orafce",
 )
 
 var allowedFinalizeSchemaPostDataImportConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"continue-on-error", "ignore-exist", "refresh-mviews",
 )
 
 var allowedImportDataConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"skip-replication-checks",
 	"disable-pb", "max-retries", "exclude-table-list", "table-list",
 	"exclude-table-list-file-path", "table-list-file-path", "enable-upsert", "use-public-ip",
-	"target-endpoints", "truncate-tables",
+	"target-endpoints", "truncate-tables", "error-policy-snapshot",
+	"skip-node-health-checks", "skip-disk-usage-health-checks",
+	"on-primary-key-conflict", "disable-transactional-writes",
+	"truncate-splits",
+
 	// environment variables keys
-	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
+	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress", "num-event-channels", "event-channel-size",
 	"max-events-per-batch", "max-interval-between-batches", "max-cpu-threshold",
 	"adaptive-parallelism-frequency-seconds", "min-available-memory-threshold", "max-batch-size-bytes",
 	"ybvoyager-use-task-picker-for-import",
 )
 
 var allowedImportDataToSourceConfigKeys = mapset.NewThreadUnsafeSet[string](
-	"parallel-jobs", "disable-pb", "max-retries",
+	"log-level", "run-guardrails-checks",
+	"parallel-jobs", "disable-pb",
 	// environment variables keys
 	"num-event-channels", "event-channel-size", "max-events-per-batch",
 	"max-interval-between-batches", "max-batch-size-bytes",
 )
 
 var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level", "run-guardrails-checks",
 	"batch-size", "parallel-jobs", "truncate-tables", "disable-pb", "max-retries",
 	// environment variables keys
 	"ybvoyager-max-colocated-batches-in-progress", "num-event-channels",
@@ -122,10 +147,13 @@ var allowedImportDataToSourceReplicaConfigKeys = mapset.NewThreadUnsafeSet[strin
 )
 
 var allowedImportDataFileConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"disable-pb", "max-retries", "enable-upsert", "use-public-ip", "target-endpoints",
 	"batch-size", "parallel-jobs", "enable-adaptive-parallelism", "adaptive-parallelism-max",
 	"format", "delimiter", "data-dir", "file-table-map", "has-header", "escape-char",
-	"quote-char", "file-opts", "null-string", "truncate-tables",
+	"quote-char", "file-opts", "null-string", "truncate-tables", "error-policy",
+	"disable-transactional-writes", "truncate-splits", "skip-replication-checks",
+	"skip-node-health-checks", "skip-disk-usage-health-checks", "on-primary-key-conflict",
 	// environment variables keys
 	"csv-reader-max-buffer-size-bytes", "ybvoyager-max-colocated-batches-in-progress",
 	"max-cpu-threshold", "adaptive-parallelism-frequency-seconds",
@@ -137,10 +165,12 @@ var allowedInitCutoverToTargetConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 var allowedArchiveChangesConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"delete-changes-without-archiving", "fs-utilization-threshold", "move-to",
 )
 
 var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
+	"log-level",
 	"backup-schema-files", "backup-data-files", "save-migration-reports", "backup-log-files",
 	"backup-dir",
 )
@@ -205,34 +235,30 @@ initConfig initializes the configuration for the given Cobra command.
 */
 func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig, map[string]string, error) {
 	v := viper.New()
+	v.SetConfigType("yaml")
 
-	// Precedence of which config file to use:
-	// CLI Flag > ENV Variable > Default config file in home directory
 	if cfgFile != "" {
 		// Use config file from the flag.
-		v.SetConfigFile(cfgFile)
-	} else if os.Getenv("YB_VOYAGER_CONFIG_FILE") != "" {
-		// passed as an ENV variable by the name YB_VOYAGER_CONFIG_FILE
-		v.SetConfigFile(os.Getenv("YB_VOYAGER_CONFIG_FILE"))
-	} else {
-		// Find home directory.
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return nil, nil, nil, err
+		if !utils.FileOrFolderExists(cfgFile) {
+			return nil, nil, nil, fmt.Errorf("config file does not exist: %s", cfgFile)
 		}
 
-		// Search config in home directory with name "yb-voyager-config" (without extension).
-		v.AddConfigPath(home)
-		v.SetConfigName("yb-voyager-config")
-		v.SetConfigType("yaml")
+		cfgFile, err := filepath.Abs(cfgFile)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to get absolute path for config file: %s: %w", cfgFile, err)
+		}
+		cfgFile = filepath.Clean(cfgFile)
+
+		v.SetConfigFile(cfgFile)
 	}
 
 	// If a config file is found, read it in.
 	if err := v.ReadInConfig(); err == nil {
+		cfgFile = v.ConfigFileUsed()
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, err
+			return nil, nil, nil, fmt.Errorf("%v\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 
@@ -300,6 +326,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data-file.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data-file.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data.event-channel-size":                          "EVENT_CHANNEL_SIZE",
@@ -311,6 +338,7 @@ var confParamEnvVarPairs = map[string]string{
 	"import-data.max-batch-size-bytes":                        "MAX_BATCH_SIZE_BYTES",
 	"import-data.ybvoyager-use-task-picker-for-import":        "YBVOYAGER_USE_TASK_PICKER_FOR_IMPORT",
 
+	"import-data-to-target.csv-reader-max-buffer-size-bytes":            "CSV_READER_MAX_BUFFER_SIZE_BYTES",
 	"import-data-to-target.ybvoyager-max-colocated-batches-in-progress": "YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS",
 	"import-data-to-target.num-event-channels":                          "NUM_EVENT_CHANNELS",
 	"import-data-to-target.event-channel-size":                          "EVENT_CHANNEL_SIZE",
@@ -558,8 +586,8 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 	subCmdPath := strings.TrimPrefix(cmd.CommandPath(), cmd.Root().Name())
 	subCmdPath = strings.TrimSpace(subCmdPath) // remove leading space if any
 	// Replace spaces with hyphens
-	configKeyPrefix := strings.ReplaceAll(subCmdPath, " ", "-")
-	configKeyPrefix = setToAliasPrefixIfSet(configKeyPrefix, v)
+	commandNameKey := strings.ReplaceAll(subCmdPath, " ", "-")
+	commandNameKey = setToAliasPrefixIfSet(commandNameKey, v)
 
 	cmd.Flags().VisitAll(func(f *pflag.Flag) {
 		if bindErr != nil || f.Changed {
@@ -568,7 +596,7 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 
 		// Check for <command_path>.<flagname>
 		var configKey string
-		if configKey = configKeyPrefix + "." + f.Name; v.IsSet(configKey) {
+		if configKey = commandNameKey + "." + f.Name; v.IsSet(configKey) {
 			val := v.GetString(configKey)
 			err := cmd.Flags().Set(f.Name, val)
 			if err != nil {
@@ -594,51 +622,125 @@ func bindCobraFlagsToViper(cmd *cobra.Command, v *viper.Viper) ([]ConfigFlagOver
 				ConfigKey: configKey,
 				Value:     val,
 			})
-		} else if configKey = SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix); strings.HasPrefix(f.Name, SourceDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle source db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceReplicaConfig, commandNameKey) {
+			// Handle source-replica config flags
+			err := bindSourceReplicaFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = SourceDBConfigPrefix + f.Name; strings.HasPrefix(f.Name, OracleDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle oracle db type flags, since they are also prefixed with source but are special cases
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingSourceConfig, commandNameKey) {
+			// Handle source config flags
+			err := bindSourceFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
-		} else if configKey = TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix); strings.HasPrefix(f.Name, TargetDBFlagPrefix) && v.IsSet(configKey) {
-			// Handle target db type flags
-			val := v.GetString(configKey)
-			err := cmd.Flags().Set(f.Name, val)
+		} else if slices.Contains(commandsUsingTargetConfig, commandNameKey) {
+			// Handle target config flags
+			err := bindTargetFlags(cmd, v, f, commandNameKey, &overrides)
 			if err != nil {
 				bindErr = err
 				return
 			}
-			overrides = append(overrides, ConfigFlagOverride{
-				FlagName:  f.Name,
-				ConfigKey: configKey,
-				Value:     val,
-			})
 		}
 		// If the flag is not set in viper, do nothing and leave it as is
 		// This allows the flag to retain its default value or the value set by the user in the command line
 	})
 
 	return overrides, bindErr
+}
+
+func bindSourceReplicaFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceReplicaDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + strings.TrimPrefix(f.Name, SourceReplicaDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source-replica db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceReplicaDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source-replica config, since they are also prefixed with source-replica but are special cases
+			// The oracle db flags should be taken from the source-replica section only in import-data-to-source-replica command
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindSourceFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, SourceDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + strings.TrimPrefix(f.Name, SourceDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle source db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	} else if strings.HasPrefix(f.Name, OracleDBFlagPrefix) {
+		configKey := SourceDBConfigPrefix + f.Name
+		if v.IsSet(configKey) {
+			// Handle oracle db type flags in source config, since they are also prefixed with source but are special cases
+			// This oracle db flags should be taken from the source section only in all commands except import-data-to-source-replica
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
+}
+
+func bindTargetFlags(cmd *cobra.Command, v *viper.Viper, f *pflag.Flag, commandNameKey string, overrides *[]ConfigFlagOverride) error {
+	if strings.HasPrefix(f.Name, TargetDBFlagPrefix) {
+		configKey := TargetDBConfigPrefix + strings.TrimPrefix(f.Name, TargetDBFlagPrefix)
+		if v.IsSet(configKey) {
+			// Handle target db type flags
+			val := v.GetString(configKey)
+			err := cmd.Flags().Set(f.Name, val)
+			if err != nil {
+				return err
+			}
+			*overrides = append(*overrides, ConfigFlagOverride{
+				FlagName:  f.Name,
+				ConfigKey: configKey,
+				Value:     val,
+			})
+		}
+	}
+	return nil
 }
 
 /*
@@ -670,4 +772,103 @@ func setToAliasPrefixIfSet(configKeyPrefix string, v *viper.Viper) string {
 		}
 	}
 	return configKeyPrefix
+}
+
+/*
+readAndValidateConfigFile reads the config file and validates it.
+This functions is called only by readConfigFileAndGetExportDataFromTargetKeys and readConfigFileAndGetImportDataToSourceKeys functions.
+It returns a Viper instance if the config file is set and found, or an error if there are issues with the file.
+It does the following:
+1. If the config file is set, it reads the file using Viper.
+2. If the file is read successfully, it validates the config file for allowed keys and sections.
+3. If the cfgFile variable is empty or an error occurs while reading the file, it returns nil for the Viper instance.
+4. If the config file is read and validated successfully, it returns the Viper instance.
+*/
+func readAndValidateConfigFile() (*viper.Viper, error) {
+	if cfgFile == "" {
+		return nil, nil
+	}
+
+	v := viper.New()
+	v.SetConfigFile(cfgFile)
+
+	if err := v.ReadInConfig(); err != nil {
+		return nil, fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Validate the config file for allowed keys and sections
+	err := validateConfigFile(v)
+	if err != nil {
+		return nil, err
+	}
+
+	return v, nil
+}
+
+/*
+readConfigFileAndGetExportDataFromTargetKeys reads the config file and returns the export-data-from-target keys.
+It returns a slice of strings containing the keys that are set in the config file.
+It does the following:
+1. It calls readAndValidateConfigFile to read the config file and validate it.
+2. If and error occurs in this, it returns an error and a nil slice.
+3. If viper instance is nil, it returns an empty slice.
+4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
+*/
+func readConfigFileAndGetExportDataFromTargetKeys() ([]string, error) {
+	v, err := readAndValidateConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
+	}
+	if v == nil {
+		return []string{}, nil
+	}
+
+	// Get the export-data-from-target keys that are set in the config file
+	exportDataFromTargetKeys := []string{}
+	const keyPrefix = "export-data-from-target."
+	for _, key := range v.AllKeys() {
+		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
+			// Extract the key name after the prefix
+			key = strings.TrimPrefix(key, keyPrefix)
+			key = strings.TrimSpace(key)
+			// Add the key to the list
+			exportDataFromTargetKeys = append(exportDataFromTargetKeys, key)
+		}
+	}
+
+	return exportDataFromTargetKeys, nil
+}
+
+/*
+readConfigFileAndGetImportDataToSourceKeys reads the config file and returns the import-data-to-source keys.
+It returns a slice of strings containing the keys that are set in the config file.
+It does the following:
+1. It calls readAndValidateConfigFile to read the config file and validate it.
+2. If and error occurs in this, it returns an error and a nil slice.
+3. If viper instance is nil, it returns an empty slice.
+4. If the config file is read and validated successfully, it returns a slice of strings containing the keys that are set in the config file.
+*/
+func readConfigFileAndGetImportDataToSourceKeys() ([]string, error) {
+	v, err := readAndValidateConfigFile()
+	if err != nil {
+		return nil, fmt.Errorf("failed to read and validate config file: %w", err)
+	}
+	if v == nil {
+		return []string{}, nil
+	}
+
+	// Get the import-data-to-source keys that are set in the config file
+	importDataToSourceKeys := []string{}
+	const keyPrefix = "import-data-to-source."
+	for _, key := range v.AllKeys() {
+		if strings.HasPrefix(key, keyPrefix) && v.IsSet(key) {
+			// Extract the key name after the prefix
+			key = strings.TrimPrefix(key, keyPrefix)
+			key = strings.TrimSpace(key)
+			// Add the key to the list
+			importDataToSourceKeys = append(importDataToSourceKeys, key)
+		}
+	}
+
+	return importDataToSourceKeys, nil
 }

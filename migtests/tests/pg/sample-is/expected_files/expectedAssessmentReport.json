@@ -79,13 +79,16 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "EXCLUSION_CONSTRAINTS",
 			"Name": "Exclusion Constraints",
-			"Description": "Exclusion constraints are not yet supported in YugabyteDB. Refer docs link for details on possible workaround",
+			"Description": "Exclusion constraints are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.secret_missions, constraint: (cnt_solo_agent)",
 			"SqlStatement": "ALTER TABLE ONLY public.secret_missions\n    ADD CONSTRAINT cnt_solo_agent EXCLUDE USING gist (location WITH =, mission_timeline WITH \u0026\u0026);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "cnt_solo_agent"
+			}
 		},
 		{
 			"Category": "migration_caveats",
@@ -297,6 +300,7 @@
 		}
 	],
 	"Notes": [
+		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>"

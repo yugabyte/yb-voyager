@@ -20,12 +20,56 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
+
+// mockValueConverterForTest implements ValueConverter and always returns an error for ConvertRow.
+type mockValueConverterForTest struct{}
+
+func (m *mockValueConverterForTest) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	return row, fmt.Errorf("mock conversion error")
+}
+func (m *mockValueConverterForTest) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	return nil
+}
+func (m *mockValueConverterForTest) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+	return nil, nil
+}
+
+// Helper mock for row-specific error
+// Returns a conversion error for a specific row number (rowToError)
+type mockRowErrorValueConverter struct {
+	rowToError int
+}
+
+func (m *mockRowErrorValueConverter) ConvertRow(tableNameTup sqlname.NameTuple, columnNames []string, row string) (string, error) {
+	if m.rowToError > 0 {
+		// Extract row number from row string (assuming format: N, ...)
+		if len(row) > 0 && row[0] >= '1' && row[0] <= '9' {
+			if int(row[0]-'0') == m.rowToError {
+				return row, fmt.Errorf("mock conversion error")
+			}
+		}
+	}
+	return row, nil
+}
+func (m *mockRowErrorValueConverter) ConvertEvent(ev *tgtdb.Event, tableNameTup sqlname.NameTuple, formatIfRequired bool) error {
+	return nil
+}
+func (m *mockRowErrorValueConverter) GetTableNameToSchema() (*utils.StructMap[sqlname.NameTuple, map[string]map[string]string], error) {
+	return nil, nil
+}
 
 // In cmd package, we have 3 TestMain functions, one for each build tag(unit, integration, integration_voyager_command).
 func TestMain(m *testing.M) {
@@ -39,7 +83,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestBasicFileBatchProducer(t *testing.T) {
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -54,7 +98,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -68,7 +112,7 @@ func TestBasicFileBatchProducer(t *testing.T) {
 
 func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -86,7 +130,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -118,7 +162,7 @@ func TestFileBatchProducerBasedOnRowsThreshold(t *testing.T) {
 func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	// max batch size in size is 25 bytes
 	maxBatchSizeBytes := int64(25)
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -137,7 +181,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -185,7 +229,7 @@ func TestFileBatchProducerBasedOnSizeThreshold(t *testing.T) {
 
 func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *testing.T) {
 	// max batch size in size is 25 bytes
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(1000, 25)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(1000, 25)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -204,7 +248,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 
 	assert.False(t, batchproducer.Done())
@@ -222,7 +266,7 @@ func TestFileBatchProducerThrowsErrorWhenSingleRowGreaterThanMaxBatchSize(t *tes
 
 func TestFileBatchProducerResumable(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -240,7 +284,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -251,7 +295,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 	assert.Equal(t, int64(2), batch1.RecordCount)
 
 	// simulate a crash and recover
-	batchproducer, err = NewFileBatchProducer(task, state)
+	batchproducer, err = NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -278,7 +322,7 @@ func TestFileBatchProducerResumable(t *testing.T) {
 
 func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	// max batch size in rows is 2
-	ldataDir, lexportDir, state, err := setupExportDirAndImportDependencies(2, 1024)
+	ldataDir, lexportDir, state, errorHandler, err := setupExportDirAndImportDependencies(2, 1024)
 	assert.NoError(t, err)
 
 	if ldataDir != "" {
@@ -296,7 +340,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
 	assert.NoError(t, err)
 
-	batchproducer, err := NewFileBatchProducer(task, state)
+	batchproducer, err := NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -310,7 +354,7 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	}
 
 	// simulate a crash and recover
-	batchproducer, err = NewFileBatchProducer(task, state)
+	batchproducer, err = NewFileBatchProducer(task, state, errorHandler)
 	assert.NoError(t, err)
 	assert.False(t, batchproducer.Done())
 
@@ -328,4 +372,221 @@ func TestFileBatchProducerResumeAfterAllBatchesProduced(t *testing.T) {
 	}
 	assert.Equal(t, len(batches), len(recoveredBatches))
 	assert.ElementsMatch(t, batches, recoveredBatches)
+}
+
+func getErrorsParentDir(lexportDir string) string {
+	return filepath.Join(lexportDir, "data")
+}
+
+func TestFileBatchProducer_StashAndContinue_ConversionError(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	fileContents := `id,val
+1, "hello"
+2, "world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Swap in the mock valueConverter
+	origValueConverter := valueConverter
+	valueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should not return an error,
+	assert.NoError(t, err)
+	assert.Equal(t, int64(0), batch.RecordCount)
+	// all errors are stashed, so the last batch that is created should have 0 records
+	assert.Equal(t, int64(0), (batch.Number))
+	assert.Equal(t, true, batchproducer.Done())
+
+	assertErrorFileContains(t, lexportDir, task,
+		"ERROR: transforming line number=1",
+		"mock conversion error",
+		"ROW: 1, \"hello\"",
+		"ERROR: transforming line number=2",
+		"ROW: 2, \"world\"",
+	)
+}
+
+func TestFileBatchProducer_AbortHandler_ConversionError(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	abortErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.AbortErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	fileContents := `id,val
+1, "hello"
+2, "world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Swap in the mock valueConverter
+	origValueConverter := valueConverter
+	valueConverter = &mockValueConverterForTest{}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, abortErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should return an error due to abort policy
+	assert.Error(t, err)
+	assert.Nil(t, batch)
+	assert.Contains(t, err.Error(), "mock conversion error")
+}
+
+func TestFileBatchProducer_StashAndContinue_RowTooLargeError(t *testing.T) {
+	// Set max batch size in bytes to a small value to trigger the row-too-large error
+	maxBatchSizeBytes := int64(20) // deliberately small to trigger error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will be too large for the batch size
+	fileContents := `id,val
+1, "hello"
+2, "this row is too long and should trigger an error because it exceeds the max batch size"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	batch, err := batchproducer.NextBatch()
+	// Should not return an error, but the batch should only contain the first row
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(1), batch.RecordCount) // second row should be skipped due to error
+
+	assertErrorFileContains(t, lexportDir, task,
+		"larger than max batch size",
+		"ROW: 2, \"this row is too long and should trigger an error because it exceeds the max batch size\"")
+}
+
+func TestFileBatchProducer_StashAndContinue_RowTooLargeErrorDoesNotCountTowardsBatchSize(t *testing.T) {
+	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will be too large and should not count towards the batch size
+	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will be too large for the batch size, but the third row is small enough to fit if the second is skipped
+	fileContents := `id,val
+1, "ok"
+2, "this row is way too long to fit in the batch and should be skipped"
+3, "ok2"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is too large and skipped, its size does not count)
+	batch, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+	assert.Equal(t, int64(0), batch.Number) // last batch
+
+	// Error file should contain the error for row 2
+	assertErrorFileContains(t, lexportDir, task,
+		"larger than max batch size",
+		"ROW: 2, \"this row is way too long to fit in the batch and should be skipped\"",
+	)
+}
+
+func TestFileBatchProducer_StashAndContinue_ConversionErrorDoesNotCountTowardsBatchSize(t *testing.T) {
+	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will error (conversion error) and should not count towards the batch size
+	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
+	fileContents := `id,val
+1, "ok"
+2, "errorrow"
+3, "ok2"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	// Use a mock valueConverter that errors on row 2
+	origValueConverter := valueConverter
+	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer, err := NewFileBatchProducer(task, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
+	batch, err := batchproducer.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+
+	// Error file should contain the error for row 2
+	assertErrorFileContains(t, lexportDir, task,
+		"ERROR: transforming line number=2",
+		"mock conversion error",
+		"ROW: 2, \"errorrow\"",
+	)
+}
+
+// assertErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
+func assertErrorFileContains(t *testing.T, lexportDir string, task *ImportFileTask, expectedSubstrings ...string) {
+	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
+	tableFolderPath := fmt.Sprintf("table::%s", task.TableNameTup.ForMinOutput())
+	errorsFilePath := filepath.Join(getErrorsParentDir(lexportDir), "errors", tableFolderPath, taskFolderPath, "processing-errors.log")
+	assert.FileExists(t, errorsFilePath)
+	errorFileContentsBytes, err := os.ReadFile(errorsFilePath)
+	assert.NoError(t, err)
+	errorFileContents := string(errorFileContentsBytes)
+	for _, substr := range expectedSubstrings {
+		assert.Contains(t, errorFileContents, substr)
+	}
 }

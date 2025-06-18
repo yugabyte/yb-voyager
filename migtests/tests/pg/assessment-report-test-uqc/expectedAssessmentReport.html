@@ -10,6 +10,8 @@
             padding: 0;
             background-color: #f4f4f4;
             color: #333;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .wrapper {
@@ -43,6 +45,8 @@
             white-space: normal;
             box-sizing: border-box;
             margin: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         th {
@@ -67,6 +71,18 @@
             overflow-y: scroll;
             border: 1px solid #ccc; /* a visual separator from the body */
             padding: 10px;
+            scrollbar-width: thin; /* Firefox */
+            -ms-overflow-style: auto; /* IE 10+ */
+        }
+
+        .scrollable-div::-webkit-scrollbar {
+            width: 8px;
+            background: #f2f2f2;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
         }
 
         .no-wrap-list li {
@@ -94,15 +110,16 @@
             margin-bottom: 15px;
         }
 
-        pre {
-            width: 100%; /* Ensure the pre/code content takes full width of the container */
-            word-wrap: break-word; /* Break long lines into multiple lines */
-            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
-            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
-            word-break: break-all; /* Prevents long words from overflowing */
-            margin: 0; /* Remove default margins */
-            padding: 5px; /* Remove default padding */
-            font-family: monospace; /* Optional: ensure a monospaced font */
+        pre, code {
+            width: 100%;          /* Ensure content takes full width of container */
+            margin: 0;            /* Remove default margins */
+            padding: 8px;         /* Add consistent padding around code blocks */
+            background: none;     /* Remove any background styling */
+            border: none;         /* Remove any borders */
+            white-space: pre-wrap;      /* CSS3: wrap as needed, preserve whitespace */
+            word-break: break-word;     /* Break long words if needed */
+            overflow-wrap: break-word;  /* Same as above, for newer browsers */
+            box-sizing: border-box;     /* Include padding in element's total width */
         }
 
         /* Highlight Table Styles */
@@ -232,8 +249,26 @@
         }
     </style>
     <script>
+        
+        const ISSUES_JS_INFO_IF_PERF_TABLE = {
+            false: {                      // other assessment issues
+                count: 21,
+                details: 'details-',
+                arrow:   'arrow-',
+                expand:  'expandAllButton',
+                collapse:'collapseAllButton'
+            },
+            true: {                       // performance optimisations
+                count: 0,
+                details: 'details-perf-',
+                arrow:   'arrow-perf-',
+                expand:  'expandAllButton-perf',
+                collapse:'collapseAllButton-perf'
+            }
+        };
+
         // Toggle Details Functionality
-        function toggleDetails(detailsRowId, arrowId) {
+        function toggleDetails(detailsRowId, arrowId, isPerf) {
             const row = document.getElementById(detailsRowId);
             const arrow = document.getElementById(arrowId);
             if (row.classList.contains('show')) {
@@ -243,46 +278,48 @@
                 row.classList.add('show');
                 arrow.innerHTML = "&#x25BC;"; // Down arrow (&#x25BC;) for expanded
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Expand All Issues
-        function expandAllIssues() {
+        function expandAllIssues(isPerf) {
             // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            const totalIssues = 21;
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+               
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (!row.classList.contains('show')) {
                     row.classList.add('show');
-                    arrow.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
+                    arrowId.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Collapse All Issues
-        function collapseAllIssues() {
-            const totalIssues = 21;
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+        function collapseAllIssues(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]              
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (row.classList.contains('show')) {
                     row.classList.remove('show');
-                    arrow.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
+                    arrowId.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Update Button Visibility Based on Row States
-        function updateButtonVisibility() {
-            const totalIssues = 21;
+        function updateButtonVisibility(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]                      
             let someExpanded = false;
             let someCollapsed = false;
 
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                const row = document.getElementById(issuesJsInfo.details + i);
                 if (row.classList.contains('show')) {
                     someExpanded = true;
                 } else {
@@ -291,8 +328,8 @@
                 if (someExpanded && someCollapsed) break;
             }
 
-            const expandButton = document.getElementById('expandAllButton');
-            const collapseButton = document.getElementById('collapseAllButton');
+            const expandButton = document.getElementById(issuesJsInfo.expand);
+            const collapseButton = document.getElementById(issuesJsInfo.collapse);
             expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
             collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
         }
@@ -304,7 +341,7 @@
             impact: 'asc'
         };
 
-        function sortTableBy(field) {
+        function sortTableBy(field, isPerf) {
             // Grab the table element
             const table = document.querySelector(".table-highlight");
 
@@ -328,15 +365,20 @@
             issuePairs.forEach(pair => table.appendChild(pair));
 
             // Update the sort indicator in the table header
-            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
             if (sortIndicator) {
                 sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
+        function updateButtonVisibilities() {
+            updateButtonVisibility(false);
+            updateButtonVisibility(true);
+        }
         // Initialize Button Visibility on Page Load
-        window.onload = updateButtonVisibility;
+        window.onload = updateButtonVisibilities;
+
     </script>
 </head>
 <body>
@@ -349,7 +391,7 @@
             <p><strong>Database Version:</strong> 17.2 (Debian 17.2-1.pgdg120+1)</p>
         
 
-        <p><strong>Target YB Version:</strong> 2024.2.2.2</p>
+        <p><strong>Target YB Version:</strong> 2024.2.3.0</p>
 
         
             <p><strong>Migration Complexity:</strong> MEDIUM</p>
@@ -487,9 +529,9 @@
                                     
                                         <li>sales.big_table</li>
                                     
-                                        <li>sales.recent_transactions</li>
-                                    
                                         <li>sales.customer_account</li>
+                                    
+                                        <li>sales.recent_transactions</li>
                                     
                                         <li>sales.events</li>
                                     
@@ -544,19 +586,19 @@
                     <tbody>
                         
                             <tr>
-                                <td class="centered-cell">Unsupported Datatypes</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">0</td>
-                                <td class="centered-cell">1</td>
-                                <td class="centered-cell">1</td>
-                            </tr>
-                        
-                            <tr>
                                 <td class="centered-cell">Unsupported Features</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">5</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">5</td>
+                            </tr>
+                        
+                            <tr>
+                                <td class="centered-cell">Unsupported Query Constructs</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">14</td>
+                                <td class="centered-cell">0</td>
+                                <td class="centered-cell">14</td>
                             </tr>
                         
                             <tr>
@@ -568,11 +610,11 @@
                             </tr>
                         
                             <tr>
-                                <td class="centered-cell">Unsupported Query Constructs</td>
+                                <td class="centered-cell">Unsupported Datatypes</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">14</td>
                                 <td class="centered-cell">0</td>
-                                <td class="centered-cell">14</td>
+                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">1</td>
                             </tr>
                         
                     </tbody>
@@ -592,6 +634,8 @@
             </p>
         
 
+        
+        
         <h2>Assessment Issues</h2>
         
             <div class="assessment-issues-header">
@@ -602,8 +646,8 @@
                 </div>
                 <!-- Right area: buttons -->
                 <div class="buttons" id="controlButtons">
-                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues()">Expand All</button>
-                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues()">Collapse All</button>
+                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues(false)">Expand All</button>
+                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues(false)">Collapse All</button>
                 </div>
             </div>
             <table class="table-highlight">
@@ -616,29 +660,127 @@
                 </colgroup>
                 <thead>
                     <tr style="background-color: #f2f2f2;">
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', false)">
                             Category <span class="sort-indicator">&#8597;</span>
                         </th>
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', false)">
                             Issue <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
-                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact',false)">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
                     </tr>
                 </thead>
                 
                     <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_features"
-                        data-name="ANY_VALUE() aggregate Function"
-                        data-impact="LEVEL_2">
+                        data-category="unsupported_datatypes"
+                        data-name="Unsupported datatype - datemultirange"
+                        data-impact="LEVEL_3">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0')">
+                        <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
                                         <span id="arrow-0">&#9654;</span>
+                                    </div>
+                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                </div>
+                            </td>
+                            <td class="centered-cell">Unsupported datatype - datemultirange</td>
+                            <td class="centered-cell">
+                                
+                                    sales.event_analysis_view.all_event_ranges
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">Level 3</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-0" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Data types of the source database that are not supported on the target YugabyteDB.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>COLUMN</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>sales.event_analysis_view.all_event_ranges</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if Sql Statement not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>>=2.25.0.0 (2.25 series)</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: all_event_ranges.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
+                                                            </div>
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_features"
+                        data-name="ANY_VALUE() aggregate Function"
+                        data-impact="LEVEL_2">
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1', false)">
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    <div class="arrow-container">
+                                        <span id="arrow-1">&#9654;</span>
                                     </div>
                                     <span style="word-break: break-word;">Unsupported Features</span>
                                 </div>
@@ -653,7 +795,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-0" class="details-row">
+                        <tr id="details-1" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -692,18 +834,10 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE VIEW sales.employ_depart_view AS
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE VIEW sales.employ_depart_view AS
  SELECT any_value(name) AS any_employee
    FROM public.employees;</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -716,11 +850,15 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">any_value function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">any_value function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -734,11 +872,11 @@
                         data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1')">
+                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
-                                        <span id="arrow-1">&#9654;</span>
+                                        <span id="arrow-2">&#9654;</span>
                                     </div>
                                     <span style="word-break: break-word;">Unsupported Features</span>
                                 </div>
@@ -753,7 +891,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-1" class="details-row">
+                        <tr id="details-2" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -792,18 +930,10 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE VIEW sales.event_analysis_view AS
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE VIEW sales.event_analysis_view AS
  SELECT range_agg(event_range) AS all_event_ranges
    FROM sales.events;</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -821,11 +951,26 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li>Function Names: <code>[range_agg]</code></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -839,11 +984,11 @@
                         data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2')">
+                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
-                                        <span id="arrow-2">&#9654;</span>
+                                        <span id="arrow-3">&#9654;</span>
                                     </div>
                                     <span style="word-break: break-word;">Unsupported Features</span>
                                 </div>
@@ -858,7 +1003,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-2" class="details-row">
+                        <tr id="details-3" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -897,18 +1042,10 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE VIEW sales.event_analysis_view2 AS
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE VIEW sales.event_analysis_view2 AS
  SELECT range_intersect_agg(event_range) AS overlapping_range
    FROM sales.events;</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -926,11 +1063,26 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
+                                                    <tr>
+                                                        <th class="centered-cell">More Information</th>
+                                                        <td>
+                                                            <ul>
+                                                            
+                                                                <li>Function Names: <code>[range_intersect_agg]</code></li>
+                                                            
+                                                            </ul>
+                                                        </td>
+                                                    </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -944,11 +1096,11 @@
                         data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3')">
+                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
-                                        <span id="arrow-3">&#9654;</span>
+                                        <span id="arrow-4">&#9654;</span>
                                     </div>
                                     <span style="word-break: break-word;">Unsupported Features</span>
                                 </div>
@@ -963,7 +1115,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-3" class="details-row">
+                        <tr id="details-4" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1002,7 +1154,7 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE TABLE sales.test_json_chk (
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE sales.test_json_chk (
     id integer,
     name text,
     email text,
@@ -1011,14 +1163,6 @@
     CONSTRAINT test_json_chk_data_check CHECK ((data['key'::text] <> '{}'::jsonb))
 );</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1036,11 +1180,15 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-> / ->>) to access the jsonb fields.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-> / ->>) to access the jsonb fields.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1054,11 +1202,11 @@
                         data-name="Json Type Predicate"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4')">
+                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
-                                        <span id="arrow-4">&#9654;</span>
+                                        <span id="arrow-5">&#9654;</span>
                                     </div>
                                     <span style="word-break: break-word;">Unsupported Features</span>
                                 </div>
@@ -1073,7 +1221,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-4" class="details-row">
+                        <tr id="details-5" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1112,7 +1260,7 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE TABLE sales.json_data (
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE sales.json_data (
     id integer NOT NULL,
     array_column text,
     unique_keys_column text,
@@ -1123,14 +1271,6 @@
                                                         
                                                     </td>
                                                 </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
-                                                        
-                                                    </td>
-                                                </tr>
 
                                                 <!-- Only show if there is a supported version -->
                                                 
@@ -1140,118 +1280,15 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">IS JSON predicate expressions are not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">IS JSON predicate expressions are not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_plpgsql_objects"
-                        data-name="Jsonb Subscripting"
-                        data-impact="LEVEL_2">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5')">
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-5">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Plpgsql Objects</span>
-                                </div>
-                            </td>
-                            <td class="centered-cell">Jsonb Subscripting</td>
-                            <td class="centered-cell">
-                                
-                                    sales.get_user_info
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">Level 2</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-5" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Category Description</th>
-                                                        <td>
-                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>FUNCTION</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>sales.get_user_info</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT
-        data,
-        data['name'] AS name,
-        (data['active']) as active
-    FROM sales.test_json_chk;</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-> / ->>) to access the jsonb fields.</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1265,7 +1302,7 @@
                         data-name="Events Listen / Notify"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6')">
+                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1313,16 +1350,8 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">LISTEN my_table_changes</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">LISTEN my_table_changes</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1335,11 +1364,15 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">LISTEN / NOTIFY is not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">LISTEN / NOTIFY is not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1350,10 +1383,10 @@
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Database options"
+                        data-name="Advisory Locks"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7')">
+                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1362,11 +1395,12 @@
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Database options</td>
+                            <td class="centered-cell">Advisory Locks</td>
                             <td class="centered-cell">
                                 
-                                    CREATE DATABASE strategy_example
-    WITH STRATEGY = 'wal_log'
+                                    SELECT metric_name, pg_advisory_lock(metric_id)
+FROM analytics.metrics
+WHERE met ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1402,17 +1436,10 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE DATABASE strategy_example
-    WITH STRATEGY = 'wal_log'</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT metric_name, pg_advisory_lock(metric_id)
+FROM analytics.metrics
+WHERE metric_value > $1</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1425,11 +1452,15 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Advisory locks are not yet implemented in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1443,7 +1474,7 @@
                         data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8')">
+                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1455,11 +1486,7 @@
                             <td class="centered-cell">Jsonb Subscripting</td>
                             <td class="centered-cell">
                                 
-                                    SELECT 
-    data,
-    data[$1] AS name, 
-    (data[$2]) as active
-FROM sales.tes ...
+                                    SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1495,20 +1522,8 @@ FROM sales.tes ...
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT 
-    data,
-    data[$1] AS name, 
-    (data[$2]) as active
-FROM sales.test_json_chk</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1526,11 +1541,15 @@ FROM sales.test_json_chk</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1541,10 +1560,10 @@ FROM sales.test_json_chk</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Range aggregate Functions"
+                        data-name="ANY_VALUE() aggregate Function"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9')">
+                        <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1553,11 +1572,12 @@ FROM sales.test_json_chk</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Range aggregate Functions</td>
+                            <td class="centered-cell">ANY_VALUE() aggregate Function</td>
                             <td class="centered-cell">
                                 
-                                    SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM sales.eve ...
+                                    SELECT
+        any_value(name) AS any_employee
+    FROM employees
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1593,17 +1613,10 @@ FROM sales.eve ...
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT range_intersect_agg(event_range) AS intersection_of_ranges
-FROM sales.events</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT
+        any_value(name) AS any_employee
+    FROM employees</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1611,21 +1624,20 @@ FROM sales.events</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">any_value function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1636,10 +1648,10 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Advisory Locks"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10')">
+                        <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1648,12 +1660,10 @@ FROM sales.events</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Advisory Locks</td>
+                            <td class="centered-cell">Jsonb Subscripting</td>
                             <td class="centered-cell">
                                 
-                                    SELECT metric_name, pg_advisory_lock(metric_id)
-FROM analytics.metrics
-WHERE met ...
+                                    SELECT ($1 :: jsonb)[$2][$3] as b
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1689,18 +1699,8 @@ WHERE met ...
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT metric_name, pg_advisory_lock(metric_id)
-FROM analytics.metrics
-WHERE metric_value > $1</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT ($1 :: jsonb)[$2][$3] as b</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1708,16 +1708,25 @@ WHERE metric_value > $1</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>>=2.25.0.0 (2.25 series)</td>
+                                                    </tr>
+                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Advisory locks are not yet implemented in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1728,10 +1737,10 @@ WHERE metric_value > $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Merge Statement"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11')">
+                        <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1740,12 +1749,10 @@ WHERE metric_value > $1</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Merge Statement</td>
+                            <td class="centered-cell">Jsonb Subscripting</td>
                             <td class="centered-cell">
                                 
-                                    MERGE INTO sales.customer_account ca
-USING sales.recent_transactions t      
-ON  ...
+                                    SELECT (sales.get_user_info($1))[$2] AS user_info
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1781,23 +1788,8 @@ ON  ...
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">MERGE INTO sales.customer_account ca
-USING sales.recent_transactions t      
-ON t.customer_id = ca.customer_id
-WHEN MATCHED THEN
-  UPDATE SET balance = balance + transaction_value
-WHEN NOT MATCHED THEN
-  INSERT (customer_id, balance)
-  VALUES (t.customer_id, t.transaction_value)</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT (sales.get_user_info($1))[$2] AS user_info</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1805,16 +1797,25 @@ WHEN NOT MATCHED THEN
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>>=2.25.0.0 (2.25 series)</td>
+                                                    </tr>
+                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">MERGE statement is not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1825,10 +1826,10 @@ WHEN NOT MATCHED THEN
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="CTE with MATERIALIZE clause"
+                        data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12')">
+                        <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1837,10 +1838,11 @@ WHEN NOT MATCHED THEN
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">CTE with MATERIALIZE clause</td>
+                            <td class="centered-cell">Range aggregate Functions</td>
                             <td class="centered-cell">
                                 
-                                    WITH w AS MATERIALIZED (                                                         ...
+                                    SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.eve ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1876,20 +1878,9 @@ WHEN NOT MATCHED THEN
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">WITH w AS MATERIALIZED (                                                               
-    SELECT * FROM sales.big_table
-)           
-SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-WHERE w2.key = $1</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT range_intersect_agg(event_range) AS intersection_of_ranges
+FROM sales.events</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1907,11 +1898,15 @@ WHERE w2.key = $1</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Modifying the materialization of CTE is not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1922,10 +1917,10 @@ WHERE w2.key = $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Jsonb Subscripting"
+                        data-name="Merge Statement"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13')">
+                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -1934,10 +1929,12 @@ WHERE w2.key = $1</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Jsonb Subscripting</td>
+                            <td class="centered-cell">Merge Statement</td>
                             <td class="centered-cell">
                                 
-                                    SELECT (sales.get_user_info($1))[$2] AS user_info
+                                    MERGE INTO sales.customer_account ca
+USING sales.recent_transactions t      
+ON  ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -1973,16 +1970,15 @@ WHERE w2.key = $1</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT (sales.get_user_info($1))[$2] AS user_info</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">MERGE INTO sales.customer_account ca
+USING sales.recent_transactions t      
+ON t.customer_id = ca.customer_id
+WHEN MATCHED THEN
+  UPDATE SET balance = balance + transaction_value
+WHEN NOT MATCHED THEN
+  INSERT (customer_id, balance)
+  VALUES (t.customer_id, t.transaction_value)</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -1990,21 +1986,20 @@ WHERE w2.key = $1</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">MERGE statement is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#merge-command">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2015,10 +2010,10 @@ WHERE w2.key = $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="CTE with MATERIALIZE clause"
+                        data-name="Database options"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
+                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2027,10 +2022,11 @@ WHERE w2.key = $1</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">CTE with MATERIALIZE clause</td>
+                            <td class="centered-cell">Database options</td>
                             <td class="centered-cell">
                                 
-                                    WITH w AS NOT MATERIALIZED (                                                     ...
+                                    CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log'
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2066,20 +2062,9 @@ WHERE w2.key = $1</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">WITH w AS NOT MATERIALIZED (                                                               
-    SELECT * FROM sales.big_table
-)           
-SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
-WHERE w2.key = $1</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE DATABASE strategy_example
+    WITH STRATEGY = 'wal_log'</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2087,21 +2072,20 @@ WHERE w2.key = $1</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Modifying the materialization of CTE is not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Database options (strategy) introduced in PostgreSQL 12 and later are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2112,10 +2096,10 @@ WHERE w2.key = $1</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Range aggregate Functions"
+                        data-name="Jsonb Subscripting"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15')">
+                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2124,11 +2108,14 @@ WHERE w2.key = $1</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Range aggregate Functions</td>
+                            <td class="centered-cell">Jsonb Subscripting</td>
                             <td class="centered-cell">
                                 
-                                    SELECT range_agg(event_range) AS union_of_ranges
-FROM sales.events
+                                    SELECT 
+    data,
+    data[$1] AS name, 
+    (data[$2]) as active
+FROM sales.tes ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2164,17 +2151,12 @@ FROM sales.events
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT range_agg(event_range) AS union_of_ranges
-FROM sales.events</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT 
+    data,
+    data[$1] AS name, 
+    (data[$2]) as active
+FROM sales.test_json_chk</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2192,11 +2174,15 @@ FROM sales.events</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2207,10 +2193,10 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="ANY_VALUE() aggregate Function"
+                        data-name="CTE with MATERIALIZE clause"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16')">
+                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2219,12 +2205,10 @@ FROM sales.events</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">ANY_VALUE() aggregate Function</td>
+                            <td class="centered-cell">CTE with MATERIALIZE clause</td>
                             <td class="centered-cell">
                                 
-                                    SELECT
-        any_value(name) AS any_employee
-    FROM employees
+                                    WITH w AS NOT MATERIALIZED (                                                     ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2260,18 +2244,12 @@ FROM sales.events</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT
-        any_value(name) AS any_employee
-    FROM employees</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">WITH w AS NOT MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = $1</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2279,16 +2257,25 @@ FROM sales.events</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>>=2.25.0.0 (2.25 series)</td>
+                                                    </tr>
+                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">any_value function are not supported yet in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Modifying the materialization of CTE is not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2299,10 +2286,10 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Jsonb Subscripting"
+                        data-name="Range aggregate Functions"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-17', 'arrow-17')">
+                        <tr class="summary-row" onclick="toggleDetails('details-17', 'arrow-17', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2311,10 +2298,11 @@ FROM sales.events</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Jsonb Subscripting</td>
+                            <td class="centered-cell">Range aggregate Functions</td>
                             <td class="centered-cell">
                                 
-                                    SELECT ($1 :: jsonb)[$2][$3] as b
+                                    SELECT range_agg(event_range) AS union_of_ranges
+FROM sales.events
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2350,16 +2338,9 @@ FROM sales.events</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT ($1 :: jsonb)[$2][$3] as b</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT range_agg(event_range) AS union_of_ranges
+FROM sales.events</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2377,11 +2358,15 @@ FROM sales.events</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">range_agg, range_intersect_agg function are not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2392,10 +2377,10 @@ FROM sales.events</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Json Type Predicate"
+                        data-name="CTE with MATERIALIZE clause"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-18', 'arrow-18')">
+                        <tr class="summary-row" onclick="toggleDetails('details-18', 'arrow-18', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2404,12 +2389,10 @@ FROM sales.events</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Json Type Predicate</td>
+                            <td class="centered-cell">CTE with MATERIALIZE clause</td>
                             <td class="centered-cell">
                                 
-                                    SELECT * 
-FROM sales.json_data
-WHERE array_column IS JSON ARRAY
+                                    WITH w AS MATERIALIZED (                                                         ...
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2445,18 +2428,12 @@ WHERE array_column IS JSON ARRAY
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT * 
-FROM sales.json_data
-WHERE array_column IS JSON ARRAY</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">WITH w AS MATERIALIZED (                                                               
+    SELECT * FROM sales.big_table
+)           
+SELECT * FROM w AS w1 JOIN w AS w2 ON w1.key = w2.ref
+WHERE w2.key = $1</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2464,16 +2441,25 @@ WHERE array_column IS JSON ARRAY</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
+                                                    <tr>
+                                                        <th class="centered-cell">Supported In (versions)</th>
+                                                        <td>>=2.25.0.0 (2.25 series)</td>
+                                                    </tr>
+                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">IS JSON predicate expressions are not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Modifying the materialization of CTE is not supported yet in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2484,10 +2470,10 @@ WHERE array_column IS JSON ARRAY</pre>
                 
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_query_constructs"
-                        data-name="Jsonb Subscripting"
+                        data-name="Json Type Predicate"
                         data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-19', 'arrow-19')">
+                        <tr class="summary-row" onclick="toggleDetails('details-19', 'arrow-19', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
@@ -2496,10 +2482,12 @@ WHERE array_column IS JSON ARRAY</pre>
                                     <span style="word-break: break-word;">Unsupported Query Constructs</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Jsonb Subscripting</td>
+                            <td class="centered-cell">Json Type Predicate</td>
                             <td class="centered-cell">
                                 
-                                    SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj
+                                    SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">Level 2</td>
@@ -2535,16 +2523,10 @@ WHERE array_column IS JSON ARRAY</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">SELECT (jsonb_build_object($1, $2, $3, $4, $5, $6) || $7)[$8] AS json_obj</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT * 
+FROM sales.json_data
+WHERE array_column IS JSON ARRAY</pre>
                                                             </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">Documentation</a>
                                                         
                                                     </td>
                                                 </tr>
@@ -2552,21 +2534,20 @@ WHERE array_column IS JSON ARRAY</pre>
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">Jsonb subscripting is not yet supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">IS JSON predicate expressions are not yet supported in YugabyteDB.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2576,26 +2557,26 @@ WHERE array_column IS JSON ARRAY</pre>
                     </tbody>
                 
                     <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_datatypes"
-                        data-name="Unsupported datatype - datemultirange"
-                        data-impact="LEVEL_3">
+                        data-category="unsupported_plpgsql_objects"
+                        data-name="Jsonb Subscripting"
+                        data-impact="LEVEL_2">
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-20', 'arrow-20')">
+                        <tr class="summary-row" onclick="toggleDetails('details-20', 'arrow-20', false)">
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
                                     <div class="arrow-container">
                                         <span id="arrow-20">&#9654;</span>
                                     </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    <span style="word-break: break-word;">Unsupported Plpgsql Objects</span>
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported datatype - datemultirange</td>
+                            <td class="centered-cell">Jsonb Subscripting</td>
                             <td class="centered-cell">
                                 
-                                    sales.event_analysis_view.all_event_ranges
+                                    sales.get_user_info
                                 
                             </td>
-                            <td class="centered-cell" style="text-align: center;">Level 3</td>
+                            <td class="centered-cell" style="text-align: center;">Level 2</td>
                         </tr>
 
                         <!-- Hidden Details of the Row -->
@@ -2614,7 +2595,7 @@ WHERE array_column IS JSON ARRAY</pre>
                                                         <th class="centered-cell">Category Description</th>
                                                         <td>
                                                             <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Data types of the source database that are not supported on the target YugabyteDB.
+                                                                Source schema objects having unsupported statements on the target YugabyteDB in PL/pgSQL code block
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -2624,29 +2605,26 @@ WHERE array_column IS JSON ARRAY</pre>
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Type</th>
-                                                        <td>COLUMN</td>
+                                                        <td>FUNCTION</td>
                                                     </tr>
                                                 
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>sales.event_analysis_view.all_event_ranges</td>
+                                                        <td>sales.get_user_info</td>
                                                     </tr>
                                                 
                                                 <tr>
                                                     <th class="centered-cell">SQL Statement</th>
                                                     <td>
                                                         
-                                                        <!-- display N/A if Sql Statement not present -->
-                                                            N/A
-                                                        
-                                                    </td>
-                                                </tr>
-                                                <tr>
-                                                    <th class="centered-cell">Docs Link</th>
-                                                    <td>
-                                                        
-                                                            <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features">Documentation</a>
+                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">SELECT
+        data,
+        data['name'] AS name,
+        (data['active']) as active
+    FROM sales.test_json_chk;</pre>
+                                                            </div>
                                                         
                                                     </td>
                                                 </tr>
@@ -2664,11 +2642,15 @@ WHERE array_column IS JSON ARRAY</pre>
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: all_event_ranges.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Jsonb subscripting is not yet supported in YugabyteDB. Use Arrow operators (-> / ->>) to access the jsonb fields.</pre>
+                                                                
+                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#jsonb-subscripting">docs</a> for more details.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2681,10 +2663,14 @@ WHERE array_column IS JSON ARRAY</pre>
         
 
         
+
+        
             <hr>
             <div>
                 <h4>Notes</h4>
                 <ul id="notes-list">
+                    
+                        <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
                     
                         <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
 For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>

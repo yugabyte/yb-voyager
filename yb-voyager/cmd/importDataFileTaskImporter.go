@@ -25,9 +25,15 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+)
+
+var (
+	COPY_MAX_RETRY_COUNT = 10
+	MAX_SLEEP_SECOND     = 60
 )
 
 /*
@@ -36,6 +42,8 @@ It uses a FileBatchProducer to produce batches. It submits each batch to a provi
 worker pool for processing. It also maintains and updates the progress of the task.
 */
 type FileTaskImporter struct {
+	state *ImportDataState
+
 	task                 *ImportFileTask
 	batchProducer        *FileBatchProducer
 	importBatchArgsProto *tgtdb.ImportBatchArgs
@@ -47,11 +55,14 @@ type FileTaskImporter struct {
 	totalProgressAmount   int64
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
+
+	errorHandler importdata.ImportDataErrorHandler
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
-	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool) (*FileTaskImporter, error) {
-	batchProducer, err := NewFileBatchProducer(task, state)
+	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
+	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
 	}
@@ -61,6 +72,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	progressReporter.AddProgressAmount(task, currentProgressAmount)
 
 	fti := &FileTaskImporter{
+		state:                     state,
 		task:                      task,
 		batchProducer:             batchProducer,
 		workerPool:                workerPool,
@@ -70,6 +82,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		progressReporter:          progressReporter,
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
+		errorHandler:              errorHandler,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
@@ -88,6 +101,10 @@ func (fti *FileTaskImporter) AllBatchesSubmitted() bool {
 	return fti.batchProducer.Done()
 }
 
+func (fti *FileTaskImporter) TableHasPrimaryKey() bool {
+	return len(fti.importBatchArgsProto.PrimaryKeyColumns) > 0
+}
+
 func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 	if fti.AllBatchesSubmitted() {
 		return fmt.Errorf("no more batches to submit")
@@ -97,44 +114,6 @@ func (fti *FileTaskImporter) ProduceAndSubmitNextBatchToWorkerPool() error {
 		return fmt.Errorf("getting next batch: %w", err)
 	}
 	return fti.submitBatch(batch)
-}
-
-func (fti *FileTaskImporter) importBatch(batch *Batch) {
-	err := batch.MarkInProgress()
-	if err != nil {
-		utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
-	}
-	log.Infof("Importing %q", batch.FilePath)
-
-	importBatchArgs := *fti.importBatchArgsProto
-	importBatchArgs.FilePath = batch.FilePath
-	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
-
-	var rowsAffected int64
-	sleepIntervalSec := 0
-	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
-		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema)
-		if err == nil || tdb.IsNonRetryableCopyError(err) {
-			break
-		}
-		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
-		sleepIntervalSec += 10
-		if sleepIntervalSec > MAX_SLEEP_SECOND {
-			sleepIntervalSec = MAX_SLEEP_SECOND
-		}
-		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
-			sleepIntervalSec, batch.FilePath, attempt)
-		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
-	}
-	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
-	if err != nil {
-		utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
-	}
-	err = batch.MarkDone()
-	if err != nil {
-		utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
-	}
 }
 
 func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
@@ -157,6 +136,89 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 
 	log.Infof("Queued batch: %s", spew.Sdump(batch))
 	return nil
+}
+
+func (fti *FileTaskImporter) importBatch(batch *Batch) {
+	var rowsAffected int64
+	var err error // Note: make sure to not define any other err variable in this scope
+
+	if batch.RecordCount == 0 {
+		// an empty batch is possible in case there are errors while reading and procesing rows in the file
+		// and the errors are handled by the error handler.
+		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
+		}
+		return
+	}
+
+	/*
+		recoveryBatch means the batch is already in progress state due to partial ingestion or transient errors in last run
+		Need this info for decision making in tgtdb.ImportBatch() to whether follow which of three paths
+		- Normal mode
+		- Fast path mode
+		- Fast path recovery mode
+	*/
+	recoveryBatch := batch.IsInterrupted()
+	if !recoveryBatch {
+		err = batch.MarkInProgress()
+		if err != nil {
+			utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+		}
+	}
+
+	log.Infof("Importing %q", batch.FilePath)
+
+	importBatchArgs := *fti.importBatchArgsProto
+	importBatchArgs.FilePath = batch.FilePath
+	importBatchArgs.RowsPerTransaction = batch.OffsetEnd - batch.OffsetStart
+
+	sleepIntervalSec := 0
+	/*
+		Cases:
+		1. First time batch import with onPrimaryKeyConflictAction == "ERROR" 		-> Normal Path
+		2. First time batch import with onPrimaryKeyConflictAction == "IGNORE" 		-> Fast Path
+		3. Batch in *.P state with onPrimaryKeyConflictAction == "IGNORE" 			-> Fast Path Recovery
+
+		If 2 fails due to already existing rows in table, then first ImportBatch() internally switch to Fast Path Recovery
+		If that also fails then batch gets executed as fast path recovery due to attempt > 0 from here.
+	*/
+	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
+		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
+		isRecoveryCandidate := (recoveryBatch || attempt > 0)
+		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
+		if err == nil || tdb.IsNonRetryableCopyError(err) {
+			break
+		}
+		log.Warnf("COPY FROM file %q: %s", batch.FilePath, err)
+		sleepIntervalSec += 10
+		if sleepIntervalSec > MAX_SLEEP_SECOND {
+			sleepIntervalSec = MAX_SLEEP_SECOND
+		}
+		log.Infof("sleep for %d seconds before retrying the file %s (attempt %d)",
+			sleepIntervalSec, batch.FilePath, attempt)
+		time.Sleep(time.Duration(sleepIntervalSec) * time.Second)
+	}
+	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
+	if err != nil {
+		if fti.errorHandler.ShouldAbort() {
+			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		}
+
+		// Handle the error
+		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+		var err2 error
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err)
+		if err2 != nil {
+			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
+		}
+	} else {
+		err = batch.MarkDone()
+		if err != nil {
+			utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+		}
+	}
 }
 
 func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
@@ -246,6 +308,21 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	if err != nil {
 		utils.ErrExit("if required quote column names: %s", err)
 	}
+
+	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
+	if err != nil {
+		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
+	if err != nil {
+		utils.ErrExit("if required quote primary key column names: %s", err)
+	}
+
+	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	if err != nil {
+		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
+	}
+
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.
 	fileFormat := dataFileDescriptor.FileFormat
 
@@ -256,14 +333,17 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		fileFormat = datafile.TEXT
 	}
 	importBatchArgsProto := &tgtdb.ImportBatchArgs{
-		TableNameTup: tableNameTup,
-		Columns:      columns,
-		FileFormat:   fileFormat,
-		Delimiter:    dataFileDescriptor.Delimiter,
-		HasHeader:    dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
-		QuoteChar:    dataFileDescriptor.QuoteChar,
-		EscapeChar:   dataFileDescriptor.EscapeChar,
-		NullString:   dataFileDescriptor.NullString,
+		TableNameTup:      tableNameTup,
+		Columns:           columns,
+		PrimaryKeyColumns: pkColumns,
+		PKConstraintName:  pkConstraintName,
+		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		FileFormat:        fileFormat,
+		Delimiter:         dataFileDescriptor.Delimiter,
+		HasHeader:         dataFileDescriptor.HasHeader && fileFormat == datafile.CSV,
+		QuoteChar:         dataFileDescriptor.QuoteChar,
+		EscapeChar:        dataFileDescriptor.EscapeChar,
+		NullString:        dataFileDescriptor.NullString,
 	}
 	log.Infof("ImportBatchArgs: %v", spew.Sdump(importBatchArgsProto))
 	return importBatchArgsProto

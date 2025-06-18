@@ -1,6 +1,7 @@
 package testutils
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"os"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -402,9 +404,11 @@ func WaitForDBToBeReady(db *sql.DB) error {
 	return fmt.Errorf("database did not become ready in time")
 }
 
-func FatalIfError(t *testing.T, err error) {
+// context is OPTIONAL functional arg for caller but should be appended in error message
+func FatalIfError(t *testing.T, err error, context ...string) {
+	context = lo.Ternary(len(context) > 1, context, []string{"error"})
 	if err != nil {
-		t.Fatalf("error: %v", err)
+		t.Fatalf("%s: %v", context[0], err)
 	}
 }
 
@@ -430,4 +434,114 @@ func CreateNameTupleWithSourceName(s string, defaultSchema string, dbType string
 		SourceName:  sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 		CurrentName: sqlname.NewObjectNameWithQualifiedName(dbType, defaultSchema, s),
 	}
+}
+
+// compareTableData queries the specified table from both srcDB and tgtDB, ordered by a given key (e.g. “id”),
+// and then compares every row for an exact match.
+// It returns an error if there’s any difference.
+func CompareTableData(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableName, orderByClause string) error {
+	// Compare row counts first
+	err := CompareRowCount(ctx, srcDB, tgtDB, tableName)
+	if err != nil {
+		return err
+	}
+
+	// Construct the query with an ORDER BY clause for deterministic ordering.
+	query := fmt.Sprintf("SELECT * FROM %s ORDER BY %s", tableName, orderByClause)
+
+	srcRows, err := srcDB.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("querying source table: %w", err)
+	}
+	defer srcRows.Close()
+
+	tgtRows, err := tgtDB.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("querying target table: %w", err)
+	}
+	defer tgtRows.Close()
+
+	// Get the column names from the source.
+	srcCols, err := srcRows.Columns()
+	if err != nil {
+		return fmt.Errorf("getting source columns: %w", err)
+	}
+	tgtCols, err := tgtRows.Columns()
+	if err != nil {
+		return fmt.Errorf("getting target columns: %w", err)
+	}
+	if !reflect.DeepEqual(srcCols, tgtCols) {
+		return fmt.Errorf("column mismatch: source %v vs target %v", srcCols, tgtCols)
+	}
+	colsCount := len(srcCols)
+
+	// Compare rows from each result set.
+	rowNum := 0
+	for srcRows.Next() {
+		rowNum++
+		if !tgtRows.Next() {
+			return fmt.Errorf("target has fewer rows than source; mismatch found at row %d", rowNum)
+		}
+		srcRow, err := scanRow(srcRows, colsCount)
+		if err != nil {
+			return fmt.Errorf("scanning source row %d: %w", rowNum, err)
+		}
+		tgtRow, err := scanRow(tgtRows, colsCount)
+		if err != nil {
+			return fmt.Errorf("scanning target row %d: %w", rowNum, err)
+		}
+		if !reflect.DeepEqual(srcRow, tgtRow) {
+			return fmt.Errorf("row %d mismatch: source %v vs target %v", rowNum, srcRow, tgtRow)
+		}
+	}
+	// If target has extra rows, that's a mismatch.
+	if tgtRows.Next() {
+		return fmt.Errorf("target has more rows than source; extra rows after row %d", rowNum)
+	}
+	return nil
+}
+
+// CompareRowCount compares the row count of a table in two databases.
+func CompareRowCount(ctx context.Context, srcDB *sql.DB, tgtDB *sql.DB, tableName string) error {
+	srcCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	tgtCountQuery := fmt.Sprintf("SELECT COUNT(*) FROM %s", tableName)
+	srcCountRow := srcDB.QueryRowContext(ctx, srcCountQuery)
+	tgtCountRow := tgtDB.QueryRowContext(ctx, tgtCountQuery)
+	var srcCount, tgtCount int
+	if err := srcCountRow.Scan(&srcCount); err != nil {
+		return fmt.Errorf("counting rows in source table %s: %w", tableName, err)
+	}
+	if err := tgtCountRow.Scan(&tgtCount); err != nil {
+		return fmt.Errorf("counting rows in target table %s: %w", tableName, err)
+	}
+	if srcCount != tgtCount {
+		return fmt.Errorf("row count mismatch for table %s: source has %d rows, target has %d rows", tableName, srcCount, tgtCount)
+	}
+	return nil
+}
+
+// scanRow reads the current row from rows, returning a slice of interface{} for each column.
+func scanRow(rows *sql.Rows, colCount int) ([]interface{}, error) {
+	values := make([]interface{}, colCount)   // holds the values for each column
+	scanArgs := make([]interface{}, colCount) // holds the pointers to the values
+	for i := range values {
+		scanArgs[i] = &values[i]
+	}
+
+	// 'scanArgs' hold pointers to each value (just like &name, &age)
+	if err := rows.Scan(scanArgs...); err != nil {
+		return nil, err
+	}
+
+	return values, nil
+}
+
+func AssertFileContains(t *testing.T, filePath string, expectedContent string) {
+	t.Helper()
+	content, err := os.ReadFile(filePath)
+	if err != nil {
+		t.Fatalf("Failed to read file %s: %v", filePath, err)
+	}
+	assert.Containsf(t, string(content), expectedContent,
+		"File %s does not contain expected content: %s", filePath, expectedContent)
 }

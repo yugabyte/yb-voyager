@@ -60,7 +60,8 @@ func GetPGLiveMigrationUnsupportedDatatypes() []string {
 }
 
 func GetPGLiveMigrationWithFFOrFBUnsupportedDatatypes() []string {
-	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(YugabyteUnsupportedDataTypesForDbzm, PostgresUnsupportedDataTypes)
+	//TODO: add connector specific handling
+	unsupportedDataTypesForDbzmYBOnly, _ := lo.Difference(GetYugabyteUnsupportedDatatypesDbzm(true), PostgresUnsupportedDataTypes)
 	liveMigrationWithFForFBUnsupportedDatatypes, _ := lo.Difference(unsupportedDataTypesForDbzmYBOnly, GetPGLiveMigrationUnsupportedDatatypes())
 	return liveMigrationWithFForFBUnsupportedDatatypes
 }
@@ -106,13 +107,11 @@ This query returns all types of sequences attached to the tables -
 1. SERIAL/BIGSERIAL datatypes
 2. DEFAULT nextval()
 
-the change in this query  from the above query is this line 
+the change in this query  from the above query is this line
 
-LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S' 
+LEFT JOIN pg_class seq ON seq.oid = dep.refobjid AND seq.relkind = 'S'
 
-where the join is happening with `dep.refobjid` which helps in getting the default nextval cases as 
-
-
+where the join is happening with `dep.refobjid` which helps in getting the default nextval cases as
 */
 const FETCH_COLUMN_SEQUENCES_DEFAULT_QUERY_TEMPLATE = `SELECT
 	(tn.nspname || '.' || t.relname)  AS table_name,
@@ -183,6 +182,14 @@ func (pg *PostgreSQL) Disconnect() {
 	if err != nil {
 		log.Infof("Failed to close connection to the source database: %s", err)
 	}
+}
+
+func (pg *PostgreSQL) Query(query string) (*sql.Rows, error) {
+	return pg.db.Query(query)
+}
+
+func (pg *PostgreSQL) QueryRow(query string) *sql.Row {
+	return pg.db.QueryRow(query)
 }
 
 func (pg *PostgreSQL) getTrimmedSchemaList() []string {
@@ -443,23 +450,22 @@ func (pg *PostgreSQL) getExportedColumnsMap(
 
 	result := make(map[string][]string)
 	for _, tableMetadata := range tablesMetadata {
-		// TODO: Use tableMetadata.TableName instead of parsing the file name.
-		// We need a new method in sqlname.SourceName that returns MaybeQuoted and MaybeQualified names.
-		tableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
-		result[tableName] = pg.getExportedColumnsListForTable(exportDir, tableName)
+		// using minqualified and minquoted as used for data file naems and in console UI
+		rootTable := tableMetadata.TableName
+		if tableMetadata.IsPartition {
+			rootTable = tableMetadata.ParentTable
+		}
+		result[rootTable.ForMinOutput()] = pg.getExportedColumnsListForTable(exportDir, rootTable)
 	}
 	return result
 }
 
-func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir, tableName string) []string {
+func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir string, tableName sqlname.NameTuple) []string {
 	var columnsList []string
-	var re *regexp.Regexp
-	if len(strings.Split(tableName, ".")) == 1 {
-		// happens only when table is in public schema, use public schema with table name for regexp
-		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY public.%s[\s]+\((.*)\) FROM STDIN`, tableName))
-	} else {
-		re = regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName))
-	}
+
+	// ForOutput return fully qualified and min quote name which is the case with COPY in toc.txt
+	re := regexp.MustCompile(fmt.Sprintf(`(?i)COPY %s[\s]+\((.*)\) FROM STDIN`, tableName.ForOutput()))
+
 	tocFilePath := filepath.Join(exportDir, "data", "toc.dat")
 	err := utils.ForEachMatchingLineInFile(tocFilePath, re, func(matches []string) bool {
 		columnsList = strings.Split(matches[1], ",")

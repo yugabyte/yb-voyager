@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/samber/lo"
-
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/schemareg"
 )
 

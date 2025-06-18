@@ -102,7 +102,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				go startPprofServer()
 			}
 			// no info/payload is collected/supported for assess-migration-bulk
-			setControlPlane("")
+			err = setControlPlane("")
+			if err != nil {
+				utils.ErrExit("ERROR: setting up control plane: %v", err)
+			}
 		} else {
 			validateExportDirFlag()
 			err := config.ValidateLogLevel()
@@ -148,7 +151,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if perfProfile {
 				go startPprofServer()
 			}
-			setControlPlane(getControlPlaneType())
+			err = setControlPlane(getControlPlaneType())
+			if err != nil {
+				utils.ErrExit("ERROR: setting up control plane: %v", err)
+			}
 		}
 
 		// Log the flag values set from the config file
@@ -293,6 +299,7 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 	cmd.Flags().MarkHidden("profile")
 
 	registerExportDirFlag(cmd)
+	registerConfigFileFlag(cmd)
 
 	cmd.PersistentFlags().StringVarP(&config.LogLevel, "log-level", "l", "info",
 		"log level for yb-voyager. Accepted values: (trace, debug, info, warn, error, fatal, panic)")
@@ -302,12 +309,28 @@ func registerCommonGlobalFlags(cmd *cobra.Command) {
 
 	BoolVar(cmd.Flags(), &callhome.SendDiagnostics, "send-diagnostics", true,
 		"enable or disable the 'send-diagnostics' feature that sends analytics data to YugabyteDB.(default true)")
+}
 
+func registerConfigFileFlag(cmd *cobra.Command) {
 	cmd.PersistentFlags().StringVarP(&cfgFile, "config-file", "c", "",
 		"path of the config file which is used to set the various parameters for yb-voyager commands")
 
-	// Hide the config file flag from help
-	cmd.PersistentFlags().MarkHidden("config-file")
+	offlineCommands := []string{
+		"yb-voyager assess-migration",
+		"yb-voyager export schema",
+		"yb-voyager analyze-schema",
+		"yb-voyager import schema",
+		"yb-voyager export data",
+		"yb-voyager export data from source",
+		"yb-voyager import data",
+		"yb-voyager import data to target",
+		"yb-voyager finalize-schema-post-data-import",
+		"yb-voyager end migration",
+	}
+
+	if !slices.Contains(offlineCommands, cmd.CommandPath()) {
+		cmd.PersistentFlags().MarkHidden("config-file")
+	}
 }
 
 func registerExportDirFlag(cmd *cobra.Command) {
@@ -362,7 +385,7 @@ func metaDBIsCreated(exportDir string) bool {
 	return utils.FileOrFolderExists(filepath.Join(exportDir, "metainfo", "meta.db"))
 }
 
-func setControlPlane(cpType string) {
+func setControlPlane(cpType string) error {
 	switch cpType {
 	case "":
 		log.Infof("'CONTROL_PLANE_TYPE' environment variable not set. Setting cp to NoopControlPlane.")
@@ -370,15 +393,18 @@ func setControlPlane(cpType string) {
 	case YUGABYTED:
 		ybdConnString := os.Getenv("YUGABYTED_DB_CONN_STRING")
 		if ybdConnString == "" {
-			utils.ErrExit("'YUGABYTED_DB_CONN_STRING' environment variable needs to be set if 'CONTROL_PLANE_TYPE' is 'yugabyted'.")
+			return fmt.Errorf("yugabyted-db-conn-string config param (or YUGABYTED_DB_CONN_STRING environment variable) needs to be set if control plane type is 'yugabyted'.")
 		}
 		controlPlane = yugabyted.New(exportDir)
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			utils.ErrExit("ERROR Failed to initialize the target DB for visualization. %s", err)
+			return fmt.Errorf("initialize the target DB for visualization. %s", err)
 		}
+	default:
+		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})
 	}
+	return nil
 }
 
 func getControlPlaneType() string {

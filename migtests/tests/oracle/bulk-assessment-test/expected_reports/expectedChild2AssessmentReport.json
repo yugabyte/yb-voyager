@@ -13,7 +13,7 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 63,
-				"InvalidCount": 0,
+				"InvalidCount": 1,
 				"ObjectNames": "employees_misc, sub_par_test, view_table2, empty_partition_table2_p_west, orders_interval_partition_interval_partition_less_than_2016, order_items_range_partitioned_p2, sub_par_test_p3, orders_interval_partition, order_items_range_partitioned, \"group\", case_sensitive_columns, session_log2, accounts_list_partitioned_p_southeast, accounts_list_partitioned_p_southcentral, sub_par_test_p4_sp4, sub_par_test_p5_sp5, orders_interval_partition_interval_partition_less_than_2017, sales_hash_p1, sales_hash_p3, sub_par_test_p3_sp3, c1, employees, empty_partition_table2, reserved_column, empty_partition_table_p_west, order_items_range_partitioned_p3, sub_par_test_p1_sp1, c, foo, mixed_case_table_name_test, trunc_test, view_table1, synonym_table, accounts_list_partitioned_p_northwest, sub_par_test_p1, sub_par_test_p5, sub_par_test_p2_sp2, c2, session_log1, session_log4, test_timezone, \"check\", orders_interval_partition_interval_partition_less_than_2018, sub_par_test_p4, accounts_list_partitioned, sales_hash, accounts_list_partitioned_p_northcentral, empty_partition_table2_p_east, sub_par_test_p3_sp33, sub_par_test_p4_sp44, accounts_list_partitioned_p_southwest, sub_par_test_p2_sp22, empty_partition_table, accounts_list_partitioned_p_northeast, sales_hash_p2, sales_hash_p4, sub_par_test_p1_sp11, order_items_range_partitioned_p1, session_log, session_log3, empty_partition_table_p_east, orders_interval_partition_interval_partition_less_than_2015, sub_par_test_p2"
 			},
 			{
@@ -744,6 +744,7 @@
 		}
 	],
 	"Notes": [
+		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"For sharding/colocation recommendations, each partition is treated individually. During the export schema phase, all the partitions of a partitioned table are currently created as colocated by default.\nTo manually modify the schema, please refer: \u003ca class=\"highlight-link\" href=\"https://github.com/yugabyte/yb-voyager/issues/1581\"\u003ehttps://github.com/yugabyte/yb-voyager/issues/1581\u003c/a\u003e."
 	]

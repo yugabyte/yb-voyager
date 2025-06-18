@@ -90,6 +90,51 @@ func TestCreateVoyagerSchemaYB(t *testing.T) {
 	}
 }
 
+func TestYugabyteGetPrimaryKeyColumns(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.foo (
+			id INT,
+			category TEXT,
+			name TEXT,
+			PRIMARY KEY (id, category)
+		);`,
+		`CREATE TABLE test_schema.bar (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+		`CREATE TABLE test_schema.baz (
+			id INT,
+			name TEXT
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tests := []struct {
+		table          sqlname.NameTuple
+		expectedPKCols []string
+	}{
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			expectedPKCols: []string{"id", "category"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			expectedPKCols: []string{"id"},
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			expectedPKCols: nil,
+		},
+	}
+
+	for _, tt := range tests {
+		pkCols, err := testYugabyteDBTarget.GetPrimaryKeyColumns(tt.table)
+		assert.NoError(t, err)
+		testutils.AssertEqualStringSlices(t, tt.expectedPKCols, pkCols)
+	}
+}
+
 func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema`,
@@ -146,4 +191,56 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	actualTables := testYugabyteDBTarget.GetNonEmptyTables(tables)
 	log.Infof("non empty tables: %+v\n", actualTables)
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
+}
+
+func TestGetPrimaryKeyConstraintName(t *testing.T) {
+	testYugabyteDBTarget.ExecuteSqls(
+		`CREATE SCHEMA test_schema;`,
+		`CREATE TABLE test_schema.foo (
+			id INT PRIMARY KEY,
+			name TEXT
+		);`,
+		`CREATE TABLE test_schema.bar (
+			id INT,
+			name TEXT,
+			CONSTRAINT bar_primary_key PRIMARY KEY (id)
+		);`,
+		`CREATE TABLE test_schema.baz (
+			id INT,
+			name TEXT
+		);`,
+		`CREATE TABLE test_schema."CASE_sensitive" (
+			id INT,
+			name TEXT,
+			CONSTRAINT "CASE_sensitive_pkey" PRIMARY KEY (id)
+		);`,
+	)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+
+	tests := []struct {
+		table          sqlname.NameTuple
+		expectedPKName string
+	}{
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			expectedPKName: "foo_pkey",
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			expectedPKName: "bar_primary_key",
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			expectedPKName: "",
+		},
+		{
+			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "CASE_sensitive")},
+			expectedPKName: "CASE_sensitive_pkey",
+		},
+	}
+	for _, tt := range tests {
+		pkName, err := testYugabyteDBTarget.GetPrimaryKeyConstraintName(tt.table)
+		assert.NoError(t, err)
+		assert.Equal(t, tt.expectedPKName, pkName, fmt.Sprintf("Expected primary key name for table %q to be %q", tt.table.CurrentName, tt.expectedPKName))
+	}
 }

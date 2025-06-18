@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 41 Level 2 issue(s) and 29 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 41 Level 2 issue(s) and 30 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -229,26 +229,32 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx4 ON public.combined_tbl",
 			"SqlStatement": "CREATE INDEX idx4 ON public.combined_tbl USING btree (lsn)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX uk ON public.combined_tbl USING btree (lsn)"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "REDUNDANT_INDEXES",
 			"Name": "Redundant index",
-			"Description": "Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.\nExisting Index SQL Statement: CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)",
+			"Description": "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx6 ON public.combined_tbl",
 			"SqlStatement": "CREATE INDEX idx6 ON public.combined_tbl USING btree (bittv)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#redundant-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ExistingIndexSQLStatement": "CREATE UNIQUE INDEX combined_tbl_bittv_key ON public.combined_tbl USING btree (bittv)"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -385,7 +391,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "STORED_GENERATED_COLUMNS",
 			"Name": "Stored Generated Columns",
-			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.employees2",
@@ -400,7 +406,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "STORED_GENERATED_COLUMNS",
 			"Name": "Stored Generated Columns",
-			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details.",
+			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "schema2.employees2",
@@ -415,13 +421,16 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "EXCLUSION_CONSTRAINTS",
 			"Name": "Exclusion Constraints",
-			"Description": "Exclusion constraints are not yet supported in YugabyteDB. Refer docs link for details on possible workaround",
+			"Description": "Exclusion constraints are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.test_exclude_basic, constraint: (no_same_name_address)",
 			"SqlStatement": "ALTER TABLE ONLY public.test_exclude_basic\n    ADD CONSTRAINT no_same_name_address EXCLUDE USING btree (name WITH =, address WITH =);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#exclusion-constraints-is-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "no_same_name_address"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -434,7 +443,10 @@
 			"ObjectName": "public.orders2, constraint: (orders2_order_number_key)",
 			"SqlStatement": "ALTER TABLE ONLY public.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "orders2_order_number_key"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -447,7 +459,10 @@
 			"ObjectName": "schema2.orders2, constraint: (orders2_order_number_key)",
 			"SqlStatement": "ALTER TABLE ONLY schema2.orders2\n    ADD CONSTRAINT orders2_order_number_key UNIQUE (order_number) DEFERRABLE;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#deferrable-constraint-on-constraints-other-than-foreign-keys-is-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "orders2_order_number_key"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -480,7 +495,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_CITEXT_DATATYPE",
 			"Name": "Index on column with citext datatype",
-			"Description": "Indexes on columns with citext data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with citext data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_citext ON public.citext_type",
@@ -493,7 +508,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_TSVECTOR_DATATYPE",
 			"Name": "Index on column with tsvector datatype",
-			"Description": "Indexes on columns with tsvector data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with tsvector data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "tsvector_idx ON public.documents",
@@ -506,7 +521,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_TSQUERY_DATATYPE",
 			"Name": "Index on column with tsquery datatype",
-			"Description": "Indexes on columns with tsquery data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with tsquery data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "tsquery_idx ON public.ts_query_table",
@@ -519,7 +534,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_JSONB_DATATYPE",
 			"Name": "Index on column with jsonb datatype",
-			"Description": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_json ON public.test_jsonb",
@@ -532,7 +547,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_JSONB_DATATYPE",
 			"Name": "Index on column with jsonb datatype",
-			"Description": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with jsonb data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_json2 ON public.test_jsonb",
@@ -545,7 +560,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_INET_DATATYPE",
 			"Name": "Index on column with inet datatype",
-			"Description": "Indexes on columns with inet data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with inet data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_inet ON public.inet_type",
@@ -558,7 +573,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_MACADDR_DATATYPE",
 			"Name": "Index on column with macaddr datatype",
-			"Description": "Indexes on columns with macaddr data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with macaddr data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx2 ON public.combined_tbl",
@@ -571,7 +586,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_MACADDR8_DATATYPE",
 			"Name": "Index on column with macaddr8 datatype",
-			"Description": "Indexes on columns with macaddr8 data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with macaddr8 data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx3 ON public.combined_tbl",
@@ -584,7 +599,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_CIDR_DATATYPE",
 			"Name": "Index on column with cidr datatype",
-			"Description": "Indexes on columns with cidr data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with cidr data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx1 ON public.combined_tbl",
@@ -597,7 +612,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_BIT_DATATYPE",
 			"Name": "Index on column with bit datatype",
-			"Description": "Indexes on columns with bit data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with bit data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx5 ON public.combined_tbl",
@@ -610,7 +625,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_VARBIT_DATATYPE",
 			"Name": "Index on column with varbit datatype",
-			"Description": "Indexes on columns with varbit data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with varbit data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx6 ON public.combined_tbl",
@@ -623,7 +638,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_DATERANGE_DATATYPE",
 			"Name": "Index on column with daterange datatype",
-			"Description": "Indexes on columns with daterange data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with daterange data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx8 ON public.combined_tbl",
@@ -636,7 +651,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_INTERVAL_DATATYPE",
 			"Name": "Index on column with interval datatype",
-			"Description": "Indexes on columns with interval data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with interval data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx9 ON public.combined_tbl",
@@ -649,7 +664,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_PG_LSN_DATATYPE",
 			"Name": "Index on column with pg_lsn datatype",
-			"Description": "Indexes on columns with pg_lsn data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with pg_lsn data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx4 ON public.combined_tbl",
@@ -662,7 +677,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_ARRAY_DATATYPE",
 			"Name": "Index on column with array datatype",
-			"Description": "Indexes on columns with array data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with array data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_array ON public.documents",
@@ -675,7 +690,7 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "INDEX_ON_USER_DEFINED_DATATYPE",
 			"Name": "Index on column with user defined datatype",
-			"Description": "Indexes on columns with user defined data types are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Indexes on columns with user defined data types are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx7 ON public.combined_tbl",
@@ -688,38 +703,60 @@
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "PK_UK_ON_VARBIT_DATATYPE",
 			"Name": "Primary/Unique key on column with varbit datatype",
-			"Description": "Primary key and Unique constraints on columns with varbit data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Primary key and Unique constraints on columns with varbit data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.combined_tbl, constraint: (combined_tbl_bittv_key)",
 			"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_bittv_key UNIQUE (bittv);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "combined_tbl_bittv_key"
+			}
 		},
 		{
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "PK_UK_ON_ARRAY_DATATYPE",
 			"Name": "Primary/Unique key on column with array datatype",
-			"Description": "Primary key and Unique constraints on columns with array data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Primary key and Unique constraints on columns with array data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.combined_tbl, constraint: (combined_tbl_pkey)",
 			"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT combined_tbl_pkey PRIMARY KEY (id, arr_enum);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "combined_tbl_pkey"
+			}
 		},
 		{
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "PK_UK_ON_PG_LSN_DATATYPE",
 			"Name": "Primary/Unique key on column with pg_lsn datatype",
-			"Description": "Primary key and Unique constraints on columns with pg_lsn data type are not yet supported in YugabyteDB. Refer to the docs link for the workaround",
+			"Description": "Primary key and Unique constraints on columns with pg_lsn data type are not yet supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "TABLE",
 			"ObjectName": "public.combined_tbl, constraint: (uk)",
 			"SqlStatement": "ALTER TABLE ONLY public.combined_tbl\n    ADD CONSTRAINT uk UNIQUE (lsn);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#indexes-on-some-complex-data-types-are-not-supported",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ConstraintName": "uk"
+			}
+		},
+		{
+			"Category": "unsupported_datatypes",
+			"CategoryDescription": "Data types of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_DATATYPE_XML",
+			"Name": "Unsupported datatype - xml",
+			"Description": "XML datatype is not yet supported in YugabyteDB. Affected column: xml_data. Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "COLUMN",
+			"ObjectName": "public.combined_tbl.xml_data",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 			"MinimumVersionsFixedIn": null
 		},
 		{
@@ -800,7 +837,12 @@
 			"ObjectName": "t_raster ON public.combined_tbl",
 			"SqlStatement": "CREATE TRIGGER t_raster BEFORE DELETE OR UPDATE ON public.combined_tbl FOR EACH ROW EXECUTE FUNCTION public.lo_manage('raster');",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"FunctionNames": [
+					"lo_manage"
+				]
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -1004,6 +1046,9 @@
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 			"MinimumVersionsFixedIn": {
 				"2.25": "2.25.0.0"
+			},
+			"Details": {
+				"ConstraintName": "test_jsonb_id_region_fkey"
 			}
 		},
 		{
@@ -1283,7 +1328,12 @@
 			"ObjectName": "public.manage_large_object",
 			"SqlStatement": "SELECT lo_unlink(loid);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#large-objects-and-its-functions-are-currently-not-supported",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"FunctionNames": [
+					"lo_unlink"
+				]
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",
@@ -2057,26 +2107,32 @@
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_DATE_INDEX",
 			"Name": "Hotspots with indexes on date as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: shipped_date",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_orders_shipped_date ON public.orders2",
 			"SqlStatement": "CREATE INDEX idx_orders_shipped_date ON public.orders2 USING btree (shipped_date);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "shipped_date"
+			}
 		},
 		{
 			"Category": "performance_optimizations",
 			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
 			"Type": "HOTSPOTS_ON_TIMESTAMP_INDEX",
 			"Name": "Hotspots with indexes on timestamp as first column",
-			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant. Affected column: processed_at",
+			"Description": "Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.\nTo address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.\nNote: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
 			"ObjectName": "idx_ordersentry_processed_at ON public.ordersentry",
 			"SqlStatement": "CREATE INDEX idx_ordersentry_processed_at ON public.ordersentry USING btree (processed_at);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#hotspots-with-range-sharded-timestamp-date-indexes",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "processed_at"
+			}
 		},
 		{
 			"Category": "migration_caveats",
@@ -2262,7 +2318,7 @@
 			"SchemaName": "public",
 			"ObjectName": "combined_tbl",
 			"RowCount": 0,
-			"ColumnCount": 13,
+			"ColumnCount": 14,
 			"ReadsPerSecond": 0,
 			"WritesPerSecond": 0,
 			"IsIndex": false,
@@ -4564,6 +4620,7 @@
 		}
 	],
 	"Notes": [
+		"Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/releases/ybdb-releases/\">release notes</a> for detailed information and usage guidelines.",
 		"If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.\nFor additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations",
 		"If indexes are created on columns commonly used in range-based queries (e.g. timestamp columns), it is recommended to explicitly configure these indexes with range sharding. This ensures efficient data access for range queries.\nBy default, YugabyteDB uses hash sharding for indexes, which distributes data randomly and is not ideal for range-based predicates potentially degrading query performance. Note that range sharding is enabled by default only in <a class=\"highlight-link\" target=\"_blank\" href=\"https://docs.yugabyte.com/preview/develop/postgresql-compatibility/\">PostgreSQL compatibility mode</a> in YugabyteDB.",
 		"<a class=\"highlight-link\" target=\"_blank\"  href=\"https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/#assessment-and-schema-analysis-limitations\">Limitations in assessment</a>",

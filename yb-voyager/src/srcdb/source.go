@@ -58,6 +58,7 @@ type Source struct {
 	StrExportObjectTypeList  string        `json:"str_export_object_type_list"`
 	StrExcludeObjectTypeList string        `json:"str_exclude_object_type_list"`
 	RunGuardrailsChecks      utils.BoolStr `json:"run_guardrails_checks"`
+	IsYBGrpcConnector        bool          `json:"-"`
 
 	ExportObjectTypeList []string `json:"-"`
 	sourceDB             SourceDB `json:"-"`

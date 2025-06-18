@@ -95,7 +95,7 @@ var importDataFileCmd = &cobra.Command{
 		storeFileTableMapAndDataDirInMSR()
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
-		importData(importFileTasks)
+		importData(importFileTasks, errorPolicySnapshotFlag)
 		packAndSendImportDataFilePayload(COMPLETE, "")
 
 	},
@@ -224,6 +224,11 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateTargetPortRange()
 	validateTargetSchemaFlag()
 	validateParallelismFlags()
+
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		utils.ErrExit("Error validating --on-primary-key-conflict flag: %w", err)
+	}
 }
 
 func checkFileFormat() {
@@ -363,7 +368,7 @@ func packAndSendImportDataFilePayload(status string, errorMsg string) {
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 		Error:              callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		ControlPlaneType:   getControlPlaneType(),
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
@@ -508,6 +513,12 @@ If you go ahead without truncating, then yb-voyager starts ingesting the data pr
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table from --file-table-map or truncate those tables manually before using the start-clean flag (default false)`)
 
 	BoolVar(importDataFileCmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+
+	importDataFileCmd.Flags().Var(&errorPolicySnapshotFlag, "error-policy",
+		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
+			"\tabort: immediately abort the process. (default)\n"+
+			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+	importDataFileCmd.Flags().MarkHidden("error-policy")
 
 	importDataFileCmd.Flags().MarkHidden("table-list")
 	importDataFileCmd.Flags().MarkHidden("exclude-table-list")

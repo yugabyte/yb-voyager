@@ -11,7 +11,7 @@
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <version.ybclient>0.8.62-20230718.133435-1</version.ybclient>
+        <version.ybclient>0.8.92-20240708.202437-1</version.ybclient>
         <version.s3.wagon>0.1.3</version.s3.wagon>
         <java.version>11</java.version>
         <compiler.version>3.10.1</compiler.version>

@@ -19,9 +19,11 @@ import (
 	"fmt"
 	"strings"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
@@ -29,6 +31,9 @@ import (
 var sourceDBType string
 var enableOrafce utils.BoolStr
 var importType string
+
+var supportedSSLModesOnTargetForImport = AllSSLModes // supported SSL modes for YugabyteDB is different for import VS export data from target(streaming phase)
+var supportedSSLModesOnSourceOrSourceReplica = AllSSLModes
 
 // tconf struct will be populated by CLI arguments parsing
 var tconf tgtdb.TargetConf
@@ -91,6 +96,7 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	}
 	validateParallelismFlags()
 	validateTruncateTablesFlag()
+
 	return nil
 }
 
@@ -126,7 +132,8 @@ func registerTargetDBConnFlags(cmd *cobra.Command) {
 		"Path of file containing target SSL Certificate")
 
 	cmd.Flags().StringVar(&tconf.SSLMode, "target-ssl-mode", "prefer",
-		"specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full)")
+		fmt.Sprintf("specify the target SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnTargetForImport, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "target-ssl-key", "",
 		"Path of file containing target SSL Key")
@@ -176,8 +183,10 @@ func registerSourceReplicaDBAsTargetConnFlags(cmd *cobra.Command) {
 	cmd.Flags().StringVar(&tconf.SSLCertPath, "source-replica-ssl-cert", "",
 		"Path of the file containing Source-Replica DB SSL Certificate Path")
 
+	// Q: Do we need separate handling for Oracle vs PostgreSQL here?
 	cmd.Flags().StringVar(&tconf.SSLMode, "source-replica-ssl-mode", "prefer",
-		"specify the Source-Replica DB SSL mode out of - disable, allow, prefer, require, verify-ca, verify-full")
+		fmt.Sprintf("specify the Source-Replica DB SSL mode: [%s]",
+			strings.Join(supportedSSLModesOnSourceOrSourceReplica, ", ")))
 
 	cmd.Flags().StringVar(&tconf.SSLKey, "source-replica-ssl-key", "",
 		"Path of the file containing Source-Replica DB SSL Key")
@@ -238,7 +247,14 @@ func registerImportDataToTargetFlags(cmd *cobra.Command) {
 If any table on YugabyteDB database is non-empty, it prompts whether you want to continue the import without truncating those tables; 
 If you go ahead without truncating, then yb-voyager starts ingesting the data present in the data files with upsert mode.
 Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. To avoid this, exclude the table using the --exclude-file-list or truncate those tables manually before using the start-clean flag (default false)`)
-	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false, "Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+	BoolVar(cmd.Flags(), &truncateTables, "truncate-tables", false,
+		"Truncate tables on target YugabyteDB before importing data. Only applicable along with --start-clean true (default false)")
+
+	cmd.Flags().Var(&errorPolicySnapshotFlag, "error-policy-snapshot",
+		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
+			"\tabort: immediately abort the process. (default)\n"+
+			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
+	cmd.Flags().MarkHidden("error-policy-snapshot")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -260,9 +276,12 @@ func registerImportSchemaFlags(cmd *cobra.Command) {
 		"enable Orafce extension on target(if source db type is Oracle)")
 
 	// --post-snapshot-import and --refresh-mviews flags will now be handled by the command post-data-import-finalize-schema
-	// Not removing these flags and just hiding them for backward compatibility.
-	cmd.Flags().MarkHidden("post-snapshot-import")
-	cmd.Flags().MarkHidden("refresh-mviews")
+	// Not removing these flags and just deprecating them for backward compatibility.
+	cmd.Flags().MarkDeprecated("post-snapshot-import",
+		"use the command 'finalize-schema-post-data-import' instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+	cmd.Flags().MarkDeprecated("refresh-mviews",
+		"it is no longer supported in the 'import schema' command. Use the 'finalize-schema-post-data-import' command instead. \nFor more details, refer to the documentation: \nhttps://docs.yugabyte.com/preview/yugabyte-voyager/reference/schema-migration/finalize-schema-post-data-import/\n")
+
 }
 
 func validateTargetPortRange() {
@@ -341,10 +360,22 @@ func validateImportObjectsFlag(importObjectsString string, flagName string) {
 }
 
 func checkOrSetDefaultTargetSSLMode() {
+	tconf.SSLMode = strings.ToLower(tconf.SSLMode) // normalize before comparing
+
 	if tconf.SSLMode == "" {
-		tconf.SSLMode = "prefer"
-	} else if tconf.SSLMode != "disable" && tconf.SSLMode != "prefer" && tconf.SSLMode != "require" && tconf.SSLMode != "verify-ca" && tconf.SSLMode != "verify-full" {
-		utils.ErrExit("Invalid sslmode %q. Required one of [disable, allow, prefer, require, verify-ca, verify-full]", tconf.SSLMode)
+		tconf.SSLMode = constants.PREFER
+		return
+	}
+
+	var sslModes []string
+	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
+		sslModes = supportedSSLModesOnTargetForImport
+	} else if importerRole == SOURCE_REPLICA_DB_IMPORTER_ROLE || importerRole == SOURCE_DB_IMPORTER_ROLE {
+		sslModes = supportedSSLModesOnSourceOrSourceReplica
+	} // there should be no other else case
+
+	if !slices.Contains(sslModes, tconf.SSLMode) {
+		utils.ErrExit("Invalid sslmode %q. Required one of [%s]", tconf.SSLMode, strings.Join(sslModes, ", "))
 	}
 }
 
@@ -370,6 +401,16 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &skipDiskUsageHealthChecks, "skip-disk-usage-health-checks", false,
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
+
+	// TODO: restrict changing of flag value after import data has started
+	// TODO: Detailed description of the flag
+	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
+		`Action to take on primary key conflict during data import.
+Supported values:
+ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
+IGNORE		: Skips rows with existing primary keys and uses fast-path import for better performance with colocated tables.`)
+	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
+
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 	cmd.Flags().MarkHidden("skip-node-health-checks")
 }
@@ -404,6 +445,7 @@ func validateBatchSizeFlag(numLinesInASplit int64) {
 		defaultBatchSize = DEFAULT_BATCH_SIZE_YUGABYTEDB
 	}
 
+	// TODO: we might want to lift this restriction for non-transactional COPY (depends on testing of --batch-size flag)
 	if numLinesInASplit > defaultBatchSize {
 		utils.ErrExit("Error invalid batch size %v. The batch size cannot be greater than %v", numLinesInASplit, defaultBatchSize)
 	}
@@ -433,4 +475,55 @@ func validateTruncateTablesFlag() {
 	if truncateTables && !startClean {
 		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
+}
+
+var onPrimaryKeyConflictActions = []string{
+	constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR,
+	constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE,
+	// constants.PRIMARY_KEY_CONFLICT_ACTION_UPDATE,
+}
+
+func validateOnPrimaryKeyConflictFlag() error {
+	log.Infof("passed value for --on-primary-key-conflict: %s", tconf.OnPrimaryKeyConflictAction)
+	tconf.OnPrimaryKeyConflictAction = strings.ToUpper(tconf.OnPrimaryKeyConflictAction)
+
+	// flag only applicable for import-data-to-target and import-data-file commands
+	// ignore for import-data-to-source-replica and import-data-to-source commands
+	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+		return nil
+	}
+
+	// Check if the provided OnPrimaryKeyConflictAction is valid
+	if tconf.OnPrimaryKeyConflictAction != "" {
+		if !slices.Contains(onPrimaryKeyConflictActions, tconf.OnPrimaryKeyConflictAction) {
+			return fmt.Errorf("invalid value for --on-primary-key-conflict. Allowed values are: [%s]", strings.Join(onPrimaryKeyConflictActions, ", "))
+		}
+	}
+
+	// ensure that OnPrimaryKeyConflictAction is not changed in case of resumption
+	/*
+		Most of our cmd validations(including this) run in PreRun phase
+		which can happen before the migration status record or the metaDB is created.
+		For example, in case of import data file command
+	*/
+	if !bool(startClean) && metaDBIsCreated(exportDir) {
+		msr, err := metaDB.GetMigrationStatusRecord()
+		if err != nil {
+			return fmt.Errorf("error getting migration status record: %v", err)
+		} else if msr == nil {
+			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
+		}
+
+		if msr.OnPrimaryKeyConflictAction != "" && msr.OnPrimaryKeyConflictAction != tconf.OnPrimaryKeyConflictAction {
+			return fmt.Errorf("--on-primary-key-conflict flag cannot be changed after the import has started. "+
+				"Previous value was %s, current value is %s", msr.OnPrimaryKeyConflictAction, tconf.OnPrimaryKeyConflictAction)
+		}
+	}
+
+	// restrict setting --enable-upsert as true if --on-primary-key-conflict is not set to ERROR
+	if tconf.EnableUpsert && tconf.OnPrimaryKeyConflictAction != constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
+	}
+
+	return nil
 }

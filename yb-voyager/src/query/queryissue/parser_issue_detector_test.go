@@ -1424,37 +1424,67 @@ func TestCompressionClause(t *testing.T) {
 
 }
 
-func TestTimestampOrDateIndexesIssues(t *testing.T) {
+func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 	stmts := []string{
-		`CREATE TABLE test(id int, created_at timestamp with time zone, val text, ordered_date date);`,
+		`CREATE TABLE test(id int PRIMARY KEY, created_at timestamp with time zone, val text, ordered_date date);`,
 		`CREATE INDEX idx_val on test(val); `,
 		`CREATE INDEX idx_id_created_at on test(id, created_at);`,
 		`CREATE INDEX idx_created_at on test(created_at);`,
 		`CREATE INDEX idx_id_created_at1 on test(id, created_at ASC);`,
 		`CREATE INDEX idx_created_at_ordered_date on test(created_at, ordered_date);`,
 		`CREATE INDEX idx_id_created_at_ordered_date on test(id, created_at, ordered_date);`,
+		`CREATE TABLE test_pk_timestamp(id int, created_at timestamp PRIMARY KEY);`,
+		`CREATE TABLE test_pk_second_col_timestamp(id int, created_at timestamp with time zone, PRIMARY KEY(id, created_at));`,
+		`CREATE TABLE test_pk_timestamp_alter(id int, createdat date);`,
+		`ALTER TABLE test_pk_timestamp_alter ADD CONSTRAINT pk1 PRIMARY KEY(createdat, id);`,
+		`ALTER TABLE test_pk_timestamp_alter ADD CONSTRAINT pk2 PRIMARY KEY(id, createdat);`,
+		`CREATE TABLE schema2.test_uk_timestamp(id int, created_at timestamp UNIQUE);`,
+		`CREATE TABLE test_uk_second_col_timestamp(id int, created_at timestamp with time zone, UNIQUE(id, created_at));`,
+		`CREATE TABLE "Test_uk_timestamp_alter"(id int, createdat date);`,
+		`ALTER TABLE "Test_uk_timestamp_alter" ADD CONSTRAINT pk1 UNIQUE(createdat, id);`,
+		`ALTER TABLE "Test_uk_timestamp_alter" ADD CONSTRAINT pk2 UNIQUE(id, createdat);`,
 	}
 	sqlsWithExpectedIssues := map[string][]QueryIssue{
 		stmts[1]: []QueryIssue{},
-		stmts[2]: []QueryIssue{
-			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at ON test", stmts[2], "created_at"),
-		},
+		stmts[2]: []QueryIssue{},
 		stmts[3]: []QueryIssue{
 			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at ON test", stmts[3], "created_at"),
 		},
 		stmts[4]: []QueryIssue{},
 		stmts[5]: []QueryIssue{
 			NewHotspotOnTimestampIndexIssue(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "created_at"),
-			NewSuggestionOnDateIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_created_at_ordered_date ON test", stmts[5], "ordered_date"),
 		},
-		stmts[6]: []QueryIssue{
-			NewSuggestionOnDateIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at_ordered_date ON test", stmts[6], "ordered_date"),
-			NewSuggestionOnTimestampIndexesForRangeSharding(INDEX_OBJECT_TYPE, "idx_id_created_at_ordered_date ON test", stmts[6], "created_at"),
+		stmts[6]: []QueryIssue{},
+		stmts[7]: []QueryIssue{
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp", stmts[7], "created_at"),
 		},
+		stmts[8]: []QueryIssue{},
+		stmts[10]: []QueryIssue{
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "test_pk_timestamp_alter", stmts[10], "createdat"),
+		},
+		stmts[11]: []QueryIssue{},
+		stmts[12]: []QueryIssue{
+			NewHotspotOnTimestampPKOrUKIssue(TABLE_OBJECT_TYPE, "schema2.test_uk_timestamp", stmts[12], "created_at"),
+		},
+		stmts[13]: []QueryIssue{},
+		stmts[15]: []QueryIssue{
+			NewHotspotOnDatePKOrUKIssue(TABLE_OBJECT_TYPE, "Test_uk_timestamp_alter", stmts[15], "createdat"),
+		},
+		stmts[16]: []QueryIssue{},
 	}
 	parserIssueDetector := NewParserIssueDetector()
-	err := parserIssueDetector.ParseAndProcessDDL(stmts[0])
-	assert.Nil(t, err)
+	statementsToParseFirst := []string{
+		stmts[0],
+		stmts[7],
+		stmts[8],
+		stmts[9],
+		stmts[12],
+		stmts[14],
+	}
+	for _, stmt := range statementsToParseFirst {
+		err := parserIssueDetector.ParseAndProcessDDL(stmt)
+		assert.Nil(t, err)
+	}
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)

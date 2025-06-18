@@ -420,7 +420,7 @@ const (
 	FOREIGN_KEY_REFERENCES_PARTITIONED_TABLE_ISSUE_DESCRIPTION = "Foreign key references to partitioned table are not yet supported in YugabyteDB."
 	SQL_BODY_IN_FUNCTION_ISSUE_DESCRIPTION                     = "SQL language functions with an inline body are not supported in YugabyteDB."
 	UNIQUE_NULLS_NOT_DISTINCT_ISSUE_DESCRIPTION                = "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB."
-	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default. Refer to the docs link for the more information on supported extensions."
+	UNSUPPORTED_EXTENSION_ISSUE_DESCRIPTION                    = "This extension is not supported in YugabyteDB by default."
 
 	//Hotspot on timestamp/date indexes
 
@@ -429,24 +429,43 @@ const (
 	HOTSPOTS_ON_TIMESTAMP_INDEX_ISSUE                 = "Hotspots with indexes on timestamp as first column"
 	HOTSPOTS_ON_DATE_INDEX_ISSUE                      = "Hotspots with indexes on date as first column"
 	HOTSPOTS_ON_RANGE_SHARDED_INDEX_ISSUE_DESCRIPTION = `Indexes on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
-To address this issue and improve query performance, application-level sharding is recommended. Refer to the docs for more details. Ensure that the index on the column is configured to be range-sharded.
+To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.
 Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
-	HASH_SHARDING_DATE_INDEX                               = "HASH_SHARDING_DATE_INDEX"
-	HASH_SHARDING_DATE_INDEX_ISSUE_NAME                    = "Hash-sharding for indexes on date columns"
-	HASH_SHARDING_TIMESTAMP_INDEX                          = "HASH_SHARDING_TIMESTAMP_INDEX"
-	HASH_SHARDING_TIMESTAMP_INDEX_ISSUE_NAME               = "Hash-sharding for indexes on timestamp columns"
-	HASH_SHARDING_RECOMMENDATION_ON_DATE_TIMESTAMP_INDEXES = `Indexes on timestamp or date columns are commonly used in range-based queries. However, by default, indexes in YugabyteDB are hash-sharded, which is not optimal for range predicates and can impact query performance.
-To address this, it is recommended that such indexes be explicitly configured to use range sharding which will make sure of the efficient data access with range-based queries.
-Note that range sharding is currently enabled by default only in PostgreSQL compatibility mode in YugabyteDB.`
+	HOTSPOTS_ON_TIMESTAMP_PK_UK                       = "HOTSPOTS_ON_TIMESTAMP_PK_UK"
+	HOTSPOTS_ON_DATE_PK_UK                            = "HOTSPOTS_ON_DATE_PK_UK"
+	HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE                 = "Hotspots with primary/unique key constraint on timestamp as first column"
+	HOTSPOTS_ON_DATE_PK_UK_ISSUE                      = "Hotspots with primary/unique key constraint on date as first column"
+	HOTSPOTS_ON_RANGE_SHARDED_PK_UK_ISSUE_DESCRIPTION = `Primary or Unique key constraints on timestamp or date columns can lead to read/write hotspots in distributed databases like YugabyteDB, primarily due to the increasing nature of these values (e.g., created_at timestamp). This increasing pattern can cause an uneven distribution of data and query load, leading to performance bottlenecks.
+To address this issue and improve query performance, the recommendation is to change the sharding key to a modulo of hash of timestamp column value while keeping the timestamp column value as clustering key. Ensure that the index on the column is configured to be range-sharded on timestamp column.
+Note: If the table is created as colocated, this hotspot concern can safely be ignored, as all the data resides on a single tablet, and the distribution is no longer relevant.`
 
-	REDUNDANT_INDEXES="REDUNDANT_INDEXES"
-	REDUNDANT_INDEXES_ISSUE_NAME="Redundant index"
-	REDUNDANT_INDEXES_DESCRIPTION="Redundant indexes can be dropped when a stronger index is present, meaning an index that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
+	REDUNDANT_INDEXES             = "REDUNDANT_INDEXES"
+	REDUNDANT_INDEXES_ISSUE_NAME  = "Redundant index"
+	REDUNDANT_INDEXES_DESCRIPTION = "Redundant indexes can be dropped when a stronger index is present. A stronger index is one that includes the same initial key columns (in order) and may extend with additional keys, thus fully covering the redundant one."
+
+	LOW_CARDINALITY_INDEX_ISSUE_NAME          = "Index on low-cardinality column"
+	LOW_CARDINALITY_INDEXES                   = "INDEX_ON_LOW_CARDINALITY_COLUMN"
+	LOW_CARDINALITY_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets."
+	LOW_CARDINALITY_DESCRIPTION_SINGLE_COLUMN = `This index is built on a low-cardinality column.`
+	LOW_CARDINALITY_DESCRIPTION_MULTI_COLUMN  = `The first column of this index is low-cardinality column.`
+
+	NULL_VALUE_INDEXES_ISSUE_NAME                = "Index on column with a high percentage of NULL values"
+	NULL_VALUE_INDEXES                           = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_NULL_VALUES"
+	NULL_VALUE_INDEXES_DESCRIPTION               = "In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with many NULL values can lead to uneven distribution and can cause performance issues."
+	NULL_VALUE_INDEXES_DESCRIPTION_SINGLE_COLUMN = `This index is built on a column having high percentage of NULL values.`
+	NULL_VALUE_INDEXES_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has high percentage of NULL values.`
+
+	MOST_FREQUENT_VALUE_INDEXES_ISSUE_NAME              = "Index on column with high percentage of a particular value"
+	MOST_FREQUENT_VALUE_INDEXES                         = "INDEX_ON_COLUMN_WITH_HIGH_PERCENTAGE_OF_PARTICULAR_VALUE"
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
+	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
 )
 
 // Object types
 const (
+	//BEFORE ADDING ANY KEY FOR DETAILS MAP, ADD IT TO THE SensitiveKeysInIssueDetailsMap in query_issue.go
 	CONSTRAINT_NAME           = "ConstraintName"
 	FUNCTION_NAMES            = "FunctionNames"
 	TABLE_OBJECT_TYPE         = "TABLE"
@@ -461,13 +480,12 @@ const (
 // Issue Suggestions
 // Note: Any issue description added here should be updated in reasonsIncludingSensitiveInformationToCallhome and descriptionsIncludingSensitiveInformationToCallhome
 const (
-	STORED_GENERATED_COLUMN_ISSUE_SUGGESTION                  = "Using Triggers to update the generated columns is one way to work around this issue, refer docs link for more details."
+	STORED_GENERATED_COLUMN_ISSUE_SUGGESTION                  = "Using Triggers to update the generated columns is one way to work around this issue."
 	UNLOGGED_TABLES_ISSUE_SUGGESTION                          = "Remove UNLOGGED keyword to make it work"
 	STORAGE_PARAMETERS_ISSUE_SUGGESTION                       = "Remove the storage parameters from the DDL"
 	ALTER_TABLE_SET_COLUMN_ATTRIBUTE_ISSUE_SUGGESTION         = "Remove it from the exported schema"
 	ALTER_TABLE_CLUSTER_ON_ISSUE_SUGGESTION                   = "Remove it from the exported schema."
 	ALTER_TABLE_DISABLE_RULE_ISSUE_SUGGESTION                 = "Remove this and the rule '%s' from the exported schema to be not enabled on the table."
-	EXCLUSION_CONSTRAINT_ISSUE_SUGGESTION                     = "Refer docs link for details on possible workaround"
 	DEFERRABLE_CONSTRAINT_ISSUE_SUGGESTION                    = "Remove these constraints from the exported schema and make the neccessary changes to the application to work on target seamlessly"
 	POLICY_ROLE_ISSUE_SUGGESTION                              = "Create the Users manually to make the policies work."
 	BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION    = "Create the triggers on individual partitions."
@@ -477,10 +495,14 @@ const (
 	INSUFFICIENT_COLUMNS_IN_PK_FOR_PARTITION_ISSUE_SUGGESTION = "Add all Partition columns to Primary Key"
 	XML_DATATYPE_ISSUE_SUGGESTION                             = "Data ingestion is not supported for this type in YugabyteDB so handle this type in different way. Refer link for more details."
 	XID_DATATYPE_ISSUE_SUGGESTION                             = "Functions for this type e.g. txid_current are not supported in YugabyteDB yet"
-	PK_UK_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION                = "Refer to the docs link for the workaround"
-
-	INDEX_ON_COMPLEX_DATATYPE_ISSUE_SUGGESTION = "Refer to the docs link for the workaround"
 
 	FOREIGN_TABLE_ISSUE_SUGGESTION               = "SERVER '%s', and USER MAPPING should be created manually on the target to create and use the foreign table"
 	REFERENCED_TYPE_DECLARATION_ISSUE_SUGGESTION = "Fix the syntax to include the actual type name instead of referencing the type of a column"
+)
+
+const (
+	LOW_CARDINALITY_MIN_THRESHOLD = 0
+	LOW_CARDINALITY_MAX_THRESHOLD = 10
+	NULL_FREQUENCY_THRESHOLD      = 40 // percentage of nulls in the column
+	MOST_FREQUENT_VALUE_THRESHOLD = 60 // percentage of most frequent value in the column
 )
