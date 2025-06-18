@@ -733,7 +733,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	if changeStreamingIsEnabled(importType) {
 		if importerRole != SOURCE_DB_IMPORTER_ROLE {
-			displayImportedRowCountSnapshot(state, importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
 
 		waitForDebeziumStartIfRequired()
@@ -793,7 +793,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to restore generated columns: %s", err)
 		}
-		displayImportedRowCountSnapshot(state, importFileTasks)
+		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
 }
