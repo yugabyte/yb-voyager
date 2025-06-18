@@ -183,6 +183,9 @@ CREATE INDEX idx_muli_col_key_first_col1 ON public.test_multi_col_idx USING btre
 CREATE INDEX idx_name ON public.users USING btree (name);
 
 
+CREATE INDEX idx_name1 ON public.users USING btree (name) where name != '';-- this is most common value partial index 
+
+
 --
 -- Name: idx_test_case_sensitive; Type: INDEX; Schema: public; Owner: -
 --
@@ -230,6 +233,8 @@ CREATE INDEX idx_test_multi_val ON public.test_multi_col_idx USING btree (val);
 --
 
 CREATE INDEX idxtt ON public.t USING btree (id2);
+
+CREATE INDEX idxtt1 ON public.t USING btree (id2) where id2 IS NOT NULL; -- this is null partial index 
 
 
 --

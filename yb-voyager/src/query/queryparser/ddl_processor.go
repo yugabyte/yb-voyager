@@ -512,7 +512,6 @@ func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) 
 	return indexParams
 }
 
-
 func (ip *IndexProcessor) parseWhereClause(node *pg_query.Node, results *[]WhereClause) {
 	if node == nil {
 		return
@@ -520,60 +519,95 @@ func (ip *IndexProcessor) parseWhereClause(node *pg_query.Node, results *[]Where
 
 	switch {
 	/*
-	WHERE status <> 'active'::text OR (status <> 'inactive' AND status IS NOT NULL) 
-	- where_clause:{bool_expr:{boolop:OR_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}} 
-	typemod:-1  location:80}  location:78}}  location:67}}  args:{bool_expr:{boolop:AND_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:89}}  rexpr:{a_const:{sval:{sval:"inactive"}  location:99}}  location:96}} 
-	args:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:114}}  nulltesttype:IS_NOT_NULL  location:121}}  location:110}}  location:85}
+		WHERE status <> 'active'::text OR (status <> 'inactive' AND status IS NOT NULL)
+		- where_clause:{bool_expr:{boolop:OR_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}}
+		typemod:-1  location:80}  location:78}}  location:67}}  args:{bool_expr:{boolop:AND_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:89}}  rexpr:{a_const:{sval:{sval:"inactive"}  location:99}}  location:96}}
+		args:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:114}}  nulltesttype:IS_NOT_NULL  location:121}}  location:110}}  location:85}
 	*/
 	case node.GetBoolExpr() != nil:
 		for _, arg := range node.GetBoolExpr().Args {
 			ip.parseWhereClause(arg, results)
 		}
 	/*
-	WHERE status <> 'active'::text 
-	- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:80}  location:78}}  location:67}}}}  stmt_len:84}
+		WHERE status <> 'active'::text
+		- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:80}  location:78}}  location:67}}}}  stmt_len:84}
 
-	WHERE status <> 'active' 
-	- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{a_const:{sval:{sval:"active"}  location:70}}  location:67}}}}  stmt_len:78}
+		WHERE status <> 'active'
+		- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{a_const:{sval:{sval:"active"}  location:70}}  location:67}}}}  stmt_len:78}
 	*/
 	case node.GetAExpr() != nil:
 		aexpr := node.GetAExpr()
 		op := ""
 		if len(aexpr.Name) > 0 && aexpr.Name[0].GetString_() != nil {
 			op = aexpr.Name[0].GetString_().Sval
+		}		
+		colName := TraverseAndFindColumnName(aexpr.Lexpr)
+		if aexpr.Rexpr.GetList() != nil {
+			/*
+				WHERE status IN ('PROGRESS', 'DONE');
+				- where_clause:{a_expr:{kind:AEXPR_IN  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:53}}
+				rexpr:{list:{items:{a_const:{sval:{sval:"PROGRESS"}  location:64}}  items:{a_const:{sval:{sval:"DONE"}  location:70}}}}  location:60}}}}
+			*/
+			// in case IN and NOT IN operators it will be a list of items
+			for _, item := range aexpr.Rexpr.GetList().Items {
+				//Append all of them as a separate item in clauses
+				*results = append(*results, WhereClause{
+					ColName:  colName,
+					Value:    getAConstValue(item),
+					Operator: op,
+				})
+			}
+
+		} else {
+			// not a list which is single in condition
+			*results = append(*results, WhereClause{
+				ColName:  colName,
+				Value:    getAConstValue(aexpr.Rexpr),
+				Operator: op,
+			})
 		}
-		if aexpr.Lexpr.GetColumnRef() == nil {
-			// In case the left expression is not column name no need to populate
-			return
-		}
-		_, colName := GetColNameFromColumnRef(aexpr.Lexpr.GetColumnRef().ProtoReflect())
-		*results = append(*results, WhereClause{
-			ColName:  colName,
-			Value:    getAConstValue(aexpr.Rexpr),
-			Operator: op,
-		})
 
 	/*
-	WHERE status IS NOT NULL 
-	- where_clause:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:139}}  nulltesttype:IS_NOT_NULL  location:146}}}}  stmt_location:79  stmt_len:78}
+		WHERE status IS NOT NULL
+		- where_clause:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:139}}  nulltesttype:IS_NOT_NULL  location:146}}}}  stmt_location:79  stmt_len:78}
 	*/
 	case node.GetNullTest() != nil:
 		nt := node.GetNullTest()
-		_, colName := GetColNameFromColumnRef(nt.Arg.GetColumnRef().ProtoReflect())
+		colName := TraverseAndFindColumnName(nt.Arg)
 		*results = append(*results, WhereClause{
 			ColName:      colName,
 			ColIsNULL:    nt.Nulltesttype == pg_query.NullTestType_IS_NULL,
 			ColIsNotNULL: nt.Nulltesttype == pg_query.NullTestType_IS_NOT_NULL,
 		})
-	
+
 	/*
-	CREATE INDEX idx_simple1 ON public.test (id, employed) WHERE employed;
-	- where_clause:{column_ref:{fields:{string:{sval:"employed"}} location:53}}}}
+		WHERE employed IS NOT true
+		- where_clause:{boolean_test:{arg:{column_ref:{fields:{string:{sval:"employed"}}  location:53}}  booltesttype:IS_NOT_TRUE  location:62}}}}  stmt_len:73}
+	*/
+	case node.GetBooleanTest() != nil:
+		boolNode := node.GetBooleanTest()
+		colName := TraverseAndFindColumnName(boolNode.Arg)
+		val := ""
+		switch boolNode.Booltesttype {
+		case pg_query.BoolTestType_IS_FALSE, pg_query.BoolTestType_IS_NOT_TRUE:
+			val = "f"
+		case pg_query.BoolTestType_IS_TRUE, pg_query.BoolTestType_IS_NOT_FALSE:
+			val = "t"
+
+		}
+		*results = append(*results, WhereClause{
+			ColName: colName,
+			Value:   val,
+		})
+
+	/*
+		CREATE INDEX idx_simple1 ON public.test (id, employed) WHERE employed;
+		- where_clause:{column_ref:{fields:{string:{sval:"employed"}} location:53}}}}
 	*/
 	case node.GetColumnRef() != nil:
-		_, colName := GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		colName := TraverseAndFindColumnName(node)
 		*results = append(*results, WhereClause{
-			ColName:      colName,
+			ColName: colName,
 		})
 	}
 }
@@ -585,7 +619,7 @@ type Index struct {
 	AccessMethod      string
 	NumStorageOptions int
 	Params            []IndexParam
-	WhereClauses      []WhereClause 
+	WhereClauses      []WhereClause
 }
 
 // All the where clause separated by AND / OR operators - not storing the relation with respect to operators for now

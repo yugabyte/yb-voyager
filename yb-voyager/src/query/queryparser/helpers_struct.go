@@ -399,3 +399,22 @@ func getAConstValue(node *pg_query.Node) string {
 	}
 	return ""
 }
+
+func TraverseAndFindColumnName(node *pg_query.Node) string {
+	if node.GetColumnRef() != nil {
+		_, colName := GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		return colName
+	}
+	switch {
+	case node.GetTypeCast() != nil:
+		/*
+		WHERE ((status)::text <> 'active'::text)
+		- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
+		  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"} 
+		*/
+		return TraverseAndFindColumnName(node.GetTypeCast().Arg)
+		//add more cases if possible for columnRef TODO:
+	}
+
+	return ""
+}
