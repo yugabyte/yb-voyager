@@ -18,6 +18,7 @@ package queryparser
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -364,4 +365,37 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	}
 
 	return deparsedStmts, nil
+}
+
+func getAConstValue(node *pg_query.Node) string {
+
+	if node == nil {
+		return ""
+	}
+	if node.GetTypeCast() != nil {
+		return getAConstValue(node.GetTypeCast().GetArg())
+	}
+	if node.GetAConst() == nil {
+		return ""
+	}
+
+	aConst := node.GetAConst()
+	if aConst.GetVal() == nil {
+		//if it doesn't have val
+		return ""
+	}
+
+	switch {
+	case aConst.GetSval() != nil:
+		return aConst.GetSval().Sval
+	case aConst.GetIval() != nil:
+		return strconv.Itoa(int(aConst.GetIval().Ival))
+	case aConst.GetFval() != nil:
+		return aConst.GetFval().Fval
+	case aConst.GetBsval() != nil:
+		return aConst.GetBsval().Bsval
+	case aConst.GetBoolval() != nil:
+		return aConst.GetBoolval().String()
+	}
+	return ""
 }
