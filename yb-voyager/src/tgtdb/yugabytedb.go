@@ -272,6 +272,29 @@ func (yb *TargetYugabyteDB) InitConnPool() error {
 	return nil
 }
 
+/*
+Example:
+ERROR:  duplicate key value violates unique constraint "orders_pkey"
+DETAIL:  Key (col1, col2)=(1, 2) already exists.
+*/
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH = `violates unique constraint "%s"`
+const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
+const SYNTAX_ERROR = "syntax error at"
+const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
+const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
+
+var NonRetryCopyErrors = []string{
+	INVALID_INPUT_SYNTAX_ERROR,
+	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
+	SYNTAX_ERROR,
+}
+
+func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
+	NonRetryCopyErrorsYB := NonRetryCopyErrors
+	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
+	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
+}
+
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
 	rows, err := yb.Query(query)
@@ -446,6 +469,28 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
+// GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
+// If the table does not have a primary key, it returns an empty string and no error
+func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
+	schemaName, tableName := table.ForCatalogQuery()
+	query := fmt.Sprintf(`
+		SELECT constraint_name
+		FROM information_schema.table_constraints
+		WHERE table_schema = '%s'
+			AND table_name = '%s'
+			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+
+	var constraintName string
+	err := yb.QueryRow(query).Scan(&constraintName)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", nil // No primary key constraint found
+		}
+		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+	}
+	return constraintName, nil
+}
+
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
 	result := []sqlname.NameTuple{}
 
@@ -551,8 +596,10 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
 	*/
-	if err != nil && strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
-		log.Infof("falling back to importBatchFastRecover for batch %q", batch.GetFilePath())
+	pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
+	if err != nil && strings.Contains(err.Error(), pkViolationErr) {
+		log.Debugf("importBatchFast: expectedErr=%s, actualErr=%s\n", pkViolationErr, err.Error())
+		log.Infof("falling back to importBatchFastRecover for batch %q: %s", batch.GetFilePath(), err.Error())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
 
@@ -668,10 +715,11 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		// 5. Execute the COPY statement with the line read from the file
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
-			// Ignore err if VIOLATES_UNIQUE_CONSTRAINT_ERROR only
-			if strings.Contains(err.Error(), VIOLATES_UNIQUE_CONSTRAINT_ERROR) {
+			// Ignore err if its VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH only
+			pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
+			if strings.Contains(err.Error(), pkViolationErr) {
 				// logging lineNum might not be useful as batches are truncated later on
-				log.Debugf("ignoring error %q for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
+				log.Debugf("ignoring error %s for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line
 				continue
 			}
@@ -740,23 +788,6 @@ func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 		result = append(result, colName)
 	}
 	return result, nil
-}
-
-const INVALID_INPUT_SYNTAX_ERROR = "invalid input syntax"
-const VIOLATES_UNIQUE_CONSTRAINT_ERROR = "violates unique constraint"
-const SYNTAX_ERROR = "syntax error at"
-const RPC_MSG_LIMIT_ERROR = "Sending too long RPC message"
-
-var NonRetryCopyErrors = []string{
-	INVALID_INPUT_SYNTAX_ERROR,
-	VIOLATES_UNIQUE_CONSTRAINT_ERROR,
-	SYNTAX_ERROR,
-}
-
-func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
-	NonRetryCopyErrorsYB := NonRetryCopyErrors
-	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
 func (yb *TargetYugabyteDB) RestoreSequences(sequencesLastVal map[string]int64) error {

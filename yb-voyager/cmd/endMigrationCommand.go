@@ -152,6 +152,77 @@ func backupSchemaFilesFn() {
 	}
 }
 
+func backupErrorsDir(exportDir, backupDir string) error {
+	errorsSrcDir := filepath.Join(exportDir, "data", "errors")
+	errorsDstDir := filepath.Join(backupDir, "data", "errors")
+	if !utils.FileOrFolderExists(errorsSrcDir) {
+		return nil
+	}
+
+	// Step 1: Move the entire errors directory
+	cmd := exec.Command("mv", errorsSrcDir, errorsDstDir)
+	output, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("moving errors directory: %s: %v", string(output), err)
+	}
+	log.Infof("moved errors directory %q to %q", errorsSrcDir, errorsDstDir)
+
+	// Step 2: For each <table-dir>/<file-dir>, check for symlinks directly inside
+	// and move the real file to the symlink location.
+	// batch ingestion errors are actually symlinks to the real files stored in metainfo/import_data_state/...
+	// They need to be resolved to the actual files in the export directory and moved to the backupDir.
+	tableDirs, err := os.ReadDir(errorsDstDir)
+	if err != nil {
+		return fmt.Errorf("reading table dirs in errors: %v", err)
+	}
+	for _, tableDir := range tableDirs {
+		if !tableDir.IsDir() {
+			continue
+		}
+		tableDirPath := filepath.Join(errorsDstDir, tableDir.Name())
+		fileDirs, err := os.ReadDir(tableDirPath)
+		if err != nil {
+			return fmt.Errorf("reading file dirs in %q: %v", tableDirPath, err)
+		}
+		for _, fileDir := range fileDirs {
+			if !fileDir.IsDir() {
+				continue
+			}
+			fileDirPath := filepath.Join(tableDirPath, fileDir.Name())
+			entries, err := os.ReadDir(fileDirPath)
+			if err != nil {
+				return fmt.Errorf("reading entries in %q: %v", fileDirPath, err)
+			}
+
+			log.Debugf("checking for symlinks in %q: %v", fileDirPath, entries)
+			for _, entry := range entries {
+				entryPath := filepath.Join(fileDirPath, entry.Name())
+				info, err := os.Lstat(entryPath)
+				if err != nil {
+					return fmt.Errorf("lstat on %q: %v", entryPath, err)
+				}
+				if info.Mode()&os.ModeSymlink != 0 {
+					realFile, err := os.Readlink(entryPath)
+					if err != nil {
+						return fmt.Errorf("readlink on %q: %v", entryPath, err)
+					}
+					// os.Readlink can potentially return a relative path.
+					if !filepath.IsAbs(realFile) {
+						realFile = filepath.Join(filepath.Dir(entryPath), realFile)
+					}
+					cmd := exec.Command("mv", realFile, entryPath)
+					output, err := cmd.CombinedOutput()
+					log.Infof("moving real file for symlink %q to %q: output: %s", realFile, entryPath, string(output))
+					if err != nil {
+						return fmt.Errorf("moving real file for symlink from %q to %q: %s: %v", realFile, entryPath, string(output), err)
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
 func backupDataFilesFn() {
 	if !backupDataFiles {
 		return
@@ -182,6 +253,10 @@ func backupDataFilesFn() {
 		} else {
 			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
+	}
+
+	if err := backupErrorsDir(exportDir, backupDir); err != nil {
+		utils.ErrExit("%v", err)
 	}
 }
 
