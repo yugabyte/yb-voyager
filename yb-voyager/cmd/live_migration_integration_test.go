@@ -33,6 +33,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -54,12 +55,12 @@ func isExportDataStreamingStarted(t *testing.T) bool {
 }
 
 func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string, snapshotRows int64, tableName string) bool {
-	_, err := testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
+	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
 		"--export-dir", exportDir,
 		"--output-format", "json",
 		"--source-db-password", postgresPass,
 		"--target-db-password", targetPass,
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "get data-migration-report command failed")
 
 	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
@@ -89,12 +90,12 @@ func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string
 }
 
 func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass string, streamingInserts int64, tableName string) bool {
-	_, err := testutils.RunVoyagerCommand(nil, "get data-migration-report", []string{
+	err := testutils.NewVoyagerCommandRunner(nil, "get data-migration-report", []string{
 		"--export-dir", exportDir,
 		"--output-format", "json",
 		"--source-db-password", postgresPass,
 		"--target-db-password", targetPass,
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "get data-migration-report command failed")
 
 	reportFilePath := filepath.Join(exportDir, "reports", "data-migration-report.json")
@@ -106,7 +107,7 @@ func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass strin
 		exportInserts := 0
 		importInserts := 0
 		for _, row := range *rowData {
-			if row.TableName == `test_schema."test_live"` {
+			if row.TableName == tableName {
 				if row.DBType == "source" {
 					exportInserts = int(row.ExportedInserts)
 				}
@@ -124,9 +125,17 @@ func streamingPhaseCompleted(t *testing.T, postgresPass string, targetPass strin
 	return false
 }
 
-func validateSequence(t *testing.T, startID int64, endId int64, ybConn *sql.DB, tableName string) {
+func assertSequenceValues(t *testing.T, startID int, endId int, ybConn *sql.DB, tableName string) {
+	_, err := ybConn.Exec(fmt.Sprintf(`INSERT INTO test_schema.test_live (name, email, description)
+SELECT
+	md5(random()::text),                                      -- name
+	md5(random()::text) || '@example.com',                    -- email
+	repeat(md5(random()::text), 10)                           -- description (~320 chars)
+FROM generate_series(%d, %d);`, startID, endId))
+	testutils.FatalIfError(t, err, "inserting into target")
+
 	ids := []string{}
-	for i := 16; i <= 25; i++ {
+	for i := startID; i <= endId; i++ {
 		ids = append(ids, strconv.Itoa(i))
 	}
 	query := fmt.Sprintf("SELECT id from %s where id IN (%s) ORDER BY id;", tableName, strings.Join(ids, ", "))
@@ -143,7 +152,9 @@ func validateSequence(t *testing.T, startID int64, endId int64, ybConn *sql.DB, 
 	assert.Equal(t, ids, resIds)
 }
 
-// Basic Test for live migration with cutover
+// Basic Test for live migration with cutover 
+//export data -> import data (streaming for some events) -> once all data is streamed to target
+//cutover -> validate sequence restoration
 func TestBasicLiveMigrationWithCutover(t *testing.T) {
 	ctx := context.Background()
 
@@ -193,13 +204,13 @@ FROM generate_series(1, 10);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	for {
@@ -209,13 +220,15 @@ FROM generate_series(1, 10);`
 		time.Sleep(1 * time.Second)
 	}
 
-	_, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, true)
+	}, func() {
+		time.Sleep(5 * time.Second)
+	}, true).Run()
+
 	testutils.FatalIfError(t, err, "Import command failed")
-	time.Sleep(5 * time.Second)
 
 	for {
 		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
@@ -262,11 +275,11 @@ FROM generate_series(1, 5);`,
 	}
 
 	// Run cutover
-	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
 		"--export-dir", exportDir,
 		"--yes",
 		"--prepare-for-fall-back", "false",
-	}, nil, false)
+	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 	metaDB, err = metadb.NewMetaDB(exportDir)
@@ -279,22 +292,16 @@ FROM generate_series(1, 5);`,
 		}
 		time.Sleep(1 * time.Second)
 	}
-
-	yugabytedbContainer.ExecuteSqls([]string{
-		`INSERT INTO test_schema.test_live (name, email, description)
-SELECT
-	md5(random()::text),                                      -- name
-	md5(random()::text) || '@example.com',                    -- email
-	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 10);`,
-	}...)
-
 	//Check if ids from 16-25 are present in target this is to verify the sequence serial col is restored properly till last value
-	validateSequence(t, 16, 25, ybConn, `test_schema.test_live`)
+	assertSequenceValues(t, 16, 25, ybConn, `test_schema.test_live`)
 
 }
 
 // test for live migration with resumption and failure during restore sequences
+//export data -> import data (streaming some data) -> once done kill import 
+//cutover -> drop sequence on target -> start import again (validate its failing at restore sequences)
+//create sequence back on target -> re-run import again 
+//validate sequence by inserting data 
 func TestLiveMigrationWithImportResumptionOnFailureAtRestoreSequences(t *testing.T) {
 	ctx := context.Background()
 
@@ -344,13 +351,13 @@ FROM generate_series(1, 20);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	for {
@@ -360,14 +367,15 @@ FROM generate_series(1, 20);`
 		time.Sleep(1 * time.Second)
 	}
 
-	importCmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, true)
+	}, func() {
+		time.Sleep(5 * time.Second)
+	}, true)
+	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "Import command failed")
-
-	time.Sleep(5 * time.Second)
 
 	for {
 		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
@@ -414,7 +422,7 @@ FROM generate_series(1, 15);`,
 	}
 
 	//Stopping import command
-	if err := testutils.KillVoyagerCommand(importCmd); err != nil {
+	if err := importCmd.Kill(); err != nil {
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
@@ -430,11 +438,11 @@ FROM generate_series(1, 15);`,
 	time.Sleep(10 * time.Second)
 
 	// Perform cutover
-	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
 		"--export-dir", exportDir,
 		"--yes",
 		"--prepare-for-fall-back", "false",
-	}, nil, false)
+	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 	//Dropping sequence on yugabyte
@@ -445,12 +453,14 @@ FROM generate_series(1, 15);`,
 	time.Sleep(10 * time.Second)
 
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
-	importCmd, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false)
-	assert.NotNil(t, err) //Can't validate error "failed to restore sequences:" as we don't get the exact err msg
+	err = importCmd.Run()
+	assert.NotNil(t, err)
+	assert.True(t, strings.Contains(importCmd.Stderr(), "failed to restore sequences:"))
 
 	//Create sequence back on yb to resume import and finish cutover
 
@@ -461,11 +471,11 @@ FROM generate_series(1, 15);`,
 	}...)
 
 	//Resume import command after deleting a sequence of the table column idand import should pass while restoring sequences as cutover is already triggered
-	importCmd, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "import data failed")
 
 	metaDB, err = metadb.NewMetaDB(exportDir)
@@ -479,20 +489,15 @@ FROM generate_series(1, 15);`,
 		time.Sleep(1 * time.Second)
 	}
 
-	yugabytedbContainer.ExecuteSqls([]string{
-		`INSERT INTO test_schema.test_live (name, email, description)
-SELECT
-	md5(random()::text),                                      -- name
-	md5(random()::text) || '@example.com',                    -- email
-	repeat(md5(random()::text), 10)                           -- description (~320 chars)
-FROM generate_series(1, 10);`,
-	}...)
-
 	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
-	validateSequence(t, 36, 45, ybConn, `test_schema.test_live`)
+	assertSequenceValues(t, 36, 45, ybConn, `test_schema.test_live`)
 
 }
 
+// test live migration with import resumption with  generated always schema
+//export data -> import data (streaming some data) -> once done kill import 
+//cutover -> start import again
+//validate ALWAYS type on the target 
 func TestLiveMigrationWithImportResumptionWithGeneratedAlwaysColumn(t *testing.T) {
 	ctx := context.Background()
 
@@ -542,13 +547,13 @@ FROM generate_series(1, 20);`
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
 	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
-	_, err := testutils.RunVoyagerCommand(postgresContainer, "export data", []string{
+	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
 		"--source-db-schema", "test_schema",
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
 	for {
@@ -559,11 +564,12 @@ FROM generate_series(1, 20);`
 		time.Sleep(1 * time.Second)
 	}
 
-	importCmd, err := testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, true)
+	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	time.Sleep(5 * time.Second)
@@ -613,7 +619,7 @@ FROM generate_series(1, 15);`,
 	}
 
 	//Stopping import command
-	if err := testutils.KillVoyagerCommand(importCmd); err != nil {
+	if err := importCmd.Kill(); err != nil {
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
@@ -629,19 +635,19 @@ FROM generate_series(1, 15);`,
 	time.Sleep(10 * time.Second)
 
 	// Perform cutover
-	_, err = testutils.RunVoyagerCommand(nil, "initiate cutover to target", []string{
+	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
 		"--export-dir", exportDir,
 		"--yes",
 		"--prepare-for-fall-back", "false",
-	}, nil, false)
+	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 	//Resume import command to finish the cutover
-	importCmd, err = testutils.RunVoyagerCommand(yugabytedbContainer, "import data", []string{
+	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
-	}, nil, true)
+	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "import data failed")
 
 	metaDB, err = metadb.NewMetaDB(exportDir)
