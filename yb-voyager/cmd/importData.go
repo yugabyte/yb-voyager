@@ -36,6 +36,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/adaptiveparallelism"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datastore"
@@ -102,9 +103,9 @@ var importDataCmd = &cobra.Command{
 			utils.ErrExit("Error validating import flags: %s", err.Error())
 		}
 
-		err = validateOnPrimaryKeyConflictFlag()
+		err = validateImportDataFlags()
 		if err != nil {
-			utils.ErrExit("Error validating --on-primary-key-conflict flag: %s", err.Error())
+			utils.ErrExit("Error validating import data flags: %s", err.Error())
 		}
 	},
 	Run: importDataCommandFn,
@@ -657,6 +658,11 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	log.Infof("pending tasks: %v", pendingTasks)
 	log.Infof("completed tasks: %v", completedTasks)
 
+	err = runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks)
+	if err != nil {
+		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
+	}
+
 	//TODO: BUG: we are applying table-list filter on importFileTasks, but here we are considering all tables as per
 	// export-data table-list. Should be fine because we are only disabling and re-enabling, but this is still not ideal.
 	sourceTableList := msr.TableListExportedFromSource
@@ -796,6 +802,71 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		displayImportedRowCountSnapshot(state, importFileTasks)
 	}
 	fmt.Printf("\nImport data complete.\n")
+}
+
+// For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
+func runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) error {
+	// in case of ERROR mode, no need to check for non-empty tables
+	// but for IGNORE or UPDATE(in future), we need to prompt user
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
+		return nil
+	}
+
+	if !isTargetDBImporter(importerRole) {
+		return nil
+	}
+
+	if !isFreshStart(importFileTasks, pendingTasks, completedTasks) {
+		log.Infof("Not a fresh start, skipping primary key conflict mode check.")
+		return nil
+	}
+
+	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
+	nonEmptyTables := tdb.GetNonEmptyTables(pendingTablesList)
+	if len(nonEmptyTables) == 0 {
+		return nil
+	}
+
+	nonPKTables := map[sqlname.NameTuple]bool{}
+	for _, table := range nonEmptyTables {
+		colList, err := tdb.GetPrimaryKeyColumns(table)
+		if err != nil {
+			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
+		}
+		if len(colList) != 0 {
+			nonPKTables[table] = true
+		}
+	}
+
+	// all nonEmptyTables have no primary key columns
+	if len(nonPKTables) == len(nonEmptyTables) {
+		log.Infof("All tables in %v have no primary key columns, skipping primary key conflict mode check.", sqlname.NameTupleListToStrings(nonEmptyTables))
+		return nil
+	}
+
+	pkTables := lo.Filter(nonEmptyTables, func(table sqlname.NameTuple, _ int) bool {
+		return !nonPKTables[table]
+	})
+
+	utils.PrintAndLog(
+		"Target tables with pre-existing data: %v\n\n"+
+			"Selected mode: IGNORE on primary-key conflicts\n"+
+			"This mode offers improved import speed when your data contains no PK constraint violations.\n\n"+
+			"Under this mode:\n"+
+			"  • Duplicate Primary Key rows are silently skipped.\n"+
+			"  • Import proceeds without error for skipped entries.\n"+
+			"  • Only new unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(pkTables),
+	)
+	if !utils.AskPrompt("Please confirm whether to proceed") {
+		utils.ErrExit("Aborting import.")
+	}
+
+	return nil
+}
+
+func isFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) bool {
+	// A fresh start is when all tasks are pending(non-zero) and no tasks are completed.
+	return len(pendingTasks) == len(importFileTasks) && len(completedTasks) == 0 && len(pendingTasks) > 0
 }
 
 func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error {
@@ -1540,4 +1611,8 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 		}
 	}
 	return nil
+}
+
+func isTargetDBImporter(importerRole string) bool {
+	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
 }
