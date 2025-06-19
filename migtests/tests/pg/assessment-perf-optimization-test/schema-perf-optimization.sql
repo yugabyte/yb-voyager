@@ -257,6 +257,21 @@ CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);
 
 CREATE INDEX indx34 ON public.test_most_freq USING btree (id) WHERE (status = 'active'::text);
 
+CREATE TABLE test.test_mostcomm_status (
+    id integer,
+    status text
+);
+INSERT INTO test.test_mostcomm_status
+SELECT i,
+    CASE
+        WHEN random() <= 0.65 THEN 'DONE'
+        ELSE (ARRAY['FAILED','COMPLETED','PROGRESS','PENDING','RUNNING','CANCELLED','QUEUED','SUCCESS','ERROR','SKIPPED',  'RETRY'])[floor(random() * 11 + 1)::int]
+    END
+FROM generate_series(1, 100) AS i;
+
+CREATE INDEX idx_partial_high ON test.test_mostcomm_status USING btree (status) WHERE status NOT IN ('DONE');
+
+CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status);
 
 --
 -- Name: idx; Type: INDEX; Schema: test; Owner: -
