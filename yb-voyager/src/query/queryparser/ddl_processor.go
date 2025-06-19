@@ -474,7 +474,9 @@ func (indexProcessor *IndexProcessor) Process(parseTree *pg_query.ParseResult) (
 		*/
 		NumStorageOptions: len(indexNode.IndexStmt.GetOptions()),
 		Params:            indexProcessor.parseIndexParams(indexNode.IndexStmt.IndexParams),
+		WhereClauses:      make([]WhereClause, 0),
 	}
+	indexProcessor.parseWhereClause(indexNode.IndexStmt.WhereClause, &index.WhereClauses)
 
 	return index, nil
 }
@@ -510,6 +512,120 @@ func (indexProcessor *IndexProcessor) parseIndexParams(params []*pg_query.Node) 
 	return indexParams
 }
 
+func (ip *IndexProcessor) parseWhereClause(node *pg_query.Node, results *[]WhereClause) {
+	if node == nil {
+		return
+	}
+
+	switch {
+	/*
+		WHERE status <> 'active'::text OR (status <> 'inactive' AND status IS NOT NULL)
+		- where_clause:{bool_expr:{boolop:OR_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}}
+		typemod:-1  location:80}  location:78}}  location:67}}  args:{bool_expr:{boolop:AND_EXPR  args:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:89}}  rexpr:{a_const:{sval:{sval:"inactive"}  location:99}}  location:96}}
+		args:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:114}}  nulltesttype:IS_NOT_NULL  location:121}}  location:110}}  location:85}
+	*/
+	case node.GetBoolExpr() != nil:
+		for _, arg := range node.GetBoolExpr().Args {
+			ip.parseWhereClause(arg, results)
+		}
+	/*
+		WHERE status <> 'active'::text
+		- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}  location:70}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:80}  location:78}}  location:67}}}}  stmt_len:84}
+
+		WHERE status <> 'active'
+		- where_clause:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"<>"}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:60}}  rexpr:{a_const:{sval:{sval:"active"}  location:70}}  location:67}}}}  stmt_len:78}
+	*/
+	case node.GetAExpr() != nil:
+		aexpr := node.GetAExpr()
+		op := ""
+		if len(aexpr.Name) > 0 && aexpr.Name[0].GetString_() != nil {
+			op = aexpr.Name[0].GetString_().Sval
+		}
+		colName := TraverseAndFindColumnName(aexpr.Lexpr)
+		if aexpr.Rexpr.GetList() != nil {
+			/*
+				WHERE status IN ('PROGRESS', 'DONE');
+				- where_clause:{a_expr:{kind:AEXPR_IN  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:53}}
+				rexpr:{list:{items:{a_const:{sval:{sval:"PROGRESS"}  location:64}}  items:{a_const:{sval:{sval:"DONE"}  location:70}}}}  location:60}}}}
+			*/
+			// in case IN and NOT IN operators it will be a list of items
+			for _, item := range aexpr.Rexpr.GetList().Items {
+				//Append all of them as a separate item in clauses
+				*results = append(*results, WhereClause{
+					ColName:  colName,
+					Value:    getAConstValue(item),
+					Operator: op,
+				})
+			}
+
+		} else if aexpr.Rexpr.GetAArrayExpr() != nil {
+			/*
+			where_clause:{a_expr:{kind:AEXPR_OP_ANY  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:381}}  
+			rexpr:{a_array_expr:{elements:{type_cast:{arg:{a_const:{sval:{sval:"PROAO"}  location:401}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:410}  location:408}}  elements:{type_cast:{arg:{a_const:{sval:{sval:"dfsad"}  location:416}}
+			*/
+			for _, item := range aexpr.Rexpr.GetAArrayExpr().Elements {
+				//Append all of them as a separate item in clauses
+				*results = append(*results, WhereClause{
+					ColName:  colName,
+					Value:    getAConstValue(item),
+					Operator: op,
+				})
+			}
+
+		} else {
+			// not a list which is single in condition
+			*results = append(*results, WhereClause{
+				ColName:  colName,
+				Value:    getAConstValue(aexpr.Rexpr),
+				Operator: op,
+			})
+		}
+
+	/*
+		WHERE status IS NOT NULL
+		- where_clause:{null_test:{arg:{column_ref:{fields:{string:{sval:"status"}}  location:139}}  nulltesttype:IS_NOT_NULL  location:146}}}}  stmt_location:79  stmt_len:78}
+	*/
+	case node.GetNullTest() != nil:
+		nt := node.GetNullTest()
+		colName := TraverseAndFindColumnName(nt.Arg)
+		*results = append(*results, WhereClause{
+			ColName:      colName,
+			ColIsNULL:    nt.Nulltesttype == pg_query.NullTestType_IS_NULL,
+			ColIsNotNULL: nt.Nulltesttype == pg_query.NullTestType_IS_NOT_NULL,
+		})
+
+	/*
+		WHERE employed IS NOT true
+		- where_clause:{boolean_test:{arg:{column_ref:{fields:{string:{sval:"employed"}}  location:53}}  booltesttype:IS_NOT_TRUE  location:62}}}}  stmt_len:73}
+	*/
+	case node.GetBooleanTest() != nil:
+		boolNode := node.GetBooleanTest()
+		colName := TraverseAndFindColumnName(boolNode.Arg)
+		val := ""
+		switch boolNode.Booltesttype {
+		case pg_query.BoolTestType_IS_FALSE, pg_query.BoolTestType_IS_NOT_TRUE:
+			val = "f"
+		case pg_query.BoolTestType_IS_TRUE, pg_query.BoolTestType_IS_NOT_FALSE:
+			val = "t"
+
+		}
+		*results = append(*results, WhereClause{
+			ColName: colName,
+			Value:   val,
+		})
+
+	/*
+		CREATE INDEX idx_simple1 ON public.test (id, employed) WHERE employed;
+		- where_clause:{column_ref:{fields:{string:{sval:"employed"}} location:53}}}}
+	*/
+	case node.GetColumnRef() != nil:
+		colName := TraverseAndFindColumnName(node)
+		*results = append(*results, WhereClause{
+			ColName: colName,
+		})
+	}
+}
+
 type Index struct {
 	SchemaName        string
 	IndexName         string
@@ -517,6 +633,22 @@ type Index struct {
 	AccessMethod      string
 	NumStorageOptions int
 	Params            []IndexParam
+	WhereClauses      []WhereClause
+}
+
+// All the where clause separated by AND / OR operators - not storing the relation with respect to operators for now
+type WhereClause struct {
+	//If the left expression in the condition is column name
+	ColName string
+
+	//If the right expression in the condition is a specific constant value
+	Value string
+
+	Operator string //operator in the left and right expression
+
+	//If IS NOT NULL / IS NULL clause is used with the column
+	ColIsNULL    bool
+	ColIsNotNULL bool
 }
 
 type IndexParam struct {

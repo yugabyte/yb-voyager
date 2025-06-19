@@ -18,6 +18,7 @@ package queryparser
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -364,4 +365,56 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	}
 
 	return deparsedStmts, nil
+}
+
+func getAConstValue(node *pg_query.Node) string {
+
+	if node == nil {
+		return ""
+	}
+	if node.GetTypeCast() != nil {
+		return getAConstValue(node.GetTypeCast().GetArg())
+	}
+	if node.GetAConst() == nil {
+		return ""
+	}
+
+	aConst := node.GetAConst()
+	if aConst.GetVal() == nil {
+		//if it doesn't have val
+		return ""
+	}
+
+	switch {
+	case aConst.GetSval() != nil:
+		return aConst.GetSval().Sval
+	case aConst.GetIval() != nil:
+		return strconv.Itoa(int(aConst.GetIval().Ival))
+	case aConst.GetFval() != nil:
+		return aConst.GetFval().Fval
+	case aConst.GetBsval() != nil:
+		return aConst.GetBsval().Bsval
+	case aConst.GetBoolval() != nil:
+		return aConst.GetBoolval().String()
+	}
+	return ""
+}
+
+func TraverseAndFindColumnName(node *pg_query.Node) string {
+	if node.GetColumnRef() != nil {
+		_, colName := GetColNameFromColumnRef(node.GetColumnRef().ProtoReflect())
+		return colName
+	}
+	switch {
+	case node.GetTypeCast() != nil:
+		/*
+		WHERE ((status)::text <> 'active'::text)
+		- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
+		  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"} 
+		*/
+		return TraverseAndFindColumnName(node.GetTypeCast().Arg)
+		//add more cases if possible for columnRef TODO:
+	}
+
+	return ""
 }
