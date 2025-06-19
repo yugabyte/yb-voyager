@@ -39,9 +39,9 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"golang.org/x/exp/slices"
 
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -82,6 +82,7 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 	var rowsAffected int64
 
 	res, err := yb.db.Exec(query)
+	fmt.Printf("err - %v", err) //DEBUG
 	if err != nil {
 		var pgErr *pgconn5.PgError
 		if errors.As(err, &pgErr) {
