@@ -26,9 +26,9 @@
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 17,
+				"TotalCount": 19,
 				"InvalidCount": 10,
-				"ObjectNames": "idx ON public.test_low_card, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idxtt ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, idx ON test.t, idx2 ON test.t, idx_try ON test.t_low_most"
+				"ObjectNames": "idx ON public.test_low_card, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, idx ON test.t, idx2 ON test.t, idx_try ON test.t_low_most"
 			}
 		]
 	},
@@ -293,6 +293,18 @@
 		},
 		{
 			"SchemaName": "public",
+			"ObjectName": "idx_name1",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "index",
+			"ParentTableName": "public.users",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "public",
 			"ObjectName": "test_most_freq",
 			"RowCount": 20000,
 			"ColumnCount": 2,
@@ -554,6 +566,18 @@
 			"ObjectType": "primary key",
 			"ParentTableName": "public.users",
 			"SizeInBytes": 245760
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idxtt1",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "index",
+			"ParentTableName": "public.t",
+			"SizeInBytes": 8192
 		},
 		{
 			"SchemaName": "test",
