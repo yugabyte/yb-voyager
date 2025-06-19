@@ -8,6 +8,8 @@ import (
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 // containerRegistry to ensure one container per database(dbtype+version) [Singleton Pattern]
@@ -138,7 +140,7 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 	case YUGABYTEDB:
 		config.User = lo.Ternary(config.User == "", "yugabyte", config.User) // ybdb docker doesn't create specified user
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
-		config.DBVersion = lo.Ternary(config.DBVersion == "", "2.20.7.1-b10", config.DBVersion)
+		config.DBVersion = lo.Ternary(config.DBVersion == "", ybversion.LatestStable.String()+"-b3", config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
 		config.DBName = lo.Ternary(config.DBName == "", "yugabyte", config.DBName)
 

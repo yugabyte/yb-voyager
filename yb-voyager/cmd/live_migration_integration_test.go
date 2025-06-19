@@ -567,20 +567,7 @@ FROM generate_series(1, 20);`
 	}...)
 
 	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
-	defer func() {
-		for i := 0; i < 5; i++ {
-			ybConn, err := yugabytedbContainer.GetConnection()
-			testutils.FatalIfError(t, err, "error while getting connection")
-			_, err = ybConn.Exec(dropSchemaSQL)
-			if err != nil {
-				if !strings.Contains(err.Error(), "cannot remove a key column") {
-					testutils.FatalIfError(t, err, "error while dropping schema")
-				}
-			} else {
-				break
-			}
-		}
-	}()
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
 
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
 		"--export-dir", exportDir,
