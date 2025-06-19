@@ -12,6 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -47,17 +53,24 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     boolean shutDown = false;
     Object flushingSnapshotFilesLock = new Object();
 
+    // Lock file logic
+    private File lockFile;
+
     public YbExporterConsumer(String dataDir) {
         this.dataDir = dataDir;
     }
 
     void connect() throws URISyntaxException {
         LOGGER.info("connect() called: dataDir = {}", dataDir);
+
         final Config config = ConfigProvider.getConfig();
 
         snapshotMode = config.getOptionalValue("debezium.source.snapshot.mode", String.class).orElse("");
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+        
+        // Acquire lock file at startup
+        acquireLockFile();
 
         exportStatus = ExportStatus.getInstance(dataDir);
         exportStatus.setSourceType(sourceType);
@@ -80,6 +93,54 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+
+        // Register shutdown hook to release lock on exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            releaseLockFile();
+        }));
+    }
+
+    /**
+     * Acquires a lock file in the dataDir. Fails if already locked.
+     */
+    private void acquireLockFile() {
+        lockFile = new File(dataDir, String.format(".%s.lock", exporterRole));
+        if (lockFile.exists()) {
+            String msg = String.format("Lock file %s already exists. Another process may be running for this dataDir.", lockFile.getAbsolutePath());
+            LOGGER.error(msg);
+            throw new IllegalStateException(msg);
+        }
+        try {
+            // Create the lock file atomically
+            boolean created = lockFile.createNewFile();
+            if (!created) {
+                String msg = String.format("Failed to create lock file %s. Another process may be running.", lockFile.getAbsolutePath());
+                LOGGER.error(msg);
+                throw new IllegalStateException(msg);
+            }
+            //write PID or timestamp for debugging
+            String pid = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
+            Files.writeString(lockFile.toPath(), "PID: " + pid + "\n", StandardOpenOption.WRITE);
+            LOGGER.info("Acquired lock file: {}", lockFile.getAbsolutePath());
+        } catch (IOException e) {
+            String msg = String.format("Error creating lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
+            LOGGER.error(msg, e);
+            throw new IllegalStateException(msg, e);
+        }
+    }
+
+    /**
+     * Releases (deletes) the lock file if it exists.
+     */
+    private void releaseLockFile() {
+        if (lockFile != null && lockFile.exists()) {
+            try {
+                Files.delete(lockFile.toPath());
+                LOGGER.info("Released lock file: {}", lockFile.getAbsolutePath());
+            } catch (IOException e) {
+                LOGGER.warn("Failed to delete lock file {}: {}", lockFile.getAbsolutePath(), e.getMessage());
+            }
+        }
     }
 
     private ExportMode getExportModeToStartWith(String snapshotMode) {
@@ -171,6 +232,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.info("{} processing complete. Exiting...", operation);
             shutDown = true; // to ensure that no event gets written after switch operation.
         }
+        releaseLockFile();
         System.exit(0);
     }
 
@@ -191,6 +253,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.info("End migration processing complete. Exiting...");
             shutDown = true; // to ensure that no event gets written after switch operation.
         }
+        releaseLockFile();
         System.exit(0);
     }
 
