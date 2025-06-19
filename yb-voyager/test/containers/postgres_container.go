@@ -81,7 +81,6 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		req.Cmd = []string{
 			"postgres",
 			"-c", "wal_level=logical", // <-- set wal_level,
-			"-c", "max_wal_senders=10", // optional for logical replication
 		}
 	}
 

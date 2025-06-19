@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
@@ -46,9 +47,8 @@ func isExportDataStreamingStarted(t *testing.T) bool {
 	//check for status until its streaming
 	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	status, err := dbzm.ReadExportStatus(statusFilePath)
-	if err != nil {
-		utils.ErrExit("Failed to read export status file: %s: %v", statusFilePath, err)
-	}
+	testutils.FatalIfError(t, err, "error reading status report")
+
 	testutils.FatalIfError(t, err, "reading dbzm export status")
 	if status != nil && status.Mode == dbzm.MODE_STREAMING {
 		return true
@@ -139,19 +139,21 @@ SELECT
 FROM generate_series(%d, %d);`, startID, endId))
 	testutils.FatalIfError(t, err, "inserting into target")
 
-	ids := []string{}
+	ids := []int{}
 	for i := startID; i <= endId; i++ {
-		ids = append(ids, strconv.Itoa(i))
+		ids = append(ids, i)
 	}
-	query := fmt.Sprintf("SELECT id from %s where id IN (%s) ORDER BY id;", tableName, strings.Join(ids, ", "))
+	query := fmt.Sprintf("SELECT id from %s where id IN (%s) ORDER BY id;", tableName, strings.Join(lo.Map(ids, func(id int, _ int) string {
+		return strconv.Itoa(id)
+	}), ", "))
 	rows, err := ybConn.Query(query)
 	testutils.FatalIfError(t, err, "failed to read data")
-	var resIds []string
+	var resIds []int
 	for rows.Next() {
 		var id int
 		err = rows.Scan(&id)
 		testutils.FatalIfError(t, err, "error scanning rows")
-		resIds = append(resIds, strconv.Itoa(id))
+		resIds = append(resIds, id)
 	}
 
 	assert.Equal(t, ids, resIds)
@@ -221,13 +223,10 @@ FROM generate_series(1, 10);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	start := time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if isExportDataStreamingStarted(t) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return isExportDataStreamingStarted(t)
+	})
+	assert.True(t, ok)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -239,14 +238,11 @@ FROM generate_series(1, 10);`
 
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 10, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 10, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
@@ -271,14 +267,11 @@ SELECT
 FROM generate_series(1, 5);`,
 	}...)
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 5, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 5, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 
 	// Compare the full table data between Postgres and YugabyteDB for streaming part.
 	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live", "id"); err != nil {
@@ -296,14 +289,9 @@ FROM generate_series(1, 5);`,
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		status := getCutoverStatus()
-		if status == COMPLETED {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return getCutoverStatus() == COMPLETED
+	})
 	//Check if ids from 16-25 are present in target this is to verify the sequence serial col is restored properly till last value
 	assertSequenceValues(t, 16, 25, ybConn, `test_schema.test_live`)
 
@@ -375,13 +363,10 @@ FROM generate_series(1, 20);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	start := time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if isExportDataStreamingStarted(t) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return isExportDataStreamingStarted(t)
+	})
+	assert.True(t, ok)
 
 	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -393,15 +378,11 @@ FROM generate_series(1, 20);`
 	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
 	testutils.FatalIfError(t, err, "connecting to Postgres")
@@ -425,14 +406,11 @@ SELECT
 FROM generate_series(1, 15);`,
 	}...)
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 
 	// Compare the full table data between Postgres and YugabyteDB for streaming part.
 	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live", "id"); err != nil {
@@ -444,16 +422,12 @@ FROM generate_series(1, 15);`,
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
-	time.Sleep(5 * time.Second)
-
 	// Wait for the command to exit.
 	if err := importCmd.Wait(); err != nil {
 		t.Logf("Async import run exited with error (expected): %v", err)
 	} else {
 		t.Logf("Async import run completed unexpectedly")
 	}
-
-	time.Sleep(10 * time.Second)
 
 	// Perform cutover
 	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
@@ -471,11 +445,7 @@ FROM generate_series(1, 15);`,
 	time.Sleep(10 * time.Second)
 
 	//Resume import command after deleting a sequence of the table column idand import should fail while restoring sequences as cutover is already triggered
-	importCmd = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, false)
+	importCmd.SetAsync(false)
 	err = importCmd.Run()
 	assert.NotNil(t, err)
 	assert.True(t, strings.Contains(importCmd.Stderr(), "failed to restore sequences:"))
@@ -489,25 +459,17 @@ FROM generate_series(1, 15);`,
 	}...)
 
 	//Resume import command after deleting a sequence of the table column idand import should pass while restoring sequences as cutover is already triggered
-	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).Run()
+	importCmd.SetAsync(true)
+	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "import data failed")
 
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		status := getCutoverStatus()
-		if status == COMPLETED {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return getCutoverStatus() == COMPLETED
+	})
+	assert.True(t, ok)
 	//Check if ids from 36-45 are present in target this is to verify the sequence serial col is restored properly till last value
 	assertSequenceValues(t, 36, 45, ybConn, `test_schema.test_live`)
 
@@ -578,14 +540,10 @@ FROM generate_series(1, 20);`
 	}, nil, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
 
-	start := time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		//check for status until its streaming
-		if isExportDataStreamingStarted(t) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return isExportDataStreamingStarted(t)
+	})
+	assert.True(t, ok)
 
 	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -597,15 +555,11 @@ FROM generate_series(1, 20);`
 
 	time.Sleep(5 * time.Second)
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 	// Connect to both Postgres and YugabyteDB.
 	pgConn, err := postgresContainer.GetConnection()
 	testutils.FatalIfError(t, err, "connecting to Postgres")
@@ -629,14 +583,11 @@ SELECT
 FROM generate_series(1, 15);`,
 	}...)
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		if streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
-			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`) {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return streamingPhaseCompleted(t, postgresContainer.GetConfig().Password,
+			yugabytedbContainer.GetConfig().Password, 15, `test_schema."test_live"`)
+	})
+	assert.True(t, ok)
 
 	// Compare the full table data between Postgres and YugabyteDB for streaming part.
 	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.test_live", "id"); err != nil {
@@ -648,16 +599,12 @@ FROM generate_series(1, 15);`,
 		testutils.FatalIfError(t, err, "killing the import data process errored")
 	}
 
-	time.Sleep(5 * time.Second)
-
 	// Wait for the command to exit.
 	if err := importCmd.Wait(); err != nil {
 		t.Logf("Async import run exited with error (expected): %v", err)
 	} else {
 		t.Logf("Async import run completed unexpectedly")
 	}
-
-	time.Sleep(10 * time.Second)
 
 	// Perform cutover
 	err = testutils.NewVoyagerCommandRunner(nil, "initiate cutover to target", []string{
@@ -668,25 +615,16 @@ FROM generate_series(1, 15);`,
 	testutils.FatalIfError(t, err, "Cutover command failed")
 
 	//Resume import command to finish the cutover
-	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
-		"--export-dir", exportDir,
-		"--disable-pb", "true",
-		"--yes",
-	}, nil, true).Run()
+	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "import data failed")
 
 	metaDB, err = metadb.NewMetaDB(exportDir)
 	testutils.FatalIfError(t, err, "Failed to initialize meta db")
 
-	start = time.Now()
-	for time.Since(start) < (30 * time.Second) { // 30 seconds timeout
-		status := getCutoverStatus()
-		if status == COMPLETED {
-			break
-		}
-		time.Sleep(1 * time.Second)
-	}
-
+	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+		return getCutoverStatus() == COMPLETED
+	})
+	assert.True(t, ok)
 	//Check if always is restored back
 	query := fmt.Sprintf(`SELECT column_name FROM information_schema.columns where table_schema='test_schema' AND
 		table_name='test_live' AND is_identity='YES' AND identity_generation='ALWAYS'`)
