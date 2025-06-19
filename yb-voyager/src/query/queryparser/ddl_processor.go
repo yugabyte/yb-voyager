@@ -540,7 +540,7 @@ func (ip *IndexProcessor) parseWhereClause(node *pg_query.Node, results *[]Where
 		op := ""
 		if len(aexpr.Name) > 0 && aexpr.Name[0].GetString_() != nil {
 			op = aexpr.Name[0].GetString_().Sval
-		}		
+		}
 		colName := TraverseAndFindColumnName(aexpr.Lexpr)
 		if aexpr.Rexpr.GetList() != nil {
 			/*
@@ -550,6 +550,20 @@ func (ip *IndexProcessor) parseWhereClause(node *pg_query.Node, results *[]Where
 			*/
 			// in case IN and NOT IN operators it will be a list of items
 			for _, item := range aexpr.Rexpr.GetList().Items {
+				//Append all of them as a separate item in clauses
+				*results = append(*results, WhereClause{
+					ColName:  colName,
+					Value:    getAConstValue(item),
+					Operator: op,
+				})
+			}
+
+		} else if aexpr.Rexpr.GetAArrayExpr() != nil {
+			/*
+			where_clause:{a_expr:{kind:AEXPR_OP_ANY  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"status"}}  location:381}}  
+			rexpr:{a_array_expr:{elements:{type_cast:{arg:{a_const:{sval:{sval:"PROAO"}  location:401}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:410}  location:408}}  elements:{type_cast:{arg:{a_const:{sval:{sval:"dfsad"}  location:416}}
+			*/
+			for _, item := range aexpr.Rexpr.GetAArrayExpr().Elements {
 				//Append all of them as a separate item in clauses
 				*results = append(*results, WhereClause{
 					ColName:  colName,
