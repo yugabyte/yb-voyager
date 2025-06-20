@@ -82,7 +82,6 @@ func (yb *TargetYugabyteDB) Exec(query string) (int64, error) {
 	var rowsAffected int64
 
 	res, err := yb.db.Exec(query)
-	fmt.Printf("err - %v", err) //DEBUG
 	if err != nil {
 		var pgErr *pgconn5.PgError
 		if errors.As(err, &pgErr) {

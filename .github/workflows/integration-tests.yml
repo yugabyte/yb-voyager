@@ -55,7 +55,7 @@ jobs:
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
-    - name: disk check
+    - name: Free disk 
       run: df -h /
 
     - name: cleanup 
@@ -64,9 +64,9 @@ jobs:
         sudo docker image prune --all --force
         sudo docker builder prune -a
 
-    - name: disk check after 
+    - name: Free disk after cleanup
       run: df -h /
-      
+
     - name: Run Integration Tests
       run: |
         cd yb-voyager
