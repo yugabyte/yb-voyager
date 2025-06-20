@@ -55,6 +55,9 @@ jobs:
       env:
         ON_INSTALLER_ERROR_OUTPUT_LOG: Y
 
+    - name: disk check
+      run: df -h /
+
     - name: Run Integration Tests
       run: |
         cd yb-voyager
