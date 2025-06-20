@@ -10,7 +10,8 @@
         "exported_inserts": 1,
         "exported_updates": 8,
         "exported_deletes": 1,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"num_types\"",
@@ -23,7 +24,8 @@
         "exported_inserts": 2,
         "exported_updates": 5,
         "exported_deletes": 2,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"num_types\"",
@@ -36,7 +38,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"decimal_types\"",
@@ -49,7 +52,8 @@
         "exported_inserts": 1,
         "exported_updates": 8,
         "exported_deletes": 0,
-        "final_row_count": 4
+        "final_row_count": 4,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"decimal_types\"",
@@ -62,7 +66,8 @@
         "exported_inserts": 2,
         "exported_updates": 6,
         "exported_deletes": 2,
-        "final_row_count": 4
+        "final_row_count": 4,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"decimal_types\"",
@@ -75,7 +80,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 4
+        "final_row_count": 4,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes1\"",
@@ -88,7 +94,8 @@
         "exported_inserts": 1,
         "exported_updates": 1,
         "exported_deletes": 1,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes1\"",
@@ -101,7 +108,8 @@
         "exported_inserts": 2,
         "exported_updates": 6,
         "exported_deletes": 3,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes1\"",
@@ -114,7 +122,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type\"",
@@ -127,7 +136,8 @@
         "exported_inserts": 2,
         "exported_updates": 1,
         "exported_deletes": 2,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type\"",
@@ -140,7 +150,8 @@
         "exported_inserts": 1,
         "exported_updates": 2,
         "exported_deletes": 3,
-        "final_row_count": 1
+        "final_row_count": 1,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type\"",
@@ -153,7 +164,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 1
+        "final_row_count": 1,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type2\"",
@@ -166,7 +178,8 @@
         "exported_inserts": 1,
         "exported_updates": 0,
         "exported_deletes": 1,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type2\"",
@@ -179,7 +192,8 @@
         "exported_inserts": 1,
         "exported_updates": 1,
         "exported_deletes": 0,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datetime_type2\"",
@@ -192,7 +206,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 3
+        "final_row_count": 3,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes2\"",
@@ -205,7 +220,8 @@
         "exported_inserts": 2,
         "exported_updates": 1,
         "exported_deletes": 0,
-        "final_row_count": 5
+        "final_row_count": 5,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes2\"",
@@ -218,7 +234,8 @@
         "exported_inserts": 3,
         "exported_updates": 2,
         "exported_deletes": 2,
-        "final_row_count": 6
+        "final_row_count": 6,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"datatypes2\"",
@@ -231,7 +248,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 6
+        "final_row_count": 6,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"null_and_default\"",
@@ -244,7 +262,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"null_and_default\"",
@@ -257,7 +276,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"null_and_default\"",
@@ -270,7 +290,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 2
+        "final_row_count": 2,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"hstore_example\"",
@@ -283,7 +304,8 @@
         "exported_inserts": 3,
         "exported_updates": 5,
         "exported_deletes": 0,
-        "final_row_count": 16
+        "final_row_count": 16,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"hstore_example\"",
@@ -296,7 +318,8 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 16
+        "final_row_count": 16,
+        "errored_imported_snapshot_rows": 0
     },
     {
         "table_name": "public.\"hstore_example\"",
@@ -309,6 +332,7 @@
         "exported_inserts": 0,
         "exported_updates": 0,
         "exported_deletes": 0,
-        "final_row_count": 16
+        "final_row_count": 16,
+        "errored_imported_snapshot_rows": 0
     }
 ]
