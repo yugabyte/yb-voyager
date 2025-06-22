@@ -171,6 +171,39 @@ func (ora *OracleContainer) GetConnection() (*sql.DB, error) {
 	return conn, nil
 }
 
-func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
+func (ora *OracleContainer) GetVersion() (string, error) {
+	if ora == nil {
+		return "", fmt.Errorf("oracle container is not started: nil")
+	}
 
+	conn, err := ora.GetConnection()
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection to oracle container: %w", err)
+	}
+	defer conn.Close()
+
+	var version string
+	err = conn.QueryRow("SELECT BANNER FROM V$VERSION").Scan(&version)
+	if err != nil {
+		return "", fmt.Errorf("failed to get oracle version: %w", err)
+	}
+	return version, nil
+}
+
+func (ora *OracleContainer) ExecuteSqls(sqls ...string) {
+	panic("ExecuteSqls not implemented for OracleContainer")
+}
+
+func (ora *OracleContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	conn, err := ora.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for query: %w", err)
+	}
+	defer conn.Close()
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query: %w", err)
+	}
+	return rows, nil
 }

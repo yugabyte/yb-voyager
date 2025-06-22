@@ -410,7 +410,7 @@ func applyMigrationAssessmentRecommendations() error {
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
-		utils.PrintAndLog("no recommendations to apply: run `assess-migration` command to generate recommendations")
+		utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
 		return nil
 	}
 
