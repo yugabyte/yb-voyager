@@ -332,6 +332,13 @@ export_data() {
             args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
         fi
 
+        # Add export-type flag for live migration workflows
+        if [[ "${VOYAGER_WORKFLOW}" == "live-migration" || \
+              "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-forward" || \
+              "${VOYAGER_WORKFLOW}" == "live-migration-with-fall-back" ]]; then
+            args="${args} --export-type snapshot-and-changes"
+        fi
+
         yb-voyager export data ${args} "$@"
     fi
 }
@@ -569,7 +576,7 @@ get_data_migration_report(){
 
     if [ "${run_via_config_file}" = "true" ]; then
         # Run using the generated config file
-        yb-voyager get data-migration-report -c "${GENERATED_CONFIG}" --yes --output-format json
+        yb-voyager get data-migration-report -c "${GENERATED_CONFIG}" --output-format json
     else
 	    # setting env vars for passwords to be used for saving reports
 	    export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
@@ -1149,16 +1156,31 @@ validate_import_data_state_batch_files() {
 }
 
 cutover_to_target() {
-	args="
-	--export-dir ${EXPORT_DIR} --yes
-	"    
-    if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
-        args="${args} --use-yb-grpc-connector false"
-    else 
-		args="${args} --use-yb-grpc-connector true"
-	fi
-    
-    yb-voyager initiate cutover to target ${args} $*
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager initiate cutover to target -c "${GENERATED_CONFIG}" --yes
+    else
+        args="
+        --export-dir ${EXPORT_DIR}
+        --yes
+        "
+
+        # Set grpc connector flag
+        if [ "${USE_YB_LOGICAL_REPLICATION_CONNECTOR}" = true ]; then
+            args="${args} --use-yb-grpc-connector false"
+        else 
+            args="${args} --use-yb-grpc-connector true"
+        fi
+
+        # Add prepare-for-fall-back flag based on VOYAGER_WORKFLOW
+        if [ "${VOYAGER_WORKFLOW}" = "live-migration" ]; then
+            args="${args} --prepare-for-fall-back false"
+        elif [ "${VOYAGER_WORKFLOW}" = "live-migration-with-fall-back" ]; then
+            args="${args} --prepare-for-fall-back true"
+        fi
+
+        yb-voyager initiate cutover to target ${args} "$@"
+    fi
 }
 
 create_source_db() {

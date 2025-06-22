@@ -194,29 +194,29 @@ jobs:
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/run-live-migration-config-test.sh pg/basic-non-public-live-test
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
 
       - name: "TEST: pg-basic-public-fall-forward-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/run-live-migration-fallf-config-test.sh pg/basic-public-live-test
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
-      #   run: migtests/scripts/run-live-migration-fallb-config-test.sh pg/basic-non-public-live-test
+      #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-datatypes-fall-back-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/run-live-migration-fallb-config-test.sh pg/datatypes
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/run-live-migration-config-test.sh  pg/multiple-schemas
+        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
 
       - name: "TEST: pg-unique-key-conflicts-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: migtests/scripts/run-live-migration-fallf-config-test.sh pg/unique-key-conflicts-test
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: migtests/scripts/run-live-migration-fallf-config-test.sh pg/partitions
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file
       

@@ -3,14 +3,14 @@
 set -e
 set -m
 
-if [ $# -ne 1 ]
-then
-	echo "Usage: $0 TEST_NAME"
-	exit 1
+if [ $# -gt 2 ]; then
+    echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+    exit 1
 fi
 
 set -x
 
+export VOYAGER_WORKFLOW="live-migration"
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
 
@@ -21,6 +21,19 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export QUEUE_SEGMENT_MAX_BYTES=400
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
+
+run_via_config_file=false
+
+# Parse optional second argument
+if [ $# -eq 2 ]; then
+    if [ "$2" = "--run-via-config-file" ]; then
+        run_via_config_file=true
+    else
+        echo "Unknown option: $2"
+        echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+        exit 1
+    fi
+fi
 
 # Order of env.sh import matters.
 if [ -f "${TEST_DIR}/live_env.sh" ]; then
@@ -42,6 +55,13 @@ normalize_and_export_vars "live"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
+# Handling for config generation
+if [ "${run_via_config_file}" = true ]; then
+	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/live-migration.yaml"
+	GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+	CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_config.py"
+fi
+
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -53,6 +73,11 @@ main() {
 
 	step "START: ${TEST_NAME}"
 	print_env
+
+	if [ "${run_via_config_file}" = true ]; then
+		# Generate the config file
+		python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
+	fi
 
 	pushd ${TEST_DIR}
 
@@ -129,7 +154,7 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data --export-type "snapshot-and-changes" || { 
+	export_data || { 
 		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium-source_db_exporter.log"
 		exit 1
@@ -167,7 +192,7 @@ main() {
 	sleep 60 
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import=true --refresh-mviews=true
+	finalize_schema_post_data_import
 
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'false' --fb_enabled 'false'
@@ -181,7 +206,7 @@ main() {
 	trap - SIGINT SIGTERM EXIT SIGSEGV SIGHUP
 
 	step "Initiating cutover"
-	cutover_to_target --prepare-for-fall-back false
+	cutover_to_target
 
 	for ((i = 0; i < 10; i++)); do
     if [ "$(yb-voyager cutover status --export-dir "${EXPORT_DIR}" | grep "cutover to target status" | cut -d ':'  -f 2 | tr -d '[:blank:]')" != "COMPLETED" ]; then

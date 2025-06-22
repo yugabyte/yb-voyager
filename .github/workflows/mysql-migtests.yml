@@ -145,4 +145,4 @@ jobs:
 
       - name: "TEST: mysql-live-migration-test"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
+        run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test --run-via-config-file

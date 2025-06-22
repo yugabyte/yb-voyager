@@ -3,14 +3,14 @@
 set -e
 set -m
 
-if [ $# -ne 1 ]
-then
-	echo "Usage: $0 TEST_NAME"
-	exit 1
+if [ $# -gt 2 ]; then
+    echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+    exit 1
 fi
 
 set -x
 
+export VOYAGER_WORKFLOW="live-migration-with-fall-forward"
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
 
@@ -22,6 +22,19 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
 export QUEUE_SEGMENT_MAX_BYTES=400
+
+run_via_config_file=false
+
+# Parse optional second argument
+if [ $# -eq 2 ]; then
+    if [ "$2" = "--run-via-config-file" ]; then
+        run_via_config_file=true
+    else
+        echo "Unknown option: $2"
+        echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+        exit 1
+    fi
+fi
 
 # Order of env.sh import matters.
 if [ -f "${TEST_DIR}/live_env.sh" ]; then
@@ -45,6 +58,13 @@ source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
+# Handling for config generation
+if [ "${run_via_config_file}" = true ]; then
+	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/live-migration-with-fall-forward.yaml"
+	GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+	CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_config.py"
+fi
+
 main() {
 
 	echo "Deleting the parent export-dir present in the test directory"
@@ -56,6 +76,11 @@ main() {
 	
 	step "START: ${TEST_NAME}"
 	print_env
+
+	if [ "${run_via_config_file}" = true ]; then
+		# Generate the config file
+		python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
+	fi
 
 	pushd ${TEST_DIR}
 
@@ -136,7 +161,7 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data --export-type "snapshot-and-changes" || { 
+	export_data || { 
 		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium-source_db_exporter.log"
 		exit 1
