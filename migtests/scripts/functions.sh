@@ -217,267 +217,267 @@ run_sqlplus() {
 # export_schema export_dir "${MY_EXPORT_DIR}" source_db_schema ${MY_SOURCE_DB_SCHEMA}
 
 export_schema() {
-    # Default values
-    export_dir="${EXPORT_DIR}"
-    source_db_schema="${SOURCE_DB_SCHEMA}"
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager export schema -c "${GENERATED_CONFIG}" --yes
+    else
+        # Default values
+        export_dir="${EXPORT_DIR}"
+        source_db_schema="${SOURCE_DB_SCHEMA}"
 
-    # Process arguments
-    while [ $# -gt 0 ]; do
-        case "$1" in
-            export_dir)
-                export_dir="$2"
-                shift 2
-                ;;
-            source_db_schema)
-                source_db_schema="$2"
-                shift 2
-                ;;
-            *)
-                break
-                ;;
-        esac
-    done
+        # Process arguments
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                export_dir)
+                    export_dir="$2"
+                    shift 2
+                    ;;
+                source_db_schema)
+                    source_db_schema="$2"
+                    shift 2
+                    ;;
+                *)
+                    break
+                    ;;
+            esac
+        done
 
-    args="--export-dir ${export_dir}
- 		--source-db-type ${SOURCE_DB_TYPE}
- 		--source-db-user ${SOURCE_DB_USER}
- 		--source-db-password ${SOURCE_DB_PASSWORD}
-		--source-db-name ${SOURCE_DB_NAME}
-		--send-diagnostics=false --yes
-	"
-	if [ "${source_db_schema}" != "" ]
-	then
-		args="${args} --source-db-schema ${source_db_schema}"
-	fi
-	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
-	then
-		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
-	else
-		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
-	fi
-	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
-	then
-		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
-	then
-		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
-	fi
-	
-	yb-voyager export schema ${args} $*
+        args="--export-dir ${export_dir}
+            --source-db-type ${SOURCE_DB_TYPE}
+            --source-db-user ${SOURCE_DB_USER}
+            --source-db-password ${SOURCE_DB_PASSWORD}
+            --source-db-name ${SOURCE_DB_NAME}
+            --send-diagnostics=false --yes
+        "
+        if [ "${source_db_schema}" != "" ]; then
+            args="${args} --source-db-schema ${source_db_schema}"
+        fi
+        if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]; then
+            args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+        else
+            args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+        fi
+        if [ "${SOURCE_DB_SSL_MODE}" != "" ]; then
+            args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+        fi
+        if [ "${SOURCE_DB_SSL_CERT}" != "" ]; then
+            args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+        fi
+        if [ "${SOURCE_DB_SSL_KEY}" != "" ]; then
+            args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+        fi
+        if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]; then
+            args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+        fi
+        
+        yb-voyager export schema ${args} "$@"
+    fi
 }
+
 
 export_data() {
-	args="--export-dir ${EXPORT_DIR}
-		--source-db-type ${SOURCE_DB_TYPE}
-		--source-db-user ${SOURCE_DB_USER}
-		--source-db-password ${SOURCE_DB_PASSWORD}
-		--source-db-name ${SOURCE_DB_NAME}
-		--disable-pb=true
-		--send-diagnostics=false
-		--yes
-	"
-	if [ "${TABLE_LIST}" != "" ]
-	then
-		args="${args} --table-list ${TABLE_LIST}"
-	fi
-	if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" != "" ]
-	then
-	    args="${args} --oracle-cdb-tns-alias ${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}"
-	fi
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager export data -c "${GENERATED_CONFIG}" --yes
+    else
+        args="--export-dir ${EXPORT_DIR}
+            --source-db-type ${SOURCE_DB_TYPE}
+            --source-db-user ${SOURCE_DB_USER}
+            --source-db-password ${SOURCE_DB_PASSWORD}
+            --source-db-name ${SOURCE_DB_NAME}
+            --disable-pb=true
+            --send-diagnostics=false
+            --yes
+        "
+        if [ "${TABLE_LIST}" != "" ]; then
+            args="${args} --table-list ${TABLE_LIST}"
+        fi
+        if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" != "" ]; then
+            args="${args} --oracle-cdb-tns-alias ${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}"
+        fi
+        if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]; then
+            args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+        fi
+        if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" = "" ] && [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" = "" ]; then
+            args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+        fi
+        if [ "${SOURCE_DB_SCHEMA}" != "" ]; then
+            args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+        fi
+        if [ "${SOURCE_DB_SSL_MODE}" != "" ]; then
+            args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+        fi
+        if [ "${SOURCE_DB_SSL_CERT}" != "" ]; then
+            args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+        fi
+        if [ "${SOURCE_DB_SSL_KEY}" != "" ]; then
+            args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+        fi
+        if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]; then
+            args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+        fi
+        if [ "${ORACLE_CDB_NAME}" != "" ]; then
+            args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
+        fi
+        if [ "${EXPORT_TABLE_LIST}" != "" ]; then
+            args="${args} --table-list ${EXPORT_TABLE_LIST}"
+        fi
+        if [ "${EXPORT_EX_TABLE_LIST}" != "" ]; then
+            args="${args} --exclude-table-list ${EXPORT_EX_TABLE_LIST}"
+        fi
+        if [ "${EXPORT_TABLE_LIST_FILE_PATH}" != "" ]; then
+            args="${args} --table-list-file-path ${EXPORT_TABLE_LIST_FILE_PATH}"
+        fi
+        if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]; then
+            args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
+        fi
 
-	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
-	then
-	    args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
-	fi
-
-	if [ "${SOURCE_DB_ORACLE_CDB_TNS_ALIAS}" = "" ] && [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" = "" ]
-	then
-	    args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
-	fi
-
-	if [ "${SOURCE_DB_SCHEMA}" != "" ]
-	then
-		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
-	then
-		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
-	then
-		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
-	fi
-
-	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
-	fi
-
-	if [ "${ORACLE_CDB_NAME}" != "" ]
-	then
-		args="${args} --oracle-cdb-name ${ORACLE_CDB_NAME}"
-	fi
-
-	if [ "${EXPORT_TABLE_LIST}" != "" ]
-	then
-		args="${args} --table-list ${EXPORT_TABLE_LIST}"
-	fi
-
-	if [ "${EXPORT_EX_TABLE_LIST}" != "" ]
-	then
-		args="${args} --exclude-table-list ${EXPORT_EX_TABLE_LIST}"
-	fi
-
-	if [ "${EXPORT_TABLE_LIST_FILE_PATH}" != "" ]
-	then
-		args="${args} --table-list-file-path ${EXPORT_TABLE_LIST_FILE_PATH}"
-	fi
-
-	if [ "${EXPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
-	then
-		args="${args} --exclude-table-list-file-path ${EXPORT_EX_TABLE_LIST_FILE_PATH}"
-	fi
-
-	yb-voyager export data ${args} $*
-
+        yb-voyager export data ${args} "$@"
+    fi
 }
 
+
 analyze_schema() {
-	args="--export-dir ${EXPORT_DIR}
-		--send-diagnostics=false
-		--yes
-	"
-    yb-voyager analyze-schema ${args} $*
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager analyze-schema -c "${GENERATED_CONFIG}" --yes
+    else
+	    args="--export-dir ${EXPORT_DIR}
+	    	--send-diagnostics=false
+	    	--yes
+	    "
+        yb-voyager analyze-schema ${args} $*
+    fi
 }
 
 import_schema() {
-	args="--export-dir ${EXPORT_DIR} 
-		--target-db-host ${TARGET_DB_HOST} 
-		--target-db-port ${TARGET_DB_PORT} 
-		--target-db-user ${TARGET_DB_USER} 
-		--target-db-password ${TARGET_DB_PASSWORD:-''} 
-		--target-db-name ${TARGET_DB_NAME}	
-		--yes
-		--send-diagnostics=false
-		"
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager import schema -c "${GENERATED_CONFIG}" --yes
+    else
+        args="--export-dir ${EXPORT_DIR}
+            --target-db-host ${TARGET_DB_HOST}
+            --target-db-port ${TARGET_DB_PORT}
+            --target-db-user ${TARGET_DB_USER}
+            --target-db-password ${TARGET_DB_PASSWORD:-''}
+            --target-db-name ${TARGET_DB_NAME}
+            --yes
+            --send-diagnostics=false
+        "
 
-		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
-		then
-			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
-		fi
+        if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
+            args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+        fi
 
-		yb-voyager import schema ${args} $*
+        yb-voyager import schema ${args} "$@"
+    fi
 }
 
-finalize_schema_post_data_import() {
-	args="--export-dir ${EXPORT_DIR} 
-		--target-db-host ${TARGET_DB_HOST} 
-		--target-db-port ${TARGET_DB_PORT} 
-		--target-db-user ${TARGET_DB_USER} 
-		--target-db-password ${TARGET_DB_PASSWORD:-''} 
-		--target-db-name ${TARGET_DB_NAME}	
-		--yes
-		--send-diagnostics=false
-		"
-	
-		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
-		then
-			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
-		fi
 
-		yb-voyager finalize-schema-post-data-import ${args} $*
+finalize_schema_post_data_import() {
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager finalize-schema-post-data-import -c "${GENERATED_CONFIG}" --yes
+    else
+	    args="--export-dir ${EXPORT_DIR} 
+	    	--target-db-host ${TARGET_DB_HOST} 
+	    	--target-db-port ${TARGET_DB_PORT} 
+	    	--target-db-user ${TARGET_DB_USER} 
+	    	--target-db-password ${TARGET_DB_PASSWORD:-''} 
+	    	--target-db-name ${TARGET_DB_NAME}	
+	    	--yes
+	    	--send-diagnostics=false
+            --refresh-mviews true
+	    	"
+    
+	    	if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
+	    	then
+	    		args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+	    	fi
+
+	    	yb-voyager finalize-schema-post-data-import ${args} $*
+    fi
 }
 
 import_data() {
-	args="
-	 --export-dir ${EXPORT_DIR} 
-		--target-db-host ${TARGET_DB_HOST} 
-		--target-db-port ${TARGET_DB_PORT} 
-		--target-db-user ${TARGET_DB_USER} 
-		--target-db-password ${TARGET_DB_PASSWORD:-''} 
-		--target-db-name ${TARGET_DB_NAME}
-		--disable-pb true
-		--send-diagnostics=false 
-		--max-retries 1
-		--skip-replication-checks true
-		--yes
-		"
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager import data -c "${GENERATED_CONFIG}" --yes
+    else
+        args="
+            --export-dir ${EXPORT_DIR}
+            --target-db-host ${TARGET_DB_HOST}
+            --target-db-port ${TARGET_DB_PORT}
+            --target-db-user ${TARGET_DB_USER}
+            --target-db-password ${TARGET_DB_PASSWORD:-''}
+            --target-db-name ${TARGET_DB_NAME}
+            --disable-pb true
+            --send-diagnostics=false
+            --max-retries 1
+            --skip-replication-checks true
+            --yes
+        "
 
-		if [ "${SOURCE_DB_TYPE}" != "postgresql" ]
-		then
-			args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
-		fi
+        if [ "${SOURCE_DB_TYPE}" != "postgresql" ]; then
+            args="${args} --target-db-schema ${TARGET_DB_SCHEMA}"
+        fi
 
-		if [ "${IMPORT_TABLE_LIST}" != "" ]
-		then
-			args="${args} --table-list ${IMPORT_TABLE_LIST}"
-		fi
+        if [ "${IMPORT_TABLE_LIST}" != "" ]; then
+            args="${args} --table-list ${IMPORT_TABLE_LIST}"
+        fi
 
-		if [ "${IMPORT_EX_TABLE_LIST}" != "" ]
-		then
-			args="${args} --exclude-table-list ${IMPORT_EX_TABLE_LIST}"
-		fi
+        if [ "${IMPORT_EX_TABLE_LIST}" != "" ]; then
+            args="${args} --exclude-table-list ${IMPORT_EX_TABLE_LIST}"
+        fi
 
-		if [ "${IMPORT_TABLE_LIST_FILE_PATH}" != "" ]
-		then
-			args="${args} --table-list-file-path ${IMPORT_TABLE_LIST_FILE_PATH}"
-		fi
+        if [ "${IMPORT_TABLE_LIST_FILE_PATH}" != "" ]; then
+            args="${args} --table-list-file-path ${IMPORT_TABLE_LIST_FILE_PATH}"
+        fi
 
-		if [ "${IMPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]
-		then
-			args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
-		fi
+        if [ "${IMPORT_EX_TABLE_LIST_FILE_PATH}" != "" ]; then
+            args="${args} --exclude-table-list-file-path ${IMPORT_EX_TABLE_LIST_FILE_PATH}"
+        fi
 
-		# Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
-    	if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
-    	    args="${args} --enable-adaptive-parallelism false"
-    	fi
+        # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
+        if [ "${RUN_WITHOUT_ADAPTIVE_PARALLELISM}" = "true" ]; then
+            args="${args} --enable-adaptive-parallelism false"
+        fi
 
-		yb-voyager import data ${args} $*
+        yb-voyager import data ${args} "$@"
+    fi
 }
+
 
 import_data_to_source_replica() {
-	args="
-	--export-dir ${EXPORT_DIR}
-	--source-replica-db-user ${SOURCE_REPLICA_DB_USER} 
-	--source-replica-db-name ${SOURCE_REPLICA_DB_NAME} 
-	--source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD} 
-	--disable-pb true
-	--send-diagnostics=false
-	--parallel-jobs 3
-	--max-retries 1 
-	"
-	if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]
-	then
-		args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
-	fi
-	if [ "${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}" != "" ]
-	then
-		args="${args} --oracle-tns-alias ${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}"
-	else
-		args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
-	fi
-	yb-voyager import data to source-replica ${args} $*
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager import data to source-replica -c "${GENERATED_CONFIG}" --yes
+    else
+        args="
+            --export-dir ${EXPORT_DIR}
+            --source-replica-db-user ${SOURCE_REPLICA_DB_USER}
+            --source-replica-db-name ${SOURCE_REPLICA_DB_NAME}
+            --source-replica-db-password ${SOURCE_REPLICA_DB_PASSWORD}
+            --disable-pb true
+            --send-diagnostics=false
+            --parallel-jobs 3
+            --max-retries 1
+        "
+
+        if [ "${SOURCE_REPLICA_DB_SCHEMA}" != "" ]; then
+            args="${args} --source-replica-db-schema ${SOURCE_REPLICA_DB_SCHEMA}"
+        fi
+
+        if [ "${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}" != "" ]; then
+            args="${args} --oracle-tns-alias ${SOURCE_REPLICA_DB_ORACLE_TNS_ALIAS}"
+        else
+            args="${args} --source-replica-db-host ${SOURCE_REPLICA_DB_HOST}"
+        fi
+
+        yb-voyager import data to source-replica ${args} "$@"
+    fi
 }
+
 
 import_data_file() {
     args="
@@ -507,53 +507,78 @@ archive_changes() {
 	echo "archive changes ENABLE=${ENABLE}"
 	if [[ ${ENABLE} -eq 1 ]];
 	then
-		ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
-		mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
+        if [ "${run_via_config_file}" = "true" ]; then
+            # Run using the generated config file
+            yb-voyager archive changes -c "${GENERATED_CONFIG}" --yes
+        else
+		    ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
+		    mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
 
-		yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
-		--export-dir ${EXPORT_DIR} \
-		--fs-utilization-threshold 0
+		    yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+		    --export-dir ${EXPORT_DIR} \
+		    --fs-utilization-threshold 0
+        fi
 	fi
 }
 
 end_migration() {
-	BACKUP_DIR=${EXPORT_DIR}/backup-dir
-	mkdir ${BACKUP_DIR}  # temporary place to store the backup
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager end migration -c "${GENERATED_CONFIG}" --yes
+    else
+	    BACKUP_DIR=${EXPORT_DIR}/backup-dir
+	    mkdir ${BACKUP_DIR}  # temporary place to store the backup
 
-	# setting env vars for passwords to be used for saving reports
-	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
-	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
-	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
+	    # setting env vars for passwords to be used for saving reports
+	    export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
+	    export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+	    export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
-	# TODO: TABLENAME reenable --save-migration-reports
-	yb-voyager end migration --export-dir ${EXPORT_DIR} \
-	--backup-dir ${BACKUP_DIR} --backup-schema-files true \
-	--backup-data-files true --backup-log-files true \
-	--save-migration-reports true $* || { 
-		cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
-		exit 1
-	}
+	    # TODO: TABLENAME reenable --save-migration-reports
+	    yb-voyager end migration --export-dir ${EXPORT_DIR} \
+	    --backup-dir ${BACKUP_DIR} --backup-schema-files true \
+	    --backup-data-files true --backup-log-files true \
+	    --save-migration-reports true $* || { 
+	    	cat ${EXPORT_DIR}/logs/yb-voyager-end-migration.log
+	    	exit 1
+	    }
+    fi
 }
 
 export_data_status(){
-	yb-voyager export data status --export-dir ${EXPORT_DIR} \
-								  --output-format json
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager export data status -c "${GENERATED_CONFIG}" --yes --output-format json
+    else
+        args="--export-dir ${EXPORT_DIR} --output-format json"
+        yb-voyager export data status ${args} "$@"
+    fi
 }
 
 import_data_status(){
-	yb-voyager import data status --export-dir ${EXPORT_DIR} \
-								  --output-format json
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager import data status -c "${GENERATED_CONFIG}" --yes --output-format json
+    else
+        args="--export-dir ${EXPORT_DIR} --output-format json"
+        yb-voyager import data status ${args} "$@"
+    fi
 }
 
 get_data_migration_report(){
 
-	# setting env vars for passwords to be used for saving reports
-	export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
-	export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
-	export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager get data-migration-report -c "${GENERATED_CONFIG}" --yes --output-format json
+    else
+	    # setting env vars for passwords to be used for saving reports
+	    export SOURCE_DB_PASSWORD=${SOURCE_DB_PASSWORD}
+	    export TARGET_DB_PASSWORD=${TARGET_DB_PASSWORD}
+	    export SOURCE_REPLICA_DB_PASSWORD=${SOURCE_REPLICA_DB_PASSWORD}
 
-	yb-voyager get data-migration-report --export-dir ${EXPORT_DIR} \
-										--output-format json
+	    yb-voyager get data-migration-report --export-dir ${EXPORT_DIR} \
+	    									--output-format json
+    fi
 }
 
 verify_report() {
@@ -785,51 +810,56 @@ EOF
 }
 
 assess_migration() {
-	args="--export-dir ${EXPORT_DIR}
-		--source-db-type ${SOURCE_DB_TYPE}
-		--source-db-user ${SOURCE_DB_USER}
-		--source-db-password ${SOURCE_DB_PASSWORD}
-		--source-db-name ${SOURCE_DB_NAME}
-		--send-diagnostics=false --yes
-		--iops-capture-interval 0
-	"
-	if [ "${SOURCE_DB_SCHEMA}" != "" ]
-	then
-		args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
-	fi
+    if [ "${run_via_config_file}" = "true" ]; then
+        # Run using the generated config file
+        yb-voyager assess-migration -c "${GENERATED_CONFIG}" --yes
+    else
+        args="--export-dir ${EXPORT_DIR}
+            --source-db-type ${SOURCE_DB_TYPE}
+            --source-db-user ${SOURCE_DB_USER}
+            --source-db-password ${SOURCE_DB_PASSWORD}
+            --source-db-name ${SOURCE_DB_NAME}
+            --send-diagnostics=false --yes
+            --iops-capture-interval 0
+        "
+        if [ "${SOURCE_DB_SCHEMA}" != "" ]
+		then
+            args="${args} --source-db-schema ${SOURCE_DB_SCHEMA}"
+        fi
+        if [ "${SOURCE_DB_SSL_MODE}" != "" ]
+		then
+            args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
+        fi
+        if [ "${SOURCE_DB_SSL_CERT}" != "" ]
+		then
+            args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
+        fi
+        if [ "${SOURCE_DB_SSL_KEY}" != "" ]
+		then
+            args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
+        fi
+        if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
+		then
+            args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
+        fi
+		
+        # flag enabling oracle ssl tests --oracle-tns-alias
+		if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
+		then
+            args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
+        else
+            args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
+        fi
 
-	if [ "${SOURCE_DB_SSL_MODE}" != "" ]
-	then
-		args="${args} --source-ssl-mode ${SOURCE_DB_SSL_MODE}"
-	fi
-	if [ "${SOURCE_DB_SSL_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-cert ${SOURCE_DB_SSL_CERT}"
-	fi
-	if [ "${SOURCE_DB_SSL_KEY}" != "" ]
-	then
-		args="${args} --source-ssl-key ${SOURCE_DB_SSL_KEY}"
-	fi
-	if [ "${SOURCE_DB_SSL_ROOT_CERT}" != "" ]
-	then
-		args="${args} --source-ssl-root-cert ${SOURCE_DB_SSL_ROOT_CERT}"
-	fi
+        if [ "${TARGET_DB_VERSION}" != "" ]
+		then
+            args="${args} --target-db-version ${TARGET_DB_VERSION}"
+        fi
 
-	# flag enabling oracle ssl tests --oracle-tns-alias
-	if [ "${SOURCE_DB_ORACLE_TNS_ALIAS}" != "" ]
-	then
-		args="${args} --oracle-tns-alias ${SOURCE_DB_ORACLE_TNS_ALIAS}"
-	else
-		args="${args} --source-db-host ${SOURCE_DB_HOST} --source-db-port ${SOURCE_DB_PORT}"
-	fi
-
-	if [ "${TARGET_DB_VERSION}" != "" ]
-	then
-		args="${args} --target-db-version ${TARGET_DB_VERSION}"
-	fi
-	
-	yb-voyager assess-migration ${args} $*
+        yb-voyager assess-migration ${args} $*
+    fi
 }
+
 
 validate_failure_reasoning() {
     assessment_report="$1"

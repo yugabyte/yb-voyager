@@ -2,10 +2,9 @@
 
 set -e
 
-if [ $# -gt 2 ]
-then
-	echo "Usage: $0 TEST_NAME [env.sh]"
-	exit 1
+if [ $# -gt 3 ]; then
+    echo "Usage: $0 TEST_NAME [env.sh] [--run-via-config-file]"
+    exit 1
 fi
 
 set -x
@@ -20,17 +19,30 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-# Order of env.sh import matters.
-if [ $2 != "" ] #if env.sh is passed as an argument, source it
-then
-    if [ ! -f "${TEST_DIR}/$2" ]
-	then
-		echo "$2 file not found in the test directory"
-		exit 1
-	fi
-	source ${TEST_DIR}/$2
+run_via_config_file=false
+
+# Check for --use-config-file flag (can be in any position after TEST_NAME)
+for arg in "$@"; do
+    if [ "$arg" = "--run-via-config-file" ]; then
+        run_via_config_file=true
+    fi
+done
+
+# Source env.sh or provided env file (unchanged logic)
+if [ $# -ge 2 ] && [ "$2" != "--use-config-file" ]; then
+    if [ ! -f "${TEST_DIR}/$2" ]; then
+        echo "$2 file not found in the test directory"
+        exit 1
+    fi
+    source "${TEST_DIR}/$2"
+elif [ $# -ge 3 ] && [ "$3" != "--use-config-file" ]; then
+    if [ ! -f "${TEST_DIR}/$3" ]; then
+        echo "$3 file not found in the test directory"
+        exit 1
+    fi
+    source "${TEST_DIR}/$3"
 else
-	source ${TEST_DIR}/env.sh
+    source "${TEST_DIR}/env.sh"
 fi
 
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
@@ -42,6 +54,13 @@ normalize_and_export_vars "offline"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
+# Handling for config generation
+if [ "${run_via_config_file}" = true ]; then
+	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/offline-migration.yaml"
+	GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
+	CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_config.py"
+fi
+
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
 	rm -rf ${EXPORT_DIR}	
@@ -52,6 +71,11 @@ main() {
 
 	step "START: ${TEST_NAME}"
 	print_env
+
+	if [ "${run_via_config_file}" = true ]; then
+		# Generate the config file
+		python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
+	fi
 
 	pushd ${TEST_DIR}
 
@@ -164,7 +188,7 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import=true --refresh-mviews=true
+	finalize_schema_post_data_import
 	
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
