@@ -20,32 +20,30 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
 run_via_config_file=false
+env_file=""
 
-# Check for --use-config-file flag (can be in any position after TEST_NAME)
+# Parse optional arguments
+shift # Remove TEST_NAME from $@
 for arg in "$@"; do
     if [ "$arg" = "--run-via-config-file" ]; then
         run_via_config_file=true
+    else
+        env_file="$arg"
     fi
 done
 
-# Source env.sh or provided env file (unchanged logic)
-if [ $# -ge 2 ] && [ "$2" != "--use-config-file" ]; then
-    if [ ! -f "${TEST_DIR}/$2" ]; then
-        echo "$2 file not found in the test directory"
+# Source env file if specified, else default to env.sh
+if [ -n "$env_file" ]; then
+    if [ ! -f "${TEST_DIR}/${env_file}" ]; then
+        echo "$env_file file not found in the test directory"
         exit 1
     fi
-    source "${TEST_DIR}/$2"
-elif [ $# -ge 3 ] && [ "$3" != "--use-config-file" ]; then
-    if [ ! -f "${TEST_DIR}/$3" ]; then
-        echo "$3 file not found in the test directory"
-        exit 1
-    fi
-    source "${TEST_DIR}/$3"
+    source "${TEST_DIR}/${env_file}"
 else
     source "${TEST_DIR}/env.sh"
 fi
 
-source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+source "${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh"
 
 
 source ${SCRIPTS}/functions.sh
