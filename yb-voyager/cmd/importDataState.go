@@ -831,6 +831,11 @@ func (bw *BatchWriter) Done(isLastBatch bool, offsetEnd int64, byteCount int64) 
 
 // ============================================================================
 // Implementing Batch interface defined in target_db_interface.go
+
+const (
+	PARTIAL_BATCH_ERROR_NOTE = "NOTE: It is possible that the batch was partially ingested. Therefore, some of the rows in this batch may have been imported successfully."
+)
+
 type Batch struct {
 	Number       int64
 	TableNameTup sqlname.NameTuple
@@ -906,9 +911,14 @@ func (batch *Batch) MarkInProgress() error {
 	return nil
 }
 
-func (batch *Batch) MarkError(batchErr error) error {
+func (batch *Batch) MarkError(batchErr error, isPartialBatchIngestionPossible bool) error {
 	log.Infof("Marking batch %q as errored", batch.FilePath)
-	errorString := fmt.Sprintf("\n/*\nError Message: %s\n*/\n", batchErr.Error())
+	var errorString string
+	if isPartialBatchIngestionPossible {
+		errorString = fmt.Sprintf("\n/*\nError Message: %s\n%s\n*/\n", batchErr.Error(), PARTIAL_BATCH_ERROR_NOTE)
+	} else {
+		errorString = fmt.Sprintf("\n/*\nError Message: %s\n*/\n", batchErr.Error())
+	}
 
 	// Rename the file to .E
 	errorFilePath := batch.getErrorFilePath()

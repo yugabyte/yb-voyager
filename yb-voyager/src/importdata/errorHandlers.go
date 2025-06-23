@@ -37,7 +37,7 @@ var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
 type ImportDataErrorHandler interface {
 	ShouldAbort() bool
 	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
-	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error
+	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
 }
 
@@ -45,7 +45,7 @@ type ErroredBatch interface {
 	GetFilePath() string
 	GetTableName() sqlname.NameTuple
 	IsInterrupted() bool
-	MarkError(batchErr error) error
+	MarkError(batchErr error, isPartialBatchIngestionPossible bool) error
 }
 
 // -----------------------------------------------------------------------------------------------------//
@@ -65,7 +65,7 @@ func (handler *ImportDataAbortHandler) HandleRowProcessingError(row string, rowE
 	return nil
 }
 
-func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
+func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error {
 	// nothing to do.
 	return nil
 }
@@ -136,7 +136,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleRowProcessingError(row s
 - Mark the batch as errored out. x.x.x.x.P -> x.x.x.x.E
 - Create a symlink in the errors folder, pointing to metainfo/import_data_state/.../<batch_file_name>
 */
-func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error) error {
+func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error {
 	if batch == nil {
 		return fmt.Errorf("batch cannot be nil")
 	}
@@ -144,7 +144,7 @@ func (handler *ImportDataStashAndContinueHandler) HandleBatchIngestionError(batc
 		return fmt.Errorf("task file path cannot be empty")
 	}
 
-	err := batch.MarkError(batchErr)
+	err := batch.MarkError(batchErr, isPartialBatchIngestionPossible)
 	if err != nil {
 		return fmt.Errorf("marking batch as errored: %s", err)
 	}

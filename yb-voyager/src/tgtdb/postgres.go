@@ -416,7 +416,7 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error, bool) {
 	if nonTxnPath {
 		panic("non-transactional path for import batch is not supported in PostgreSQL")
 	}
@@ -428,7 +428,7 @@ func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = pg.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, false
 }
 
 func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {

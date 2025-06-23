@@ -531,16 +531,28 @@ ImportBatch function handles variety of cases for importing a batch into Yugabyt
 3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
 */
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
-	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 
 	var rowsAffected int64
 	var err error
+	var isPartialBatchIngestionPossibleOnError bool
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if args.ShouldUseFastPath() {
 			if !isRecoveryCandidate {
 				rowsAffected, err = yb.importBatchFast(conn, batch, args)
 			} else {
 				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
+			}
+			if err != nil {
+				// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
+				// it is likely that there was partial ingestion of the batch.
+				// This is not 100% guaranteed, because there can be cases where the whole batch was not ingested
+				// (for instance if there was an error when reading the file), but it is tricky to determine that,
+				// especially in cases where there was resumption. For instance, even if there is an error when reading the file,
+				// it is possible that it was a resumption case, and in the previous attempt, the batch was partially ingested,
+				// so we can't conclude that it was not ingested at all.)
+				// Therefore, we simply assume that in the fast path, if there is an error, it is likely that the batch was partially ingested.
+				isPartialBatchIngestionPossibleOnError = true
 			}
 		} else {
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
@@ -549,7 +561,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, isPartialBatchIngestionPossibleOnError
 }
 
 func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {

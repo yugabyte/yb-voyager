@@ -141,6 +141,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	var rowsAffected int64
 	var err error // Note: make sure to not define any other err variable in this scope
+	var isPartialBatchIngestionPossibleOnError bool
 
 	if batch.RecordCount == 0 {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
@@ -187,7 +188,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		isRecoveryCandidate := (recoveryBatch || attempt > 0)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
+		rowsAffected, err, isPartialBatchIngestionPossibleOnError = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -209,7 +210,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err)
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
 			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
 		}
