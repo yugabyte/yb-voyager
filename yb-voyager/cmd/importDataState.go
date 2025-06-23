@@ -915,9 +915,9 @@ func (batch *Batch) MarkError(batchErr error, isPartialBatchIngestionPossible bo
 	log.Infof("Marking batch %q as errored", batch.FilePath)
 	var errorString string
 	if isPartialBatchIngestionPossible {
-		errorString = fmt.Sprintf("\n/*\nError Message: %s\n%s\n*/\n", batchErr.Error(), PARTIAL_BATCH_ERROR_NOTE)
+		errorString = fmt.Sprintf("\n/*\nERROR MESSAGE: %s\n%s\n*/\n", batchErr.Error(), PARTIAL_BATCH_ERROR_NOTE)
 	} else {
-		errorString = fmt.Sprintf("\n/*\nError Message: %s\n*/\n", batchErr.Error())
+		errorString = fmt.Sprintf("\n/*\nERROR MESSAGE: %s\n*/\n", batchErr.Error())
 	}
 
 	// Rename the file to .E
