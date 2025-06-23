@@ -233,6 +233,62 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatchWithError(t *testing.T
 		`ERROR: duplicate key value violates unique constraint "test_table_error_pkey" (SQLSTATE 23505)`)
 }
 
+func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t *testing.T) {
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
+	testutils.FatalIfError(t, err)
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
+
+	setupYugabyteTestDb(t)
+	tconf.OnPrimaryKeyConflictAction = "IGNORE"
+
+	defer testYugabyteDBTarget.Finalize()
+	testYugabyteDBTarget.TestContainer.ExecuteSqls(
+		`CREATE TABLE test_table_unique_error (id INT PRIMARY KEY, email TEXT UNIQUE, val TEXT);`,
+		`INSERT INTO test_table_unique_error VALUES (1000, 'abc@def.com', 'one');`,
+	)
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls(`DROP TABLE test_table_unique_error;`)
+
+	// file import
+	// gets divided into one batch
+	// the single batch will have a unique key violation on email (abc@def.com)
+	fileContents := `id,val,email
+1,"abc@def.com","hello"
+2,"ghi@jkl.com","world"`
+	_, task, err := createFileAndTask(lexportDir, fileContents, ldataDir, "test_table_unique_error", 1)
+	testutils.FatalIfError(t, err)
+
+	progressReporter := NewImportDataProgressReporter(true)
+	workerPool := pool.New().WithMaxGoroutines(2)
+	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, scErrorHandler)
+	testutils.FatalIfError(t, err)
+
+	for !taskImporter.AllBatchesSubmitted() {
+		err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
+		assert.NoError(t, err)
+	}
+	workerPool.Wait()
+
+	assertTableRowCount(t, "test_table_unique_error", 1)
+	assertTableIds(t, "test_table_unique_error", []int64{1000})
+
+	erroredBatches, err := state.GetErroredBatches(task.FilePath, task.TableNameTup)
+	assert.NoError(t, err)
+	assert.Equal(t, 1, len(erroredBatches), "Expected one errored batch")
+
+	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.2.2.60.E")
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		fileContents,
+		`ERROR: duplicate key value violates unique constraint "test_table_unique_error_email_key" (SQLSTATE 23505)`,
+	)
+
+	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
+		fileContents,
+		PARTIAL_BATCH_ERROR_NOTE,
+	)
+}
+
 func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentErrors(t *testing.T) {
 	COPY_MAX_RETRY_COUNT = 1 // Disable retry for COPY command to test error handling
 	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(2, 1024)
