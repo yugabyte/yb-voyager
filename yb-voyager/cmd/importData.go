@@ -1152,6 +1152,13 @@ func packAndSendImportDataPayload(status string, errorMsg error) {
 		})
 	}
 
+	importDataPayload.Phase = importPhase
+
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
+		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
 	payload.Status = status
 
