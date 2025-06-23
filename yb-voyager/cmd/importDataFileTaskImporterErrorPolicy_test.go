@@ -25,6 +25,7 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -241,7 +242,7 @@ func TestTaskImportStachAndContinueErrorPolicy_SingleBatch_OnPkConflictIgnore(t 
 	t.Cleanup(func() { cleanupExportDirDataDir(ldataDir, lexportDir) })
 
 	setupYugabyteTestDb(t)
-	tconf.OnPrimaryKeyConflictAction = "IGNORE"
+	tconf.OnPrimaryKeyConflictAction = constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE
 
 	defer testYugabyteDBTarget.Finalize()
 	testYugabyteDBTarget.TestContainer.ExecuteSqls(
