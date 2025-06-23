@@ -104,38 +104,42 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         try {
             String lockContent = Files.readString(lockFile.toPath());
             String[] lines = lockContent.split("\n");
-            if (lines.length > 0) {
-                String pidLine = lines[0].trim();
-                if (pidLine.startsWith("PID: ")) {
-                    //format is PID: <pid>@hostname
-                    String pid = pidLine.substring(5).split("@")[0].trim();
-                    // Check if the PID is a valid number
-                    LOGGER.info("Lock file {} exists with PID: {}", lockFile.getAbsolutePath(), pid);
-                    // Attempt to parse the PID
-                    try {
-                        long pidLong = Long.parseLong(pid);
-                        // Check if the process with this PID is running
-                        if (ProcessHandle.of(pidLong).isPresent()) {
-                            // Process is running, so we cannot acquire the lock
-                            String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir.", lockFile.getAbsolutePath(), pid);
-                            LOGGER.error(msg);
-                            throw new IllegalStateException(msg);
-                        } else {
-                            // Process is not running, we can safely delete the lock file
-                            LOGGER.warn("Lock file {} exists but process with PID {} is not running. Deleting it.", lockFile.getAbsolutePath(), pid);
-                            releaseLockFile();
-                        }
-                    } catch (NumberFormatException e) {
-                        // If PID is not a valid number, treat it as a stale lock
-                        LOGGER.warn("Invalid PID in lock file {}: {}. Deleting lock file.", lockFile.getAbsolutePath(), pid);
-                        releaseLockFile();
-                    }
+            if (lines == null || lines.length == 0) {
+                // If the lock file is empty, treat it as a stale lock
+                LOGGER.warn("Lock file {} is empty. Deleting lock file.", lockFile.getAbsolutePath());
+                releaseLockFile();
+                return;
+            }
+            String pidLine = lines[0].trim();
+            if (!pidLine.startsWith("PID: ")) {
+                 // If the first line does not start with "PID: ", treat it as a stale lock
+                String msg = String.format("Invalid lock file format %s in %s.", pidLine, lockFile.getAbsolutePath());
+                throw new IllegalStateException(msg);
+            }
+            //format is PID: <pid>@hostname
+            String pid = pidLine.substring(5).split("@")[0].trim();
+            // Check if the PID is a valid number
+            LOGGER.info("Lock file {} exists with PID: {}", lockFile.getAbsolutePath(), pid);
+            // Attempt to parse the PID
+            try {
+                long pidLong = Long.parseLong(pid);
+                // Check if the process with this PID is running
+                if (ProcessHandle.of(pidLong).isPresent()) {
+                    // Process is running, so we cannot acquire the lock
+                    String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir.", lockFile.getAbsolutePath(), pid);
+                    LOGGER.error(msg);
+                    throw new IllegalStateException(msg);
                 } else {
-                    // If the first line does not start with "PID: ", treat it as a stale lock
-                    LOGGER.warn("Invalid lock file format in {}. Deleting lock file.", lockFile.getAbsolutePath());
+                    // Process is not running, we can safely delete the lock file
+                    LOGGER.warn("Lock file {} exists but process with PID {} is not running. Deleting it.", lockFile.getAbsolutePath(), pid);
                     releaseLockFile();
                 }
+            } catch (NumberFormatException e) {
+                // If PID is not a valid number, treat it as a stale lock
+                LOGGER.warn("Invalid PID in lock file {}: {}. Deleting lock file.", lockFile.getAbsolutePath(), pid);
+                releaseLockFile();
             }
+            
         } catch (IOException e) {
             String msg = String.format("Error reading lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
             LOGGER.error(msg, e);
@@ -160,7 +164,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 LOGGER.error(msg);
                 throw new IllegalStateException(msg);
             }
-            //write PID or timestamp for debugging
+            //write PID to check later if the PID is still running
             String pid = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
             Files.writeString(lockFile.toPath(), "PID: " + pid + "\n", StandardOpenOption.WRITE);
             LOGGER.info("Acquired lock file: {} for PID: %s", lockFile.getAbsolutePath(), pid);
