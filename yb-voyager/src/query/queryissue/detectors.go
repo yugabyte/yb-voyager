@@ -521,7 +521,7 @@ func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDete
 // Detect checks if a unique constraint is defined which has nulls not distinct
 func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
-		indexStmt, err := queryparser.ProtoAsIndexStmt(msg)
+		indexStmt, err := queryparser.ProtoAsIndexStmtNode(msg)
 		if err != nil {
 			return err
 		}
@@ -530,7 +530,7 @@ func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error 
 			d.detected = true
 		}
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_CONSTRAINT_NODE {
-		constraintNode, err := queryparser.ProtoAsTableConstraint(msg)
+		constraintNode, err := queryparser.ProtoAsTableConstraintNode(msg)
 		if err != nil {
 			return err
 		}

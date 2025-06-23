@@ -1854,6 +1854,11 @@ func generateAssessmentReportHtml(reportDir string) error {
 		assessmentReport.SchemaSummary.SchemaNames = []string{}
 	}
 
+	// err = assessmentReport.AnonymizeSqlStatements()
+	// if err != nil {
+	// 	return fmt.Errorf("failed to anonymize sql statements in the assessment report: %w", err)
+	// }
+
 	type CombinedStruct struct {
 		AssessmentReport
 		MigrationComplexityCategorySummary []MigrationComplexityCategorySummary
