@@ -157,6 +157,8 @@ def migration_completed_checks(tgt):
 			expectedExtensions.extend(["pg_partman", "pg_walinspect", "old_snapshot", "pgtap", "yb_ycql_utils", "pg_surgery", "yb_xcluster_ddl_replication"])
 		if "2.25.1" in tgtVersion:
 			expectedExtensions.extend(["anon", "dummy_seclabel"])
+		if "2.25.2" in tgtVersion:
+			expectedExtensions.extend(["anon", "dummy_seclabel", "documentdb_distributed", "documentdb", "documentdb_core"])
 		if "2024.2" in tgtVersion:
 			expectedExtensions.extend(["pg_partman", "pgtap", "yb_ycql_utils", "yb_xcluster_ddl_replication", "anon", "dummy_seclabel"])
 		if "2024.1" in tgtVersion:
