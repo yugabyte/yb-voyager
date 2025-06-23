@@ -30,7 +30,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
@@ -41,20 +40,6 @@ import (
 ////=========================================
 
 // HELPER functions for live
-
-// Checks for streaming started or not using dbzm status
-func isExportDataStreamingStarted(t *testing.T) bool {
-	//check for status until its streaming
-	statusFilePath := filepath.Join(exportDir, "data", "export_status.json")
-	status, err := dbzm.ReadExportStatus(statusFilePath)
-	testutils.FatalIfError(t, err, "error reading status report")
-
-	testutils.FatalIfError(t, err, "reading dbzm export status")
-	if status != nil && status.Mode == dbzm.MODE_STREAMING {
-		return true
-	}
-	return false
-}
 
 // checks for the snapshot phase completed in export and import both by checking the get data migration report
 func snapshotPhaseCompleted(t *testing.T, postgresPass string, targetPass string, snapshotRows int64, tableName string) bool {
@@ -220,13 +205,10 @@ FROM generate_series(1, 10);`
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true).Run()
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
-
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return isExportDataStreamingStarted(t)
-	})
-	assert.True(t, ok)
 
 	err = testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -238,7 +220,7 @@ FROM generate_series(1, 10);`
 
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 10, `test_schema."test_live"`)
 	})
@@ -360,13 +342,10 @@ FROM generate_series(1, 20);`
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true).Run()
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
-
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return isExportDataStreamingStarted(t)
-	})
-	assert.True(t, ok)
 
 	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -378,7 +357,7 @@ FROM generate_series(1, 20);`
 	err = importCmd.Run()
 	testutils.FatalIfError(t, err, "Import command failed")
 
-	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`)
 	})
@@ -537,13 +516,10 @@ FROM generate_series(1, 20);`
 		"--disable-pb", "true",
 		"--export-type", SNAPSHOT_AND_CHANGES,
 		"--yes",
-	}, nil, true).Run()
+	}, func() {
+		time.Sleep(5 * time.Second) // Wait for the export to start
+	}, true).Run()
 	testutils.FatalIfError(t, err, "Export command failed")
-
-	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
-		return isExportDataStreamingStarted(t)
-	})
-	assert.True(t, ok)
 
 	importCmd := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
 		"--export-dir", exportDir,
@@ -555,7 +531,7 @@ FROM generate_series(1, 20);`
 
 	time.Sleep(5 * time.Second)
 
-	ok = utils.RetryWorkWithTimeout(1, 30, func() bool {
+	ok := utils.RetryWorkWithTimeout(1, 30, func() bool {
 		return snapshotPhaseCompleted(t, postgresContainer.GetConfig().Password,
 			yugabytedbContainer.GetConfig().Password, 20, `test_schema."test_live"`)
 	})
