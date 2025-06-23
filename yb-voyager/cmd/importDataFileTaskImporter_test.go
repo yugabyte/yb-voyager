@@ -23,6 +23,7 @@ import (
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -267,8 +268,8 @@ func TestTaskImportErrorsOutWithAbortErrorPolicy(t *testing.T) {
 	taskImporter, err := NewFileTaskImporter(task, state, workerPool, progressReporter, nil, false, errorHandler)
 	testutils.FatalIfError(t, err)
 
-	// utils.MonkeyPatchUtilsErrExitWithPanic()
-	// t.Cleanup(utils.RestoreUtilsErrExit)
+	utils.MonkeyPatchUtilsErrExitWithPanic()
+	t.Cleanup(utils.RestoreUtilsErrExit)
 	assert.Panics(t, func() {
 		for !taskImporter.AllBatchesSubmitted() {
 			err := taskImporter.ProduceAndSubmitNextBatchToWorkerPool()
