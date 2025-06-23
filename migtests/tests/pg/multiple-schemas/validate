@@ -158,7 +158,7 @@ def migration_completed_checks(tgt):
 		if "2.25.1" in tgtVersion:
 			expectedExtensions.extend(["anon", "dummy_seclabel"])
 		if "2024.2" in tgtVersion:
-			expectedExtensions.extend(["pg_partman", "pgtap", "yb_ycql_utils", "yb_xcluster_ddl_replication"])
+			expectedExtensions.extend(["pg_partman", "pgtap", "yb_ycql_utils", "yb_xcluster_ddl_replication", "anon", "dummy_seclabel"])
 		if "2024.1" in tgtVersion:
 			expectedExtensions.extend(["yb_ycql_utils"])
 		for extension in expectedExtensions:
