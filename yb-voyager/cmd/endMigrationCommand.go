@@ -109,9 +109,10 @@ func packAndSendEndMigrationPayload(status string, errorMsg string) {
 		return
 	}
 	payload := createCallhomePayload()
-	payload.MigrationType = OFFLINE
 	if streamChangesMode {
 		payload.MigrationType = LIVE_MIGRATION
+	} else {
+		payload.MigrationType = OFFLINE
 	}
 	payload.MigrationPhase = END_MIGRATION_PHASE
 	endMigrationPayload := callhome.EndMigrationPhasePayload{
