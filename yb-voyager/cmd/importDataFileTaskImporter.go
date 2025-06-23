@@ -203,7 +203,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup, err)
+			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
 		}
 
 		// Handle the error

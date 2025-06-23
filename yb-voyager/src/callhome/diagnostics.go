@@ -369,7 +369,6 @@ func getSpecificContextForError(err error) string {
 	if err == nil {
 		return ""
 	}
-	utils.PrintAndLog("error type: %T", err)
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
