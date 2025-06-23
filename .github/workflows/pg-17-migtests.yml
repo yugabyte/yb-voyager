@@ -140,11 +140,11 @@ jobs:
 
       - name: "TEST: pg-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/table-list-flags-tests --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/table-list-flags-tests
 
       - name: "TEST: pg-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/table-list-flags-tests env-file-path-flags.sh
 
       - name: "TEST: pg-case-sensitivity-single-table"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -156,81 +156,81 @@ jobs:
 
       - name: "TEST: pg-datatypes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/datatypes --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/datatypes
 
       - name: "TEST: pg-constraints"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/constraints --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/constraints
 
       - name: "TEST: pg-sequences"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/sequences --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/sequences
 
       - name: "TEST: pg-sequences with table list"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/sequences env-with-table-list.sh --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/sequences env-with-table-list.sh
 
       - name: "TEST: pg-indexes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/indexes --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/indexes
 
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/partitions --run-via-config-file 
+        run: migtests/scripts/run-test.sh pg/partitions
 
       - name: "TEST: pg-partitions with (table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions --run-via-config-file
+        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
       - name: "TEST: pg-partitions-with-indexes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/partitions-with-indexes --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/partitions-with-indexes
 
       - name: "TEST: pg-views-and-rules"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/views-and-rules --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/views-and-rules
 
       - name: "TEST: pg-misc-objects-1 (Types, case-sensitive-table-name, Domain)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/misc-objects-1 --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/misc-objects-1
 
       - name: "TEST: pg-misc-objects-2 (Aggregates, Procedures, triggers, functions, extensions, inline comments)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/misc-objects-2 --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/misc-objects-2
 
       - name: "TEST: pg-dependent-ddls"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/dependent-ddls --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/dependent-ddls
 
       - name: "TEST: pg-multiple-schemas"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/multiple-schemas --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/multiple-schemas
 
       - name: "TEST: pg-codependent-schemas"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/codependent-schemas --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/codependent-schemas
 
       - name: "TEST: pg-sample-schema-emp"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/sample-employee --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/sample-employee
 
       - name: "TEST: pg-hasura-ecommerce"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/hasura-ecommerce --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/hasura-ecommerce
 
       - name: "TEST: pg-case-sensitivity-reserved-words-offline"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/case-sensitivity-reserved-words
 
       - name: "TEST: pg-basic-non-public-live-migration-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test --run-via-config-file
+        run: migtests/scripts/live-migration-run-test.sh pg/basic-non-public-live-test
 
       - name: "TEST: pg-basic-public-fall-forward-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test --run-via-config-file
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
 
       - name: "TEST: pg-datatypes-fall-forward-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
@@ -241,18 +241,18 @@ jobs:
 
       - name: "TEST: pg-datatypes-fall-back-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
-        run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes --run-via-config-file
+        run: migtests/scripts/live-migration-fallb-run-test.sh pg/datatypes
 
       # case sensitive table names are not yet supported in live migration, to restricting test only to a few tables.
       - name: "TEST: pg-live-migration-multiple-schemas"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas --run-via-config-file
+        run: EXPORT_TABLE_LIST="ext_test,tt,audit,recipients,session_log,schema2.ext_test,schema2.tt,schema2.audit,schema2.recipients,schema2.session_log" migtests/scripts/live-migration-run-test.sh  pg/multiple-schemas
 
       - name: "TEST: pg-unique-key-conflicts-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test --run-via-config-file
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/unique-key-conflicts-test
 
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
-        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions --run-via-config-file
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
       

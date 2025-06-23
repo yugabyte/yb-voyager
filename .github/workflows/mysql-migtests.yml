@@ -83,59 +83,59 @@ jobs:
 
       - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests
 
       - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/table-list-flags-tests env-file-path-flags.sh
 
       - name: "TEST: mysql-sakila"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/sakila --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/sakila
 
       - name: "TEST: mysql-datatypes"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/datatypes --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/datatypes
 
       - name: "TEST: mysql-constraints"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/constraints --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/constraints
 
       - name: "TEST: mysql-case-indexes"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/indexes --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/indexes
 
       - name: "TEST: mysql-functions"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/functions --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/functions
 
       - name: "TEST: mysql-case-sequences"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/sequences --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/sequences
 
       - name: "TEST: mysql-triggers-procedures"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/triggers-procedures --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/triggers-procedures
 
       - name: "TEST: mysql-case-views"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/views --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/views
 
       - name: "TEST: mysql-partitions"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/partitions --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/partitions
 
       - name: "TEST: mysql-sample-chinook"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/chinook --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/chinook
 
       - name: "TEST: mysql-misc-tests"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/misc-tests --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/misc-tests
       
       - name: "TEST: mysql-case-sensitivity-reserved-words"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words --run-via-config-file
+        run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user
@@ -145,4 +145,4 @@ jobs:
 
       - name: "TEST: mysql-live-migration-test"
         if: ${{ !cancelled() }}
-        run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test --run-via-config-file
+        run: migtests/scripts/live-migration-run-test.sh mysql/basic-live-test
