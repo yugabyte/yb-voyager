@@ -100,18 +100,60 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         }));
     }
 
+    private void readLockAndCheckPid() {
+        try {
+            String lockContent = Files.readString(lockFile.toPath());
+            String[] lines = lockContent.split("\n");
+            if (lines.length > 0) {
+                String pidLine = lines[0].trim();
+                if (pidLine.startsWith("PID: ")) {
+                    //format is PID: <pid>@hostname
+                    String pid = pidLine.substring(5).split("@")[0].trim();
+                    // Check if the PID is a valid number
+                    LOGGER.info("Lock file {} exists with PID: {}", lockFile.getAbsolutePath(), pid);
+                    // Attempt to parse the PID
+                    try {
+                        long pidLong = Long.parseLong(pid);
+                        // Check if the process with this PID is running
+                        if (ProcessHandle.of(pidLong).isPresent()) {
+                            // Process is running, so we cannot acquire the lock
+                            String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir.", lockFile.getAbsolutePath(), pid);
+                            LOGGER.error(msg);
+                            throw new IllegalStateException(msg);
+                        } else {
+                            // Process is not running, we can safely delete the lock file
+                            LOGGER.warn("Lock file {} exists but process with PID {} is not running. Deleting it.", lockFile.getAbsolutePath(), pid);
+                            releaseLockFile();
+                        }
+                    } catch (NumberFormatException e) {
+                        // If PID is not a valid number, treat it as a stale lock
+                        LOGGER.warn("Invalid PID in lock file {}: {}. Deleting lock file.", lockFile.getAbsolutePath(), pid);
+                        releaseLockFile();
+                    }
+                } else {
+                    // If the first line does not start with "PID: ", treat it as a stale lock
+                    LOGGER.warn("Invalid lock file format in {}. Deleting lock file.", lockFile.getAbsolutePath());
+                    releaseLockFile();
+                }
+            }
+        } catch (IOException e) {
+            String msg = String.format("Error reading lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
+            LOGGER.error(msg, e);
+            throw new IllegalStateException(msg, e);
+        }
+    }
     /**
-     * Acquires a lock file in the dataDir. Fails if already locked.
+     * Acquires a lock file in the dataDir with <exporter-role>.lck and stores the pid of the process 
+     * Fails if already locked.
      */
     private void acquireLockFile() {
-        lockFile = new File(dataDir, String.format(".%s.lock", exporterRole));
+        lockFile = new File(dataDir, String.format(".%s.lck", exporterRole));
         if (lockFile.exists()) {
-            String msg = String.format("Lock file %s already exists. Another process may be running for this dataDir.", lockFile.getAbsolutePath());
-            LOGGER.error(msg);
-            throw new IllegalStateException(msg);
+            //read the lock and check the pid if its running
+            readLockAndCheckPid();
         }
         try {
-            // Create the lock file atomically
+            // Create the lock file
             boolean created = lockFile.createNewFile();
             if (!created) {
                 String msg = String.format("Failed to create lock file %s. Another process may be running.", lockFile.getAbsolutePath());
@@ -121,7 +163,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             //write PID or timestamp for debugging
             String pid = java.lang.management.ManagementFactory.getRuntimeMXBean().getName();
             Files.writeString(lockFile.toPath(), "PID: " + pid + "\n", StandardOpenOption.WRITE);
-            LOGGER.info("Acquired lock file: {}", lockFile.getAbsolutePath());
+            LOGGER.info("Acquired lock file: {} for PID: %s", lockFile.getAbsolutePath(), pid);
         } catch (IOException e) {
             String msg = String.format("Error creating lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
             LOGGER.error(msg, e);
