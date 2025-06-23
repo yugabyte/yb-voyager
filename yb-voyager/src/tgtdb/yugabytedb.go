@@ -24,6 +24,7 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -644,8 +645,15 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			// err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			err = &CopyError{
+				pgErr: pgerr,
+				batch: batch,
+			}
+
+			printAll(reflect.ValueOf(pgerr).Elem())
 		}
+
 		return res.RowsAffected(), err
 	}
 
@@ -655,6 +663,38 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
 	}
 	return res.RowsAffected(), err
+}
+
+type CopyError struct {
+	pgErr *pgconn.PgError
+	batch Batch
+}
+
+func (ce *CopyError) Error() string {
+	if ce.pgErr == nil {
+		return ""
+	}
+	return fmt.Sprintf("%s, %s in %s", ce.pgErr.Error(), ce.pgErr.Where, ce.batch.GetFilePath())
+}
+
+func (ce *CopyError) Unwrap() error {
+	return ce.pgErr
+}
+
+func printAll(v reflect.Value) {
+	s := v
+	typeOfT := s.Type()
+	for i := 0; i < s.NumField(); i++ {
+		f := s.Field(i)
+		fmt.Printf("%d: %s %s = %v\n", i,
+			typeOfT.Field(i).Name, f.Type(), f.Interface())
+
+		if f.Kind().String() == "struct" {
+			x1 := reflect.ValueOf(f.Interface())
+			fmt.Printf("type2: %s\n", x1)
+			printAll(x1)
+		}
+	}
 }
 
 // importBatchFastRecover is used to import a batch which was previously tried via fast path but failed

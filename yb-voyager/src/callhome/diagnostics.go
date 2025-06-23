@@ -18,6 +18,7 @@ package callhome
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
@@ -132,6 +134,7 @@ type AssessmentIssueCallhome struct {
 	ObjectType          string                 `json:"object_type"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
+
 func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
@@ -325,7 +328,7 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)
@@ -349,8 +352,30 @@ func SendPayload(payload *Payload) error {
 
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
-// Note: This is a temporary solution. A better solution would be to have
-// properly structured errors and only send the generic error message to callhome.
-func SanitizeErrorMsg(errorMsg string) string {
-	return strings.Split(errorMsg, ":")[0]
+// Accepts error type, returns empty string if error is nil.
+func SanitizeErrorMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	errorMsg := strings.Split(err.Error(), ":")[0]
+	additionalContext := getSpecificContextForError(err)
+	if additionalContext != "" {
+		errorMsg = fmt.Sprintf("%s; %s", errorMsg, additionalContext)
+	}
+	return errorMsg
+}
+
+func getSpecificContextForError(err error) string {
+	if err == nil {
+		return ""
+	}
+	utils.PrintAndLog("error type: %T", err)
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// If the error is a pgconn.PgError, we can return a more
+		// specific error message that includes the SQLSTATE code
+		return fmt.Sprintf("PGError: Code: %s;", pgErr.Code)
+	}
+	return ""
 }

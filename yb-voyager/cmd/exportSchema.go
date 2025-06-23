@@ -192,7 +192,7 @@ func exportSchema(cmd *cobra.Command) error {
 
 	utils.PrintAndLog("\nExported schema files created under directory: %s\n\n", filepath.Join(exportDir, "schema"))
 
-	packAndSendExportSchemaPayload(COMPLETE, "")
+	packAndSendExportSchemaPayload(COMPLETE, nil)
 
 	saveSourceDBConfInMSR()
 	setSchemaIsExported()
@@ -288,7 +288,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	return nil
 }
 
-func packAndSendExportSchemaPayload(status string, errorMsg string) {
+func packAndSendExportSchemaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

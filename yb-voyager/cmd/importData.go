@@ -192,11 +192,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE, "")
+		packAndSendImportDataPayload(COMPLETE, nil)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, "")
+		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -1115,7 +1115,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string, errorMsg string) {
+func packAndSendImportDataPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -1150,13 +1150,6 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 			}
 			return true, nil
 		})
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

@@ -116,11 +116,11 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%s", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETE, "")
+		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
 }
 
-func packAndSendAssessMigrationPayload(status string, errMsg string) {
+func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

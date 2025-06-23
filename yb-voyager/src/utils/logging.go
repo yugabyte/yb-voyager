@@ -16,10 +16,12 @@ limitations under the License.
 package utils
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/jackc/pgconn"
 	log "github.com/sirupsen/logrus"
 	"github.com/tebeka/atexit"
 )
@@ -30,10 +32,26 @@ var ErrExitErr error
 
 var ErrExit = func(formatString string, args ...interface{}) {
 	ErrExitErr = fmt.Errorf(formatString, args...)
+	_ = getSpecificContextForError(ErrExitErr)
 	formatString = strings.Replace(formatString, "%w", "%s", -1)
 	fmt.Fprintf(os.Stderr, formatString+"\n", args...)
 	log.Errorf(formatString+"\n", args...)
 	atexit.Exit(1)
+}
+
+func getSpecificContextForError(err error) string {
+	if err == nil {
+		return ""
+	}
+	PrintAndLog("error type: %T", err)
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// If the error is a pgconn.PgError, we can return a more
+		// specific error message that includes the SQLSTATE code
+		return fmt.Sprintf("PGError: Code: %s;", pgErr.Code)
+	}
+	return ""
 }
 
 func PrintAndLog(formatString string, args ...interface{}) {
