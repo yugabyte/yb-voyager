@@ -152,7 +152,7 @@ jobs:
 
       - name: "TEST: pg-dvdrental"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/dvdrental --run-via-config-file
+        run: migtests/scripts/run-test.sh pg/dvdrental
 
       - name: "TEST: pg-datatypes"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
@@ -255,4 +255,3 @@ jobs:
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
-      
