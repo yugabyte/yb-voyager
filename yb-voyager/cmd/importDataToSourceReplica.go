@@ -110,6 +110,7 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_REPLICA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
+		PayloadVersion:              callhome.IMPORT_DATA_TO_TARGET_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(tconf.Parallelism),
 		StartClean:       bool(startClean),
 		LiveWorkflowType: FALL_FORWARD,

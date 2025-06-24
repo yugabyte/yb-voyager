@@ -1131,11 +1131,15 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		EnableUpsert:     bool(tconf.EnableUpsert),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		PayloadVersion:              callhome.IMPORT_DATA_TO_TARGET_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:                int64(tconf.Parallelism),
+		StartClean:                  bool(startClean),
+		EnableUpsert:                bool(tconf.EnableUpsert),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:            getControlPlaneType(),
+		BatchSize:                   batchSizeInNumRows,
+		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 	}
 
 	//Getting the imported snapshot details
