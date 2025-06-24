@@ -32,6 +32,7 @@ import (
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -359,22 +360,37 @@ func SanitizeErrorMsg(err error) string {
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
 	additionalContext := getSpecificContextForError(err)
-	if additionalContext != "" {
-		errorMsg = fmt.Sprintf("%s; %s", errorMsg, additionalContext)
+	if additionalContext != nil {
+		var contextData string
+		contextJsonBytes, err := json.Marshal(additionalContext)
+		if err != nil {
+			// should not happen.
+			log.Errorf("callhome: error while marshalling additional context for error: %v", err)
+		}
+		contextData = string(contextJsonBytes)
+		errorMsg = fmt.Sprintf("%s: %s", errorMsg, contextData)
 	}
 	return errorMsg
 }
 
-func getSpecificContextForError(err error) string {
+func getSpecificContextForError(err error) map[string]string {
 	if err == nil {
-		return ""
+		return nil
+	}
+	context := make(map[string]string)
+
+	var ibe errs.ImportBatchError
+	if errors.As(err, &ibe) {
+		context["step"] = ibe.Step()
+		context["flow"] = ibe.Flow()
 	}
 
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) {
 		// If the error is a pgconn.PgError, we can return a more
 		// specific error message that includes the SQLSTATE code
-		return fmt.Sprintf("PGError: Code: %s;", pgErr.Code)
+		context["pg_error_code"] = pgErr.Code
 	}
-	return ""
+
+	return context
 }

@@ -931,3 +931,14 @@ func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
 
 	return common
 }
+
+func MapToString(m map[string]string) string {
+	if m == nil {
+		return "[]"
+	}
+	pairs := make([]string, 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	}
+	return "[" + strings.Join(pairs, ",") + "]"
+}

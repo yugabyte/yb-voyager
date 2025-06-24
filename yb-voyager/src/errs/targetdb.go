@@ -18,8 +18,8 @@ package errs
 
 import (
 	"fmt"
-	"strings"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -43,8 +43,16 @@ type ImportBatchError struct {
 	dbSpecificContext map[string]string
 }
 
+func (e ImportBatchError) Step() string {
+	return e.step
+}
+
+func (e ImportBatchError) Flow() string {
+	return e.flow
+}
+
 func (e ImportBatchError) Error() string {
-	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s (%s)", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), mapToString(e.dbSpecificContext))
+	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s %s", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), utils.MapToString(e.dbSpecificContext))
 }
 
 func (e ImportBatchError) Unwrap() error {
@@ -63,12 +71,4 @@ func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err 
 		step:              step,
 		dbSpecificContext: dbSpecificContext,
 	}
-}
-
-func mapToString(m map[string]string) string {
-	pairs := make([]string, 0, len(m))
-	for k, v := range m {
-		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
-	}
-	return strings.Join(pairs, ",")
 }
