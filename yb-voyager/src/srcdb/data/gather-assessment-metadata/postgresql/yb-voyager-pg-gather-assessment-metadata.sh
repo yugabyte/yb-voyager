@@ -44,7 +44,7 @@ Arguments:
 
 
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -57,7 +57,7 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
     exit 1
 elif [ "$#" -gt 6 ]; then
     echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
