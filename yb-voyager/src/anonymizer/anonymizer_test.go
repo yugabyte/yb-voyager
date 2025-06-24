@@ -23,9 +23,9 @@ func setupAnonymizer(t *testing.T) *SqlAnonymizer {
 	return a
 }
 
-// hasToken returns true if s contains a substring starting with "anon_"
-func hasToken(s string) bool {
-	return strings.Contains(s, "anon_")
+// hasToken returns true if s contains a substring starting with kind_
+func hasToken(s string, kind string) bool {
+	return strings.Contains(s, kind)
 }
 
 func TestAnonTableName(t *testing.T) {
@@ -41,7 +41,7 @@ func TestAnonTableName(t *testing.T) {
 	if strings.Contains(out, "foo") {
 		t.Errorf("expected 'foo' to be removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, TABLE_KIND_PREFIX) {
 		t.Errorf("expected an anonymized token for table, got: %s", out)
 	}
 }
@@ -59,7 +59,7 @@ func TestAnonColumnDef(t *testing.T) {
 	if strings.Contains(out, "secret_col") {
 		t.Errorf("expected 'secret_col' to be removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, COLUMN_KIND_PREFIX) {
 		t.Errorf("expected an anonymized token for column, got: %s", out)
 	}
 }
@@ -77,7 +77,7 @@ func TestAnonColumnRef(t *testing.T) {
 	if strings.Contains(out, "password") {
 		t.Errorf("expected 'password' to be removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, COLUMN_KIND_PREFIX) {
 		t.Errorf("expected an anonymized token for column ref, got: %s", out)
 	}
 }
@@ -95,7 +95,7 @@ func TestAnonResTarget(t *testing.T) {
 	if strings.Contains(out, "user_email") {
 		t.Errorf("expected 'user_email' to be removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, ALIAS_KIND_PREFIX) {
 		t.Errorf("expected an anonymized token for alias, got: %s", out)
 	}
 }
@@ -113,7 +113,7 @@ func TestAnonIndexStmt(t *testing.T) {
 	if strings.Contains(out, "idx_foo") || strings.Contains(out, "mytable") {
 		t.Errorf("expected 'idx_foo' and 'mytable' removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, INDEX_KIND_PREFIX) || !hasToken(out, TABLE_KIND_PREFIX) {
 		t.Errorf("expected anonymized tokens for index and table, got: %s", out)
 	}
 }
@@ -131,7 +131,7 @@ func TestAnonConstraint(t *testing.T) {
 	if strings.Contains(out, "pk_t") {
 		t.Errorf("expected 'pk_t' removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, CONSTRAINT_KIND_PREFIX) {
 		t.Errorf("expected an anonymized token for constraint, got: %s", out)
 	}
 }
@@ -149,7 +149,7 @@ func TestAnonAliasNode(t *testing.T) {
 	if strings.Contains(out, " orders ") || strings.Contains(out, " o ") {
 		t.Errorf("expected 'orders' and alias 'o' removed, got: %s", out)
 	}
-	if !hasToken(out) {
+	if !hasToken(out, ALIAS_KIND_PREFIX) {
 		t.Errorf("expected anonymized tokens for table and alias, got: %s", out)
 	}
 }
@@ -175,7 +175,12 @@ CREATE TABLE users (
 			t.Errorf("expected %q removed, but found in %s", orig, out)
 		}
 	}
-	if !hasToken(out) {
-		t.Errorf("expected at least one anonymized token, got: %s", out)
+
+	// check each prefix is present
+	wantPrefixes := []string{TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONSTRAINT_KIND_PREFIX}
+	for _, prefix := range wantPrefixes {
+		if !strings.Contains(out, prefix) {
+			t.Errorf("expected prefix %q in output, but not found:\n%s", prefix, out)
+		}
 	}
 }
