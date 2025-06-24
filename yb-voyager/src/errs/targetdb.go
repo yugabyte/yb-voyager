@@ -32,6 +32,11 @@ const (
 	IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH              = "read_line_batch"
 	IMPORT_BATCH_ERROR_STEP_COMMIT_TXN                   = "commit_txn"
 	IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN                 = "rollback_txn"
+
+	// flows
+	IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL  = "copy_normal"
+	IMPORT_BATCH_ERROR_FLOW_COPY_FAST    = "copy_fast"
+	IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER = "copy_recover"
 )
 
 type ImportBatchError struct {

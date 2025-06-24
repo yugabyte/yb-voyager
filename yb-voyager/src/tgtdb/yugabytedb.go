@@ -572,7 +572,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					batch.GetTableName(),
 					batch.GetFilePath(),
 					fmt.Errorf("%w (while processing %s)", err2, err),
-					"",
+					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
 					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN,
 					nil)
 			}
@@ -584,7 +584,7 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 					batch.GetTableName(),
 					batch.GetFilePath(),
 					err2,
-					"",
+					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
 					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN,
 					nil)
 			}
@@ -627,7 +627,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH,
 			nil)
 		return 0, err
@@ -645,7 +645,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
 			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED,
 			nil)
 		return 0, err
@@ -678,7 +678,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
 			errs.IMPORT_BATCH_ERROR_STEP_COPY,
 			dbContext)
 
@@ -692,7 +692,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
 			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY,
 			nil)
 	}
@@ -709,7 +709,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED,
 			nil)
 		return 0, err
@@ -726,7 +726,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH,
 			nil)
 		return 0, err
@@ -748,7 +748,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 				batch.GetTableName(),
 				batch.GetFilePath(),
 				err,
-				"",
+				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH,
 				nil)
 			return 0, err
@@ -802,7 +802,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 				batch.GetTableName(),
 				batch.GetFilePath(),
 				err,
-				"",
+				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 				errs.IMPORT_BATCH_ERROR_STEP_COPY,
 				dbContext)
 
@@ -834,7 +834,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 			batch.GetTableName(),
 			batch.GetFilePath(),
 			err,
-			"",
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
 			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY,
 			nil)
 		return 0, err
