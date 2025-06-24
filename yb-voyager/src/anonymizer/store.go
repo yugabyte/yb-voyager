@@ -54,13 +54,14 @@ func (s *AnonymizerStore) Close() error {
 
 // LookupOrCreate returns the anonymized token for 'orig',
 // creating and persisting a new one if necessary.
-func (s *AnonymizerStore) LookupOrCreate(orig string) (string, error) {
+func (s *AnonymizerStore) LookupOrCreate(kind, orig string) (string, error) {
 	if orig == "" {
 		return "", nil
 	}
 
-	query := fmt.Sprintf(`SELECT anonymized_token FROM %s WHERE original_token = '%s'`, ANONYMIZED_TOKENS_TABLE, orig)
+	// kind = lo.Ternary(kind != "", kind, string(DEFAULT_KIND_PREFIX))
 
+	query := fmt.Sprintf(`SELECT anonymized_token FROM %s WHERE original_token = '%s'`, ANONYMIZED_TOKENS_TABLE, orig)
 	// check if mapping exists
 	var existing string
 	err := s.db.QueryRow(query).Scan(&existing)
@@ -73,7 +74,7 @@ func (s *AnonymizerStore) LookupOrCreate(orig string) (string, error) {
 	}
 
 	// If not then generate a fresh unique token
-	newToken, err := generateAnonToken()
+	newToken, err := generateAnonToken(kind)
 	if err != nil {
 		return "", fmt.Errorf("generating anon token: %w", err)
 	}
@@ -88,13 +89,13 @@ func (s *AnonymizerStore) LookupOrCreate(orig string) (string, error) {
 	return newToken, nil
 }
 
-// generateAnonToken makes an unpredictable 16-hex-char string, prefixed anon_
-// e.g. "anon_a3b9f1c2d4e5f678"
-func generateAnonToken() (string, error) {
-	const numBytes = 8
+// generateAnonToken makes an unpredictable 16-hex-char string, prefixed kind
+// e.g. "table_a3b9f1c2d4e5f678"
+func generateAnonToken(kind string) (string, error) {
+	const numBytes = 4 // 4 bytes = 8 hex chars (16^8 = 16 million possibilities)
 	b := make([]byte, numBytes)
 	if _, err := rand.Read(b); err != nil {
 		return "", err
 	}
-	return "anon_" + hex.EncodeToString(b), nil
+	return kind + hex.EncodeToString(b), nil
 }
