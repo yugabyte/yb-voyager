@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexParsingWhereClauses(t *testing.T) {
+func TestIndexParsingWhereClausePredicates(t *testing.T) {
 	sqls := []string{
 		`CREATE INDEX idx_simple ON public.test (status) WHERE status <> 'active';`,
 		`CREATE INDEX idx_null ON public.test (status) WHERE status IS NOT NULL;`,
@@ -45,128 +45,130 @@ func TestIndexParsingWhereClauses(t *testing.T) {
 		`CREATE INDEX idx_name1 ON public.users USING btree (name) WHERE name = '{afsd}'::test_vale;`,
 		`CREATE INDEX idx_name_exclude ON users(name) WHERE name NOT LIKE 'Test%';`,
 		`CREATE INDEX indx341 ON public.test_most_freq USING btree (id) WHERE (status = ANY (ARRAY['PROAO'::text, 'dfsad'::text]));`,
+		`CREATE INDEX indx341 ON public.test_most_freq USING btree (id);`,
 	}
-	expectedWhereClauses := map[string][]WhereClause{
-		sqls[0]: []WhereClause{
-			WhereClause{
+	expectedWhereClausePredicates := map[string][]WhereClausePredicate{
+		sqls[0]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "active",
 				Operator: "<>",
 			},
 		},
-		sqls[1]: []WhereClause{
-			WhereClause{
+		sqls[1]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:      "status",
 				ColIsNotNULL: true,
 				ColIsNULL:    false,
 			},
 		},
-		sqls[2]: []WhereClause{
-			WhereClause{
+		sqls[2]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "active",
 				Operator: "<>",
 			},
-			WhereClause{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "inactive",
 				Operator: "=",
 			},
-			WhereClause{
+			WhereClausePredicate{
 				ColName:      "status",
 				ColIsNULL:    true,
 				ColIsNotNULL: false,
 			},
 		},
-		sqls[3]: []WhereClause{
-			WhereClause{
+		sqls[3]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "id",
 				Value:    "11",
 				Operator: "<>",
 			},
-			WhereClause{
+			WhereClausePredicate{
 				ColName:  "employed",
 				Value:    "t",
 				Operator: "<>",
 			},
 		},
-		sqls[4]: []WhereClause{
-			WhereClause{
+		sqls[4]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName: "employed",
 			},
 		},
-		sqls[5]: []WhereClause{
-			WhereClause{
+		sqls[5]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "client_ip",
 				Value:    "192.168.100.0",
 				Operator: ">",
 			},
-			WhereClause{
+			WhereClausePredicate{
 				ColName:  "client_ip",
 				Value:    "192.168.100.255",
 				Operator: "<",
 			},
 		},
-		sqls[6]: []WhereClause{
-			WhereClause{
+		sqls[6]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName: "billed",
 				Value:   "f",
 			},
 		},
-		sqls[7]: []WhereClause{
-			WhereClause{
+		sqls[7]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "PROGRESS",
 				Operator: "=",
 			},
-			WhereClause{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "DONE",
 				Operator: "=",
 			},
 		},
-		sqls[8]: []WhereClause{
-			WhereClause{
+		sqls[8]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "status",
 				Value:    "PROGRESS",
 				Operator: "<>",
 			},
 		},
-		sqls[9]: []WhereClause{
-			WhereClause{
+		sqls[9]: []WhereClausePredicate{
+			WhereClausePredicate{
 				ColName:  "name",
 				Value:    "",
 				Operator: "<>",
 			},
 		},
-		sqls[10]: []WhereClause{
-			WhereClause{
-				ColName: "name",
-				Value: "{afsd}",
+		sqls[10]: []WhereClausePredicate{
+			WhereClausePredicate{
+				ColName:  "name",
+				Value:    "{afsd}",
 				Operator: "=",
 			},
 		},
-		sqls[11]: []WhereClause{
-			WhereClause{
-				ColName: "name",
-				Value: "Test%",
+		sqls[11]: []WhereClausePredicate{
+			WhereClausePredicate{
+				ColName:  "name",
+				Value:    "Test%",
 				Operator: "!~~",
 			},
 		},
-		sqls[12]: []WhereClause{
-			WhereClause{
-				ColName: "status",
-				Value: "PROAO",
+		sqls[12]: []WhereClausePredicate{
+			WhereClausePredicate{
+				ColName:  "status",
+				Value:    "PROAO",
 				Operator: "=",
 			},
-			WhereClause{
-				ColName: "status",
-				Value: "dfsad",
+			WhereClausePredicate{
+				ColName:  "status",
+				Value:    "dfsad",
 				Operator: "=",
 			},
 		},
+		sqls[13]: []WhereClausePredicate{},
 	}
-	for sql, expClauses := range expectedWhereClauses {
+	for sql, expClauses := range expectedWhereClausePredicates {
 		tree, err := pg_query.Parse(sql)
 		assert.NoError(t, err)
 
@@ -174,12 +176,11 @@ func TestIndexParsingWhereClauses(t *testing.T) {
 		indexNode, ok := getCreateIndexStmtNode(tree)
 		assert.True(t, ok)
 
-		clauses := make([]WhereClause, 0)
-		ip.parseWhereClause(indexNode.IndexStmt.WhereClause, &clauses)
+		clauses := ip.parseWhereClause(indexNode.IndexStmt.WhereClause)
 
 		assert.Equal(t, len(expClauses), len(clauses))
 		for _, expClause := range expClauses {
-			found := slices.ContainsFunc(clauses, func(clause WhereClause) bool {
+			found := slices.ContainsFunc(clauses, func(clause WhereClausePredicate) bool {
 				return cmp.Equal(expClause, clause)
 			})
 			assert.True(t, found, "Expected clause not found: %v in statement: %s and actual clauses: %s", expClause, sql, clauses)
