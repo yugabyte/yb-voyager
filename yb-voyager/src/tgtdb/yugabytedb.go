@@ -568,13 +568,25 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 			err2 = tx.Rollback(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
+				err = errs.NewImportBatchError(
+					batch.GetTableName(),
+					batch.GetFilePath(),
+					fmt.Errorf("rollback txn: %w (while processing %s)", err2, err),
+					"",
+					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN,
+					nil)
 			}
 		} else {
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = fmt.Errorf("commit txn: %w", err2)
+				err = errs.NewImportBatchError(
+					batch.GetTableName(),
+					batch.GetFilePath(),
+					fmt.Errorf("commit txn: %w", err2),
+					"",
+					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN,
+					nil)
 			}
 		}
 	}()
@@ -611,6 +623,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 1. Open the batch file
 	file, err := batch.Open()
 	if err != nil {
+		err = errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			"",
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH,
+			nil)
 		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
 	}
 	defer file.Close()
@@ -622,6 +641,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
+		err = errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			"",
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED,
+			nil)
 		return 0, err
 	}
 	if alreadyImported {

@@ -25,8 +25,12 @@ import (
 
 const (
 	// steps
-	IMPORT_BATCH_ERROR_STEP_COPY           = "copy"
-	IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY = "metadata_entry"
+	IMPORT_BATCH_ERROR_STEP_COPY                         = "copy"
+	IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY               = "metadata_entry"
+	IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED = "check_batch_already_imported"
+	IMPORT_BATCH_ERROR_STEP_OPEN_BATCH                   = "open_batch"
+	IMPORT_BATCH_ERROR_STEP_COMMIT_TXN                   = "commit_txn"
+	IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN                 = "rollback_txn"
 )
 
 type ImportBatchError struct {
