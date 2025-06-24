@@ -68,6 +68,11 @@ jobs:
       run: df -h /
 
     - name: Run Integration Tests
+      env: 
+        YB_VERSION: "2024.2.3.1-b3" # Update this to the desired YugabyteDB version
+        PG_VERSION: "14"
+        ORACLE_VERSION: "21"
+        MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
         go test -v ./... -tags 'integration'
@@ -75,6 +80,11 @@ jobs:
     # Note: Below go tests use a voyager binary to call voyager commands
     # Hence its important to ensure the voyager binary built is using the changes in the PR branch - `./install-yb-voyager --install-from-local-source`
     - name: Run Integration Tests (executing voyager commands)
+      env: 
+        YB_VERSION: "2024.2.3.1-b3" # Update this to the desired YugabyteDB version
+        PG_VERSION: "14"
+        ORACLE_VERSION: "21"
+        MYSQL_VERSION: "8.4"
       run: |
         cd yb-voyager
         go test -v ./... -tags 'integration_voyager_command'
