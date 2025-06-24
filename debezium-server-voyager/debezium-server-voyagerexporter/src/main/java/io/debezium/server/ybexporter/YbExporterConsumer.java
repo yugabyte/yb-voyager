@@ -40,6 +40,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
     String snapshotMode;
     String dataDir;
+    String exportDir;
     String sourceType;
     String exporterRole;
     private Map<String, Table> tableMap = new HashMap<>();
@@ -68,6 +69,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         snapshotMode = config.getOptionalValue("debezium.source.snapshot.mode", String.class).orElse("");
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+        exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
         
         // Acquire lock file at startup
         acquireLockFile();
@@ -148,7 +150,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * Fails if already locked.
      */
     private void acquireLockFile() {
-        lockFile = new File(dataDir, String.format(".%s.lck", exporterRole));
+        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
         if (lockFile.exists()) {
             //read the lock and check the pid if its running
             readLockFileAndCheckPid();
