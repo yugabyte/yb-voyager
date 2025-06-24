@@ -76,6 +76,14 @@ func init() {
 	importDataStatusCmd.Flags().MarkHidden("output-format") //confirm this if should be hidden or not
 }
 
+const (
+	STATUS_MIGRATING        = "MIGRATING"
+	STATUS_DONE             = "DONE"
+	STATUS_DONE_WITH_ERRORS = "DONE_WITH_ERRORS"
+	STATUS_NOT_STARTED      = "NOT_STARTED"
+	STATUS_STREAMING        = "STREAMING"
+)
+
 // totalCount and importedCount store row-count for import data command and byte-count for import data file command.
 type tableMigStatusOutputRow struct {
 	TableName          string  `json:"table_name"`
@@ -83,6 +91,7 @@ type tableMigStatusOutputRow struct {
 	Status             string  `json:"status"`
 	TotalCount         int64   `json:"total_count"`
 	ImportedCount      int64   `json:"imported_count"`
+	ErroredCount       int64   `json:"errored_count"`
 	PercentageComplete float64 `json:"percentage_complete"`
 }
 
@@ -107,24 +116,28 @@ func runImportDataStatusCmd() error {
 		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil
 	}
+
 	color.Cyan(importDataStatusMsg)
 	uiTable := uitable.New()
 	for i, row := range rows {
 		perc := fmt.Sprintf("%.2f", row.PercentageComplete)
 		if reportProgressInBytes {
 			if i == 0 {
-				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "PERCENTAGE")
+				addHeader(uiTable, "TABLE", "FILE", "STATUS", "TOTAL SIZE", "IMPORTED SIZE", "ERRORED SIZE", "PERCENTAGE")
 			}
 			// case of importDataFileCommand where file size is available not row counts
 			totalCount := utils.HumanReadableByteCount(row.TotalCount)
 			importedCount := utils.HumanReadableByteCount(row.ImportedCount)
-			uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, perc)
+			erroredCount := utils.HumanReadableByteCount(row.ErroredCount)
+
+			uiTable.AddRow(row.TableName, row.FileName, row.Status, totalCount, importedCount, erroredCount, perc)
+
 		} else {
 			if i == 0 {
-				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "PERCENTAGE")
+				addHeader(uiTable, "TABLE", "STATUS", "TOTAL ROWS", "IMPORTED ROWS", "ERRORED ROWS", "PERCENTAGE")
 			}
 			// case of importData where row counts is available
-			uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, perc)
+			uiTable.AddRow(row.TableName, row.Status, row.TotalCount, row.ImportedCount, row.ErroredCount, perc)
 		}
 	}
 
@@ -186,8 +199,10 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
 		if importerRole == IMPORT_FILE_ROLE {
-			table = append(table, row)
+			outputRows[row.TableName] = row
 		} else {
+			// In import-data, for partitioned tables, we may have multiple data files for the same table.
+			// We aggregate the counts for such tables.
 			var existingRow *tableMigStatusOutputRow
 			var found bool
 			existingRow, found = outputRows[row.TableName]
@@ -198,25 +213,29 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			existingRow.TableName = row.TableName
 			existingRow.TotalCount += row.TotalCount
 			existingRow.ImportedCount += row.ImportedCount
-
+			existingRow.ErroredCount += row.ErroredCount
 		}
 	}
 
 	for _, row := range outputRows {
-		row.PercentageComplete = float64(row.ImportedCount) * 100.0 / float64(row.TotalCount)
+		row.PercentageComplete = (float64(row.ImportedCount) + float64(row.ErroredCount)) * 100.0 / float64(row.TotalCount)
 		if row.PercentageComplete == 100 {
-			row.Status = "DONE"
+			if row.ErroredCount > 0 {
+				row.Status = STATUS_DONE_WITH_ERRORS
+			} else {
+				row.Status = STATUS_DONE
+			}
 		} else if row.PercentageComplete == 0 {
-			row.Status = "NOT_STARTED"
+			row.Status = STATUS_NOT_STARTED
 		} else {
-			row.Status = "MIGRATING"
+			row.Status = STATUS_MIGRATING
 		}
 		table = append(table, row)
 	}
 
 	// First sort by status and then by table-name.
 	sort.Slice(table, func(i, j int) bool {
-		ordStates := map[string]int{"MIGRATING": 1, "DONE": 2, "NOT STARTED": 3, "STREAMING": 4}
+		ordStates := map[string]int{STATUS_MIGRATING: 1, STATUS_DONE: 2, STATUS_DONE_WITH_ERRORS: 3, STATUS_NOT_STARTED: 4, STATUS_STREAMING: 5}
 		row1 := table[i]
 		row2 := table[j]
 		if row1.Status == row2.Status {
@@ -234,7 +253,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 }
 
 func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState) (*tableMigStatusOutputRow, error) {
-	var totalCount, importedCount int64
+	var totalCount, importedCount, erroredCount int64
 	var err error
 	var perc float64
 	var status string
@@ -243,34 +262,40 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	if err != nil {
 		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
 	}
+
 	if reportProgressInBytes {
 		totalCount = dataFile.FileSize
 		importedCount, err = state.GetImportedByteCount(dataFile.FilePath, dataFileNt)
+		if err != nil {
+			return nil, fmt.Errorf("compute imported data size: %w", err)
+		}
+		erroredCount, err = state.GetErroredByteCount(dataFile.FilePath, dataFileNt)
+		if err != nil {
+			return nil, fmt.Errorf("compute errored data size: %w", err)
+		}
 	} else {
 		totalCount = dataFile.RowCount
 		importedCount, err = state.GetImportedRowCount(dataFile.FilePath, dataFileNt)
+		if err != nil {
+			return nil, fmt.Errorf("compute imported data size: %w", err)
+		}
+		erroredCount, err = state.GetErroredRowCount(dataFile.FilePath, dataFileNt)
+		if err != nil {
+			return nil, fmt.Errorf("compute errored data size: %w", err)
+		}
+	}
 
-	}
-	if err != nil {
-		return nil, fmt.Errorf("compute imported data size: %w", err)
-	}
 	if totalCount != 0 {
 		perc = float64(importedCount) * 100.0 / float64(totalCount)
 	}
-	switch true {
-	case importedCount == totalCount:
-		status = "DONE"
-	case importedCount == 0:
-		status = "NOT STARTED"
-	default:
-		status = "MIGRATING"
-	}
+
 	row := &tableMigStatusOutputRow{
 		TableName:          dataFileNt.ForKey(),
 		FileName:           path.Base(dataFile.FilePath),
 		Status:             status,
 		TotalCount:         totalCount,
 		ImportedCount:      importedCount,
+		ErroredCount:       erroredCount,
 		PercentageComplete: perc,
 	}
 	return row, nil

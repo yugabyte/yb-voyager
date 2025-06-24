@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"testing"
 	"time"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -22,6 +23,17 @@ func CreateTempExportDir() string {
 	return exportDir
 }
 
+func CreateBackupDir(t *testing.T) string {
+	backupDir, err := os.MkdirTemp("", "backup-export-dir-*")
+	FatalIfError(t, err, "Failed to create backup directory")
+	t.Cleanup(func() {
+		if err := os.RemoveAll(backupDir); err != nil {
+			t.Fatalf("Failed to remove backup directory: %v", err)
+		}
+	})
+	return backupDir
+}
+
 func RemoveTempExportDir(exportDir string) {
 	// Remove the temporary directory
 	err := os.RemoveAll(exportDir)
@@ -34,13 +46,19 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 	cmdName string, cmdArgs []string, doDuringCmd func(), async bool) (*exec.Cmd, error) {
 
 	fmt.Printf("Running voyager command: %s %s\n", cmdName, strings.Join(cmdArgs, " "))
-	// Gather DB connection info.
-	host, port, err := container.GetHostPort()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get host port for container: %v", err)
-	}
+	var host string
+	var port int
+	var err error
+	var config testcontainers.ContainerConfig
+	if container != nil {
+		// Gather DB connection info.
+		host, port, err = container.GetHostPort()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get host port for container: %v", err)
+		}
 
-	config := container.GetConfig()
+		config = container.GetConfig()
+	}
 	var connectionArgs []string
 	if isSourceCmd(cmdName) {
 		connectionArgs = []string{
@@ -88,6 +106,7 @@ func RunVoyagerCommand(container testcontainers.TestContainer,
 
 	// If we want synchronous behavior, wait for the command to finish.
 	if !async {
+		// cmd.Wait() err only tells you that the child exited with a non-zero code; not the actual error.
 		if err := cmd.Wait(); err != nil {
 			return nil, fmt.Errorf("voyager command exited with error: %w", err)
 		}

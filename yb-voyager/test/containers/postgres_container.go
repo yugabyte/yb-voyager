@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -76,6 +77,13 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		},
 	}
 
+	if pg.ContainerConfig.ForLive {
+		req.Cmd = []string{
+			"postgres",
+			"-c", "wal_level=logical", // <-- set wal_level,
+		}
+	}
+
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
@@ -90,6 +98,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
+
 	return nil
 }
 
@@ -177,6 +186,26 @@ func (pg *PostgresContainer) GetConnection() (*sql.DB, error) {
 	return conn, nil
 }
 
+func (pg *PostgresContainer) GetVersion() (string, error) {
+	if pg == nil {
+		return "", fmt.Errorf("postgres container is not started: nil")
+	}
+
+	conn, err := pg.GetConnection()
+	if err != nil {
+		return "", fmt.Errorf("failed to get connection for postgres version: %w", err)
+	}
+	defer conn.Close()
+
+	var version string
+	err = conn.QueryRow("SELECT version()").Scan(&version)
+	if err != nil {
+		return "", fmt.Errorf("failed to query postgres version: %w", err)
+	}
+
+	return version, nil
+}
+
 func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 	if pg == nil {
 		utils.ErrExit("postgres container is not started: nil")
@@ -195,4 +224,22 @@ func (pg *PostgresContainer) ExecuteSqls(sqls ...string) {
 			utils.ErrExit("failed to execute sql '%s': %w", sqlStmt, err)
 		}
 	}
+}
+
+func (pg *PostgresContainer) Query(sql string, args ...interface{}) (*sql.Rows, error) {
+	if pg == nil {
+		utils.ErrExit("postgres container is not started: nil")
+	}
+
+	conn, err := pg.GetConnection()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get connection for postgres query: %w", err)
+	}
+
+	rows, err := conn.Query(sql, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to execute query '%s': %w", sql, err)
+	}
+
+	return rows, nil
 }

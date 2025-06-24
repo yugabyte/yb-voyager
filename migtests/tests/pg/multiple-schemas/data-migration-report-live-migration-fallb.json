@@ -10,7 +10,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"ext_test\"",
@@ -23,7 +24,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"tt\"",
@@ -36,7 +38,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 4,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"tt\"",
@@ -49,7 +52,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 1,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"audit\"",
@@ -62,7 +66,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"audit\"",
@@ -75,7 +80,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"recipients\"",
@@ -88,7 +94,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 2
+    "final_row_count": 2,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"recipients\"",
@@ -101,7 +108,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 2
+    "final_row_count": 2,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"session_log\"",
@@ -114,7 +122,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 0
+    "final_row_count": 0,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "public.\"session_log\"",
@@ -127,7 +136,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 0
+    "final_row_count": 0,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"ext_test\"",
@@ -140,7 +150,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"ext_test\"",
@@ -153,7 +164,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 1
+    "final_row_count": 1,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"tt\"",
@@ -166,7 +178,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"tt\"",
@@ -179,7 +192,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"audit\"",
@@ -192,7 +206,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"audit\"",
@@ -205,7 +220,8 @@
     "exported_inserts": 1,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 6
+    "final_row_count": 6,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"recipients\"",
@@ -218,7 +234,8 @@
     "exported_inserts": 2,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 3
+    "final_row_count": 3,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"recipients\"",
@@ -231,7 +248,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 3
+    "final_row_count": 3,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"session_log\"",
@@ -244,7 +262,8 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 0
+    "final_row_count": 0,
+    "errored_imported_snapshot_rows": 0
     },
     {
     "table_name": "schema2.\"session_log\"",
@@ -257,6 +276,7 @@
     "exported_inserts": 0,
     "exported_updates": 0,
     "exported_deletes": 0,
-    "final_row_count": 0
+    "final_row_count": 0,
+    "errored_imported_snapshot_rows": 0
     }
 ]
