@@ -787,12 +787,6 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 				continue
 			}
 
-			// var pgerr *pgconn.PgError
-			// if errors.As(err, &pgerr) {
-			// 	err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
-			// }
-			// return rowsAffected + rowsIgnored, err
-
 			dbContext := map[string]string{}
 			var pgerr *pgconn.PgError
 			if errors.As(err, &pgerr) {
