@@ -21,7 +21,6 @@ import (
 	"math/rand"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/jackc/pgx/v4"
 	log "github.com/sirupsen/logrus"
@@ -154,18 +153,18 @@ func (pool *ConnectionPool) WithConn(fn func(*pgx.Conn) (bool, error)) error {
 
 	for retry {
 		var conn *pgx.Conn
-		var gotIt bool
-		if pool.disableThrottling {
-			conn = <-pool.conns
-		} else {
-			conn, gotIt = <-pool.conns
-			if !gotIt {
-				// The following sleep is intentional. It is added so that voyager does not
-				// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
-				time.Sleep(2 * time.Second)
-				continue
-			}
-		}
+		// var gotIt bool
+		// if pool.disableThrottling {
+		conn = <-pool.conns
+		// } else {
+		// 	conn, gotIt = <-pool.conns
+		// 	if !gotIt {
+		// 		// The following sleep is intentional. It is added so that voyager does not
+		// 		// overwhelm the database. See the description in PR https://github.com/yugabyte/yb-voyager/pull/920 .
+		// 		time.Sleep(2 * time.Second)
+		// 		continue
+		// 	}
+		// }
 		if conn == nil {
 			conn, err = pool.createNewConnection()
 			if err != nil {
@@ -303,7 +302,7 @@ func (pool *ConnectionPool) RemoveConnectionsForHosts(servers []string) error {
 	for i := 0; i < size; i++ {
 		conn, gotIt = <-pool.conns
 		if !gotIt {
-			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy 
+			//breaking in this case we if not able to get a conn from the pool it determines all the connections are busy
 			//or pool doesn't have connections
 			break
 		}
