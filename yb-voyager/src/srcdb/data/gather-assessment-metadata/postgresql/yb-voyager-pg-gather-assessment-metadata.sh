@@ -188,7 +188,7 @@ main() {
 
     null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
 FROM pg_stat_all_tables pgst1 
-WHERE schemaname = ANY(ARRAY['public','test_schema1'])
+WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
   AND NOT EXISTS (
     SELECT 1 
     FROM pg_stat_all_tables pgst2 
@@ -196,7 +196,7 @@ WHERE schemaname = ANY(ARRAY['public','test_schema1'])
       AND pgst2.last_analyze IS NOT NULL
   );")
 
-    if (( ${#null_analyze_schemas[@]} > 0 )); then
+    if [[ -n "$null_analyze_schemas" ]]; then
         echo ""
         echo "The following schemas do not have ANALYZE statistics:"
         for s in "${null_analyze_schemas[@]}"; do
