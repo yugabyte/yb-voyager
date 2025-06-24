@@ -44,6 +44,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -642,10 +643,18 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
+		dbContext := map[string]string{}
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%w (%s)", err, pgerr.Where)
+			dbContext["where"] = pgerr.Where
 		}
+		err = errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			"",
+			errs.IMPORT_BATCH_ERROR_STEP_COPY,
+			dbContext)
 
 		return res.RowsAffected(), err
 	}
@@ -653,7 +662,13 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 5. Record the import in the DB.
 	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
 	if err != nil {
-		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+		err = errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			"",
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY,
+			nil)
 	}
 	return res.RowsAffected(), err
 }
