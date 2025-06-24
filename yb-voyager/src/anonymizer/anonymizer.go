@@ -7,6 +7,16 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
+const (
+	SCHEMA_KIND_PREFIX     = "schema_"
+	TABLE_KIND_PREFIX      = "table_"
+	COLUMN_KIND_PREFIX     = "col_"
+	INDEX_KIND_PREFIX      = "index_"
+	CONSTRAINT_KIND_PREFIX = "constraint_"
+	ALIAS_KIND_PREFIX      = "alias_"
+	DEFAULT_KIND_PREFIX    = "anon_" // fallback for any other identifiers
+)
+
 type Anonymizer interface {
 	Anonymize(input string) (string, error)
 }
@@ -70,12 +80,12 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("cast to RangeVar: %w", err)
 		}
 		if rv.Schemaname != "" {
-			rv.Schemaname, err = a.store.LookupOrCreate(rv.Schemaname)
+			rv.Schemaname, err = a.store.LookupOrCreate(SCHEMA_KIND_PREFIX, rv.Schemaname)
 			if err != nil {
 				return fmt.Errorf("anon schema: %w", err)
 			}
 		}
-		rv.Relname, err = a.store.LookupOrCreate(rv.Relname)
+		rv.Relname, err = a.store.LookupOrCreate(TABLE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return fmt.Errorf("anon table: %w", err)
 		}
@@ -85,7 +95,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 		if !ok {
 			return fmt.Errorf("expected ColumnDef, got %T", msg.Interface())
 		}
-		cd.Colname, err = a.store.LookupOrCreate(cd.Colname)
+		cd.Colname, err = a.store.LookupOrCreate(COLUMN_KIND_PREFIX, cd.Colname)
 		if err != nil {
 			return fmt.Errorf("anon coldef: %w", err)
 		}
@@ -107,7 +117,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 				continue
 			}
 			// Lookup (or create) the token
-			tok, err := a.store.LookupOrCreate(orig)
+			tok, err := a.store.LookupOrCreate(COLUMN_KIND_PREFIX, orig)
 			if err != nil {
 				return fmt.Errorf("anon colref[%d]=%q lookup: %w", i, orig, err)
 			}
@@ -120,7 +130,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
 		if rt.Name != "" {
-			rt.Name, err = a.store.LookupOrCreate(rt.Name)
+			rt.Name, err = a.store.LookupOrCreate(ALIAS_KIND_PREFIX, rt.Name)
 			if err != nil {
 				return fmt.Errorf("anon alias: %w", err)
 			}
@@ -133,13 +143,13 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 		}
 		// index name
 		if idx.Idxname != "" {
-			idx.Idxname, err = a.store.LookupOrCreate(idx.Idxname)
+			idx.Idxname, err = a.store.LookupOrCreate(INDEX_KIND_PREFIX, idx.Idxname)
 			if err != nil {
 				return fmt.Errorf("anon idxname: %w", err)
 			}
 		}
 		// table name
-		idx.Relation.Relname, err = a.store.LookupOrCreate(idx.Relation.Relname)
+		idx.Relation.Relname, err = a.store.LookupOrCreate(TABLE_KIND_PREFIX, idx.Relation.Relname)
 		if err != nil {
 			return fmt.Errorf("anon idx table: %w", err)
 		}
@@ -151,7 +161,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 			return err
 		}
 		if ie.Name != "" {
-			ie.Name, err = a.store.LookupOrCreate(ie.Name)
+			ie.Name, err = a.store.LookupOrCreate(COLUMN_KIND_PREFIX, ie.Name)
 			if err != nil {
 				return fmt.Errorf("anon index column %q: %w", ie.Name, err)
 			}
@@ -163,7 +173,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 			return err
 		}
 		if cons.Conname != "" {
-			cons.Conname, err = a.store.LookupOrCreate(cons.Conname)
+			cons.Conname, err = a.store.LookupOrCreate(CONSTRAINT_KIND_PREFIX, cons.Conname)
 			if err != nil {
 				return fmt.Errorf("anon constraint: %w", err)
 			}
@@ -175,7 +185,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("expected Alias, got %T", msg.Interface())
 		}
 		if alias.Aliasname != "" {
-			alias.Aliasname, err = a.store.LookupOrCreate(alias.Aliasname)
+			alias.Aliasname, err = a.store.LookupOrCreate(ALIAS_KIND_PREFIX, alias.Aliasname)
 			if err != nil {
 				return fmt.Errorf("anon aliasnode: %w", err)
 			}
