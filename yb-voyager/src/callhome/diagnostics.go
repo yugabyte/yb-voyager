@@ -249,6 +249,7 @@ type ImportDataPhasePayload struct {
 	OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
 	EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
 	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
 	StartClean                  bool   `json:"start_clean"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`

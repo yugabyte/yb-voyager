@@ -227,6 +227,7 @@ func TestCallhomeStructs(t *testing.T) {
 				OnPrimaryKeyConflictAction string `json:"on_primary_key_conflict_action"`
 				AdaptiveParallelismMax     int64  `json:"adaptive_parallelism_max"`
 				EnableAdaptiveParallelism  bool   `json:"enable_adaptive_parallelism"`
+				ErrorPolicySnapshot        string `json:"error_policy_snapshot"`
 			}{},
 		},
 		{

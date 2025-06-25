@@ -1141,6 +1141,7 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 	}
 
 	//Getting the imported snapshot details
