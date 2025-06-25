@@ -238,10 +238,10 @@ type ImportSchemaPhasePayload struct {
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 */
-var IMPORT_DATA_TO_TARGET_CALLHOME_PAYLOAD_VERSION = "1.0"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type ImportDataPhasePayload struct {
-	PayloadVersion               string `json:"payload_version"`
+	PayloadVersion              string `json:"payload_version"`
 	BatchSize                   int64  `json:"batch_size"`
 	ParallelJobs                int64  `json:"parallel_jobs"`
 	TotalRows                   int64  `json:"total_rows_imported"`
