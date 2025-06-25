@@ -1845,6 +1845,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
 		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
 		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
+		"dict":                                   dict,
 	}
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
@@ -1870,6 +1871,21 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func dict(values ...interface{}) map[string]interface{} {
+	if len(values)%2 != 0 {
+		panic("invalid dict call: uneven key-value pairs")
+	}
+	m := make(map[string]interface{}, len(values)/2)
+	for i := 0; i < len(values); i += 2 {
+		key, ok := values[i].(string)
+		if !ok {
+			panic("dict keys must be strings")
+		}
+		m[key] = values[i+1]
+	}
+	return m
 }
 
 func filterOutPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
