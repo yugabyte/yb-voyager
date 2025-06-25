@@ -26,7 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIndexParsingWhereClausePredicates(t *testing.T) {
+func TestParsingIndexWhereClausePredicates(t *testing.T) {
 	sqls := []string{
 		`CREATE INDEX idx_simple ON public.test (status) WHERE status <> 'active';`,
 		`CREATE INDEX idx_null ON public.test (status) WHERE status IS NOT NULL;`,
