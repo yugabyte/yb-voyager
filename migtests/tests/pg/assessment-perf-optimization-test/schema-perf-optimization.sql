@@ -262,12 +262,12 @@ CREATE TABLE test.test_mostcomm_status (
     status text
 );
 INSERT INTO test.test_mostcomm_status
-SELECT i,
-    CASE
-        WHEN random() <= 0.65 THEN 'DONE'
-        ELSE (ARRAY['FAILED','COMPLETED','PROGRESS','PENDING','RUNNING','CANCELLED','QUEUED','SUCCESS','ERROR','SKIPPED',  'RETRY'])[floor(random() * 11 + 1)::int]
-    END
-FROM generate_series(1, 100) AS i;
+SELECT i, 'DONE' 
+FROM generate_series(1, 65) AS i;
+
+INSERT INTO test.test_mostcomm_status
+SELECT i,  (ARRAY['FAILED','COMPLETED','PROGRESS','PENDING','RUNNING','CANCELLED','QUEUED','SUCCESS','ERROR','SKIPPED',  'RETRY'])[floor(random() * 11 + 1)::int]
+FROM generate_series(66, 100) AS i;
 
 CREATE INDEX idx_partial_high ON test.test_mostcomm_status USING btree (status) WHERE status NOT IN ('DONE');
 

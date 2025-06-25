@@ -174,7 +174,7 @@
 			"MinimumVersionsFixedIn": null,
 			"Details": {
 				"ColumnName": "status",
-				"FrequencyOfTheValue": "62%",
+				"FrequencyOfTheValue": "64%",
 				"Value": "DONE"
 			}
 		},
