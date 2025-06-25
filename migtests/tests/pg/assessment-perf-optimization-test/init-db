@@ -11,10 +11,8 @@ run_psql postgres "CREATE DATABASE ${SOURCE_DB_NAME};"
 
 echo "Initialising source database."
 
-unzip -o schema.zip
-
 # Run the schema SQL script
-psql_import_file ${SOURCE_DB_NAME} schema.sql
+psql_import_file ${SOURCE_DB_NAME} schema-perf-optimization.sql
 
 
 echo "End of script"
