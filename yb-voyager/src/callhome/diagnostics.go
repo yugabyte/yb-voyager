@@ -359,21 +359,14 @@ func SanitizeErrorMsg(err error) string {
 		return ""
 	}
 	errorMsg := strings.Split(err.Error(), ":")[0]
-	additionalContext := getSpecificContextForError(err)
+	additionalContext := getSpecificNonSensitiveContextForError(err)
 	if additionalContext != nil {
-		var contextData string
-		contextJsonBytes, err := json.Marshal(additionalContext)
-		if err != nil {
-			// should not happen.
-			log.Errorf("callhome: error while marshalling additional context for error: %v", err)
-		}
-		contextData = string(contextJsonBytes)
-		errorMsg = fmt.Sprintf("%s: %s", errorMsg, contextData)
+		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
 	}
 	return errorMsg
 }
 
-func getSpecificContextForError(err error) map[string]string {
+func getSpecificNonSensitiveContextForError(err error) map[string]string {
 	if err == nil {
 		return nil
 	}

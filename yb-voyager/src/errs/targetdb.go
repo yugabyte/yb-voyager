@@ -57,7 +57,7 @@ func (e ImportBatchError) Flow() string {
 }
 
 func (e ImportBatchError) Error() string {
-	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s %s", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), utils.MapToString(e.dbSpecificContext))
+	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s: dbcontext=%s", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), utils.MapToString(e.dbSpecificContext))
 }
 
 func (e ImportBatchError) Unwrap() error {
@@ -65,9 +65,6 @@ func (e ImportBatchError) Unwrap() error {
 }
 
 func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err error, flow, step string, dbSpecificContext map[string]string) ImportBatchError {
-	if dbSpecificContext == nil {
-		dbSpecificContext = make(map[string]string)
-	}
 	return ImportBatchError{
 		tableName:         tableName,
 		batchFilePath:     batchFilePath,
