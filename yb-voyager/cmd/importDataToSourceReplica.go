@@ -92,7 +92,7 @@ func updateFallForwardEnabledInMetaDB() {
 	}
 }
 
-func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg string) {
+func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

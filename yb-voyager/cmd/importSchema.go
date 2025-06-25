@@ -68,7 +68,7 @@ var importSchemaCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%s", err)
 		}
-		packAndSendImportSchemaPayload(COMPLETE, "")
+		packAndSendImportSchemaPayload(COMPLETE, nil)
 	},
 }
 
@@ -263,7 +263,7 @@ func getMissingImportSchemaPermissions() ([]string, error) {
 	return missingPermissions, nil
 }
 
-func packAndSendImportSchemaPayload(status string, errMsg string) {
+func packAndSendImportSchemaPayload(status string, errMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -299,7 +299,9 @@ func packAndSendImportSchemaPayload(status string, errMsg string) {
 		Error:              callhome.SanitizeErrorMsg(errMsg),
 		ControlPlaneType:   getControlPlaneType(),
 	}
+
 	payload.PhasePayload = callhome.MarshalledJsonString(importSchemaPayload)
+
 	err := callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
