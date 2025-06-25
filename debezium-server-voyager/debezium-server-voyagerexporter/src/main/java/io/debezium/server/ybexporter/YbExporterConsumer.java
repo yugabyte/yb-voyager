@@ -70,6 +70,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
         exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
+
+        // Register shutdown hook to release lock on exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            releaseLockFile();
+        }));
         
         // Acquire lock file at startup
         acquireLockFile();
@@ -95,11 +100,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
-
-        // Register shutdown hook to release lock on exit
-        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            releaseLockFile();
-        }));
     }
 
     /**
@@ -107,7 +107,11 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * If the PID is not running, it deletes the lock file.
      * If the PID is running, it throws an IllegalStateException.
      */
-    private void readLockFileAndCheckPid() {
+    private void checkExistingLockFile() {
+        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
+        if (!lockFile.exists()) {
+            return; // No lock file exists, nothing to check
+        }
         try {
             String lockContent = Files.readString(lockFile.toPath());
             String[] lines = lockContent.split("\n");
@@ -150,11 +154,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * Fails if already locked.
      */
     private void acquireLockFile() {
-        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
-        if (lockFile.exists()) {
-            //read the lock and check the pid if its running
-            readLockFileAndCheckPid();
-        }
+        checkExistingLockFile();
         try {
             // Create the lock file
             boolean created = lockFile.createNewFile();
@@ -277,7 +277,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.info("{} processing complete. Exiting...", operation);
             shutDown = true; // to ensure that no event gets written after switch operation.
         }
-        releaseLockFile();
         System.exit(0);
     }
 
@@ -298,7 +297,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             LOGGER.info("End migration processing complete. Exiting...");
             shutDown = true; // to ensure that no event gets written after switch operation.
         }
-        releaseLockFile();
         System.exit(0);
     }
 
