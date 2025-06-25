@@ -942,3 +942,14 @@ func MapToString(m map[string]string) string {
 	}
 	return "[" + strings.Join(pairs, ",") + "]"
 }
+
+func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func() bool) bool {
+	start := time.Now()
+	for time.Since(start) < (timeout * time.Second) { // 30 seconds timeout
+		if work() {
+			return true
+		}
+		time.Sleep(sleep * time.Second)
+	}
+	return false
+}

@@ -13,6 +13,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -76,6 +77,13 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 		},
 	}
 
+	if pg.ContainerConfig.ForLive {
+		req.Cmd = []string{
+			"postgres",
+			"-c", "wal_level=logical", // <-- set wal_level,
+		}
+	}
+
 	pg.container, err = testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{
 		ContainerRequest: req,
 		Started:          true,
@@ -90,6 +98,7 @@ func (pg *PostgresContainer) Start(ctx context.Context) (err error) {
 	if err != nil {
 		return fmt.Errorf("failed to ping postgres container: %w", err)
 	}
+
 	return nil
 }
 

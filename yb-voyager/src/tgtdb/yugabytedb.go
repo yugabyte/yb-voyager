@@ -39,9 +39,9 @@ import (
 	"github.com/jinzhu/copier"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"golang.org/x/exp/slices"
 
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
