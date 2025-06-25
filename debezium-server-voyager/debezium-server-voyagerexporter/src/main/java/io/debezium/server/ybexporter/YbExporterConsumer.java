@@ -139,7 +139,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 }
             } catch (NumberFormatException e) {
                 // If PID is not a valid number, treat it as a stale lock
-                String msg = String.format("Invalid PID in lock file {}: {}. Deleting lock file.", lockFile.getAbsolutePath(), pid);
+                String msg = String.format("Invalid PID in lock file {}: {}.", lockFile.getAbsolutePath(), pid);
                 throw new IllegalStateException(msg, e);
             }
             
