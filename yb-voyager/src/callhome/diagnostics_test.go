@@ -211,17 +211,22 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportDataPhasePayload{}),
 			expectedType: struct {
-				ParallelJobs        int64  `json:"parallel_jobs"`
-				TotalRows           int64  `json:"total_rows_imported"`
-				LargestTableRows    int64  `json:"largest_table_rows_imported"`
-				StartClean          bool   `json:"start_clean"`
-				Phase               string `json:"phase,omitempty"`
-				TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
-				EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
-				LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-				EnableUpsert        bool   `json:"enable_upsert"`
-				Error               string `json:"error"`
-				ControlPlaneType    string `json:"control_plane_type"`
+				PayloadVersion             string `json:"payload_version"`
+				ParallelJobs               int64  `json:"parallel_jobs"`
+				TotalRows                  int64  `json:"total_rows_imported"`
+				LargestTableRows           int64  `json:"largest_table_rows_imported"`
+				StartClean                 bool   `json:"start_clean"`
+				Phase                      string `json:"phase,omitempty"`
+				TotalImportedEvents        int64  `json:"total_imported_events,omitempty"`
+				EventsImportRate           int64  `json:"events_import_rate_3m,omitempty"`
+				LiveWorkflowType           string `json:"live_workflow_type,omitempty"`
+				EnableUpsert               bool   `json:"enable_upsert"`
+				Error                      string `json:"error"`
+				ControlPlaneType           string `json:"control_plane_type"`
+				BatchSize                  int64  `json:"batch_size"`
+				OnPrimaryKeyConflictAction string `json:"on_primary_key_conflict_action"`
+				AdaptiveParallelismMax     int64  `json:"adaptive_parallelism_max"`
+				EnableAdaptiveParallelism  bool   `json:"enable_adaptive_parallelism"`
 			}{},
 		},
 		{
