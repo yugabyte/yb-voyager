@@ -505,22 +505,21 @@ import_data_file() {
     yb-voyager import data file ${args} $*
 }
 
-
 archive_changes() {
-	ENABLE=$(shuf -i 0-1 -n 1)
-	echo "archive changes ENABLE=${ENABLE}"
-	if [[ ${ENABLE} -eq 1 ]];
-	then
+    ENABLE=$(shuf -i 0-1 -n 1)
+    echo "archive changes ENABLE=${ENABLE}"
+    if [[ ${ENABLE} -eq 1 ]]; then
         if [ "${run_via_config_file}" = "true" ]; then
             # Run using the generated config file
             yb-voyager archive changes -c "${GENERATED_CONFIG}" --yes
         else
-		    ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
-		    mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
-
-    yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
-        --export-dir ${EXPORT_DIR} \
-        --fs-utilization-threshold 0
+            ARCHIVE_DIR=${EXPORT_DIR}/archive-dir
+            mkdir ${ARCHIVE_DIR}  # temporary place to store the archive files
+            yb-voyager archive changes --move-to ${ARCHIVE_DIR} \
+                --export-dir ${EXPORT_DIR} \
+                --fs-utilization-threshold 0
+        fi
+    fi
 }
 
 end_migration() {
