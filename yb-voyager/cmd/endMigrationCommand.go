@@ -111,7 +111,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg string) {
 	payload := createCallhomePayload()
 	streamChangesMode, err := checkStreamingMode()
 	if err != nil {
-		log.Errorf("callhome: error while checking migration type: %w\n", err)
+		log.Errorf("callhome: error while checking migration type: %v\n", err)
 	} else if streamChangesMode {
 		payload.MigrationType = LIVE_MIGRATION
 	} else {
