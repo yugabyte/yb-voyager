@@ -737,7 +737,7 @@ func (i *IndexIssueDetector) reportVariousIndexPerfOptimizationsOnFirstColumnOfI
 	nullPartialIndex := false
 	mostCommonValPartialIndex := false
 
-	for _, clause := range index.WhereClauses {
+	for _, clause := range index.WhereClausePredicates {
 		if clause.ColName != firstColumnParam.ColName {
 			continue
 		}
