@@ -109,9 +109,13 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 		return
 	}
 	payload := createCallhomePayload()
-	payload.MigrationType = OFFLINE
-	if streamChangesMode {
+	streamChangesMode, err := checkStreamingMode()
+	if err != nil {
+		log.Errorf("callhome: error while checking migration type: %v\n", err)
+	} else if streamChangesMode {
 		payload.MigrationType = LIVE_MIGRATION
+	} else {
+		payload.MigrationType = OFFLINE
 	}
 	payload.MigrationPhase = END_MIGRATION_PHASE
 	endMigrationPayload := callhome.EndMigrationPhasePayload{
@@ -125,7 +129,7 @@ func packAndSendEndMigrationPayload(status string, errorMsg error) {
 	payload.PhasePayload = callhome.MarshalledJsonString(endMigrationPayload)
 	payload.Status = status
 
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
