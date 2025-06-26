@@ -26,6 +26,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -40,7 +41,7 @@ type TargetDB interface {
 	GetNonEmptyTables(tableNames []sqlname.NameTuple) []sqlname.NameTuple
 	TruncateTables(tableNames []sqlname.NameTuple) error
 	IsNonRetryableCopyError(err error) bool
-	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error)
+	ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, *errs.ImportBatchError)
 	QuoteAttributeNames(tableNameTup sqlname.NameTuple, columns []string) ([]string, error)
 	GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error)
 	GetPrimaryKeyConstraintName(tableNameTup sqlname.NameTuple) (string, error)
@@ -99,12 +100,12 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 // ======================= ImportBatchArgs ====================
 
 type ImportBatchArgs struct {
-	FilePath                 string
-	TableNameTup             sqlname.NameTuple
-	Columns                  []string
-	PrimaryKeyColumns        []string
-	PKConstraintName string
-	PKConflictAction         string
+	FilePath          string
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string
+	PKConstraintName  string
+	PKConflictAction  string
 
 	FileFormat string
 	HasHeader  bool
