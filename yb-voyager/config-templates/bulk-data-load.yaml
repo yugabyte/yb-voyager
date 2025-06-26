@@ -95,10 +95,9 @@ import-data-file:
   data-dir: <data-dir-path>
 
   ### Comma-separated list mapping each file name in 'data-dir' to its corresponding table in the database.
-  ### Note: If a table doesn't have a primary key, importing data from its file may result in duplicates.
-  ### To avoid this, either:
-  ###   exclude that table from the file-table-map, or
-  ###   manually truncate the table before using the --start-clean flag.
+  ### You can import multiple files in one table either:
+  ###   by providing one entry for each file 'fileName1:tableName,fileName2:tableName', or 
+  ###   by passing a glob expression in place of the file name. 'fileName*:tableName'
   file-table-map: "file1.csv:table1,file2.csv:table2"
 
   ### Format of the data file to be imported
