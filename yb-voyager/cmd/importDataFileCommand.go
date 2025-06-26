@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks, errorPolicySnapshotFlag)
-		packAndSendImportDataFilePayload(COMPLETE, "")
+		packAndSendImportDataFilePayload(COMPLETE, nil)
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -347,7 +347,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string, errorMsg string) {
+func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

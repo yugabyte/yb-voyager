@@ -130,7 +130,7 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 
 	success := exportData()
 	if success {
-		sendPayloadAsPerExporterRole(COMPLETE, "")
+		sendPayloadAsPerExporterRole(COMPLETE, nil)
 
 		setDataIsExported()
 		color.Green("Export of data complete")
@@ -141,12 +141,12 @@ func exportDataCommandFn(cmd *cobra.Command, args []string) {
 	} else {
 		color.Red("Export of data failed! Check %s/logs for more details.", exportDir)
 		log.Error("Export of data failed.")
-		sendPayloadAsPerExporterRole(ERROR, "")
+		sendPayloadAsPerExporterRole(ERROR, nil)
 		atexit.Exit(1)
 	}
 }
 
-func sendPayloadAsPerExporterRole(status string, errorMsg string) {
+func sendPayloadAsPerExporterRole(status string, errorMsg error) {
 	if !callhome.SendDiagnostics {
 		return
 	}
@@ -158,7 +158,7 @@ func sendPayloadAsPerExporterRole(status string, errorMsg string) {
 	}
 }
 
-func packAndSendExportDataPayload(status string, errorMsg string) {
+func packAndSendExportDataPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return

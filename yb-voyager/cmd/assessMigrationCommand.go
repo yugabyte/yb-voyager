@@ -116,11 +116,11 @@ var assessMigrationCmd = &cobra.Command{
 		if err != nil {
 			utils.ErrExit("%s", err)
 		}
-		packAndSendAssessMigrationPayload(COMPLETE, "")
+		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
 }
 
-func packAndSendAssessMigrationPayload(status string, errMsg string) {
+func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -682,8 +682,9 @@ func gatherAssessmentMetadataFromPG() (err error) {
 		return err
 	}
 
+	yesParam := lo.Ternary(utils.DoNotPrompt, "true", "false")
 	return runGatherAssessmentMetadataScript(scriptPath, []string{fmt.Sprintf("PGPASSWORD=%s", source.Password)},
-		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS))
+		source.DB().GetConnectionUriWithoutPassword(), source.Schema, assessmentMetadataDir, fmt.Sprintf("%t", pgssEnabledForAssessment), fmt.Sprintf("%d", intervalForCapturingIOPS), yesParam)
 }
 
 func findGatherMetadataScriptPath(dbType string) (string, error) {

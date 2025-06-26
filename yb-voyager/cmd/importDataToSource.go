@@ -87,7 +87,7 @@ func initTargetConfFromSourceConf() error {
 	return nil
 }
 
-func packAndSendImportDataToSourcePayload(status string, errorMsg string) {
+func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
