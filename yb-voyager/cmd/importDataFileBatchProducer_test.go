@@ -647,6 +647,73 @@ func TestFileBatchProducer_StashAndContinue_Resumption(t *testing.T) {
 	assert.True(t, batchproducer.Done())
 }
 
+func TestFileBatchProducer_StashAndContinue_MultipleTasksSameTable(t *testing.T) {
+	// Set max batch size in bytes to a value that would only allow two small rows, but the second row will error (conversion error) and should not count towards the batch size
+	maxBatchSizeBytes := int64(25) // enough for header + one small row + one more if no error
+	ldataDir, lexportDir, state, _, err := setupExportDirAndImportDependencies(1000, maxBatchSizeBytes)
+	testutils.FatalIfError(t, err)
+	if ldataDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", ldataDir))
+	}
+	if lexportDir != "" {
+		defer os.RemoveAll(fmt.Sprintf("%s/", lexportDir))
+	}
+
+	scErrorHandler, err := importdata.GetImportDataErrorHandler(importdata.StashAndContinueErrorPolicy, getErrorsParentDir(lexportDir))
+	testutils.FatalIfError(t, err)
+
+	// The second row will error (conversion error), but is large enough that if it counted, the third row would not fit
+	fileContents1 := `id,val
+1, "ok"
+2, "errorrow"
+3, "ok2"`
+	_, task1, err := createFileAndTask(lexportDir, fileContents1, ldataDir, "test_table", 1)
+	assert.NoError(t, err)
+
+	fileContents2 := `id,val
+1, "ok"
+2, "errorrow"
+3, "ok2"`
+	_, task2, err := createFileAndTask(lexportDir, fileContents2, ldataDir, "test_table", 2)
+	assert.NoError(t, err)
+
+	// Use a mock valueConverter that errors on row 2
+	origValueConverter := valueConverter
+	valueConverter = &mockRowErrorValueConverter{rowToError: 2}
+	t.Cleanup(func() { valueConverter = origValueConverter })
+
+	batchproducer1, err := NewFileBatchProducer(task1, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
+	batch, err := batchproducer1.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+
+	batchproducer2, err := NewFileBatchProducer(task2, state, scErrorHandler)
+	assert.NoError(t, err)
+
+	// First batch: should contain row 1 and row 3 (row 2 is errored and skipped, its size does not count)
+	batch, err = batchproducer2.NextBatch()
+	assert.NoError(t, err)
+	assert.NotNil(t, batch)
+	assert.Equal(t, int64(2), batch.RecordCount)
+
+	// Error file should contain the error for row 2
+	assertProcessingErrorFileContains(t, lexportDir, task1,
+		"ERROR: transforming line number=2",
+		"mock conversion error",
+		"ROW: 2, \"errorrow\"",
+	)
+
+	assertProcessingErrorFileContains(t, lexportDir, task2,
+		"ERROR: transforming line number=2",
+		"mock conversion error",
+		"ROW: 2, \"errorrow\"",
+	)
+}
+
 // assertProcessingErrorFileContains asserts that the error log file for a given task and table contains all the expected substrings.
 func assertProcessingErrorFileContains(t *testing.T, lexportDir string, task *ImportFileTask, expectedSubstrings ...string) {
 	taskFolderPath := fmt.Sprintf("file::%s:%s", filepath.Base(task.FilePath), importdata.ComputePathHash(task.FilePath))
