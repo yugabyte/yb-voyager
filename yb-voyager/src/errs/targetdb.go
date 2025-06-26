@@ -30,6 +30,7 @@ const (
 	IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED = "check_batch_already_imported"
 	IMPORT_BATCH_ERROR_STEP_OPEN_BATCH                   = "open_batch"
 	IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH              = "read_line_batch"
+	IMPORT_BATCH_ERROR_STEP_BEGIN_TXN                    = "begin_txn"
 	IMPORT_BATCH_ERROR_STEP_COMMIT_TXN                   = "commit_txn"
 	IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN                 = "rollback_txn"
 
@@ -48,24 +49,24 @@ type ImportBatchError struct {
 	dbSpecificContext map[string]string
 }
 
-func (e ImportBatchError) Step() string {
+func (e *ImportBatchError) Step() string {
 	return e.step
 }
 
-func (e ImportBatchError) Flow() string {
+func (e *ImportBatchError) Flow() string {
 	return e.flow
 }
 
-func (e ImportBatchError) Error() string {
+func (e *ImportBatchError) Error() string {
 	return fmt.Sprintf("import batch: %q into %s: flow=%s: step=%s: %s: dbcontext=%s", e.batchFilePath, e.tableName.ForOutput(), e.flow, e.step, e.err.Error(), utils.MapToString(e.dbSpecificContext))
 }
 
-func (e ImportBatchError) Unwrap() error {
+func (e *ImportBatchError) Unwrap() error {
 	return e.err
 }
 
-func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err error, flow, step string, dbSpecificContext map[string]string) ImportBatchError {
-	return ImportBatchError{
+func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err error, flow, step string, dbSpecificContext map[string]string) *ImportBatchError {
+	return &ImportBatchError{
 		tableName:         tableName,
 		batchFilePath:     batchFilePath,
 		err:               err,

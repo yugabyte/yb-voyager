@@ -27,6 +27,7 @@ import (
 	"github.com/mroth/weightedrand/v2"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -52,7 +53,7 @@ func (d *dummyYb) IsDBColocated() (bool, error) {
 }
 
 func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, exportDir string,
-	tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+	tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, *errs.ImportBatchError) {
 	return 1, nil
 }
 
