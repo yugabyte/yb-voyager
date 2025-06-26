@@ -70,14 +70,15 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
         exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
+        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
+        
+        // Acquire lock file at startup
+        acquireLockFile();
 
         // Register shutdown hook to release lock on exit
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             releaseLockFile();
         }));
-        
-        // Acquire lock file at startup
-        acquireLockFile();
 
         exportStatus = ExportStatus.getInstance(dataDir);
         exportStatus.setSourceType(sourceType);
@@ -108,7 +109,6 @@ public class YbExporterConsumer extends BaseChangeConsumer {
      * If the PID is running, it throws an IllegalStateException.
      */
     private void checkExistingLockFile() {
-        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
         if (!lockFile.exists()) {
             return; // No lock file exists, nothing to check
         }
@@ -138,7 +138,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                     releaseLockFile();
                 }
             } catch (NumberFormatException e) {
-                // If PID is not a valid number, treat it as a stale lock
+                // If PID is not a valid number, throw an error
                 String msg = String.format("Invalid PID in lock file {}: {}.", lockFile.getAbsolutePath(), pid);
                 throw new IllegalStateException(msg, e);
             }
