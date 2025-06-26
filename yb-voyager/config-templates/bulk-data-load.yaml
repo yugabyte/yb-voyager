@@ -99,8 +99,6 @@ import-data-file:
   ### To avoid this, either:
   ###   exclude that table from the file-table-map, or
   ###   manually truncate the table before using the --start-clean flag.
-  ### Default - false 
-  ### Accepted values - true, false, yes, no, 0, 1
   file-table-map: "file1.csv:table1,file2.csv:table2"
 
   ### Format of the data file to be imported
