@@ -163,10 +163,18 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 		}
 		// Log the env variables already set in the environment by the user
 		for envVar, val := range envVarsAlreadyExported {
+			// If the env variable is SOURCE_DB_PASSWORD, TARGET_DB_PASSWORD, or SOURCE_REPLICA_DB_PASSWORD, mask the value
+			if envVar == "SOURCE_DB_PASSWORD" || envVar == "TARGET_DB_PASSWORD" || envVar == "SOURCE_REPLICA_DB_PASSWORD" {
+				val = "********"
+			}
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
 		for _, val := range envVarsSetViaConfig {
+			// If the env variable is SOURCE_DB_PASSWORD, TARGET_DB_PASSWORD, or SOURCE_REPLICA_DB_PASSWORD, mask the value
+			if val.EnvVar == "SOURCE_DB_PASSWORD" || val.EnvVar == "TARGET_DB_PASSWORD" || val.EnvVar == "SOURCE_REPLICA_DB_PASSWORD" {
+				val.Value = "********"
+			}
 			log.Infof("Environment variable '%s' set from config key '%s' with value '%s'\n", val.EnvVar, val.ConfigKey, val.Value)
 		}
 
