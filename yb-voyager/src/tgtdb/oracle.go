@@ -34,6 +34,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/sqlldr"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -275,7 +276,7 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, *errs.ImportBatchError) {
 	if nonTxnPath {
 		panic("non-transactional path for import batch is not supported in Oracle")
 	}
@@ -290,7 +291,16 @@ func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, expor
 		return false, err
 	}
 	err = tdb.WithConnFromPool(copyFn)
-	return rowsAffected, err
+	if err != nil {
+		return rowsAffected, errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+			"",
+			nil)
+	}
+	return rowsAffected, nil
 }
 
 func (tdb *TargetOracleDB) WithConnFromPool(fn func(*sql.Conn) (bool, error)) error {

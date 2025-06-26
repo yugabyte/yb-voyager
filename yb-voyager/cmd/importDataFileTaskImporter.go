@@ -206,7 +206,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
 			// TODO: standardize the return type of ImportBatch to return an ImportBatchError
-			var ibe errs.ImportBatchError
+			var ibe *errs.ImportBatchError
 			if errors.As(err, &ibe) {
 				// If the error is an ImportBatchError, we abort directly
 				utils.ErrExit("%w", err)

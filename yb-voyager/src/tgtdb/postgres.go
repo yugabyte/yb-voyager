@@ -37,6 +37,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -416,7 +417,7 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, *errs.ImportBatchError) {
 	if nonTxnPath {
 		panic("non-transactional path for import batch is not supported in PostgreSQL")
 	}
@@ -428,7 +429,17 @@ func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = pg.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	if err != nil {
+		return rowsAffected, errs.NewImportBatchError(
+			batch.GetTableName(),
+			batch.GetFilePath(),
+			err,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+			"",
+			nil)
+	}
+
+	return rowsAffected, nil
 }
 
 func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {

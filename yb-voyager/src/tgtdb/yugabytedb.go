@@ -547,9 +547,13 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
 			rowsAffected, err = yb.importBatch(conn, batch, args)
 		}
-		return false, err // Retries are now implemented in the caller.
+		// Retries are now implemented in the caller.
+		if err != nil {
+			return false, err
+		} else {
+			return false, nil // explicitly return nil to indicate that error interface is nil.
+		}
 	}
-
 	// no need to handle the error here as it will be set in the copyFn
 	_ = yb.connPool.WithConn(copyFn)
 	return rowsAffected, err
