@@ -56,6 +56,18 @@ var (
 	callHomeErrorOrCompletePayloadSent bool
 )
 
+var envVarValuesToObfuscateInLogs = []string{
+	"SOURCE_DB_PASSWORD",
+	"TARGET_DB_PASSWORD",
+	"SOURCE_REPLICA_DB_PASSWORD",
+}
+
+var configKeyValuesToObfuscateInLogs = []string{
+	"source.db-password",
+	"target.db-password",
+	"source-replica.db-password",
+}
+
 var rootCmd = &cobra.Command{
 	Use:   "yb-voyager",
 	Short: "A CLI based migration engine to migrate complete database(schema + data) from some source database to YugabyteDB",
@@ -159,24 +171,21 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		// Log the flag values set from the config file
 		for _, f := range overrides {
-			// If the config key is source.db-password, target.db-password, or source-replica.db-password, mask the value
-			if f.ConfigKey == "source.db-password" || f.ConfigKey == "target.db-password" || f.ConfigKey == "source-replica.db-password" {
+			if slices.Contains(configKeyValuesToObfuscateInLogs, f.ConfigKey) {
 				f.Value = "********"
 			}
 			log.Infof("Flag '%s' set from config key '%s' with value '%s'\n", f.FlagName, f.ConfigKey, f.Value)
 		}
 		// Log the env variables already set in the environment by the user
 		for envVar, val := range envVarsAlreadyExported {
-			// If the env variable is SOURCE_DB_PASSWORD, TARGET_DB_PASSWORD, or SOURCE_REPLICA_DB_PASSWORD, mask the value
-			if envVar == "SOURCE_DB_PASSWORD" || envVar == "TARGET_DB_PASSWORD" || envVar == "SOURCE_REPLICA_DB_PASSWORD" {
+			if slices.Contains(envVarValuesToObfuscateInLogs, envVar) {
 				val = "********"
 			}
 			log.Infof("Environment variable '%s' already set with value '%s'\n", envVar, val)
 		}
 		// Log the env variables set from the config file
 		for _, val := range envVarsSetViaConfig {
-			// If the env variable is SOURCE_DB_PASSWORD, TARGET_DB_PASSWORD, or SOURCE_REPLICA_DB_PASSWORD, mask the value
-			if val.EnvVar == "SOURCE_DB_PASSWORD" || val.EnvVar == "TARGET_DB_PASSWORD" || val.EnvVar == "SOURCE_REPLICA_DB_PASSWORD" {
+			if slices.Contains(envVarValuesToObfuscateInLogs, val.EnvVar) {
 				val.Value = "********"
 			}
 			log.Infof("Environment variable '%s' set from config key '%s' with value '%s'\n", val.EnvVar, val.ConfigKey, val.Value)
