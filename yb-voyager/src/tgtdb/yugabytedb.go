@@ -41,9 +41,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -560,7 +560,9 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	var tx pgx.Tx
 	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return 0, fmt.Errorf("begin transaction: %w", err)
+		return 0, newImportBatchErrorPgYb(err, batch,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+			errs.IMPORT_BATCH_ERROR_STEP_BEGIN_TXN)
 	}
 	defer func() {
 		var err2 error
@@ -568,25 +570,17 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 			err2 = tx.Rollback(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = errs.NewImportBatchError(
-					batch.GetTableName(),
-					batch.GetFilePath(),
-					fmt.Errorf("%w (while processing %s)", err2, err),
+				err = newImportBatchErrorPgYb(fmt.Errorf("%w (while processing %s)", err2, err), batch,
 					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN,
-					nil)
+					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = errs.NewImportBatchError(
-					batch.GetTableName(),
-					batch.GetFilePath(),
-					err2,
+				err = newImportBatchErrorPgYb(err2, batch,
 					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
-					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN,
-					nil)
+					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
 			}
 		}
 	}()
@@ -623,13 +617,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 1. Open the batch file
 	file, err := batch.Open()
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH,
-			nil)
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
 		return 0, err
 	}
 	defer file.Close()
@@ -641,13 +631,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED,
-			nil)
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
 		return 0, err
 	}
 	if alreadyImported {
@@ -669,18 +655,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
-		dbContext := map[string]string{}
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			dbContext["where"] = pgerr.Where
-		}
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_COPY,
-			dbContext)
+			errs.IMPORT_BATCH_ERROR_STEP_COPY)
 
 		return res.RowsAffected(), err
 	}
@@ -688,15 +665,12 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 5. Record the import in the DB.
 	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
-			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY,
-			nil)
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
+		return res.RowsAffected(), err
 	}
-	return res.RowsAffected(), err
+	return res.RowsAffected(), nil
 }
 
 // importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
@@ -705,14 +679,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// 1. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED,
-			nil)
-		return 0, err
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
 	}
 	if alreadyImported {
 		log.Infof("batch %q already imported, skipping fast recover", batch.GetFilePath())
@@ -722,14 +691,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// 2. Open the batch file as datafile
 	df, err := batch.OpenAsDataFile()
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH,
-			nil)
-		return 0, err
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
 	}
 	defer df.Close()
 
@@ -744,14 +708,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
-			err = errs.NewImportBatchError(
-				batch.GetTableName(),
-				batch.GetFilePath(),
-				err,
+			return 0, newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH,
-				nil)
-			return 0, err
+				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH)
 		}
 
 		/*
@@ -787,19 +746,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 				continue
 			}
 
-			dbContext := map[string]string{}
-			var pgerr *pgconn.PgError
-			if errors.As(err, &pgerr) {
-				dbContext["where"] = pgerr.Where
-			}
-			err = errs.NewImportBatchError(
-				batch.GetTableName(),
-				batch.GetFilePath(),
-				err,
+			err = newImportBatchErrorPgYb(err, batch,
 				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-				errs.IMPORT_BATCH_ERROR_STEP_COPY,
-				dbContext)
-
+				errs.IMPORT_BATCH_ERROR_STEP_COPY)
 			return rowsAffected + rowsIgnored, err
 		}
 
@@ -824,14 +773,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't update the metadata
 	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
 	if err != nil {
-		err = errs.NewImportBatchError(
-			batch.GetTableName(),
-			batch.GetFilePath(),
-			err,
+		return 0, newImportBatchErrorPgYb(err, batch,
 			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
-			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY,
-			nil)
-		return 0, err
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
 	}
 
 	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
@@ -842,6 +786,24 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 	// 8. returns total number of rows so that stats reporting(import data status) is consistent
 	return totalRowsInBatch, nil
+}
+
+func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string) errs.ImportBatchError {
+	dbContext := map[string]string{}
+	var pgerr *pgconn.PgError
+	if errors.As(underlyingErr, &pgerr) {
+		if pgerr.Where != "" {
+			dbContext["where"] = pgerr.Where
+		}
+	}
+
+	return errs.NewImportBatchError(
+		batch.GetTableName(),
+		batch.GetFilePath(),
+		underlyingErr,
+		flow,
+		step,
+		dbContext)
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {
