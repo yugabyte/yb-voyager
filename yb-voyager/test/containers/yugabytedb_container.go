@@ -15,6 +15,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -208,7 +209,7 @@ func (yb *YugabyteDBContainer) ExecuteSqls(sqls ...string) {
 
 	retryCount := 3
 	retryErrors := []string{
-		"Restart read required at",
+		"Restart read required",
 	}
 	for _, sql := range sqls {
 		var err error

@@ -16,16 +16,17 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/fatih/color"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -204,8 +205,13 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			utils.ErrExit("import batch: %q into %s: %s\n%s", batch.FilePath, batch.TableNameTup, err,
-				color.YellowString(importdata.STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE))
+			// TODO: standardize the return type of ImportBatch to return an ImportBatchError
+			var ibe errs.ImportBatchError
+			if errors.As(err, &ibe) {
+				// If the error is an ImportBatchError, we abort directly
+				utils.ErrExit("%w", err)
+			}
+			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
 		}
 
 		// Handle the error

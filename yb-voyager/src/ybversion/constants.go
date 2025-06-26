@@ -74,9 +74,8 @@ func init() {
 
 	V2024_2_3_0, err = NewYBVersion("2024.2.3.0")
 	if err != nil {
-		panic("could not create version 2024.2.2.3")
+		panic("could not create version 2024.2.3.0")
 	}
-
 
 	V2024_2_3_1, err = NewYBVersion("2024.2.3.1")
 	if err != nil {

@@ -931,3 +931,25 @@ func GetCommonFlags(cmdA, cmdB *cobra.Command) []*pflag.Flag {
 
 	return common
 }
+
+func MapToString(m map[string]string) string {
+	if m == nil {
+		return "[]"
+	}
+	pairs := make([]string, 0, len(m))
+	for k, v := range m {
+		pairs = append(pairs, fmt.Sprintf("%s=%s", k, v))
+	}
+	return "[" + strings.Join(pairs, ",") + "]"
+}
+
+func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func() bool) bool {
+	start := time.Now()
+	for time.Since(start) < (timeout * time.Second) { // 30 seconds timeout
+		if work() {
+			return true
+		}
+		time.Sleep(sleep * time.Second)
+	}
+	return false
+}
