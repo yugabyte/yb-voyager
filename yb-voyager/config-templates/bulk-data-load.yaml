@@ -1,0 +1,220 @@
+### Note: This is a template configuration file for YB Voyager bulk data load.
+
+# ---------------------------------------------------------
+# Global configuration
+# ---------------------------------------------------------
+
+### *********** Basic Configuration ************
+### Export directory is the workspace used to keep the exported schema, data, state, and logs
+### Required
+export-dir: <export-dir-path>     
+
+### Log level for yb-voyager 
+### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+### Default - info
+log-level: info                  
+
+### *********** Control Plane Configuration ************
+### To see the Voyager migration workflow details in the UI, set the following parameters.
+
+### Control plane type refers to the deployment type of YugabyteDB
+### Accepted value - (yugabyted)
+### Optional
+control-plane-type: yugabyted  
+
+### YSQL connection string
+### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
+### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
+### Required if control-plane-type is set to yugabyted
+yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                           
+
+# ---------------------------------------------------------
+# Target Database Configuration
+# ---------------------------------------------------------
+
+target:    
+
+  ### Host on which the YugabyteDB server is running. 
+  ### Default - 127.0.0.1                          
+  db-host: 127.0.0.1      
+
+  ### Port on which the YugabyteDB YSQL API is running. 
+  ### Default - 5433                                   
+  db-port: 5433  
+
+  ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
+  db-name: yugabyte 
+
+  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  # db-schema: public      
+
+  ### Username with which to connect to the target YugabyteDB server                                    
+  db-user: test_user      
+
+  ### Password with which to connect to the target YugabyteDB server.    
+  ### Alternatively, you can also specify the password by setting the environment variable TARGET_DB_PASSWORD. 
+  ### If you don't provide a password via the config, yb-voyager will prompt you at runtime for a password. 
+  ### If the password contains special characters that are interpreted by the shell (for example, # and $), enclose the password in single quotes.                          
+  db-password: test_password                             
+
+### *********** Target SSL Configuration ************
+
+  ### Path of the file containing target SSL Certificate
+  # ssl-cert: <ssl-cert-path>        
+
+  ### Specify the target SSL mode: (disable, allow, prefer, require, verify-ca, verify-full). 
+  ### Default - prefer
+  # ssl-mode: prefer           
+
+  ### Path of the file containing target SSL Key                                                            
+  # ssl-key: <ssl-key-path>      
+
+  ### Path of the file containing target SSL Root Certificate                         
+  # ssl-root-cert: <ssl-root-cert-path>     
+
+  ### Path of the file containing target SSL Root Certificate Revocation List (CRL)              
+  # ssl-crl: <ssl-crl-path>  
+
+# ---------------------------------------------------------
+# Import Data File Configuration
+# ---------------------------------------------------------
+
+### This command imports data from given files into YugabyteDB database. 
+### The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. 
+### Incremental data load is also supported.
+
+### Uncomment this section and the respective parameters when you want to configure additional import data file options.
+import-data-file:
+
+  ### Path to the directory which contains data files to import into table(s)
+  ### Note: data-dir can be a local directory or a cloud storage URL
+  ### for AWS S3, e.g. s3://<bucket-name>/<path-to-data-dir>
+  ### for GCS buckets, e.g. gs://<bucket-name>/<path-to-data-dir>
+  ### for Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>
+  data-dir: <data-dir-path>
+
+  ### Comma separated list of mapping between file name in '--data-dir' to a table in database
+  ### Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. 
+  ### To avoid this, exclude the table from file-table-map or truncate those tables manually before using the start-clean flag 
+  ### Default - false 
+  ### Accepted values - true, false, yes, no, 0, 1
+  # file-table-map: "file1.csv:table1,file2.csv:table2"
+
+  ### Format of the data file to be imported
+  ### Default - "csv"
+  ### Accepted values: (csv,text) 
+  # format: csv
+
+  ### Character used as delimiter in rows of the table(s) 
+  ### Default for csv: "," (comma), for TEXT: "\t" (tab)
+  # delimiter: ','
+
+  ### Escape character. 
+  ### Note: only applicable to CSV file format 
+  ### Default - double quotes '"'
+  # escape-char: '"'
+
+  ### Character used to quote the values. 
+  ### Note: only applicable to CSV file format 
+  ### Default - double quotes '"'
+  # quote-char: '"'
+
+  ### Indicate that the first line of data file is a header row 
+  ### Default - false
+  # has-header: false
+
+  ### String that represents null value in the data file 
+  ### Default for csv - ""(empty string), for text: '\N'
+  # null-string: ''
+
+  ### Control parallelism of data import
+  ### By default, Voyager enables adaptive parallelism which adjusts the number 
+  ### of parallel jobs based on the resource usage (CPU, memory) of the target 
+  ### YugabyteDB cluster.
+  ### The following flags are available to control parallelism:
+  ### - enable-adaptive-parallelism: Enables adaptive adjustment of parallel jobs.
+  ###   Accepted values: true, false, yes, no, 1, 0 
+  ###   Default: true
+  ### - adaptive-parallelism-max: Optional upper limit on parallel jobs when
+  ###   adaptive parallelism is enabled. If not set, Voyager will use N/2,
+  ###   where N is the number of available CPU cores.
+  ### - parallel-jobs: If set, overrides adaptive parallelism entirely.
+  ###   Voyager will use the given number of parallel jobs.
+  ###   Any value < 1 falls back to N/4 or 2×node count if N is not available.
+  ###   Note: Do not set this if enable-adaptive-parallelism is true.
+  enable-adaptive-parallelism: true
+  # adaptive-parallelism-max: <integer>
+  # parallel-jobs: <integer>   # Do not set if adaptive parallelism is enabled  
+
+  ### Enable UPSERT mode on target tables. 
+  ### WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. 
+  ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 
+  ### Default - false 
+  ### Accepted values - true, false, yes, no, 0, 1
+  # enable-upsert: false
+  
+  ### Use the public IPs of the nodes to distribute parallel-jobs uniformly for data import 
+  ### Default - false
+  # use-public-ip: false
+
+  ### Comma separated list of node's endpoint to use for parallel import of data
+  ### Default is to use all the nodes in the cluster
+  # target-endpoints: "host1:port1,host2:port2"
+
+  ### Size of batches in the number of rows generated for ingestion during import. 
+  ### Default - 20000
+  # batch-size: 20000
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info 
+
+  ### Disable progress bar/stats during data import 
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Default - false
+  # disable-pb: false                                                                
+
+# ---------------------------------------------------------
+# End Migration Configuration
+# ---------------------------------------------------------
+
+### End the current migration and cleanup all metadata stored in databases(Target and Source) and export-dir
+
+### Uncomment the respective parameters when you want to configure additional end migration options.
+end-migration:
+  
+  ### Backup migration schema files 
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Required
+  backup-schema-files: false                                  
+  
+  ### Backup snapshot data files 
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Required
+  backup-data-files: false                                    
+  
+  ### Save migration assessment report, analyze schema report and data migration reports
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Required
+  save-migration-reports: false                               
+  
+  ### Backup yb-voyager log files for this migration
+  ### Accepted values (true, false, yes, no, 1, 0)
+  ### Required
+  backup-log-files: false                                    
+  
+  ### Backup directory is where all the backup files of schema, data, logs and reports will be saved
+  ### Note: Mandatory if any of the following flags are set to true or yes or 1: --backup-data-files, --backup-log-files, --backup-schema-files, --save-migration-reports.
+  # backup-dir: <backup-dir-path>  
+
+  ### Log level for the command
+  ### Note: This overrides the global log-level parameter for this command only.
+  ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
+  ### Default - info
+  # log-level: info                            
+
+# ---------------------------------------------------------
+# Config File End
+# ---------------------------------------------------------
