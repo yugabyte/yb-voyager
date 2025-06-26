@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [main, 'priyanshi/handle-partial-indexes']
+    branches: [main]
 
 jobs:
   run-misc-migration-tests:
