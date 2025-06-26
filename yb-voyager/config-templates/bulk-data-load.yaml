@@ -109,7 +109,7 @@ import-data-file:
   ### Default for csv: "," (comma), for TEXT: "\t" (tab)
   # delimiter: ','
 
-  ### Escape character. 
+  ### Escape character
   ### Note: only applicable to CSV file format 
   ### Default - double quotes '"'
   # escape-char: '"'
@@ -120,6 +120,8 @@ import-data-file:
   # quote-char: '"'
 
   ### Indicate that the first line of data file is a header row 
+  ### Note: only works for csv file type 
+  ### Accepted values - true, false, yes, no, 0, 1
   ### Default - false
   # has-header: false
 
@@ -153,7 +155,10 @@ import-data-file:
   ### Accepted values - true, false, yes, no, 0, 1
   # enable-upsert: false
   
-  ### Use the public IPs of the nodes to distribute parallel-jobs uniformly for data import 
+  ### Use the public IPs of the nodes to distribute parallel-jobs uniformly for data import
+  ### Note: you might need to configure database to have public_ip available by setting server-broadcast-addresses.
+  ### Refer: https://docs.yugabyte.com/preview/reference/configuration/yb-tserver/#server-broadcast-addresses
+  ### Accepted values - true, false, yes, no, 0, 1
   ### Default - false
   # use-public-ip: false
 
