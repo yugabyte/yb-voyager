@@ -82,6 +82,7 @@ target:
 ### This command imports data from given files into YugabyteDB database. 
 ### The files can be present either in local directories or cloud storages like AWS S3, GCS buckets and Azure blob storage. 
 ### Incremental data load is also supported.
+### For more details and examples, visit https://docs.yugabyte.com/preview/yugabyte-voyager/migrate/bulk-data-load/
 
 ### Uncomment this section and the respective parameters when you want to configure additional import data file options.
 import-data-file:
@@ -93,12 +94,14 @@ import-data-file:
   ### for Azure blob storage, e.g. https://<account_name>.blob.core.windows.net/<container_name>/<path-to-data-dir>
   data-dir: <data-dir-path>
 
-  ### Comma separated list of mapping between file name in '--data-dir' to a table in database
-  ### Note that for the cases where a table doesn't have a primary key, this may lead to insertion of duplicate data. 
-  ### To avoid this, exclude the table from file-table-map or truncate those tables manually before using the start-clean flag 
+  ### Comma-separated list mapping each file name in 'data-dir' to its corresponding table in the database.
+  ### Note: If a table doesn't have a primary key, importing data from its file may result in duplicates.
+  ### To avoid this, either:
+  ###   exclude that table from the file-table-map, or
+  ###   manually truncate the table before using the --start-clean flag.
   ### Default - false 
   ### Accepted values - true, false, yes, no, 0, 1
-  # file-table-map: "file1.csv:table1,file2.csv:table2"
+  file-table-map: "file1.csv:table1,file2.csv:table2"
 
   ### Format of the data file to be imported
   ### Default - "csv"
