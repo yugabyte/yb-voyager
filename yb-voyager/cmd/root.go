@@ -159,6 +159,10 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 
 		// Log the flag values set from the config file
 		for _, f := range overrides {
+			// If the config key is source.db-password, target.db-password, or source-replica.db-password, mask the value
+			if f.ConfigKey == "source.db-password" || f.ConfigKey == "target.db-password" || f.ConfigKey == "source-replica.db-password" {
+				f.Value = "********"
+			}
 			log.Infof("Flag '%s' set from config key '%s' with value '%s'\n", f.FlagName, f.ConfigKey, f.Value)
 		}
 		// Log the env variables already set in the environment by the user
