@@ -434,6 +434,8 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		fmt.Printf("\n")
 	}
 	if hasErrors {
+		// in case there are errored rows, and we are in on-pk-conflict ignore mode,
+		// it is possible that the batches which errored out were partially ingested.
 		if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
 			utils.PrintAndLog(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
 		}
