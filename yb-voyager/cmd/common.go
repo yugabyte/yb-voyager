@@ -46,9 +46,11 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -359,7 +361,7 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
 	} else {
@@ -430,6 +432,14 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		fmt.Printf("\n")
 		fmt.Println(uitable)
 		fmt.Printf("\n")
+	}
+	if hasErrors {
+		// in case there are errored rows, and we are in on-pk-conflict ignore mode,
+		// it is possible that the batches which errored out were partially ingested.
+		if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+			utils.PrintAndLog(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
+		}
+		utils.PrintAndLog(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
 	}
 }
 
