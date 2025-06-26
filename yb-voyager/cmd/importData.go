@@ -192,11 +192,11 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE, "")
+		packAndSendImportDataPayload(COMPLETE, nil)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSrcReplicaPayload(COMPLETE, "")
+		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
-		packAndSendImportDataToSourcePayload(COMPLETE, "")
+		packAndSendImportDataToSourcePayload(COMPLETE, nil)
 	}
 
 	if changeStreamingIsEnabled(importType) {
@@ -1115,7 +1115,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string, errorMsg string) {
+func packAndSendImportDataPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -1131,11 +1131,17 @@ func packAndSendImportDataPayload(status string, errorMsg string) {
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		EnableUpsert:     bool(tconf.EnableUpsert),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:                int64(tconf.Parallelism),
+		StartClean:                  bool(startClean),
+		EnableUpsert:                bool(tconf.EnableUpsert),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:            getControlPlaneType(),
+		BatchSize:                   batchSizeInNumRows,
+		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
+		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 	}
 
 	//Getting the imported snapshot details

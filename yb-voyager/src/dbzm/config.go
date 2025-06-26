@@ -110,6 +110,7 @@ debezium.source.errors.max.retries=15
 
 var baseSinkConfigTemplate = `
 debezium.sink.type=ybexporter
+debezium.sink.ybexporter.exportDir=%s
 debezium.sink.ybexporter.dataDir=%s
 debezium.sink.ybexporter.column_sequence.map=%s
 debezium.sink.ybexporter.sequence.max.map=%s
@@ -330,6 +331,7 @@ func (c *Config) String() string {
 			c.Host, c.Port,
 			c.DatabaseName,
 			schemaNames,
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,
@@ -364,6 +366,7 @@ func (c *Config) String() string {
 				c.Host, c.Port,
 				c.DatabaseName,
 				schemaNames,
+				c.ExportDir,
 
 				dataDir,
 				c.ColumnSequenceMapping,
@@ -400,6 +403,7 @@ func (c *Config) String() string {
 				c.YBStreamID,
 				c.YBMasterNodes,
 				schemaNames,
+				c.ExportDir,
 
 				dataDir,
 				c.ColumnSequenceMapping,
@@ -434,6 +438,7 @@ func (c *Config) String() string {
 			filepath.Join(c.ExportDir, "data", "history.dat"),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
 			logMiningFlushTable,
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,
@@ -465,6 +470,7 @@ func (c *Config) String() string {
 			c.DatabaseName,
 			getDatabaseServerID(),
 			filepath.Join(c.ExportDir, "data", "schema_history.json"),
+			c.ExportDir,
 
 			dataDir,
 			c.ColumnSequenceMapping,

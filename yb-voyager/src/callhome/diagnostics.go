@@ -18,6 +18,7 @@ package callhome
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -27,9 +28,11 @@ import (
 	"strings"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgconn"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -132,6 +135,7 @@ type AssessmentIssueCallhome struct {
 	ObjectType          string                 `json:"object_type"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
+
 func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
@@ -233,11 +237,23 @@ type ImportSchemaPhasePayload struct {
 	ControlPlaneType   string `json:"control_plane_type"`
 }
 
+/*
+Version History:
+1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
+*/
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ImportDataPhasePayload struct {
-	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows_imported"`
-	LargestTableRows int64 `json:"largest_table_rows_imported"`
-	StartClean       bool  `json:"start_clean"`
+	PayloadVersion              string `json:"payload_version"`
+	BatchSize                   int64  `json:"batch_size"`
+	ParallelJobs                int64  `json:"parallel_jobs"`
+	TotalRows                   int64  `json:"total_rows_imported"`
+	LargestTableRows            int64  `json:"largest_table_rows_imported"`
+	OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
+	StartClean                  bool   `json:"start_clean"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
@@ -349,8 +365,37 @@ func SendPayload(payload *Payload) error {
 
 // We want to ensure that no user-specific information is sent to the call-home service.
 // Therefore, we only send the segment of the error message before the first ":" as that is the generic error message.
-// Note: This is a temporary solution. A better solution would be to have
-// properly structured errors and only send the generic error message to callhome.
-func SanitizeErrorMsg(errorMsg string) string {
-	return strings.Split(errorMsg, ":")[0]
+// Accepts error type, returns empty string if error is nil.
+func SanitizeErrorMsg(err error) string {
+	if err == nil {
+		return ""
+	}
+	errorMsg := strings.Split(err.Error(), ":")[0]
+	additionalContext := getSpecificNonSensitiveContextForError(err)
+	if additionalContext != nil {
+		errorMsg = fmt.Sprintf("%s: %s", errorMsg, MarshalledJsonString(additionalContext))
+	}
+	return errorMsg
+}
+
+func getSpecificNonSensitiveContextForError(err error) map[string]string {
+	if err == nil {
+		return nil
+	}
+	context := make(map[string]string)
+
+	var ibe errs.ImportBatchError
+	if errors.As(err, &ibe) {
+		context["step"] = ibe.Step()
+		context["flow"] = ibe.Flow()
+	}
+
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		// If the error is a pgconn.PgError, we can return a more
+		// specific error message that includes the SQLSTATE code
+		context["pg_error_code"] = pgErr.Code
+	}
+
+	return context
 }

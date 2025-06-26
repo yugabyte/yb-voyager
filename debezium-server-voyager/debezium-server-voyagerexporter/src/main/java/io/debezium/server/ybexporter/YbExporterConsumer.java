@@ -12,6 +12,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigProvider;
 import org.slf4j.Logger;
@@ -34,6 +40,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     private static final String TARGET_DB_EXPORTER_FB_ROLE = "target_db_exporter_fb";
     String snapshotMode;
     String dataDir;
+    String exportDir;
     String sourceType;
     String exporterRole;
     private Map<String, Table> tableMap = new HashMap<>();
@@ -47,17 +54,31 @@ public class YbExporterConsumer extends BaseChangeConsumer {
     boolean shutDown = false;
     Object flushingSnapshotFilesLock = new Object();
 
+    // Lock file
+    private File lockFile;
+
     public YbExporterConsumer(String dataDir) {
         this.dataDir = dataDir;
     }
 
     void connect() throws URISyntaxException {
         LOGGER.info("connect() called: dataDir = {}", dataDir);
+
         final Config config = ConfigProvider.getConfig();
 
         snapshotMode = config.getOptionalValue("debezium.source.snapshot.mode", String.class).orElse("");
         retrieveSourceType(config);
         exporterRole = config.getValue("debezium.sink.ybexporter.exporter.role", String.class);
+        exportDir = config.getValue("debezium.sink.ybexporter.exportDir", String.class);
+        lockFile = new File(exportDir, String.format(".debezium_%s.lck", exporterRole));
+        
+        // Acquire lock file at startup
+        acquireLockFile();
+
+        // Register shutdown hook to release lock on exit
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            releaseLockFile();
+        }));
 
         exportStatus = ExportStatus.getInstance(dataDir);
         exportStatus.setSourceType(sourceType);
@@ -80,6 +101,91 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         flusherThread = new Thread(this::flush);
         flusherThread.setDaemon(true);
         flusherThread.start();
+    }
+
+    /**
+     * Reads the lock file and checks if the PID is still running.
+     * If the PID is not running, it deletes the lock file.
+     * If the PID is running, it throws an IllegalStateException.
+     */
+    private void checkExistingLockFile() {
+        if (!lockFile.exists()) {
+            return; // No lock file exists, nothing to check
+        }
+        try {
+            String lockContent = Files.readString(lockFile.toPath());
+            String[] lines = lockContent.split("\n");
+            if (lines == null || lines.length == 0) {
+                // If the lock file is empty, error out
+                String msg = String.format("Lock file {} is empty.", lockFile.getAbsolutePath());
+                throw new IllegalStateException(msg);
+            }
+            String pid = lines[0].trim();
+            // Check if the PID is a valid number
+            LOGGER.info("Lock file {} exists with PID: {}", lockFile.getAbsolutePath(), pid);
+            //Parse PID and check if the process is running
+            try {
+                long pidLong = Long.parseLong(pid);
+                // Check if the process with this PID is running
+                if (ProcessHandle.of(pidLong).isPresent()) {
+                    // Process is running, error out
+                    String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir.", lockFile.getAbsolutePath(), pid);
+                    LOGGER.error(msg);
+                    throw new IllegalStateException(msg);
+                } else {
+                    // Process is not running, we can safely delete the lock file
+                    LOGGER.warn("Lock file {} exists but process with PID {} is not running. Deleting it.", lockFile.getAbsolutePath(), pid);
+                    releaseLockFile();
+                }
+            } catch (NumberFormatException e) {
+                // If PID is not a valid number, throw an error
+                String msg = String.format("Invalid PID in lock file {}: {}.", lockFile.getAbsolutePath(), pid);
+                throw new IllegalStateException(msg, e);
+            }
+            
+        } catch (IOException e) {
+            String msg = String.format("Error reading lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
+            LOGGER.error(msg, e);
+            throw new IllegalStateException(msg, e);
+        }
+    }
+    /**
+     * Acquires a lock file in the dataDir with <exporter-role>.lck and stores the pid of the process 
+     * Fails if already locked.
+     */
+    private void acquireLockFile() {
+        checkExistingLockFile();
+        try {
+            // Create the lock file
+            boolean created = lockFile.createNewFile();
+            if (!created) {
+                String msg = String.format("Failed to create lock file %s. Another process may be running.", lockFile.getAbsolutePath());
+                LOGGER.error(msg);
+                throw new IllegalStateException(msg);
+            }
+            //write PID to check later if the PID is still running
+            String pid = String.valueOf(ProcessHandle.current().pid());
+            Files.writeString(lockFile.toPath(), pid + "\n", StandardOpenOption.WRITE);
+            LOGGER.info("Acquired lock file: {} for PID: %s", lockFile.getAbsolutePath(), pid);
+        } catch (IOException e) {
+            String msg = String.format("Error creating lock file %s: %s", lockFile.getAbsolutePath(), e.getMessage());
+            LOGGER.error(msg, e);
+            throw new IllegalStateException(msg, e);
+        }
+    }
+
+    /**
+     * Releases (deletes) the lock file if it exists.
+     */
+    private void releaseLockFile() {
+        if (lockFile != null && lockFile.exists()) {
+            try {
+                Files.delete(lockFile.toPath());
+                LOGGER.info("Released lock file: {}", lockFile.getAbsolutePath());
+            } catch (IOException e) {
+                LOGGER.warn("Failed to delete lock file {}: {}", lockFile.getAbsolutePath(), e.getMessage());
+            }
+        }
     }
 
     private ExportMode getExportModeToStartWith(String snapshotMode) {

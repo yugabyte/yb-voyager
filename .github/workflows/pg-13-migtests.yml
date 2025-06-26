@@ -4,13 +4,13 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   run-pg-13-migration-tests:
     strategy:
       matrix:
-        version: [2024.2.2.3-b1, 2.20.9.0-b47, 2024.1.4.0-b108, 2.25.1.0-b381]
+        version: [2024.2.3.1-b3, 2.20.10.0-b29, 2024.1.6.0-b53, 2.25.2.0-b359]
         BETA_FAST_DATA_EXPORT: [0, 1]
         test_group:
           - offline
@@ -199,6 +199,10 @@ jobs:
       - name: "TEST: pg-basic-public-fall-forward-test"
         if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/basic-public-live-test
+
+      - name: "TEST: pg-datatypes-fall-forward-test"
+        if: ${{ !cancelled() && matrix.test_group == 'live_basic' }}
+        run: migtests/scripts/live-migration-fallf-run-test.sh pg/datatypes
 
       # - name: "TEST: pg-basic-non-public-fall-back-test"
       #   run: migtests/scripts/live-migration-fallb-run-test.sh pg/basic-non-public-live-test

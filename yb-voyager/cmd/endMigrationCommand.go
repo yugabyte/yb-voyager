@@ -101,10 +101,10 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	cleanupExportDir()
 	utils.PrintAndLog("Migration ended successfully")
-	packAndSendEndMigrationPayload(COMPLETE, "")
+	packAndSendEndMigrationPayload(COMPLETE, nil)
 }
 
-func packAndSendEndMigrationPayload(status string, errorMsg string) {
+func packAndSendEndMigrationPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
@@ -765,7 +765,7 @@ func validateEndMigrationFlags(cmd *cobra.Command) error {
 
 func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	// check if any ongoing voyager command
-	matches, err := filepath.Glob(filepath.Join(exportDir, ".*.lck"))
+	matches, err := filepath.Glob(filepath.Join(exportDir, ".*Lockfile.lck")) // we should stop the voyager commands only which are suffixed by .Lockfile.lck and not their child processes like debezium as now we also have lockfile of debezium exporter
 	if err != nil {
 		utils.ErrExit("checking for ongoing voyager commands: %v", err)
 	}

@@ -40,8 +40,11 @@ Arguments:
 
   iops_capture_interval       Configure the interval for measuring the IOPS metadata on source (in seconds). (Default 120)
 
+  yes                         Answer yes for all questions during gathering metadata (default 'false') (accepted values: 'false' and 'true')
+
+
 Example:
-  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60'
+  PGPASSWORD=<password> $SCRIPT_NAME 'postgresql://user@localhost:5432/mydatabase' 'public|sales' '/path/to/assessment/metadata' 'true' '60' 'true'
 
 Please ensure to replace the placeholders with actual values suited to your environment.
 "
@@ -54,10 +57,10 @@ fi
 
 # Check if all required arguments are provided
 if [ "$#" -lt 4 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
     exit 1
-elif [ "$#" -gt 5 ]; then
-    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval]"
+elif [ "$#" -gt 6 ]; then
+    echo "Usage: $0 <pg_connection_string> <schema_list> <assessment_metadata_dir> <pgss_enabled> [iops_capture_interval] [yes]"
     exit 1
 fi
 
@@ -71,11 +74,22 @@ if [ ! -d "$assessment_metadata_dir" ]; then
 fi
 
 pgss_enabled=$4
+yes=false
 iops_capture_interval=120 # default sleep for calculating iops
-# Override default sleep interval if a fifth argument is provided
-if [ "$#" -eq 5 ]; then
+
+# Override default sleep interval if a fifth argument is 
+if [ "$#" -ge 5 ]; then
     iops_capture_interval=$5
     echo "sleep interval for calculating iops: $iops_capture_interval seconds"
+fi
+
+# override default yes if 6th arg is given
+if [ "$#" -eq 6 ]; then
+    yes=$6
+    if [[ "$yes" != false && "$yes" != true ]]; then 
+        echo "accepted values for the yes parameter are only ('true' and 'false')"
+        exit 1
+    fi
 fi
 
 
@@ -169,6 +183,34 @@ main() {
         if [ "$continue_execution" != "yes" ] && [ "$continue_execution" != "y" ]; then
             print_and_log "INFO" "Exiting..."
             exit 2
+        fi
+    fi
+
+    null_analyze_schemas=$(psql $pg_connection_string -tAqc "SELECT DISTINCT schemaname 
+FROM pg_stat_all_tables pgst1 
+WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
+  AND NOT EXISTS (
+    SELECT 1 
+    FROM pg_stat_all_tables pgst2 
+    WHERE pgst2.schemaname = pgst1.schemaname 
+      AND pgst2.last_analyze IS NOT NULL
+  );")
+
+    if [[ -n "$null_analyze_schemas" ]]; then
+        echo ""
+        echo "The following schemas do not have ANALYZE statistics:"
+        for s in "${null_analyze_schemas[@]}"; do
+            echo "  - $s"
+        done
+        echo ""
+        echo "Some performance optimizations cannot be detected accurately without ANALYZE statistics."
+        echo "Do you want to continue without analyzing these schemas? (Y/N)"
+        if [ "$yes" == false ]; then
+            read -r user_input
+            if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
+                echo "You can run ANALYZE manually on the affected schemas before retrying."
+                exit 1
+            fi
         fi
     fi
 

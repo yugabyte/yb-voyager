@@ -391,7 +391,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Adapt parallelism based on the resource usage (CPU, memory) of the target YugabyteDB cluster.")
 	cmd.Flags().IntVar(&tconf.MaxParallelism, "adaptive-parallelism-max", 0,
 		"number of max parallel jobs to use while importing data when adaptive parallelism is enabled. "+
-			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs. ")
+			"By default, voyager will try if it can determine the total number of cores N and use N/2 as the max parallel jobs.")
 	BoolVar(cmd.Flags(), &skipReplicationChecks, "skip-replication-checks", false,
 		"It is NOT recommended to have any form of replication (CDC/xCluster) running on the target YugabyteDB cluster during data import. "+
 			"If detected, data import is aborted. Use this flag to turn off the checks and continue importing data.")

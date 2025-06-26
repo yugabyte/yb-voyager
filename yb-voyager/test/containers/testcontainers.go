@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"sync"
 
 	"github.com/samber/lo"
@@ -51,6 +52,7 @@ type ContainerConfig struct {
 	Password  string
 	DBName    string
 	Schema    string
+	ForLive   bool
 }
 
 func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestContainer {
@@ -65,6 +67,9 @@ func NewTestContainer(dbType string, containerConfig *ContainerConfig) TestConta
 
 	// check if container is already created after fetching default configs
 	containerName := fmt.Sprintf("%s-%s", dbType, containerConfig.DBVersion)
+	if containerConfig.ForLive {
+		containerName = fmt.Sprintf("%s-live-%s", dbType, containerConfig.DBVersion)
+	}
 	if container, exists := containerRegistry[containerName]; exists {
 		log.Infof("container '%s' already exists in the registry", containerName)
 		return container
@@ -122,33 +127,52 @@ func TerminateAllContainers() {
 func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerConfig) {
 	// TODO: discuss and decide the default DBVersion values for each dbtype
 
+	ybVersion := os.Getenv("YB_VERSION")
+	if ybVersion == "" {
+		panic("YB_VERSION env variable is not set. ")
+	}
+
+	pgVersion := os.Getenv("PG_VERSION")
+	if pgVersion == "" {
+		panic("PG_VERSION env variable is not set. ")
+	}
+
+	oracleVersion := os.Getenv("ORACLE_VERSION")
+	if oracleVersion == "" {
+		panic("ORACLE_VERSION env variable is not set. ")
+	}
+	mysqlVersion := os.Getenv("MYSQL_VERSION")
+	if mysqlVersion == "" {
+		panic("MYSQL_VERSION env variable is not set. ")
+	}
+
 	config.DBType = dbType
 	switch dbType {
 	case POSTGRESQL:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
-		config.DBVersion = lo.Ternary(config.DBVersion == "", "11", config.DBVersion)
+		config.DBVersion = lo.Ternary(config.DBVersion == "", pgVersion, config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
 		config.DBName = lo.Ternary(config.DBName == "", "postgres", config.DBName)
 
 	case YUGABYTEDB:
 		config.User = lo.Ternary(config.User == "", "yugabyte", config.User) // ybdb docker doesn't create specified user
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
-		config.DBVersion = lo.Ternary(config.DBVersion == "", "2.20.7.1-b10", config.DBVersion)
+		config.DBVersion = lo.Ternary(config.DBVersion == "", ybVersion, config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "public", config.Schema)
 		config.DBName = lo.Ternary(config.DBName == "", "yugabyte", config.DBName)
 
 	case ORACLE:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
-		config.DBVersion = lo.Ternary(config.DBVersion == "", "21", config.DBVersion)
+		config.DBVersion = lo.Ternary(config.DBVersion == "", oracleVersion, config.DBVersion)
 		config.Schema = lo.Ternary(config.Schema == "", "YBVOYAGER", config.Schema)
 		config.DBName = lo.Ternary(config.DBName == "", "DMS", config.DBName)
 
 	case MYSQL:
 		config.User = lo.Ternary(config.User == "", "ybvoyager", config.User)
 		config.Password = lo.Ternary(config.Password == "", "passsword", config.Password)
-		config.DBVersion = lo.Ternary(config.DBVersion == "", "8.4", config.DBVersion)
+		config.DBVersion = lo.Ternary(config.DBVersion == "", mysqlVersion, config.DBVersion)
 		config.DBName = lo.Ternary(config.DBName == "", "dms", config.DBName)
 
 	default:

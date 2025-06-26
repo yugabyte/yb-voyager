@@ -416,11 +416,7 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error, bool) {
-	if nonTxnPath {
-		panic("non-transactional path for import batch is not supported in PostgreSQL")
-	}
-
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {

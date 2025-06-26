@@ -33,6 +33,7 @@ import (
 	"github.com/jackc/pgx/v4/pgxpool"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/assert"
+
 	controlPlane "github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
@@ -88,9 +89,9 @@ func TestYugabyteDTableSchema(t *testing.T) {
 			"migration_uuid":       {Type: "uuid", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"migration_phase":      {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
 			"invocation_sequence":  {Type: "integer", IsNullable: "NO", Default: sql.NullString{Valid: false}, IsPrimary: true},
-			"migration_dir":        {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"database_name":        {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
-			"schema_name":          {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"migration_dir":        {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"database_name":        {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
+			"schema_name":          {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 			"payload":              {Type: "text", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 			"complexity":           {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
 			"db_type":              {Type: "character varying", IsNullable: "YES", Default: sql.NullString{Valid: false}, IsPrimary: false},
