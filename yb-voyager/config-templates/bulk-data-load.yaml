@@ -12,21 +12,7 @@ export-dir: <export-dir-path>
 ### Log level for yb-voyager 
 ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
 ### Default - info
-log-level: info                  
-
-### *********** Control Plane Configuration ************
-### To see the Voyager migration workflow details in the UI, set the following parameters.
-
-### Control plane type refers to the deployment type of YugabyteDB
-### Accepted value - (yugabyted)
-### Optional
-control-plane-type: yugabyted  
-
-### YSQL connection string
-### Provide the standard PostgreSQL connection parameters, including user name, host name, and port. For example, postgresql://yugabyte:yugabyte@127.0.0.1:5433
-### Note: Don't include the dbname parameter in the connection string; the default yugabyte database is used to store the meta information for showing the migration in the yugabyted UI.
-### Required if control-plane-type is set to yugabyted
-yugabyted-db-conn-string: postgresql://yugabyte:yugabyte@127.0.0.1:5433                           
+log-level: info                                          
 
 # ---------------------------------------------------------
 # Target Database Configuration
