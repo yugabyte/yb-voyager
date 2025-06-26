@@ -670,7 +670,7 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
 		return res.RowsAffected(), err
 	}
-	return res.RowsAffected(), err
+	return res.RowsAffected(), nil
 }
 
 // importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
