@@ -225,9 +225,9 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateTargetSchemaFlag()
 	validateParallelismFlags()
 
-	err := validateOnPrimaryKeyConflictFlag()
+	err := validateImportDataFlags()
 	if err != nil {
-		utils.ErrExit("Error validating --on-primary-key-conflict flag: %w", err)
+		utils.ErrExit("Error validating import data flags: %s", err.Error())
 	}
 }
 

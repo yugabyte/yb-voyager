@@ -100,6 +100,15 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	return nil
 }
 
+func validateImportDataFlags() error {
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
+
+	return nil
+}
+
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
