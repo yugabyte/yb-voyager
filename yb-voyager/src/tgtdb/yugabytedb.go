@@ -749,7 +749,6 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	var rowsIgnored int64 = 0
 	rowsAffected = 0 // reset to 0
 	copyCommand := args.GetYBTxnCopyStatement()
-	fmt.Printf("COPY fast recover stmt: %s\n", copyCommand)
 	copyHeader := ""
 	if args.HasHeader {
 		copyHeader = df.GetHeader()
