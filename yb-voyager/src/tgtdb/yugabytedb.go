@@ -689,7 +689,6 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
-	fmt.Printf("COPY stmt: %s\n", copyCommand)
 	if err != nil {
 		err = newImportBatchErrorPgYb(err, batch,
 			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
