@@ -30,36 +30,19 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
-//TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
-//we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
-type ParserIssueDetector struct {
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		schema2.table2 -> {
-			column3: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+type ColumnMetadata struct {
+	DataType               string
+	IsUnsupportedForIndex  bool
+	IsHotspotForRangeIndex bool
+	IsJsonb                bool
+	IsArray                bool
+	IsUserDefinedType      bool
+}
 
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: timestamp | timestampz | date
-			...
-		}
-		schema2.table2 -> {
-			column3: timestamp | timestampz | date
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
+// TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
+// we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
+type ParserIssueDetector struct {
+	columnMetadata map[string]map[string]*ColumnMetadata
 
 	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
@@ -82,22 +65,18 @@ type ParserIssueDetector struct {
 	//Functions in exported schema
 	functionObjects []*queryparser.Function
 
-	//columns names with jsonb type
-	jsonbColumns []string
-
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
-		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
-		compositeTypes:                          make([]string, 0),
-		enumTypes:                               make([]string, 0),
-		partitionedTablesMap:                    make(map[string]bool),
-		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
-		columnStatistics:                        make(map[string]utils.ColumnStatistics),
+		columnMetadata:       make(map[string]map[string]*ColumnMetadata),
+		compositeTypes:       make([]string, 0),
+		enumTypes:            make([]string, 0),
+		partitionedTablesMap: make(map[string]bool),
+		primaryConsInAlter:   make(map[string]*queryparser.AlterTable),
+		columnStatistics:     make(map[string]utils.ColumnStatistics),
 	}
 }
 
@@ -116,6 +95,51 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 	}
 
 	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+func (p *ParserIssueDetector) GetJsonbColumns() []string {
+	// This function is used to get the jsonb columns from the parser issue detector
+	// It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
+	jsonbColumns := make([]string, 0)
+	for _, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsJsonb {
+				jsonbColumns = append(jsonbColumns, columnName)
+			}
+		}
+	}
+	return jsonbColumns
+}
+
+func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[string]map[string]string {
+	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsUnsupportedForIndex {
+				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
+					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+
+	return columnsWithUnsupportedIndexDatatypes
+}
+
+func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[string]map[string]string {
+	columnsWithHotspotRangeIndexesDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsHotspotForRangeIndex {
+				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
+					columnsWithHotspotRangeIndexesDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+	return columnsWithHotspotRangeIndexesDatatypes
 }
 
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
@@ -231,40 +255,43 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			p.partitionedTablesMap[table.GetObjectName()] = true
 		}
 
+		tableName := table.GetObjectName()
+		// Ensure map is initialized
+		if _, exists := p.columnMetadata[tableName]; !exists {
+			p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
+		}
+
 		for _, col := range table.Columns {
+			meta := &ColumnMetadata{
+				DataType: col.TypeName, // default
+			}
+
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
-			switch true {
+
+			switch {
 			case col.IsArrayType:
-				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "array"
+				meta.IsArray = true
+				meta.IsUnsupportedForIndex = true
+				meta.DataType = "array"
+
 			case isUnsupportedType || isUDTType:
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
+				meta.IsUnsupportedForIndex = true
+				if isUDTType {
+					meta.IsUserDefinedType = true
+					meta.DataType = "user_defined_type"
 				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
-				if isUDTType { //For UDTs
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
-				}
+
 			case isHotspotType:
-				//For these types like timestamp/date the indexes can create read/write hotspot problem
-				_, ok := p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
+				meta.IsHotspotForRangeIndex = true
 			}
 
 			if col.TypeName == "jsonb" {
-				// used to detect the jsonb subscripting happening on these columns
-				p.jsonbColumns = append(p.jsonbColumns, col.ColumnName)
+				meta.IsJsonb = true
 			}
+
+			p.columnMetadata[tableName][col.ColumnName] = meta
 		}
 
 	case *queryparser.CreateType:
@@ -427,7 +454,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewMergeStatementDetector(query),
-		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
+		NewJsonbSubscriptingDetector(query, p.GetJsonbColumns(), p.getJsonbReturnTypeFunctions()),
 		NewUniqueNullsNotDistinctDetector(query),
 		NewJsonPredicateExprDetector(query),
 		NewNonDecimalIntegerLiteralDetector(query),
@@ -481,7 +508,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 	var jsonbFunctions []string
-	jsonbColumns := p.jsonbColumns
+	jsonbColumns := p.GetJsonbColumns()
 	for _, function := range p.functionObjects {
 		returnType := function.ReturnType
 		if strings.HasSuffix(returnType, "%TYPE") {
