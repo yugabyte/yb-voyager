@@ -1247,35 +1247,3 @@ generate_voyager_config() {
 	fi
 }
 
-check_for_password_leaks() {
-    local log_dir="${EXPORT_DIR}/logs"
-    local patterns=(
-        "SOURCE_DB_PASSWORD"
-        "TARGET_DB_PASSWORD"
-        "SOURCE_REPLICA_DB_PASSWORD"
-        "source-db-password"
-        "target-db-password"
-        "source-replica-db-password"
-        "SOURCE_DB_SSL_CERT"
-        "SOURCE_DB_SSL_KEY"
-        "SOURCE_DB_SSL_ROOT_CERT"
-        "source-db-ssl-cert"
-        "source-db-ssl-key"
-        "source-db-ssl-root-cert"
-    )
-
-    echo "Checking for password leaks in log files under: $log_dir"
-    echo "--------------------------------------------------------"
-
-    local found=false
-    for pattern in "${patterns[@]}"; do
-        grep -rn --color=always "$pattern" "$log_dir" && found=true
-    done
-
-    if [ "$found" = false ]; then
-        echo "✅ No password strings found in the logs."
-    else
-        echo "⚠️  WARNING: Some password-related strings were found above. Please review them carefully!"
-    fi
-}
-

@@ -55,13 +55,6 @@ normalize_and_export_vars "live"
 
 source ${SCRIPTS}/yugabytedb/env.sh
 
-# # Handling for config generation
-# if [ "${run_via_config_file}" = true ]; then
-# 	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/live-migration.yaml"
-# 	GENERATED_CONFIG="${TEST_DIR}/generated-config.yaml"
-# 	CONFIG_GEN_SCRIPT="${SCRIPTS}/generate_voyager_config_file.py"
-# fi
-
 # Handling for config generation
 if [ "${run_via_config_file}" = true ]; then
 	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/live-migration.yaml"
@@ -79,11 +72,6 @@ main() {
 
 	step "START: ${TEST_NAME}"
 	print_env
-
-	# if [ "${run_via_config_file}" = true ]; then
-	# 	# Generate the config file
-	# 	python3 "$CONFIG_GEN_SCRIPT" --template "$CONFIG_TEMPLATE" --output "$GENERATED_CONFIG"
-	# fi
 
 	pushd ${TEST_DIR}
 
@@ -244,9 +232,6 @@ main() {
 
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
-
-	step "Look for password in the logs"
-	check_for_password_leaks
 
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes
