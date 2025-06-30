@@ -1256,6 +1256,12 @@ check_for_password_leaks() {
         "source-db-password"
         "target-db-password"
         "source-replica-db-password"
+        "SOURCE_DB_SSL_CERT"
+        "SOURCE_DB_SSL_KEY"
+        "SOURCE_DB_SSL_ROOT_CERT"
+        "source-db-ssl-cert"
+        "source-db-ssl-key"
+        "source-db-ssl-root-cert"
     )
 
     echo "Checking for password leaks in log files under: $log_dir"
