@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -244,17 +245,17 @@ Version History:
 var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
 
 type ImportDataPhasePayload struct {
-	PayloadVersion              string `json:"payload_version"`
-	BatchSize                   int64  `json:"batch_size"`
-	ParallelJobs                int64  `json:"parallel_jobs"`
-	TotalRows                   int64  `json:"total_rows_imported"`
-	LargestTableRows            int64  `json:"largest_table_rows_imported"`
-	OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
-	EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
-	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
-	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
-	StartClean                  bool   `json:"start_clean"`
-	YBClusterMetrics            string `json:"yb_cluster_metrics"`
+	PayloadVersion              string           `json:"payload_version"`
+	BatchSize                   int64            `json:"batch_size"`
+	ParallelJobs                int64            `json:"parallel_jobs"`
+	TotalRows                   int64            `json:"total_rows_imported"`
+	LargestTableRows            int64            `json:"largest_table_rows_imported"`
+	OnPrimaryKeyConflictAction  string           `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool             `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64            `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string           `json:"error_policy_snapshot"`
+	StartClean                  bool             `json:"start_clean"`
+	YBClusterMetrics            YBClusterMetrics `json:"yb_cluster_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
@@ -263,6 +264,22 @@ type ImportDataPhasePayload struct {
 	EnableUpsert        bool   `json:"enable_upsert"`
 	Error               string `json:"error"`
 	ControlPlaneType    string `json:"control_plane_type"`
+}
+
+type YBClusterMetrics struct {
+	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
+	CPUAvgPct float64      `json:"cpu_avg_pct"` // mean of node CPU% across all nodes
+	MemAvgPct float64      `json:"mem_avg_pct"` // mean of node Mem% across all nodes
+	Nodes     []NodeMetric `json:"nodes"`       // one entry per node
+}
+
+// per-node snapshot
+type NodeMetric struct {
+	UUID   string  `json:"uuid"`
+	CPUPct float64 `json:"cpu_pct"` // (user+system)*100
+	MemPct float64 `json:"mem_pct"` // tserver-consumption/tserver-soft-limit * 100
+	Status string  `json:"status"`  // "OK", "ERROR"
+	Error  string  `json:"error"`   // error message if status is not OK
 }
 
 type ImportDataFilePhasePayload struct {

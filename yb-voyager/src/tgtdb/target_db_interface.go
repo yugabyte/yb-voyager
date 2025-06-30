@@ -99,12 +99,12 @@ func NewTargetDB(tconf *TargetConf) TargetDB {
 // ======================= ImportBatchArgs ====================
 
 type ImportBatchArgs struct {
-	FilePath                 string
-	TableNameTup             sqlname.NameTuple
-	Columns                  []string
-	PrimaryKeyColumns        []string
-	PKConstraintName string
-	PKConflictAction         string
+	FilePath          string
+	TableNameTup      sqlname.NameTuple
+	Columns           []string
+	PrimaryKeyColumns []string
+	PKConstraintName  string
+	PKConflictAction  string
 
 	FileFormat string
 	HasHeader  bool
