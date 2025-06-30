@@ -193,7 +193,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE, nil)
+		packAndSendImportDataToTargetPayload(COMPLETE, nil)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
@@ -1186,7 +1186,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string, errorMsg error) {
+func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -1213,6 +1213,19 @@ func packAndSendImportDataPayload(status string, errorMsg error) {
 		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+	}
+
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	} else {
+		clusterMetrics, err := yb.GetClusterMetrics()
+		if err != nil {
+			log.Errorf("callhome: error in getting cluster metrics: %v", err)
+		} else {
+			// TODO: is node UUID sensitive information? If yes, we can anonymize it.
+			importDataPayload.YBClusterMetrics = callhome.MarshalledJsonString(clusterMetrics)
+		}
 	}
 
 	//Getting the imported snapshot details

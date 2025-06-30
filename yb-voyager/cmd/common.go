@@ -1553,7 +1553,7 @@ func PackAndSendCallhomePayloadOnExit() {
 	case exportDataFromTargetCmd.CommandPath():
 		packAndSendExportDataFromTargetPayload(status, exitErr)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(status, exitErr)
+		packAndSendImportDataToTargetPayload(status, exitErr)
 	case importDataToSourceCmd.CommandPath():
 		packAndSendImportDataToSourcePayload(status, exitErr)
 	case importDataToSourceReplicaCmd.CommandPath():
@@ -1627,7 +1627,7 @@ func sendCallhomePayloadAtIntervals() {
 		case exportDataFromTargetCmd.CommandPath():
 			packAndSendExportDataFromTargetPayload(INPROGRESS, nil)
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS, nil)
+			packAndSendImportDataToTargetPayload(INPROGRESS, nil)
 		case importDataToSourceCmd.CommandPath():
 			packAndSendImportDataToSourcePayload(INPROGRESS, nil)
 		case importDataToSourceReplicaCmd.CommandPath():
