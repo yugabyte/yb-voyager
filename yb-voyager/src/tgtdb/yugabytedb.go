@@ -309,6 +309,8 @@ func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstra
 			return true
 		}
 	}
+
+	log.Infof("not a primary key violation error, expected one of the following: %v, actualErr=%s", pkConstraintNames, err.Error())
 	return false
 }
 
@@ -489,25 +491,34 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
 // If the table does not have a primary key, it returns an empty string and no error
 // If the table is partitioned, it returns the list of primary key constraint names for all partitions
+//
+//	If multi level partitioning, need to return all the primary key constraint names for all levels(recursively)
 func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-SELECT tc.constraint_name
-  FROM information_schema.table_constraints tc
-WHERE tc.table_schema    = '%s'
-	AND tc.constraint_type = 'PRIMARY KEY'
-	AND (
-         tc.table_name = '%s'
-      OR tc.table_name IN (
-            SELECT c.relname
-              FROM pg_inherits i
-              JOIN pg_class c ON i.inhrelid = c.oid
-             WHERE i.inhparent = '%s'::regclass			-- fully qualified is required here
-         )
-   );`, schemaName, tableName, table.ForOutput())
+	recursiveCTEQuery := fmt.Sprintf(`
+WITH RECURSIVE all_parts AS (
+  -- 1) Seed: include the parent table's OID
+  SELECT oid AS tbl_oid
+    FROM pg_class
+   WHERE oid = '%s'::regclass
 
+  UNION ALL
+
+  -- 2) Recursion: find each table's immediate partitions
+  SELECT inh.inhrelid
+    FROM pg_inherits inh
+    JOIN all_parts ap ON inh.inhparent = ap.tbl_oid
+)
+-- 3) Pull every primary-key constraint on the parent or any partition
+SELECT
+  c.conname AS constraint_name
+FROM pg_constraint c
+JOIN all_parts ap
+  ON ap.tbl_oid = c.conrelid   -- only constraints on our collected tables
+WHERE c.contype = 'p';          -- filter for PRIMARY KEY only`, table.ForOutput()) // use the fully qualified table name
+
+	log.Infof("Querying for primary key constraint names for table %s: %s", table.ForMinOutput(), recursiveCTEQuery)
 	var constraintNames []string
-	rows, err := yb.Query(query)
+	rows, err := yb.Query(recursiveCTEQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // No primary key constraint found
@@ -519,13 +530,15 @@ WHERE tc.table_schema    = '%s'
 	for rows.Next() {
 		var cn string
 		if err := rows.Scan(&cn); err != nil {
-			return nil, fmt.Errorf("scan constraint name: %w", err)
+			return nil, fmt.Errorf("scan PK constraint name for table %s: %w", table.ForMinOutput(), err)
 		}
 		constraintNames = append(constraintNames, cn)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK constraints: %w", err)
+		return nil, fmt.Errorf("error iterating over PK constraint names for table %s: %w", table.ForMinOutput(), err)
 	}
+
+	log.Infof("found %d primary key constraint(s) for table %s: %v", len(constraintNames), table.ForMinOutput(), constraintNames)
 	return constraintNames, nil
 }
 

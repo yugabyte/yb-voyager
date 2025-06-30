@@ -214,7 +214,7 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
             name TEXT,
             CONSTRAINT "CASE_sensitive_pkey" PRIMARY KEY (id)
         );`,
-		// Partitioned table example
+		// Partitioned table examples
 		`CREATE TABLE test_schema.emp (
             emp_id   INT,
             emp_name TEXT,
@@ -224,8 +224,28 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 		`CREATE TABLE test_schema.emp_0 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 0);`,
 		`CREATE TABLE test_schema.emp_1 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
 		`CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
+
+		`CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
+		`CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');`,
+		`CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');`,
+		`CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');`,
+
+		// Multi level partitioning
+		`CREATE TABLE customers (id INTEGER, statuses TEXT, arr NUMERIC, PRIMARY KEY(id, statuses, arr)) PARTITION BY LIST(statuses);`,
+
+		`CREATE TABLE cust_active PARTITION OF customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
+		`CREATE TABLE cust_other  PARTITION OF customers DEFAULT;`,
+
+		`CREATE TABLE cust_arr_small PARTITION OF cust_active FOR VALUES FROM (MINVALUE) TO (101) PARTITION BY HASH(id);`,
+		`CREATE TABLE cust_part11 PARTITION OF cust_arr_small FOR VALUES WITH (modulus 2, remainder 0);`,
+		`CREATE TABLE cust_part12 PARTITION OF cust_arr_small FOR VALUES WITH (modulus 2, remainder 1);`,
+
+		`CREATE TABLE cust_arr_large PARTITION OF cust_active FOR VALUES FROM (101) TO (MAXVALUE) PARTITION BY HASH(id);`,
+		`CREATE TABLE cust_part21 PARTITION OF cust_arr_large FOR VALUES WITH (modulus 2, remainder 0);`,
+		`CREATE TABLE cust_part22 PARTITION OF cust_arr_large FOR VALUES WITH (modulus 2, remainder 1);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
+	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA public CASCADE;`)
 
 	tests := []struct {
 		table           sqlname.NameTuple
@@ -251,6 +271,15 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 			// Partitioned table: expect parent + all child partitions
 			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "emp")},
 			expectedPKNames: []string{"emp_pkey", "emp_0_pkey", "emp_1_pkey", "emp_2_pkey"},
+		},
+		{
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "sales_region")},
+			expectedPKNames: []string{"sales_region_pkey", "london_pkey", "sydney_pkey", "boston_pkey"},
+		},
+		{
+			table: sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "customers")},
+			expectedPKNames: []string{"customers_pkey", "cust_active_pkey", "cust_other_pkey", "cust_arr_small_pkey",
+				"cust_part11_pkey", "cust_part12_pkey", "cust_arr_large_pkey", "cust_part21_pkey", "cust_part22_pkey"},
 		},
 	}
 
