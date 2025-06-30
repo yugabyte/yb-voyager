@@ -20,6 +20,7 @@ package callhome
 import (
 	"reflect"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 
@@ -211,24 +212,45 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate ImportDataPhasePayload Struct Definition",
 			actualType: reflect.TypeOf(ImportDataPhasePayload{}),
 			expectedType: struct {
-				PayloadVersion              string `json:"payload_version"`
-				BatchSize                   int64  `json:"batch_size"`
-				ParallelJobs                int64  `json:"parallel_jobs"`
-				TotalRows                   int64  `json:"total_rows_imported"`
-				LargestTableRows            int64  `json:"largest_table_rows_imported"`
-				OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
-				EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
-				AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
-				ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
-				StartClean                  bool   `json:"start_clean"`
-				YBClusterMetrics            string `json:"yb_cluster_metrics"`
-				Phase                       string `json:"phase,omitempty"`
-				TotalImportedEvents         int64  `json:"total_imported_events,omitempty"`
-				EventsImportRate            int64  `json:"events_import_rate_3m,omitempty"`
-				LiveWorkflowType            string `json:"live_workflow_type,omitempty"`
-				EnableUpsert                bool   `json:"enable_upsert"`
-				Error                       string `json:"error"`
-				ControlPlaneType            string `json:"control_plane_type"`
+				PayloadVersion              string           `json:"payload_version"`
+				BatchSize                   int64            `json:"batch_size"`
+				ParallelJobs                int64            `json:"parallel_jobs"`
+				TotalRows                   int64            `json:"total_rows_imported"`
+				LargestTableRows            int64            `json:"largest_table_rows_imported"`
+				OnPrimaryKeyConflictAction  string           `json:"on_primary_key_conflict_action"`
+				EnableYBAdaptiveParallelism bool             `json:"enable_yb_adaptive_parallelism"`
+				AdaptiveParallelismMax      int64            `json:"adaptive_parallelism_max"`
+				ErrorPolicySnapshot         string           `json:"error_policy_snapshot"`
+				StartClean                  bool             `json:"start_clean"`
+				YBClusterMetrics            YBClusterMetrics `json:"yb_cluster_metrics"`
+				Phase                       string           `json:"phase,omitempty"`
+				TotalImportedEvents         int64            `json:"total_imported_events,omitempty"`
+				EventsImportRate            int64            `json:"events_import_rate_3m,omitempty"`
+				LiveWorkflowType            string           `json:"live_workflow_type,omitempty"`
+				EnableUpsert                bool             `json:"enable_upsert"`
+				Error                       string           `json:"error"`
+				ControlPlaneType            string           `json:"control_plane_type"`
+			}{},
+		},
+		{
+			name:       "Validate YBClusterMetrics Struct Definition",
+			actualType: reflect.TypeOf(YBClusterMetrics{}),
+			expectedType: struct {
+				Timestamp time.Time    `json:"timestamp"`
+				CPUAvgPct float64      `json:"cpu_avg_pct"`
+				MemAvgPct float64      `json:"mem_avg_pct"`
+				Nodes     []NodeMetric `json:"nodes"`
+			}{},
+		},
+		{
+			name:       "Validate NodeMetric Struct Definition",
+			actualType: reflect.TypeOf(NodeMetric{}),
+			expectedType: struct {
+				UUID   string  `json:"uuid"`
+				CPUPct float64 `json:"cpu_pct"`
+				MemPct float64 `json:"mem_pct"`
+				Status string  `json:"status"`
+				Error  string  `json:"error"`
 			}{},
 		},
 		{
