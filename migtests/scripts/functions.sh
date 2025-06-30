@@ -1246,3 +1246,30 @@ generate_voyager_config() {
 		python3 "$CONFIG_GEN_SCRIPT" --template "$template_file" --output "$GENERATED_CONFIG"
 	fi
 }
+
+check_for_password_leaks() {
+    local log_dir="${EXPORT_DIR}/logs"
+    local patterns=(
+        "SOURCE_DB_PASSWORD"
+        "TARGET_DB_PASSWORD"
+        "SOURCE_REPLICA_DB_PASSWORD"
+        "source-db-password"
+        "target-db-password"
+        "source-replica-db-password"
+    )
+
+    echo "Checking for password leaks in log files under: $log_dir"
+    echo "--------------------------------------------------------"
+
+    local found=false
+    for pattern in "${patterns[@]}"; do
+        grep -rn --color=always "$pattern" "$log_dir" && found=true
+    done
+
+    if [ "$found" = false ]; then
+        echo "✅ No password strings found in the logs."
+    else
+        echo "⚠️  WARNING: Some password-related strings were found above. Please review them carefully!"
+    fi
+}
+

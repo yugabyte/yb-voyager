@@ -305,6 +305,9 @@ main() {
 	step "Verify data-migration-report report"
 	verify_report ${expected_file} ${actual_file}
 
+	step "Look for password in the logs"
+	check_for_password_leaks
+
 	step "End Migration: clearing metainfo about state of migration from everywhere"
 	end_migration --yes
 
