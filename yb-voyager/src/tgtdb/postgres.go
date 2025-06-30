@@ -323,55 +323,46 @@ outer:
 	return nil
 }
 
-// No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
-func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
-	return nil, nil
-}
-
+// GetPrimaryKeyColumns returns the subset of `columns` that belong to the
+// primary‑key definition of the given table.
 // Implementing this for completion but not used in Postgres fall-forward/fall-back
 // This info is only used in fast path import of batches(Target YugabyteDB)
-// GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
-// If the table does not have a primary key, it returns an empty string and no error
-// If the table is partitioned, it returns the list of primary key constraint names for all partitions
-func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]string, error) {
+	var primaryKeyColumns []string
 	schemaName, tableName := table.ForCatalogQuery()
-	fullName := fmt.Sprintf("%s.%s", schemaName, tableName)
 	query := fmt.Sprintf(`
-SELECT tc.constraint_name
-  FROM information_schema.table_constraints tc
-WHERE tc.table_schema    = '%s'
-	AND tc.constraint_type = 'PRIMARY KEY'
-	AND (
-         tc.table_name = '%s'
-      OR tc.table_name IN (
-            SELECT c.relname
-              FROM pg_inherits i
-              JOIN pg_class c ON i.inhrelid = c.oid
-             WHERE i.inhparent = '%s'::regclass
-         )
-   );`, schemaName, tableName, fullName)
+		SELECT a.attname
+		FROM pg_index i
+		JOIN pg_class      c ON c.oid = i.indrelid
+		JOIN pg_namespace  n ON n.oid = c.relnamespace
+		JOIN pg_attribute  a ON a.attrelid = c.oid AND a.attnum = ANY(i.indkey)
+		WHERE n.nspname = '%s'
+			AND c.relname  = '%s'
+			AND i.indisprimary;`, schemaName, tableName)
 
-	var constraintNames []string
 	rows, err := pg.Query(query)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // No primary key constraint found
-		}
-		return nil, fmt.Errorf("query PK constraint name for %s: %w", fullName, err)
+		return nil, fmt.Errorf("query PK columns for %s.%s: %w", schemaName, tableName, err)
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		var cn string
-		if err := rows.Scan(&cn); err != nil {
-			return nil, fmt.Errorf("scan constraint name: %w", err)
+		var col string
+		if err := rows.Scan(&col); err != nil {
+			return nil, fmt.Errorf("scan PK column: %w", err)
 		}
-		constraintNames = append(constraintNames, cn)
+		primaryKeyColumns = append(primaryKeyColumns, col)
 	}
 	if err := rows.Err(); err != nil {
-		return nil, fmt.Errorf("iterate PK constraints: %w", err)
+		return nil, err
 	}
-	return constraintNames, nil
+
+	return primaryKeyColumns, nil
+}
+
+// No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
