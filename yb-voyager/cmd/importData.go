@@ -733,7 +733,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 
 	if changeStreamingIsEnabled(importType) {
 		if importerRole != SOURCE_DB_IMPORTER_ROLE {
-			displayImportedRowCountSnapshot(state, importFileTasks)
+			displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 		}
 
 		waitForDebeziumStartIfRequired()
@@ -793,7 +793,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		if err != nil {
 			utils.ErrExit("failed to restore generated columns: %s", err)
 		}
-		displayImportedRowCountSnapshot(state, importFileTasks)
+		displayImportedRowCountSnapshot(state, importFileTasks, errorHandler)
 	}
 	fmt.Printf("\nImport data complete.\n")
 }
@@ -1131,11 +1131,17 @@ func packAndSendImportDataPayload(status string, errorMsg error) {
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
 	importDataPayload := callhome.ImportDataPhasePayload{
-		ParallelJobs:     int64(tconf.Parallelism),
-		StartClean:       bool(startClean),
-		EnableUpsert:     bool(tconf.EnableUpsert),
-		Error:            callhome.SanitizeErrorMsg(errorMsg),
-		ControlPlaneType: getControlPlaneType(),
+		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
+		ParallelJobs:                int64(tconf.Parallelism),
+		StartClean:                  bool(startClean),
+		EnableUpsert:                bool(tconf.EnableUpsert),
+		Error:                       callhome.SanitizeErrorMsg(errorMsg),
+		ControlPlaneType:            getControlPlaneType(),
+		BatchSize:                   batchSizeInNumRows,
+		OnPrimaryKeyConflictAction:  tconf.OnPrimaryKeyConflictAction,
+		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
+		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
+		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 	}
 
 	//Getting the imported snapshot details

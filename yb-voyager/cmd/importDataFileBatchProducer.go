@@ -142,6 +142,9 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			p.numLinesTaken += 1
 		}
 		log.Debugf("Batch %d: totalBytesRead %d, currentBytes %d \n", batchNum, p.dataFile.GetBytesRead(), currentBytesRead)
+		// TODO: fix. Here we compare line_bytes with max_batch_size_bytes
+		// but below we compare header_bytes+line_bytes with max_batch_size_bytes
+		// and that can result in disregarding the row and adding it to the next batch (lineFromPreviousBatch)
 		if currentBytesRead > tdb.MaxBatchSizeInBytes() {
 			//If a row is itself larger than MaxBatchSizeInBytes erroring out
 			ybSpecificMsg := ""
@@ -178,6 +181,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if p.header != "" {
 				batchBytesCount += p.headerByteCount //include header bytes to batch bytes while checking the RPC size limit
 			}
+
 			// Check if adding this record exceeds the max batch size
 			if batchWriter.NumRecordsWritten == batchSizeInNumRows ||
 				batchBytesCount > tdb.MaxBatchSizeInBytes() {
@@ -200,6 +204,10 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			if err != nil {
 				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
 			}
+
+			// TODO: fix. After writing the record, we should ideally check for
+			// batchWriter.NumRecordsWritten == batchSizeInNumRows
+			// instead of continuing and reading the next line.
 		}
 
 		// Finalize the batch if it's the last line or the end of the file and reset the bytes read to 0

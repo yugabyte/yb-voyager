@@ -205,10 +205,10 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			// TODO: standardize the return type of ImportBatch to return an ImportBatchError
 			var ibe errs.ImportBatchError
 			if errors.As(err, &ibe) {
-				// If the error is an ImportBatchError, we abort directly
+				// If the error is an ImportBatchError, we abort directly because the string
+				// representation of the error is already formatted with all the details.
 				utils.ErrExit("%w", err)
 			}
 			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)

@@ -183,6 +183,9 @@ CREATE INDEX idx_muli_col_key_first_col1 ON public.test_multi_col_idx USING btre
 CREATE INDEX idx_name ON public.users USING btree (name);
 
 
+CREATE INDEX idx_name1 ON public.users USING btree (name) where name != '';-- this is most common value partial index 
+
+
 --
 -- Name: idx_test_case_sensitive; Type: INDEX; Schema: public; Owner: -
 --
@@ -231,6 +234,8 @@ CREATE INDEX idx_test_multi_val ON public.test_multi_col_idx USING btree (val);
 
 CREATE INDEX idxtt ON public.t USING btree (id2);
 
+CREATE INDEX idxtt1 ON public.t USING btree (id2) where id2 IS NOT NULL; -- this is null partial index 
+
 
 --
 -- Name: indx; Type: INDEX; Schema: public; Owner: -
@@ -252,6 +257,21 @@ CREATE INDEX indx1 ON public.test_most_freq USING btree (status, id);
 
 CREATE INDEX indx34 ON public.test_most_freq USING btree (id) WHERE (status = 'active'::text);
 
+CREATE TABLE test.test_mostcomm_status (
+    id integer,
+    status text
+);
+INSERT INTO test.test_mostcomm_status
+SELECT i, 'DONE' 
+FROM generate_series(1, 65) AS i;
+
+INSERT INTO test.test_mostcomm_status
+SELECT i,  (ARRAY['FAILED','COMPLETED','PROGRESS','PENDING','RUNNING','CANCELLED','QUEUED','SUCCESS','ERROR','SKIPPED',  'RETRY'])[floor(random() * 11 + 1)::int]
+FROM generate_series(66, 100) AS i;
+
+CREATE INDEX idx_partial_high ON test.test_mostcomm_status USING btree (status) WHERE status NOT IN ('DONE');
+
+CREATE INDEX idx_normal ON test.test_mostcomm_status USING btree (status);
 
 --
 -- Name: idx; Type: INDEX; Schema: test; Owner: -

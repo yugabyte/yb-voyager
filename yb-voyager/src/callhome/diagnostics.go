@@ -237,11 +237,23 @@ type ImportSchemaPhasePayload struct {
 	ControlPlaneType   string `json:"control_plane_type"`
 }
 
+/*
+Version History:
+1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
+*/
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+
 type ImportDataPhasePayload struct {
-	ParallelJobs     int64 `json:"parallel_jobs"`
-	TotalRows        int64 `json:"total_rows_imported"`
-	LargestTableRows int64 `json:"largest_table_rows_imported"`
-	StartClean       bool  `json:"start_clean"`
+	PayloadVersion              string `json:"payload_version"`
+	BatchSize                   int64  `json:"batch_size"`
+	ParallelJobs                int64  `json:"parallel_jobs"`
+	TotalRows                   int64  `json:"total_rows_imported"`
+	LargestTableRows            int64  `json:"largest_table_rows_imported"`
+	OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
+	StartClean                  bool   `json:"start_clean"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
