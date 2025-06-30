@@ -143,9 +143,12 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 
+			columnsWithUnsupportedIndexDatatypes := d.GetColumnsWithUnsupportedIndexDatatypes()
+			columnsWithHotspotRangeIndexesDatatypes := d.GetColumnsWithHotspotRangeIndexesDatatypes()
 			if c.IsPrimaryKeyORUniqueConstraint() {
+
 				for _, col := range c.Columns {
-					unsupportedColumnsForTable, ok := d.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
+					unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
 					if !ok {
 						break
 					}
@@ -164,7 +167,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 						))
 				}
 				//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, d.columnsWithHotspotRangeIndexesDatatypes, obj)
+				hotspotIssues, err := detectHotspotIssueOnConstraint(c.ConstraintType.String(), c.ConstraintName, c.Columns, columnsWithHotspotRangeIndexesDatatypes, obj)
 				if err != nil {
 					return nil, err
 				}
@@ -642,6 +645,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	       4. normal index on column with UDTs
 	       5. these type of indexes on different access method like gin etc.. [TODO to explore more, for now not reporting the indexes on anyother access method than btree]
 	*/
+	columnsWithUnsupportedIndexDatatypes := d.GetColumnsWithUnsupportedIndexDatatypes()
+	columnsWithHotspotRangeIndexesDatatypes := d.GetColumnsWithHotspotRangeIndexesDatatypes()
 	if index.AccessMethod == BTREE_ACCESS_METHOD { // Right now not reporting any other access method issues with such types.
 		for idx, param := range index.Params {
 			if param.IsExpression {
@@ -679,8 +684,8 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				}
 			} else {
 				colName := param.ColName
-				columnWithUnsupportedTypes, tableHasUnsupportedTypes := d.columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
-				columnWithHotspotTypes, tableHasHotspotTypes := d.columnsWithHotspotRangeIndexesDatatypes[index.GetTableName()]
+				columnWithUnsupportedTypes, tableHasUnsupportedTypes := columnsWithUnsupportedIndexDatatypes[index.GetTableName()]
+				columnWithHotspotTypes, tableHasHotspotTypes := columnsWithHotspotRangeIndexesDatatypes[index.GetTableName()]
 				if tableHasUnsupportedTypes {
 					typeName, isUnsupportedType := columnWithUnsupportedTypes[colName]
 					if isUnsupportedType {
@@ -985,9 +990,12 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 			))
 		}
 
+		columnsWithUnsupportedIndexDatatypes := aid.GetColumnsWithUnsupportedIndexDatatypes()
+		columnsWithHotspotRangeIndexesDatatypes := aid.GetColumnsWithHotspotRangeIndexesDatatypes()
+
 		if alter.AddPrimaryKeyOrUniqueCons() {
 			for _, col := range alter.ConstraintColumns {
-				unsupportedColumnsForTable, ok := aid.columnsWithUnsupportedIndexDatatypes[alter.GetObjectName()]
+				unsupportedColumnsForTable, ok := columnsWithUnsupportedIndexDatatypes[alter.GetObjectName()]
 				if !ok {
 					break
 				}
@@ -1006,7 +1014,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 			}
 
 			//Report PRIMARY KEY (createdat timestamp) as hotspot issue
-			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, aid.columnsWithHotspotRangeIndexesDatatypes, obj)
+			hotspotIssues, err := detectHotspotIssueOnConstraint(alter.ConstraintType.String(), alter.ConstraintName, alter.ConstraintColumns, columnsWithHotspotRangeIndexesDatatypes, obj)
 			if err != nil {
 				return nil, err
 			}
