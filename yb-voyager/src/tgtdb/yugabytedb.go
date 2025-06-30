@@ -1752,11 +1752,56 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
+// ================================ NodeMetrics =================================
+
 type NodeMetrics struct {
 	UUID    string
 	Metrics map[string]string
 	Status  string
 	Error   string
+}
+
+// CPUPercent returns (user + system) CPU usage as a percent (0–100).
+func (n *NodeMetrics) CPUPercent() (float64, error) {
+	userStr, ok1 := n.Metrics["cpu_usage_user"]
+	sysStr, ok2 := n.Metrics["cpu_usage_system"]
+	if !ok1 || !ok2 {
+		return 0, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+	}
+
+	user, err := strconv.ParseFloat(userStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("node %s: parse cpu_usage_user: %w", n.UUID, err)
+	}
+	sys, err := strconv.ParseFloat(sysStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("node %s: parse cpu_usage_system: %w", n.UUID, err)
+	}
+
+	return (user + sys) * 100, nil
+}
+
+// MemPercent returns memory consumption as a percent of the soft limit (0–100).
+func (n *NodeMetrics) MemPercent() (float64, error) {
+	usedStr, ok1 := n.Metrics["tserver_root_memory_consumption"]
+	softStr, ok2 := n.Metrics["tserver_root_memory_soft_limit"]
+	if !ok1 || !ok2 {
+		return 0, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+	}
+
+	used, err := strconv.ParseFloat(usedStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("node %s: parse memory_consumption: %w", n.UUID, err)
+	}
+	soft, err := strconv.ParseFloat(softStr, 64)
+	if err != nil {
+		return 0, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
+	}
+	if soft == 0 {
+		return 0, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+	}
+
+	return (used / soft) * 100, nil
 }
 
 // =============================== Guardrails =================================

@@ -1215,18 +1215,7 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
 	}
 
-	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		utils.ErrExit("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
-	} else {
-		clusterMetrics, err := yb.GetClusterMetrics()
-		if err != nil {
-			log.Errorf("callhome: error in getting cluster metrics: %v", err)
-		} else {
-			// TODO: is node UUID sensitive information? If yes, we can anonymize it.
-			importDataPayload.YBClusterMetrics = callhome.MarshalledJsonString(clusterMetrics)
-		}
-	}
+	importDataPayload.YBClusterMetrics = BuildCallhomeYBClusterMetrics()
 
 	//Getting the imported snapshot details
 	importRowsMap, err := getImportedSnapshotRowsMap("target")
@@ -1680,4 +1669,60 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 
 func isTargetDBImporter(importerRole string) bool {
 	return importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE
+}
+
+func BuildCallhomeYBClusterMetrics() callhome.YBClusterMetrics {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+
+	clusterMetrics, err := yb.GetClusterMetrics()
+	if err != nil {
+		log.Errorf("callhome: error in getting cluster metrics: %v", err)
+		return callhome.YBClusterMetrics{}
+	}
+
+	now := time.Now().UTC()
+	nodes := make([]callhome.NodeMetric, 0)
+	var totalCpuPct, totalMemPct float64
+	for _, nodeMetrics := range clusterMetrics {
+		if nodeMetrics.Status != "OK" {
+			log.Warnf("callhome: node %s has error: %s", nodeMetrics.UUID, nodeMetrics.Error)
+		}
+
+		cpuPct, err := nodeMetrics.CPUPercent()
+		if err != nil {
+			log.Warnf("callhome: error getting CPU percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memPct, err := nodeMetrics.MemPercent()
+		if err != nil {
+			log.Warnf("callhome: error getting Mem percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+
+		nodes = append(nodes, callhome.NodeMetric{
+			UUID:   nodeMetrics.UUID,
+			CPUPct: cpuPct,
+			MemPct: memPct,
+			Status: nodeMetrics.Status,
+			Error:  nodeMetrics.Error,
+		})
+
+		totalCpuPct += cpuPct
+		totalMemPct += memPct
+	}
+
+	if len(nodes) == 0 {
+		log.Error("callhome: no nodes found in cluster metrics")
+		return callhome.YBClusterMetrics{}
+	}
+
+	avgCpuPct := totalCpuPct / float64(len(nodes))
+	avgMemPct := totalMemPct / float64(len(nodes))
+	return callhome.YBClusterMetrics{
+		Timestamp: now,
+		CPUAvgPct: avgCpuPct,
+		MemAvgPct: avgMemPct,
+		Nodes:     nodes,
+	}
 }
