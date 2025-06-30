@@ -326,7 +326,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
-	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
@@ -344,7 +344,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
-		PKConstraintName:  pkConstraintName,
+		PKConstraintNames:  pkConstraintNames,
 		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,

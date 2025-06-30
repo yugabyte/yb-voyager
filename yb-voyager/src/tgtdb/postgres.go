@@ -360,27 +360,50 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
+// Implementing this for completion but not used in Postgres fall-forward/fall-back
 // This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
+// GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
+// If the table does not have a primary key, it returns an empty string and no error
+// If the table is partitioned, it returns the list of primary key constraint names for all partitions
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
 	schemaName, tableName := table.ForCatalogQuery()
+	fullName := fmt.Sprintf("%s.%s", schemaName, tableName)
 	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+SELECT tc.constraint_name
+  FROM information_schema.table_constraints tc
+WHERE tc.table_schema    = '%s'
+	AND tc.constraint_type = 'PRIMARY KEY'
+	AND (
+         tc.table_name = '%s'
+      OR tc.table_name IN (
+            SELECT c.relname
+              FROM pg_inherits i
+              JOIN pg_class c ON i.inhrelid = c.oid
+             WHERE i.inhparent = '%s'::regclass
+         )
+   );`, schemaName, tableName, fullName)
 
-	var constraintName string
-	err := pg.QueryRow(query).Scan(&constraintName)
+	var constraintNames []string
+	rows, err := pg.Query(query)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
+			return nil, nil // No primary key constraint found
 		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query PK constraint name for %s: %w", fullName, err)
 	}
+	defer rows.Close()
 
-	return constraintName, nil
+	for rows.Next() {
+		var cn string
+		if err := rows.Scan(&cn); err != nil {
+			return nil, fmt.Errorf("scan constraint name: %w", err)
+		}
+		constraintNames = append(constraintNames, cn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate PK constraints: %w", err)
+	}
+	return constraintNames, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {

@@ -193,54 +193,70 @@ func TestYugabyteGetNonEmptyTables(t *testing.T) {
 	testutils.AssertEqualNameTuplesSlice(t, expectedTables, actualTables)
 }
 
-func TestGetPrimaryKeyConstraintName(t *testing.T) {
+func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 	testYugabyteDBTarget.ExecuteSqls(
 		`CREATE SCHEMA test_schema;`,
 		`CREATE TABLE test_schema.foo (
-			id INT PRIMARY KEY,
-			name TEXT
-		);`,
+            id INT PRIMARY KEY,
+            name TEXT
+        );`,
 		`CREATE TABLE test_schema.bar (
-			id INT,
-			name TEXT,
-			CONSTRAINT bar_primary_key PRIMARY KEY (id)
-		);`,
+            id INT,
+            name TEXT,
+            CONSTRAINT bar_primary_key PRIMARY KEY (id)
+        );`,
 		`CREATE TABLE test_schema.baz (
-			id INT,
-			name TEXT
-		);`,
+            id INT,
+            name TEXT
+        );`,
 		`CREATE TABLE test_schema."CASE_sensitive" (
-			id INT,
-			name TEXT,
-			CONSTRAINT "CASE_sensitive_pkey" PRIMARY KEY (id)
-		);`,
+            id INT,
+            name TEXT,
+            CONSTRAINT "CASE_sensitive_pkey" PRIMARY KEY (id)
+        );`,
+		// Partitioned table example
+		`CREATE TABLE test_schema.emp (
+            emp_id   INT,
+            emp_name TEXT,
+            dep_code INT,
+            PRIMARY KEY (emp_id)
+        ) PARTITION BY HASH (emp_id);`,
+		`CREATE TABLE test_schema.emp_0 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 0);`,
+		`CREATE TABLE test_schema.emp_1 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
+		`CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
 	)
 	defer testYugabyteDBTarget.ExecuteSqls(`DROP SCHEMA test_schema CASCADE;`)
 
 	tests := []struct {
-		table          sqlname.NameTuple
-		expectedPKName string
+		table           sqlname.NameTuple
+		expectedPKNames []string
 	}{
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
-			expectedPKName: "foo_pkey",
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "foo")},
+			expectedPKNames: []string{"foo_pkey"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
-			expectedPKName: "bar_primary_key",
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "bar")},
+			expectedPKNames: []string{"bar_primary_key"},
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
-			expectedPKName: "",
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "baz")},
+			expectedPKNames: nil,
 		},
 		{
-			table:          sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "CASE_sensitive")},
-			expectedPKName: "CASE_sensitive_pkey",
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "CASE_sensitive")},
+			expectedPKNames: []string{"CASE_sensitive_pkey"},
+		},
+		{
+			// Partitioned table: expect parent + all child partitions
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "emp")},
+			expectedPKNames: []string{"emp_pkey", "emp_0_pkey", "emp_1_pkey", "emp_2_pkey"},
 		},
 	}
+
 	for _, tt := range tests {
-		pkName, err := testYugabyteDBTarget.GetPrimaryKeyConstraintName(tt.table)
+		pkNames, err := testYugabyteDBTarget.GetPrimaryKeyConstraintNames(tt.table)
 		assert.NoError(t, err)
-		assert.Equal(t, tt.expectedPKName, pkName, fmt.Sprintf("Expected primary key name for table %q to be %q", tt.table.CurrentName, tt.expectedPKName))
+		testutils.AssertEqualStringSlices(t, tt.expectedPKNames, pkNames)
 	}
 }

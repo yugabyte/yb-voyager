@@ -201,7 +201,7 @@ func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]stri
 
 // Implementing this for completion but not used in Oracle fall-forward/fall-back
 // This info is only used in fast path import of batches(Target YugabyteDB)
-func (tdb *TargetOracleDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
+func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
 	sname, tname := table.ForCatalogQuery()
 	query := fmt.Sprintf(`SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = '%s' AND OWNER = '%s' AND CONSTRAINT_TYPE = 'P'`, tname, sname)
 	row := tdb.QueryRow(query)
@@ -210,12 +210,12 @@ func (tdb *TargetOracleDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) 
 	err := row.Scan(&constraintName)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
+			return nil, nil // No primary key constraint found
 		}
-		return "", fmt.Errorf("failed to get primary key constraint name: %w", err)
+		return nil, fmt.Errorf("failed to get primary key constraint name: %w", err)
 	}
 
-	return constraintName, nil
+	return []string{constraintName}, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
