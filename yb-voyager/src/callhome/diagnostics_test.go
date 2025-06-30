@@ -221,6 +221,7 @@ func TestCallhomeStructs(t *testing.T) {
 				AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
 				ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
 				StartClean                  bool   `json:"start_clean"`
+				YBClusterMetrics            string `json:"yb_cluster_metrics"`
 				Phase                       string `json:"phase,omitempty"`
 				TotalImportedEvents         int64  `json:"total_imported_events,omitempty"`
 				EventsImportRate            int64  `json:"events_import_rate_3m,omitempty"`

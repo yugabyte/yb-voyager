@@ -254,6 +254,7 @@ type ImportDataPhasePayload struct {
 	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
 	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
 	StartClean                  bool   `json:"start_clean"`
+	YBClusterMetrics            string `json:"yb_cluster_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
