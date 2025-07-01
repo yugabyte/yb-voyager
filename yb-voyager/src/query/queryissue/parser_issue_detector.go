@@ -264,6 +264,42 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
 		}
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+			// For the case ALTER and CREATE are not in expected order where ALTER is before CREATE
+			// add foreign key constraint to column metadata
+			for i, col := range alter.ConstraintColumns {
+				allColMetadata, ok := p.columnMetadata[alter.GetObjectName()]
+				if !ok {
+					// If table is not present in columnMetadata, it means that the table is not
+					// created yet and we will have to create a new entry for it
+					allColMetadata = make(map[string]*ColumnMetadata)
+					p.columnMetadata[alter.GetObjectName()] = allColMetadata
+				}
+				colMetadata, ok := p.columnMetadata[alter.GetObjectName()][col]
+				// If table is not present in columnMetadata, it means that the table is not created yet and we will have to create a new entry for it
+				if !ok {
+					colMetadata = &ColumnMetadata{
+						DataType: "unknown", // default value, will be updated later when the table is created
+					}
+					// be updated later when the table is created
+					p.columnMetadata[alter.GetObjectName()][col] = colMetadata
+				}
+				colMetadata.IsForeignKey = true
+				colMetadata.ReferencedTable = alter.ConstraintReferencedTable
+				if len(alter.ConstraintReferencedColumns) > 0 {
+					colMetadata.ReferencedColumn = alter.ConstraintReferencedColumns[i]
+					// Storing in deferredRefs to be processed later as we might not have the referenced
+					// table in the schema yet
+					p.deferredRefs = append(p.deferredRefs, deferredRef{
+						table:            alter.GetObjectName(),
+						column:           col,
+						referencedTable:  alter.ConstraintReferencedTable,
+						referencedColumn: alter.ConstraintReferencedColumns[i],
+					})
+				}
+			}
+		}
+
 	case *queryparser.Table:
 		table, _ := ddlObj.(*queryparser.Table)
 		if table.IsPartitioned {
@@ -277,9 +313,17 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 		for _, col := range table.Columns {
-			meta := &ColumnMetadata{
-				DataType: col.TypeName, // default
+			// If the column is already present in the metadata, modify the existing metadata
+			if meta, exists := p.columnMetadata[tableName][col.ColumnName]; !exists {
+				// If the column is not present, create a new metadata entry for it
+				meta = &ColumnMetadata{
+					DataType: col.TypeName,
+				}
+				p.columnMetadata[tableName][col.ColumnName] = meta
 			}
+
+			meta := p.columnMetadata[tableName][col.ColumnName]
+			meta.DataType = col.TypeName // Update the data type
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
@@ -306,7 +350,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				meta.IsJsonb = true
 			}
 
-			p.columnMetadata[tableName][col.ColumnName] = meta
 		}
 
 		for _, constraint := range table.Constraints {
