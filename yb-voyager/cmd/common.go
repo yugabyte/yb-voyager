@@ -1460,7 +1460,7 @@ func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
 }
 
 func (ar *AssessmentReport) AnonymizeSqlStatements() error {
-	anonymizer, err := anonymizer.NewSqlAnonymizer(exportDir)
+	anonymizer, err := anonymizer.NewSqlAnonymizer(metaDB)
 	if err != nil {
 		utils.ErrExit("create sql anonymizer: %v", err)
 	}

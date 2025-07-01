@@ -1,186 +1,144 @@
-// anonymizer_test.go
-package anonymizer
+//go:build unit
+
+package anonymizer_test
 
 import (
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
+	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-func setupAnonymizer(t *testing.T) *SqlAnonymizer {
-	dir := t.TempDir()
-	metadir := filepath.Join(dir, "metainfo")
-	if err := os.MkdirAll(metadir, 0o755); err != nil {
-		t.Fatalf("failed to mkdir %s: %v", metadir, err)
-	}
-	a, err := NewSqlAnonymizer(dir)
-	if err != nil {
-		t.Fatalf("NewSqlAnonymizer: %v", err)
-	}
+/*
+	Tests to add:
+	1. Anonymizing tablename, column name, schema name in DDLs
+	2. Anonymizing Index name in DDLs
+	3. Anonymizing constraint name in DDLs
+	4. Anonymizing alias names in DMLs
+	5. Anonymizing function names in DDLs
+	6. Also cover case sensitivity
+*/
+
+func newAnon(t *testing.T, exportDir string) *anonymizer.SqlAnonymizer {
+	metaDB, err := testutils.CreateMetaDB(exportDir)
+	testutils.FatalIfError(t, err)
+
+	a, err := anonymizer.NewSqlAnonymizer(metaDB)
+	testutils.FatalIfError(t, err)
 	return a
 }
 
-// hasToken returns true if s contains a substring starting with kind_
-func hasToken(s string, kind string) bool {
-	return strings.Contains(s, kind)
+func hasToken(s, prefix string) bool {
+	return strings.Contains(s, prefix)
 }
 
-func TestAnonTableName(t *testing.T) {
-	in := "CREATE TABLE foo (id int);"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
+func TestTableAndColumnDDLs(t *testing.T) {
+	tests := []struct {
+		name         string
+		sql          string   // input
+		badStrings   []string // must disappear
+		wantPrefixes []string
+	}{
+		{
+			"simple create",
+			"CREATE TABLE foo (id INT, name TEXT);",
+			[]string{"foo", "id", "name"},
+			[]string{anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			"schema-qualified",
+			`CREATE TABLE sales.orders (OrderID int, Total numeric);`,
+			[]string{"sales", "orders", "OrderID", "Total"},
+			[]string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			"quoted / mixed case",
+			`CREATE TABLE "Customer"."LineItems" ("LineID" int, "ProductSKU" text);`,
+			[]string{"Customer", "LineItems", "LineID", "ProductSKU"},
+			[]string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
 	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
 
-	if strings.Contains(out, "foo") {
-		t.Errorf("expected 'foo' to be removed, got: %s", out)
-	}
-	if !hasToken(out, TABLE_KIND_PREFIX) {
-		t.Errorf("expected an anonymized token for table, got: %s", out)
-	}
-}
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	a := newAnon(t, exportDir)
 
-func TestAnonColumnDef(t *testing.T) {
-	in := "CREATE TABLE tbl (secret_col text);"
-	a := setupAnonymizer(t)
+	for _, tc := range tests {
+		tc := tc // capture
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := a.Anonymize(tc.sql)
+			if err != nil {
+				t.Fatalf("Anonymize: %v", err)
+			}
+			t.Logf("\nIN : %s\nOUT: %s", tc.sql, out)
 
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, "secret_col") {
-		t.Errorf("expected 'secret_col' to be removed, got: %s", out)
-	}
-	if !hasToken(out, COLUMN_KIND_PREFIX) {
-		t.Errorf("expected an anonymized token for column, got: %s", out)
-	}
-}
-
-func TestAnonColumnRef(t *testing.T) {
-	in := "SELECT password FROM users;"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, "password") {
-		t.Errorf("expected 'password' to be removed, got: %s", out)
-	}
-	if !hasToken(out, COLUMN_KIND_PREFIX) {
-		t.Errorf("expected an anonymized token for column ref, got: %s", out)
-	}
-}
-
-func TestAnonResTarget(t *testing.T) {
-	in := "SELECT email AS user_email FROM accounts;"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, "user_email") {
-		t.Errorf("expected 'user_email' to be removed, got: %s", out)
-	}
-	if !hasToken(out, ALIAS_KIND_PREFIX) {
-		t.Errorf("expected an anonymized token for alias, got: %s", out)
+			for _, bad := range tc.badStrings {
+				if strings.Contains(out, bad) {
+					t.Errorf("found raw identifier %q in output", bad)
+				}
+			}
+			for _, pref := range tc.wantPrefixes {
+				if !hasToken(out, pref) {
+					t.Errorf("expected token with prefix %q", pref)
+				}
+			}
+		})
 	}
 }
 
-func TestAnonIndexStmt(t *testing.T) {
-	in := "CREATE INDEX idx_foo ON mytable(bar);"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, "idx_foo") || strings.Contains(out, "mytable") {
-		t.Errorf("expected 'idx_foo' and 'mytable' removed, got: %s", out)
-	}
-	if !hasToken(out, INDEX_KIND_PREFIX) || !hasToken(out, TABLE_KIND_PREFIX) {
-		t.Errorf("expected anonymized tokens for index and table, got: %s", out)
-	}
-}
-
-func TestAnonConstraint(t *testing.T) {
-	in := "CREATE TABLE t (id int CONSTRAINT pk_t PRIMARY KEY);"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, "pk_t") {
-		t.Errorf("expected 'pk_t' removed, got: %s", out)
-	}
-	if !hasToken(out, CONSTRAINT_KIND_PREFIX) {
-		t.Errorf("expected an anonymized token for constraint, got: %s", out)
-	}
-}
-
-func TestAnonAliasNode(t *testing.T) {
-	in := "SELECT * FROM orders o WHERE o.amount > 100;"
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("\nBEFORE: %s\nAFTER : %s", in, out)
-
-	if strings.Contains(out, " orders ") || strings.Contains(out, " o ") {
-		t.Errorf("expected 'orders' and alias 'o' removed, got: %s", out)
-	}
-	if !hasToken(out, ALIAS_KIND_PREFIX) {
-		t.Errorf("expected anonymized tokens for table and alias, got: %s", out)
-	}
-}
-
-func TestAnonCombined(t *testing.T) {
-	in := `
-CREATE TABLE users (
-  id int PRIMARY KEY,
-  email varchar(255) CONSTRAINT uq_email UNIQUE
-);
-`
-	a := setupAnonymizer(t)
-
-	out, err := a.Anonymize(in)
-	if err != nil {
-		t.Fatalf("Anonymize error: %v", err)
-	}
-	t.Logf("BEFORE:\n%s\nAFTER:\n%s", in, out)
-
-	// check each original is gone
-	for _, orig := range []string{"users", "id", "email", "uq_email", "idx_users_email", "user_id", "user_email", "u"} {
-		if strings.Contains(out, orig) {
-			t.Errorf("expected %q removed, but found in %s", orig, out)
-		}
+func TestIndexConstraintAlias(t *testing.T) {
+	tests := []struct {
+		name         string
+		sql          string
+		bad          []string
+		wantPrefixes []string
+	}{
+		{
+			"index + table",
+			"CREATE INDEX idx_foo ON mytable(bar);",
+			[]string{"idx_foo", "mytable", "bar"},
+			[]string{anonymizer.INDEX_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			"constraint",
+			"CREATE TABLE t (id int CONSTRAINT pk_t PRIMARY KEY);",
+			[]string{"t", "pk_t"},
+			[]string{anonymizer.TABLE_KIND_PREFIX, anonymizer.CONSTRAINT_KIND_PREFIX},
+		},
+		{
+			"alias reference",
+			"SELECT * FROM orders o WHERE o.amount > 100;",
+			[]string{"orders", "o", "amount"},
+			[]string{anonymizer.ALIAS_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
 	}
 
-	// check each prefix is present
-	wantPrefixes := []string{TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONSTRAINT_KIND_PREFIX}
-	for _, prefix := range wantPrefixes {
-		if !strings.Contains(out, prefix) {
-			t.Errorf("expected prefix %q in output, but not found:\n%s", prefix, out)
-		}
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	a := newAnon(t, exportDir)
+
+	for _, tc := range tests {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			out, err := a.Anonymize(tc.sql)
+			if err != nil {
+				t.Fatalf("Anonymize error: %v", err)
+			}
+			t.Logf("\nIN : %s\nOUT: %s", tc.sql, out)
+
+			for _, b := range tc.bad {
+				if strings.Contains(out, b) {
+					t.Errorf("found raw %q", b)
+				}
+			}
+			for _, p := range tc.wantPrefixes {
+				if !hasToken(out, p) {
+					t.Errorf("missing token prefix %q", p)
+				}
+			}
+		})
 	}
 }
