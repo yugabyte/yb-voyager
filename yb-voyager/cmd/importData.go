@@ -192,7 +192,7 @@ func importDataCommandFn(cmd *cobra.Command, args []string) {
 	case TARGET_DB_IMPORTER_ROLE:
 		importDataCompletedEvent := createSnapshotImportCompletedEvent()
 		controlPlane.SnapshotImportCompleted(&importDataCompletedEvent)
-		packAndSendImportDataPayload(COMPLETE, nil)
+		packAndSendImportDataToTargetPayload(COMPLETE, nil)
 	case SOURCE_REPLICA_DB_IMPORTER_ROLE:
 		packAndSendImportDataToSrcReplicaPayload(COMPLETE, nil)
 	case SOURCE_DB_IMPORTER_ROLE:
@@ -1115,7 +1115,7 @@ func waitForDebeziumStartIfRequired() error {
 	return nil
 }
 
-func packAndSendImportDataPayload(status string, errorMsg error) {
+func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 
 	if !shouldSendCallhome() {
 		return
@@ -1142,6 +1142,12 @@ func packAndSendImportDataPayload(status string, errorMsg error) {
 		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+	}
+
+	var err error
+	importDataPayload.YBClusterMetrics, err = BuildCallhomeYBClusterMetrics()
+	if err != nil {
+		log.Infof("callhome: error in getting the YB cluster metrics: %v", err)
 	}
 
 	//Getting the imported snapshot details
@@ -1546,4 +1552,73 @@ func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*
 		}
 	}
 	return nil
+}
+
+func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
+	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
+	if !ok {
+		utils.ErrExit("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+	}
+
+	clusterMetrics, err := yb.GetClusterMetrics()
+	if err != nil {
+		return callhome.YBClusterMetrics{}, err
+	}
+
+	now := time.Now().UTC()
+	nodes := make([]callhome.NodeMetric, 0)
+	var totalCpuPct, totalMemPct float64
+	for _, nodeMetrics := range clusterMetrics {
+		// in case of err value will be -1
+		cpuPct, err := nodeMetrics.CPUPercent()
+		if err != nil {
+			log.Warnf("callhome: error getting CPU percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memPct, err := nodeMetrics.MemPercent()
+		if err != nil {
+			log.Warnf("callhome: error getting Mem percent for node %s: %v", nodeMetrics.UUID, err)
+		}
+
+		// in case of err value will be -1
+		memoryFree, err := nodeMetrics.GetMemoryFree()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Free for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memoryAvailable, err := nodeMetrics.GetMemoryAvailable()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Available for node %s: %v", nodeMetrics.UUID, err)
+		}
+		memoryTotal, err := nodeMetrics.GetMemoryTotal()
+		if err != nil {
+			log.Warnf("callhome: error getting Memory Total for node %s: %v", nodeMetrics.UUID, err)
+		}
+
+		nodes = append(nodes, callhome.NodeMetric{
+			UUID:                   nodeMetrics.UUID,
+			TotalCPUPct:            cpuPct,
+			TserverMemSoftLimitPct: memPct,
+			MemoryFree:             memoryFree,
+			MemoryAvailable:        memoryAvailable,
+			MemoryTotal:            memoryTotal,
+			Status:                 nodeMetrics.Status,
+			Error:                  nodeMetrics.Error,
+		})
+
+		totalCpuPct += cpuPct
+		totalMemPct += memPct
+	}
+
+	if len(nodes) == 0 {
+		log.Error("callhome: no nodes found in cluster metrics")
+		return callhome.YBClusterMetrics{}, nil
+	}
+
+	avgCpuPct := totalCpuPct / float64(len(nodes))
+	avgMemPct := totalMemPct / float64(len(nodes))
+	return callhome.YBClusterMetrics{
+		Timestamp:                 now,
+		CPUAvgPct:                 avgCpuPct,
+		TserverAvgMemSoftLimitPct: avgMemPct,
+		Nodes:                     nodes,
+	}, nil
 }

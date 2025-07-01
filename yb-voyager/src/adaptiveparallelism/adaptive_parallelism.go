@@ -32,6 +32,7 @@ const (
 	CPU_USAGE_SYSTEM_METRIC                        = "cpu_usage_system"
 	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC         = "tserver_root_memory_consumption"
 	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC          = "tserver_root_memory_soft_limit"
+	MEMORY_FREE_METRIC                             = "memory_free"
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
