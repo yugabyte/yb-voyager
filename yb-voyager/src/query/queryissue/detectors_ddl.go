@@ -225,6 +225,25 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				"",
 			))
 		}
+
+		colMetadata, ok := d.columnMetadata[table.GetObjectName()][col.ColumnName]
+		if ok {
+			if colMetadata.IsForeignKey {
+				// Check for foreign key datatype mismatch
+				if colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
+					issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
+						obj.GetObjectType(),
+						table.GetObjectName(),
+						"",
+						col.ColumnName,
+						colMetadata.ReferencedColumn,
+						colMetadata.DataType,
+						colMetadata.ReferencedColumnType,
+					))
+				}
+			}
+		}
+
 	}
 
 	if table.IsPartitioned {

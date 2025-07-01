@@ -76,6 +76,7 @@ var PerformanceOptimizationIssues = []string{
 	NULL_VALUE_INDEXES,
 	HOTSPOTS_ON_DATE_PK_UK,
 	HOTSPOTS_ON_TIMESTAMP_PK_UK,
+	FOREIGN_KEY_DATATYPE_MISMATCH,
 }
 
 var UnsupportedSystemColumnsIssueTypes = []string{
