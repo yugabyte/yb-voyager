@@ -348,6 +348,8 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
 	}
+
+	// Resolve all deferred foreign key references after processing all DDL statements
 	parserIssueDetector.ResolveReferencedColumnTypes()
 
 	for _, sqlStmtInfo := range sqlInfoArr {

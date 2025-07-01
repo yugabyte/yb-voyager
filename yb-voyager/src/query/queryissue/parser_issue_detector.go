@@ -30,6 +30,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
+// ColumnMetadata stores metadata about a column extracted during DDL parsing.
+// It tracks characteristics like data type, index suitability, special types
+// (e.g., JSONB, arrays), and foreign key relationships.
 type ColumnMetadata struct {
 	DataType               string
 	IsUnsupportedForIndex  bool
@@ -44,6 +47,9 @@ type ColumnMetadata struct {
 	ReferencedColumnType string
 }
 
+// deferredRef stores information about a foreign key reference that couldn't be fully resolved
+// during the initial parsing because the referenced column's metadata wasn't available yet.
+// These references are processed later in a second pass once all tables are parsed.
 type deferredRef struct {
 	table            string
 	column           string
@@ -51,9 +57,8 @@ type deferredRef struct {
 	referencedColumn string
 }
 
-// TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
-// we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
 type ParserIssueDetector struct {
+	// key is table name, value is map of column name to ColumnMetadata
 	columnMetadata map[string]map[string]*ColumnMetadata
 
 	// list of composite types with fully qualified typename in the exported schema
@@ -80,6 +85,7 @@ type ParserIssueDetector struct {
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 
+	// deferredRefs stores foreign key references that couldn't be resolved during the initial parsing
 	deferredRefs []deferredRef
 }
 
@@ -112,9 +118,9 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
 }
 
+// This function is used to get the jsonb columns from the parser issue detector
+// It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
 func (p *ParserIssueDetector) GetJsonbColumns() []string {
-	// This function is used to get the jsonb columns from the parser issue detector
-	// It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
 	jsonbColumns := make([]string, 0)
 	for _, columns := range p.columnMetadata {
 		for columnName, meta := range columns {
@@ -126,6 +132,9 @@ func (p *ParserIssueDetector) GetJsonbColumns() []string {
 	return jsonbColumns
 }
 
+// GetColumnsWithUnsupportedIndexDatatypes returns a map of table names to column names
+// where the column uses a datatype not supported for indexing in YugabyteDB.
+// Each entry also includes the column's data type for context.
 func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[string]map[string]string {
 	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
 	for tableName, columns := range p.columnMetadata {
@@ -142,6 +151,9 @@ func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[stri
 	return columnsWithUnsupportedIndexDatatypes
 }
 
+// GetColumnsWithHotspotRangeIndexesDatatypes returns a map of table names to column names
+// where the column's datatype is known to cause read/write hotspot issues when used in range indexes.
+// Each entry also includes the column's data type for context.
 func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[string]map[string]string {
 	columnsWithHotspotRangeIndexesDatatypes := make(map[string]map[string]string)
 	for tableName, columns := range p.columnMetadata {
@@ -259,39 +271,40 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	switch ddlObj.(type) {
 	case *queryparser.AlterTable:
 		alter, _ := ddlObj.(*queryparser.AlterTable)
+
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
 		}
+
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-			// For the case ALTER and CREATE are not in expected order where ALTER is before CREATE
-			// add foreign key constraint to column metadata
+			// Handle foreign key constraints in ALTER TABLE, even if the table isn't created yet
+
+			tblName := alter.GetObjectName()
+
+			if _, exists := p.columnMetadata[tblName]; !exists {
+				p.columnMetadata[tblName] = make(map[string]*ColumnMetadata)
+			}
+
 			for i, col := range alter.ConstraintColumns {
-				allColMetadata, ok := p.columnMetadata[alter.GetObjectName()]
-				if !ok {
-					// If table is not present in columnMetadata, it means that the table is not
-					// created yet and we will have to create a new entry for it
-					allColMetadata = make(map[string]*ColumnMetadata)
-					p.columnMetadata[alter.GetObjectName()] = allColMetadata
-				}
-				colMetadata, ok := p.columnMetadata[alter.GetObjectName()][col]
-				// If table is not present in columnMetadata, it means that the table is not created yet and we will have to create a new entry for it
-				if !ok {
-					colMetadata = &ColumnMetadata{
-						DataType: "unknown", // default value, will be updated later when the table is created
+				colMeta, exists := p.columnMetadata[tblName][col]
+				if !exists {
+					colMeta = &ColumnMetadata{
+						DataType: "unknown", // placeholder until table is actually created
 					}
-					// be updated later when the table is created
-					p.columnMetadata[alter.GetObjectName()][col] = colMetadata
+					p.columnMetadata[tblName][col] = colMeta
 				}
-				colMetadata.IsForeignKey = true
-				colMetadata.ReferencedTable = alter.ConstraintReferencedTable
-				if len(alter.ConstraintReferencedColumns) > 0 {
-					colMetadata.ReferencedColumn = alter.ConstraintReferencedColumns[i]
-					// Storing in deferredRefs to be processed later as we might not have the referenced
-					// table in the schema yet
+
+				colMeta.IsForeignKey = true
+				colMeta.ReferencedTable = alter.ConstraintReferencedTable
+
+				if i < len(alter.ConstraintReferencedColumns) {
+					colMeta.ReferencedColumn = alter.ConstraintReferencedColumns[i]
+
+					// Defer resolving referenced column types until all tables are processed
 					p.deferredRefs = append(p.deferredRefs, deferredRef{
-						table:            alter.GetObjectName(),
+						table:            tblName,
 						column:           col,
 						referencedTable:  alter.ConstraintReferencedTable,
 						referencedColumn: alter.ConstraintReferencedColumns[i],
@@ -313,16 +326,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 		for _, col := range table.Columns {
-			// If the column is already present in the metadata, modify the existing metadata
-			if meta, exists := p.columnMetadata[tableName][col.ColumnName]; !exists {
-				// If the column is not present, create a new metadata entry for it
-				meta = &ColumnMetadata{
-					DataType: p.getFullTypeName(col.TypeName, col.TypeMods),
-				}
+			// Check if metadata already exists (e.g., from deferred FK)
+			meta, exists := p.columnMetadata[tableName][col.ColumnName]
+			if !exists {
+				meta = &ColumnMetadata{}
 				p.columnMetadata[tableName][col.ColumnName] = meta
 			}
 
-			meta := p.columnMetadata[tableName][col.ColumnName]
+			// Always update the full type name
 			meta.DataType = p.getFullTypeName(col.TypeName, col.TypeMods)
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
@@ -349,30 +360,38 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			if col.TypeName == "jsonb" {
 				meta.IsJsonb = true
 			}
-
 		}
 
+		// Process foreign key constraints defined inline in CREATE TABLE statements
 		for _, constraint := range table.Constraints {
-			if constraint.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-				for i, localCol := range constraint.Columns {
-					meta := p.columnMetadata[tableName][localCol]
-					if meta == nil { // This should not happen, but just in case if there is an error in the parsing logic
-						meta = &ColumnMetadata{DataType: "unknown"}
-						p.columnMetadata[tableName][localCol] = meta
-					}
-					meta.IsForeignKey = true
-					meta.ReferencedTable = constraint.ReferencedTable
-					if i < len(constraint.ReferencedColumns) {
-						meta.ReferencedColumn = constraint.ReferencedColumns[i]
+			if constraint.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE {
+				continue
+			}
 
-						// Storing in deferredRefs to be processed later as we might not have the referenced table in the schema yet
-						p.deferredRefs = append(p.deferredRefs, deferredRef{
-							table:            tableName,
-							column:           localCol,
-							referencedTable:  constraint.ReferencedTable,
-							referencedColumn: constraint.ReferencedColumns[i],
-						})
-					}
+			// Ensure table-level metadata exists
+			if _, exists := p.columnMetadata[tableName]; !exists {
+				p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
+			}
+
+			for i, localCol := range constraint.Columns {
+				meta, exists := p.columnMetadata[tableName][localCol]
+				if !exists {
+					meta = &ColumnMetadata{DataType: "unknown"} // Will be updated later
+					p.columnMetadata[tableName][localCol] = meta
+				}
+
+				meta.IsForeignKey = true
+				meta.ReferencedTable = constraint.ReferencedTable
+
+				if i < len(constraint.ReferencedColumns) {
+					meta.ReferencedColumn = constraint.ReferencedColumns[i]
+
+					p.deferredRefs = append(p.deferredRefs, deferredRef{
+						table:            tableName,
+						column:           localCol,
+						referencedTable:  constraint.ReferencedTable,
+						referencedColumn: constraint.ReferencedColumns[i],
+					})
 				}
 			}
 		}
@@ -395,6 +414,20 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	return nil
 }
 
+/*
+getFullTypeName constructs the full type name including type modifiers
+for supported PostgreSQL types.
+
+Examples:
+  - VARCHAR with typmods [10] becomes "varchar(10)"
+  - NUMERIC with typmods [8,2] becomes "numeric(8,2)"
+  - Types without relevant modifiers or unsupported formats return just the base type name.
+
+Currently supported:
+  - varchar(n)
+  - bpchar(n) (PostgreSQL's internal name for char(n))
+  - numeric(p, s)
+*/
 func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) string {
 	switch typeName {
 	case "varchar", "bpchar": // varchar(n), char(n)
@@ -414,6 +447,16 @@ func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) 
 	}
 }
 
+/*
+ResolveReferencedColumnTypes processes all deferred foreign key references
+after all table and column metadata has been populated.
+
+It looks up the referenced column's type for each deferred foreign key
+and populates the ReferencedColumnType field in the local column's metadata.
+
+This is necessary because foreign key constraints may be defined before
+the referenced table is fully parsed, especially in ALTER TABLE statements.
+*/
 func (p *ParserIssueDetector) ResolveReferencedColumnTypes() {
 	for _, ref := range p.deferredRefs {
 		if refMeta := p.columnMetadata[ref.referencedTable][ref.referencedColumn]; refMeta != nil {
