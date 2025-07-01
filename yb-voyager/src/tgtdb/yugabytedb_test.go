@@ -215,22 +215,24 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
             CONSTRAINT "CASE_sensitive_pkey" PRIMARY KEY (id)
         );`,
 		// Partitioned table examples
-		`CREATE TABLE test_schema.emp (
-            emp_id   INT,
-            emp_name TEXT,
-            dep_code INT,
-            PRIMARY KEY (emp_id)
-        ) PARTITION BY HASH (emp_id);`,
-		`CREATE TABLE test_schema.emp_0 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 0);`,
-		`CREATE TABLE test_schema.emp_1 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
-		`CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
-
+		// 1. Normal Partitioning
 		`CREATE TABLE sales_region (id int, amount int, branch text, region text, PRIMARY KEY(id, region)) PARTITION BY LIST (region);`,
 		`CREATE TABLE London PARTITION OF sales_region FOR VALUES IN ('London');`,
 		`CREATE TABLE Sydney PARTITION OF sales_region FOR VALUES IN ('Sydney');`,
 		`CREATE TABLE Boston PARTITION OF sales_region FOR VALUES IN ('Boston');`,
 
-		// Multi level partitioning
+		// 2. Partioning with case sensitivity
+		`CREATE TABLE test_schema."EmP" (
+            emp_id   INT,
+            emp_name TEXT,
+            dep_code INT,
+            PRIMARY KEY (emp_id)
+        ) PARTITION BY HASH (emp_id);`,
+		`CREATE TABLE test_schema."EmP_0" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 0);`,
+		`CREATE TABLE test_schema."EmP_1" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 1);`,
+		`CREATE TABLE test_schema."EmP_2" PARTITION OF test_schema."EmP" FOR VALUES WITH (MODULUS 3, REMAINDER 2);`,
+
+		// 3. Multi level partitioning
 		`CREATE TABLE customers (id INTEGER, statuses TEXT, arr NUMERIC, PRIMARY KEY(id, statuses, arr)) PARTITION BY LIST(statuses);`,
 
 		`CREATE TABLE cust_active PARTITION OF customers FOR VALUES IN ('ACTIVE', 'RECURRING','REACTIVATED') PARTITION BY RANGE(arr);`,
@@ -268,13 +270,12 @@ func TestGetPrimaryKeyConstraintNames(t *testing.T) {
 			expectedPKNames: []string{"CASE_sensitive_pkey"},
 		},
 		{
-			// Partitioned table: expect parent + all child partitions
-			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "emp")},
-			expectedPKNames: []string{"emp_pkey", "emp_0_pkey", "emp_1_pkey", "emp_2_pkey"},
-		},
-		{
 			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "sales_region")},
 			expectedPKNames: []string{"sales_region_pkey", "london_pkey", "sydney_pkey", "boston_pkey"},
+		},
+		{
+			table:           sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "test_schema", "test_schema", "EmP")},
+			expectedPKNames: []string{"EmP_pkey", "EmP_0_pkey", "EmP_1_pkey", "EmP_2_pkey"},
 		},
 		{
 			table: sqlname.NameTuple{CurrentName: sqlname.NewObjectName(POSTGRESQL, "public", "public", "customers")},
