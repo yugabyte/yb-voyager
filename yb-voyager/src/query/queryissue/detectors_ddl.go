@@ -134,8 +134,8 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 								obj.GetObjectType(),
 								table.GetObjectName(),
 								"", // query string
-								col,
-								colMetadata.ReferencedColumn,
+								table.GetObjectName()+"."+col,
+								colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
 								colMetadata.DataType,
 								colMetadata.ReferencedColumnType,
 							))
@@ -1013,8 +1013,8 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 						obj.GetObjectType(),
 						alter.GetObjectName(),
 						"", // query string
-						col,
-						colMetadata.ReferencedColumn,
+						alter.GetObjectName()+"."+col,
+						colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
 						colMetadata.DataType,
 						colMetadata.ReferencedColumnType,
 					))

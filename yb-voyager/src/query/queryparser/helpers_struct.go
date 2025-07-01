@@ -135,6 +135,21 @@ func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
 	return schemaName, objName
 }
 
+func extractTypeMods(typmods []*pg_query.Node) []int32 {
+	result := make([]int32, 0, len(typmods))
+	for _, node := range typmods {
+		if aconst := node.GetAConst(); aconst != nil {
+			switch val := aconst.Val.(type) {
+			case *pg_query.A_Const_Ival:
+				if val.Ival != nil {
+					result = append(result, val.Ival.Ival)
+				}
+			}
+		}
+	}
+	return result
+}
+
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
 	return node, ok

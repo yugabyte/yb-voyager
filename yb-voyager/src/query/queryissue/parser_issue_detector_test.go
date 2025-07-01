@@ -186,6 +186,9 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt36 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
 	stmt37 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
 	stmt38 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER,  shipment_code VARCHAR(10), country_code TEXT );`
+	stmt39 = `CREATE TABLE customers2 (customer_code VARCHAR(5) PRIMARY KEY);`
+	stmt40 = `CREATE TABLE orders2 (order_id SERIAL PRIMARY KEY, customer_code VARCHAR(10));`
+	stmt41 = `ALTER TABLE orders2 ADD CONSTRAINT fk_customer_code FOREIGN KEY (customer_code) REFERENCES customers2(customer_code);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -275,7 +278,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -331,17 +334,20 @@ func TestDDLIssues(t *testing.T) {
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
 		stmt29: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "user_id", "id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "int8", "int4"),
 		},
 		stmt32: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "tasks", stmt32, "proj_id", "proj_id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "tasks", stmt32, "tasks.proj_id", "projects.proj_id", "int8", "int4"),
 		},
 		stmt33: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt33, "payment_id", "payment_id", "text", "uuid"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt33, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
 		},
 		stmt36: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "shipment_code", "shipment_code", "varchar", "bpchar"),
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "country_code", "country_code", "text", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "bpchar(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "delivery_tracking.country_code", "shipments.country_code", "text", "int4"),
+		},
+		stmt41: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt41, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
 		},
 	}
 	for _, stmt := range requiredDDLs {
