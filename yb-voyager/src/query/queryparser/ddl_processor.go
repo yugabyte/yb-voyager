@@ -781,6 +781,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			*/
 			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
 			alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
+			alter.ConstraintReferencedColumns = parseColumnsFromKeys(constraint.PkAttrs)
 		}
 
 	case pg_query.AlterTableType_AT_DisableRule:
@@ -811,12 +812,13 @@ type AlterTable struct {
 	NumSetAttributes  int
 	NumStorageOptions int
 	//In case AlterType - ADD_CONSTRAINT
-	ConstraintType            pg_query.ConstrType
-	ConstraintName            string
-	ConstraintNotValid        bool
-	ConstraintReferencedTable string
-	IsDeferrable              bool
-	ConstraintColumns         []string
+	ConstraintType              pg_query.ConstrType
+	ConstraintName              string
+	ConstraintNotValid          bool
+	ConstraintReferencedTable   string
+	ConstraintReferencedColumns []string //In case of Foreign key constraint
+	IsDeferrable                bool
+	ConstraintColumns           []string
 }
 
 func (a *AlterTable) GetObjectName() string {

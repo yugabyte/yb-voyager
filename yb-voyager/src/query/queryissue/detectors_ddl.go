@@ -124,6 +124,25 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					c.ConstraintName,
 				))
 			}
+			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+				// Check for foreign key datatype mismatch
+				for _, col := range c.Columns {
+					colMetadata, ok := d.columnMetadata[table.GetObjectName()][col]
+					if ok && colMetadata.IsForeignKey {
+						if colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
+							issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
+								obj.GetObjectType(),
+								table.GetObjectName(),
+								"", // query string
+								col,
+								colMetadata.ReferencedColumn,
+								colMetadata.DataType,
+								colMetadata.ReferencedColumnType,
+							))
+						}
+					}
+				}
+			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
 				issues = append(issues, NewDeferrableConstraintIssue(
@@ -224,24 +243,6 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				obj.GetObjectName(),
 				"",
 			))
-		}
-
-		colMetadata, ok := d.columnMetadata[table.GetObjectName()][col.ColumnName]
-		if ok {
-			if colMetadata.IsForeignKey {
-				// Check for foreign key datatype mismatch
-				if colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
-					issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
-						obj.GetObjectType(),
-						table.GetObjectName(),
-						"",
-						col.ColumnName,
-						colMetadata.ReferencedColumn,
-						colMetadata.DataType,
-						colMetadata.ReferencedColumnType,
-					))
-				}
-			}
 		}
 
 	}
@@ -998,6 +999,27 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				"",
 				alter.ConstraintName,
 			))
+		}
+
+		// Foreign key datatype mismatch
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+			for _, col := range alter.ConstraintColumns {
+				colMetadata, ok := aid.columnMetadata[alter.GetObjectName()][col]
+				if !ok {
+					continue
+				}
+				if colMetadata.IsForeignKey && colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
+					issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
+						obj.GetObjectType(),
+						alter.GetObjectName(),
+						"", // query string
+						col,
+						colMetadata.ReferencedColumn,
+						colMetadata.DataType,
+						colMetadata.ReferencedColumnType,
+					))
+				}
+			}
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&

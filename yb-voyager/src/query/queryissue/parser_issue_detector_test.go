@@ -177,6 +177,15 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
 	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);`
 	stmt29 = `CREATE TABLE orders (order_id SERIAL PRIMARY KEY, user_id BIGINT, FOREIGN KEY (user_id) REFERENCES users(id));`
+	stmt30 = `CREATE TABLE projects (proj_id INTEGER PRIMARY KEY, name TEXT);`
+	stmt31 = `CREATE TABLE tasks (task_id SERIAL PRIMARY KEY, proj_id BIGINT);`
+	stmt32 = `ALTER TABLE tasks ADD CONSTRAINT fk_proj_id FOREIGN KEY (proj_id) REFERENCES projects(proj_id);`
+	stmt33 = `ALTER TABLE invoices ADD CONSTRAINT fk_payment_id FOREIGN KEY (payment_id) REFERENCES payments(payment_id);`
+	stmt34 = `CREATE TABLE payments (payment_id UUID PRIMARY KEY, amount NUMERIC);`
+	stmt35 = `CREATE TABLE invoices (invoice_id SERIAL PRIMARY KEY, payment_id TEXT);`
+	stmt36 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
+	stmt37 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
+	stmt38 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER,  shipment_code VARCHAR(10), country_code TEXT );`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -266,7 +275,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -323,6 +332,16 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt29: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "user_id", "id", "int8", "int4"),
+		},
+		stmt32: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "tasks", stmt32, "proj_id", "proj_id", "int8", "int4"),
+		},
+		stmt33: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt33, "payment_id", "payment_id", "text", "uuid"),
+		},
+		stmt36: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "shipment_code", "shipment_code", "varchar", "bpchar"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "country_code", "country_code", "text", "int4"),
 		},
 	}
 	for _, stmt := range requiredDDLs {
