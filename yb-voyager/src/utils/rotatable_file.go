@@ -40,45 +40,57 @@ const (
 type RotatableFile struct {
 	Logger      *lumberjack.Logger
 	MaxFileSize int64 // in bytes
+	curFileSize int64 // current file size, updated after each write
 }
 
 // NewRotatableFile creates a new RotatableFile with the given filename and maxFileSize (in bytes).
 // If maxFileSize is 0, defaults to 5MB.
 func NewRotatableFile(filename string, maxFileSize int64) (*RotatableFile, error) {
+	var curFileSize int64 = 0
 	if maxFileSize <= 0 {
 		maxFileSize = defaultRotatorMaxBytes
 	}
 	if maxFileSize >= lumberjackMaxMB*1024*1024 {
 		return nil, errors.New(fmt.Sprintf("maxFileSize must be less than %d MB", lumberjackMaxMB))
 	}
+
+	// update curFileSize if the file already exists. Needed for resumption scenario.
+	fileInfo, err := os.Stat(filename)
+	if err == nil {
+		curFileSize = fileInfo.Size()
+	} else if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("failed to stat file %s: %w", filename, err)
+	}
+
 	return &RotatableFile{
 		Logger: &lumberjack.Logger{
 			Filename: filename,
 			MaxSize:  lumberjackMaxMB,
 		},
 		MaxFileSize: maxFileSize,
+		curFileSize: curFileSize,
 	}, nil
 }
 
 // Write implements io.Writer. It writes p to the file, rotating if needed.
 // If a single write exceeds maxFileSize, it will still write the data and rotate after.
 func (fr *RotatableFile) Write(p []byte) (n int, err error) {
-	// Check file size before writing (not strictly needed, but can be used for future logic)
 	// Write the data
 	n, err = fr.Logger.Write(p)
 	if err != nil {
 		return n, err
 	}
 
-	// Check file size after writing
-	fileInfo, statErr := os.Stat(fr.Logger.Filename)
-	if statErr != nil {
-		return n, statErr
-	}
-	if fileInfo.Size() > fr.MaxFileSize {
+	// Update current file size
+	fr.curFileSize += int64(n)
+	// If the current file size exceeds maxFileSize, rotate the file
+	if fr.curFileSize > fr.MaxFileSize {
 		if rotateErr := fr.Logger.Rotate(); rotateErr != nil {
 			return n, rotateErr
 		}
+		// Reset current file size after rotation
+		fr.curFileSize = 0
 	}
+
 	return n, nil
 }
