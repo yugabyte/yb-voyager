@@ -650,7 +650,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 		pendingTasks = importFileTasks
 	} else {
-		pendingTasks, completedTasks, err = classifyTasks(state, importFileTasks)
+		pendingTasks, completedTasks, err = classifyTasksForImport(state, importFileTasks)
 		if err != nil {
 			utils.ErrExit("Failed to classify tasks: %s", err)
 		}
@@ -658,7 +658,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	log.Infof("pending tasks: %v", pendingTasks)
 	log.Infof("completed tasks: %v", completedTasks)
 
-	err = runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks)
+	err = runPKConflictModeGuardrails(state, importFileTasks)
 	if err != nil {
 		utils.ErrExit("Error checking PK conflict mode on fresh start: %s", err)
 	}
@@ -805,7 +805,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 }
 
 // For a fresh start but non empty tables in tableList && OnPrimaryKeyConflict is set to IGNORE -> notify user
-func runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) error {
+func runPKConflictModeGuardrails(state *ImportDataState, allTasks []*ImportFileTask) error {
 	// in case of ERROR mode, no need to check for non-empty tables
 	// but for IGNORE or UPDATE(in future), we need to prompt user
 	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_ERROR {
@@ -816,46 +816,42 @@ func runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks [
 		return nil
 	}
 
-	if !isFreshStart(importFileTasks, pendingTasks, completedTasks) {
-		log.Infof("Not a fresh start, skipping primary key conflict mode check.")
+	if !isFreshStart(state, allTasks) {
+		log.Info("Not a fresh start, skipping primary key conflict mode check.")
 		return nil
 	}
 
+	pendingTasks := getPendingTasks(state, allTasks)
 	pendingTablesList := importFileTasksToTableNameTuples(pendingTasks)
 	nonEmptyTables := tdb.GetNonEmptyTables(pendingTablesList)
 	if len(nonEmptyTables) == 0 {
+		log.Info("No non-empty tables found in the target DB, skipping primary key conflict mode check.")
 		return nil
 	}
 
-	nonPKTables := map[sqlname.NameTuple]bool{}
+	var nonEmptyTablesWithPK []sqlname.NameTuple
 	for _, table := range nonEmptyTables {
 		colList, err := tdb.GetPrimaryKeyColumns(table)
 		if err != nil {
 			return fmt.Errorf("failed to get primary key columns for table %s: %w", table.ForOutput(), err)
 		}
-		if len(colList) != 0 {
-			nonPKTables[table] = true
+		if len(colList) > 0 { // table has PK
+			nonEmptyTablesWithPK = append(nonEmptyTablesWithPK, table)
 		}
 	}
 
 	// all nonEmptyTables have no primary key columns
-	if len(nonPKTables) == len(nonEmptyTables) {
-		log.Infof("All tables in %v have no primary key columns, skipping primary key conflict mode check.", sqlname.NameTupleListToStrings(nonEmptyTables))
+	if len(nonEmptyTablesWithPK) == 0 {
+		log.Infof("No non-empty tables with primary key found in %v, skipping primary key conflict mode check.",
+			sqlname.NameTupleListToStrings(nonEmptyTables))
 		return nil
 	}
 
-	pkTables := lo.Filter(nonEmptyTables, func(table sqlname.NameTuple, _ int) bool {
-		return !nonPKTables[table]
-	})
-
 	utils.PrintAndLog(
-		"Target tables with pre-existing data: %v\n\n"+
-			"Selected mode: IGNORE on primary-key conflicts\n"+
-			"This mode offers improved import speed when your data contains no PK constraint violations.\n\n"+
-			"Under this mode:\n"+
-			"  • Duplicate Primary Key rows are silently skipped.\n"+
-			"  • Import proceeds without error for skipped entries.\n"+
-			"  • Only new unique rows will be imported.\n\n", sqlname.NameTupleListToStrings(pkTables),
+		"\nTarget tables with pre-existing data: %v\n"+
+			"Note that because of the config on-primary-key-conflict as 'IGNORE', rows that have a primary key conflict "+
+			"with an existing row in the above set of tables will be silently ignored.\n",
+		sqlname.NameTupleListToStrings(nonEmptyTablesWithPK),
 	)
 	if !utils.AskPrompt("Please confirm whether to proceed") {
 		utils.ErrExit("Aborting import.")
@@ -864,9 +860,13 @@ func runPKConflictModeGuardrails(importFileTasks, pendingTasks, completedTasks [
 	return nil
 }
 
-func isFreshStart(importFileTasks, pendingTasks, completedTasks []*ImportFileTask) bool {
-	// A fresh start is when all tasks are pending(non-zero) and no tasks are completed.
-	return len(pendingTasks) == len(importFileTasks) && len(completedTasks) == 0 && len(pendingTasks) > 0
+// A fresh start is when all tasks are pending(non-zero), no started or completed tasks.
+func isFreshStart(state *ImportDataState, allTasks []*ImportFileTask) bool {
+	inProgressTasks := getInProgressTasks(state, allTasks)
+	notStartedTasks := getNotStartedTasks(state, allTasks)
+	completedTasks := getCompletedTasks(state, allTasks)
+
+	return len(inProgressTasks) == 0 && len(completedTasks) == 0 && len(notStartedTasks) == len(allTasks)
 }
 
 func restoreGeneratedIdentityColumns(importTableList []sqlname.NameTuple) error {
@@ -1340,7 +1340,7 @@ func importFileTasksToTableNameTuples(tasks []*ImportFileTask) []sqlname.NameTup
 	})
 }
 
-func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
+func classifyTasksForImport(state *ImportDataState, tasks []*ImportFileTask) (pendingTasks, completedTasks []*ImportFileTask, err error) {
 	inProgressTasks := []*ImportFileTask{}
 	notStartedTasks := []*ImportFileTask{}
 	for _, task := range tasks {
@@ -1361,6 +1361,52 @@ func classifyTasks(state *ImportDataState, tasks []*ImportFileTask) (pendingTask
 	}
 	// Start with in-progress tasks, followed by not-started tasks.
 	return append(inProgressTasks, notStartedTasks...), completedTasks, nil
+}
+
+func getNotStartedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	notStartedTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_NOT_STARTED {
+			notStartedTasks = append(notStartedTasks, task)
+		}
+	}
+	return notStartedTasks
+}
+
+func getInProgressTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	inProgressTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_IN_PROGRESS {
+			inProgressTasks = append(inProgressTasks, task)
+		}
+	}
+	return inProgressTasks
+}
+
+func getPendingTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	return append(getInProgressTasks(state, tasks), getNotStartedTasks(state, tasks)...)
+}
+
+func getCompletedTasks(state *ImportDataState, tasks []*ImportFileTask) []*ImportFileTask {
+	completedTasks := []*ImportFileTask{}
+	for _, task := range tasks {
+		fileImportState, err := state.GetFileImportState(task.FilePath, task.TableNameTup)
+		if err != nil {
+			utils.ErrExit("get table import state: %s: %s", task.TableNameTup, err)
+		}
+		if fileImportState == FILE_IMPORT_COMPLETED || fileImportState == FILE_IMPORT_COMPLETED_WITH_ERRORS {
+			completedTasks = append(completedTasks, task)
+		}
+	}
+	return completedTasks
 }
 
 func cleanImportState(state *ImportDataState, tasks []*ImportFileTask) {
