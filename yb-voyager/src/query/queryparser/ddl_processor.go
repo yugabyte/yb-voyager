@@ -158,6 +158,9 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
 			typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
+			typmods := element.GetColumnDef().GetTypeName().GetTypmods()
+			extractedMods := extractTypeMods(typmods)
+
 			/*
 				e.g. CREATE TABLE test_xml_type(id int, data xml);
 				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
@@ -172,6 +175,7 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
+				TypeMods:    extractedMods,
 				TypeSchema:  typeSchemaName,
 				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 				/*
@@ -311,6 +315,7 @@ type Table struct {
 type TableColumn struct {
 	ColumnName  string
 	TypeName    string
+	TypeMods    []int32
 	TypeSchema  string
 	IsArrayType bool
 	Compression string

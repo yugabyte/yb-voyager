@@ -464,7 +464,7 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 
 	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
 	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
-	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key column datatype does not match with the referenced column datatype. This can lead to issues during data migration and should be resolved before proceeding with the migration."
+	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type '%s', while the referenced column is of type '%s'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other."
 )
 
 // Object types

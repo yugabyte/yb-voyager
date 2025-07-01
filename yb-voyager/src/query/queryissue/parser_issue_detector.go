@@ -317,13 +317,13 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			if meta, exists := p.columnMetadata[tableName][col.ColumnName]; !exists {
 				// If the column is not present, create a new metadata entry for it
 				meta = &ColumnMetadata{
-					DataType: col.TypeName,
+					DataType: p.getFullTypeName(col.TypeName, col.TypeMods),
 				}
 				p.columnMetadata[tableName][col.ColumnName] = meta
 			}
 
 			meta := p.columnMetadata[tableName][col.ColumnName]
-			meta.DataType = col.TypeName // Update the data type
+			meta.DataType = p.getFullTypeName(col.TypeName, col.TypeMods)
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
@@ -393,6 +393,25 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
+}
+
+func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) string {
+	switch typeName {
+	case "varchar", "bpchar": // varchar(n), char(n)
+		if len(typmods) == 1 {
+			return fmt.Sprintf("%s(%d)", typeName, typmods[0])
+		}
+		return typeName
+
+	case "numeric":
+		if len(typmods) == 2 {
+			return fmt.Sprintf("numeric(%d,%d)", typmods[0], typmods[1])
+		}
+		return typeName
+
+	default:
+		return typeName
+	}
 }
 
 func (p *ParserIssueDetector) ResolveReferencedColumnTypes() {
