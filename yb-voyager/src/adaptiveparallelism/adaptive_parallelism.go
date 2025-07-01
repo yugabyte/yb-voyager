@@ -142,7 +142,7 @@ func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	if err != nil {
 		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
 	}
-	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threhsold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threshold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
 	return maxCpuUsagePct > MAX_CPU_THRESHOLD, nil
 }
 
