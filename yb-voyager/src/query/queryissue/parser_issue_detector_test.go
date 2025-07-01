@@ -175,20 +175,31 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	);`
 	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
 	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
-	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);`
+
+	// Foreign Key Datatype Mismatch Cases
+	// Case 1: BIGINT → INTEGER (Simple mismatch)
+	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY);`
 	stmt29 = `CREATE TABLE orders (order_id SERIAL PRIMARY KEY, user_id BIGINT, FOREIGN KEY (user_id) REFERENCES users(id));`
-	stmt30 = `CREATE TABLE projects (proj_id INTEGER PRIMARY KEY, name TEXT);`
-	stmt31 = `CREATE TABLE tasks (task_id SERIAL PRIMARY KEY, proj_id BIGINT);`
-	stmt32 = `ALTER TABLE tasks ADD CONSTRAINT fk_proj_id FOREIGN KEY (proj_id) REFERENCES projects(proj_id);`
-	stmt33 = `ALTER TABLE invoices ADD CONSTRAINT fk_payment_id FOREIGN KEY (payment_id) REFERENCES payments(payment_id);`
-	stmt34 = `CREATE TABLE payments (payment_id UUID PRIMARY KEY, amount NUMERIC);`
-	stmt35 = `CREATE TABLE invoices (invoice_id SERIAL PRIMARY KEY, payment_id TEXT);`
-	stmt36 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
-	stmt37 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
-	stmt38 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER,  shipment_code VARCHAR(10), country_code TEXT );`
-	stmt39 = `CREATE TABLE customers2 (customer_code VARCHAR(5) PRIMARY KEY);`
-	stmt40 = `CREATE TABLE orders2 (order_id SERIAL PRIMARY KEY, customer_code VARCHAR(10));`
-	stmt41 = `ALTER TABLE orders2 ADD CONSTRAINT fk_customer_code FOREIGN KEY (customer_code) REFERENCES customers2(customer_code);`
+
+	// Case 2: UUID → TEXT mismatch
+	stmt30 = `CREATE TABLE payments (payment_id UUID PRIMARY KEY);`
+	stmt31 = `CREATE TABLE invoices (invoice_id SERIAL PRIMARY KEY, payment_id TEXT);`
+	stmt32 = `ALTER TABLE invoices ADD CONSTRAINT fk_payment_id FOREIGN KEY (payment_id) REFERENCES payments(payment_id);`
+
+	// Case 3: Composite FK with partial mismatch (CHAR vs VARCHAR, INT vs TEXT)
+	stmt33 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
+	stmt34 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER, shipment_code VARCHAR(10), country_code TEXT);`
+	stmt35 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
+
+	// Case 4: VARCHAR(10) → VARCHAR(5) mismatch
+	stmt36 = `CREATE TABLE customers2 (customer_code VARCHAR(5) PRIMARY KEY);`
+	stmt37 = `CREATE TABLE orders2 (order_id SERIAL PRIMARY KEY, customer_code VARCHAR(10));`
+	stmt38 = `ALTER TABLE orders2 ADD CONSTRAINT fk_customer_code FOREIGN KEY (customer_code) REFERENCES customers2(customer_code);`
+
+	// Case 5: NUMERIC(10,2) → NUMERIC(8,2) mismatch
+	stmt39 = `CREATE TABLE products2 (product_id SERIAL PRIMARY KEY, price NUMERIC(10,2));`
+	stmt40 = `CREATE TABLE orders3 (order_id SERIAL PRIMARY KEY, product_price NUMERIC(8,2));`
+	stmt41 = `ALTER TABLE orders3 ADD CONSTRAINT fk_price FOREIGN KEY (product_price) REFERENCES products2(price);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -337,17 +348,17 @@ func TestDDLIssues(t *testing.T) {
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "int8", "int4"),
 		},
 		stmt32: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "tasks", stmt32, "tasks.proj_id", "projects.proj_id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
 		},
-		stmt33: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt33, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
+		stmt35: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "bpchar(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "int4"),
 		},
-		stmt36: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "bpchar(5)"),
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt36, "delivery_tracking.country_code", "shipments.country_code", "text", "int4"),
+		stmt38: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
 		},
 		stmt41: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt41, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
 		},
 	}
 	for _, stmt := range requiredDDLs {

@@ -158,6 +158,8 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
 			typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
+
+			// Extract typmod values like length or precision from the column definition (e.g., VARCHAR(10) → [10])
 			typmods := element.GetColumnDef().GetTypeName().GetTypmods()
 			extractedMods := extractTypeMods(typmods)
 
