@@ -322,6 +322,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		- For partitioned tables, we import the datafiles of leafs into root
 		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
 	*/
+	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
