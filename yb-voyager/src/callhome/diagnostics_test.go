@@ -29,7 +29,6 @@ import (
 )
 
 func TestCallhomeStructs(t *testing.T) {
-
 	tests := []struct {
 		name         string
 		actualType   reflect.Type
@@ -236,21 +235,24 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate YBClusterMetrics Struct Definition",
 			actualType: reflect.TypeOf(YBClusterMetrics{}),
 			expectedType: struct {
-				Timestamp time.Time    `json:"timestamp"`
-				CPUAvgPct float64      `json:"cpu_avg_pct"`
-				MemAvgPct float64      `json:"mem_avg_pct"`
-				Nodes     []NodeMetric `json:"nodes"`
+				Timestamp                 time.Time    `json:"timestamp"`
+				CPUAvgPct                 float64      `json:"cpu_avg_pct"`
+				TserverAvgMemSoftLimitPct float64      `json:"tserver_avg_mem_soft_limit_pct"`
+				Nodes                     []NodeMetric `json:"nodes"`
 			}{},
 		},
 		{
 			name:       "Validate NodeMetric Struct Definition",
 			actualType: reflect.TypeOf(NodeMetric{}),
 			expectedType: struct {
-				UUID   string  `json:"uuid"`
-				CPUPct float64 `json:"cpu_pct"`
-				MemPct float64 `json:"mem_pct"`
-				Status string  `json:"status"`
-				Error  string  `json:"error"`
+				UUID                   string  `json:"uuid"`
+				TotalCPUPct            float64 `json:"total_cpu_pct"`
+				TserverMemSoftLimitPct float64 `json:"tserver_mem_soft_limit_pct"`
+				MemoryFree             int64   `json:"memory_free"`
+				MemoryAvailable        int64   `json:"memory_available"`
+				MemoryTotal            int64   `json:"memory_total"`
+				Status                 string  `json:"status"`
+				Error                  string  `json:"error"`
 			}{},
 		},
 		{

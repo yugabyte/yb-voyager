@@ -241,8 +241,9 @@ type ImportSchemaPhasePayload struct {
 /*
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
+1.1: Added YBClusterMetrics field
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ImportDataPhasePayload struct {
 	PayloadVersion              string           `json:"payload_version"`
@@ -267,19 +268,22 @@ type ImportDataPhasePayload struct {
 }
 
 type YBClusterMetrics struct {
-	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
-	CPUAvgPct float64      `json:"cpu_avg_pct"` // mean of node CPU% across all nodes
-	MemAvgPct float64      `json:"mem_avg_pct"` // mean of node Mem% across all nodes
-	Nodes     []NodeMetric `json:"nodes"`       // one entry per node
+	Timestamp                 time.Time    `json:"timestamp"`                      // time when the metrics were collected
+	CPUAvgPct                 float64      `json:"cpu_avg_pct"`                    // mean of node CPU% across all nodes
+	TserverAvgMemSoftLimitPct float64      `json:"tserver_avg_mem_soft_limit_pct"` // mean of node tserver-soft-limit% across all nodes
+	Nodes                     []NodeMetric `json:"nodes"`                          // one entry per node
 }
 
 // per-node snapshot
 type NodeMetric struct {
-	UUID   string  `json:"uuid"`
-	CPUPct float64 `json:"cpu_pct"` // (user+system)*100
-	MemPct float64 `json:"mem_pct"` // tserver-consumption/tserver-soft-limit * 100
-	Status string  `json:"status"`  // "OK", "ERROR"
-	Error  string  `json:"error"`   // error message if status is not OK
+	UUID                   string  `json:"uuid"`
+	TotalCPUPct            float64 `json:"total_cpu_pct"`              // (user+system)*100
+	TserverMemSoftLimitPct float64 `json:"tserver_mem_soft_limit_pct"` // tserver root memory soft limit % (consumption/soft-limit)*100
+	MemoryFree             int64   `json:"memory_free"`                // free memory in bytes
+	MemoryAvailable        int64   `json:"memory_available"`           // available memory in bytes
+	MemoryTotal            int64   `json:"memory_total"`               // total memory in bytes
+	Status                 string  `json:"status"`                     // "OK", "ERROR"
+	Error                  string  `json:"error"`                      // error message if status is not OK
 }
 
 type ImportDataFilePhasePayload struct {
