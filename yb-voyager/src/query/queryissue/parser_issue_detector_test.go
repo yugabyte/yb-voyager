@@ -175,6 +175,8 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	);`
 	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
 	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
+	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY, name TEXT);`
+	stmt29 = `CREATE TABLE orders (order_id SERIAL PRIMARY KEY, user_id BIGINT, FOREIGN KEY (user_id) REFERENCES users(id));`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -264,7 +266,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16}
+	requiredDDLs := []string{stmt16, stmt28, stmt29}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -319,11 +321,17 @@ func TestDDLIssues(t *testing.T) {
 		stmt27: []QueryIssue{
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
+		stmt29: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "user_id", "id", "int8", "int4"),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.ResolveReferencedColumnTypes()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)

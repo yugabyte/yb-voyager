@@ -33,6 +33,9 @@ const (
 	FREQUENCY_OF_NULLS           = "FrequencyOfNulls"
 	VALUE                        = "Value"
 	FREQUENCY_OF_VALUE           = "FrequencyOfTheValue"
+	REFERENCED_COLUMN_NAME       = "ReferencedColumnName"
+	FOREIGN_KEY_COLUMN_TYPE      = "ForeignKeyColumnType"
+	REFERENCED_COLUMN_TYPE       = "ReferencedColumnType"
 )
 
 var hotspotsOnDateIndexes = issue.Issue{
@@ -188,5 +191,25 @@ func NewMostFrequentValueIndexesIssue(objectType string, objectName string, sqlS
 		FREQUENCY_OF_VALUE: fmt.Sprintf("%d%%", frequency),
 		COLUMN_NAME:        columnName,
 	}
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
+}
+
+var foreignKeyDatatypeMismatchIssue = issue.Issue{
+	Name:        FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME,
+	Type:        FOREIGN_KEY_DATATYPE_MISMATCH,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch", // TODO add link to docs
+}
+
+func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sqlStatement string, fkColumnName string, refColumnName string, fkColumnType string, refColumnType string) QueryIssue {
+	issue := foreignKeyDatatypeMismatchIssue
+	details := map[string]interface{}{
+		COLUMN_NAME:             fkColumnName,
+		REFERENCED_COLUMN_NAME:  refColumnName,
+		FOREIGN_KEY_COLUMN_TYPE: fkColumnType,
+		REFERENCED_COLUMN_TYPE:  refColumnType,
+	}
+
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, details)
 }

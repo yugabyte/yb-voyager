@@ -37,6 +37,18 @@ type ColumnMetadata struct {
 	IsJsonb                bool
 	IsArray                bool
 	IsUserDefinedType      bool
+
+	IsForeignKey         bool
+	ReferencedTable      string
+	ReferencedColumn     string
+	ReferencedColumnType string
+}
+
+type deferredRef struct {
+	table            string
+	column           string
+	referencedTable  string
+	referencedColumn string
 }
 
 // TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
@@ -67,6 +79,8 @@ type ParserIssueDetector struct {
 
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
+
+	deferredRefs []deferredRef
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -77,6 +91,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		partitionedTablesMap: make(map[string]bool),
 		primaryConsInAlter:   make(map[string]*queryparser.AlterTable),
 		columnStatistics:     make(map[string]utils.ColumnStatistics),
+		deferredRefs:         make([]deferredRef, 0),
 	}
 }
 
@@ -294,6 +309,30 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			p.columnMetadata[tableName][col.ColumnName] = meta
 		}
 
+		for _, constraint := range table.Constraints {
+			if constraint.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+				for i, localCol := range constraint.Columns {
+					meta := p.columnMetadata[tableName][localCol]
+					if meta == nil { // This should not happen, but just in case if there is an error in the parsing logic
+						meta = &ColumnMetadata{DataType: "unknown"}
+						p.columnMetadata[tableName][localCol] = meta
+					}
+					meta.IsForeignKey = true
+					meta.ReferencedTable = constraint.ReferencedTable
+					if i < len(constraint.ReferencedColumns) {
+						meta.ReferencedColumn = constraint.ReferencedColumns[i]
+
+						// Storing in deferredRefs to be processed later as we might not have the referenced table in the schema yet
+						p.deferredRefs = append(p.deferredRefs, deferredRef{
+							table:            tableName,
+							column:           localCol,
+							referencedTable:  constraint.ReferencedTable,
+							referencedColumn: constraint.ReferencedColumns[i],
+						})
+					}
+				}
+			}
+		}
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
@@ -311,6 +350,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
+}
+
+func (p *ParserIssueDetector) ResolveReferencedColumnTypes() {
+	for _, ref := range p.deferredRefs {
+		if refMeta := p.columnMetadata[ref.referencedTable][ref.referencedColumn]; refMeta != nil {
+			p.columnMetadata[ref.table][ref.column].ReferencedColumnType = refMeta.DataType
+		}
+	}
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {

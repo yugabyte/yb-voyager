@@ -347,6 +347,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 		if parserIssueDetector.IsGinIndexPresentInSchema() {
 			summaryMap["INDEX"].details[GIN_INDEX_DETAILS] = true
 		}
+	}
+	parserIssueDetector.ResolveReferencedColumnTypes()
+
+	for _, sqlStmtInfo := range sqlInfoArr {
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
 		if err != nil {
 			utils.ErrExit("error getting ddl issues for stmt: [%s]: %v", sqlStmtInfo.formattedStmt, err)

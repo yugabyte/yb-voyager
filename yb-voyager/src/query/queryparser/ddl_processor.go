@@ -211,7 +211,7 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 
 							In case of FKs there is field called PkTable which has reference table information
 						*/
-						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable)
+						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable, constraint.PkAttrs)
 					}
 				}
 			}
@@ -244,7 +244,7 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 				//fk_attrs:{string:{sval:"abc_id"}} pk_attrs:{string:{sval:"id"}}
 				columns = parseColumnsFromKeys(fkAttrs)
 			}
-			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable, constraint.Pktable)
+			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable, constraint.Pktable, constraint.PkAttrs)
 
 		}
 	}
@@ -283,7 +283,6 @@ func parseColumnsFromKeys(keys []*pg_query.Node) []string {
 		res = append(res, k.GetString_().Sval)
 	}
 	return res
-
 }
 
 func (tableProcessor *TableProcessor) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
@@ -322,11 +321,12 @@ func (tc *TableColumn) GetFullTypeName() string {
 }
 
 type TableConstraint struct {
-	ConstraintType  pg_query.ConstrType
-	ConstraintName  string
-	IsDeferrable    bool
-	ReferencedTable string
-	Columns         []string
+	ConstraintType    pg_query.ConstrType
+	ConstraintName    string
+	IsDeferrable      bool
+	ReferencedTable   string
+	Columns           []string
+	ReferencedColumns []string
 }
 
 func (c *TableConstraint) IsPrimaryKeyORUniqueConstraint() bool {
@@ -377,7 +377,7 @@ func (t *Table) UniqueKeyColumns() []string {
 	return uniqueCols
 }
 
-func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool, referencedTable *pg_query.RangeVar) {
+func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool, referencedTable *pg_query.RangeVar, referencedCols []*pg_query.Node) {
 	tc := TableConstraint{
 		ConstraintType: conType,
 		Columns:        columns,
@@ -388,6 +388,9 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	tc.ConstraintName = conName
 	if conType == FOREIGN_CONSTR_TYPE {
 		tc.ReferencedTable = utils.BuildObjectName(referencedTable.Schemaname, referencedTable.Relname)
+		if referencedCols != nil {
+			tc.ReferencedColumns = parseColumnsFromKeys(referencedCols)
+		}
 	}
 	t.Constraints = append(t.Constraints, tc)
 }
