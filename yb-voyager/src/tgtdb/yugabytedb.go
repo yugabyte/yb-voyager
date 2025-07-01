@@ -50,6 +50,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	CPU_USAGE_USER_METRIC                  = "cpu_usage_user"
+	CPU_USAGE_SYSTEM_METRIC                = "cpu_usage_system"
+	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC = "tserver_root_memory_consumption"
+	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC  = "tserver_root_memory_soft_limit"
+	MEMORY_FREE_METRIC                     = "memory_free"
+	MEMORY_TOTAL_METRIC                    = "memory_total"
+	MEMORY_AVAILABLE_METRIC                = "memory_available"
+)
+
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
@@ -1763,19 +1773,19 @@ type NodeMetrics struct {
 
 // CPUPercent returns (user + system) CPU usage as a percent (0–100).
 func (n *NodeMetrics) CPUPercent() (float64, error) {
-	userStr, ok1 := n.Metrics["cpu_usage_user"]
-	sysStr, ok2 := n.Metrics["cpu_usage_system"]
+	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
+	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
 	if !ok1 || !ok2 {
-		return 0, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+		return -1, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
 	}
 
 	user, err := strconv.ParseFloat(userStr, 64)
 	if err != nil {
-		return 0, fmt.Errorf("node %s: parse cpu_usage_user: %w", n.UUID, err)
+		return -1, fmt.Errorf("node %s: parse cpu_usage_user: %w", n.UUID, err)
 	}
 	sys, err := strconv.ParseFloat(sysStr, 64)
 	if err != nil {
-		return 0, fmt.Errorf("node %s: parse cpu_usage_system: %w", n.UUID, err)
+		return -1, fmt.Errorf("node %s: parse cpu_usage_system: %w", n.UUID, err)
 	}
 
 	return (user + sys) * 100, nil
@@ -1783,25 +1793,64 @@ func (n *NodeMetrics) CPUPercent() (float64, error) {
 
 // MemPercent returns memory consumption as a percent of the soft limit (0–100).
 func (n *NodeMetrics) MemPercent() (float64, error) {
-	usedStr, ok1 := n.Metrics["tserver_root_memory_consumption"]
-	softStr, ok2 := n.Metrics["tserver_root_memory_soft_limit"]
+	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
+	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
 	if !ok1 || !ok2 {
-		return 0, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+		return -1, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
 	}
 
 	used, err := strconv.ParseFloat(usedStr, 64)
 	if err != nil {
-		return 0, fmt.Errorf("node %s: parse memory_consumption: %w", n.UUID, err)
+		return -1, fmt.Errorf("node %s: parse memory_consumption: %w", n.UUID, err)
 	}
 	soft, err := strconv.ParseFloat(softStr, 64)
 	if err != nil {
-		return 0, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
+		return -1, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
 	}
 	if soft == 0 {
-		return 0, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+		return -1, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
 	}
 
 	return (used / soft) * 100, nil
+}
+
+func (n *NodeMetrics) GetMemoryFree() (int64, error) {
+	memoryFreeStr, ok := n.Metrics[MEMORY_FREE_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_free", n.UUID)
+	}
+
+	memoryFree, err := strconv.ParseInt(memoryFreeStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_free: %w", n.UUID, err)
+	}
+	return memoryFree, nil
+}
+
+func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
+	memoryAvailableStr, ok := n.Metrics[MEMORY_AVAILABLE_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_available", n.UUID)
+	}
+
+	memoryAvailable, err := strconv.ParseInt(memoryAvailableStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_available: %w", n.UUID, err)
+	}
+	return memoryAvailable, nil
+}
+
+func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
+	memoryTotalStr, ok := n.Metrics[MEMORY_TOTAL_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_total", n.UUID)
+	}
+
+	memoryTotal, err := strconv.ParseInt(memoryTotalStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_total: %w", n.UUID, err)
+	}
+	return memoryTotal, nil
 }
 
 // =============================== Guardrails =================================
