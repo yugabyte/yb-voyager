@@ -37,6 +37,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -176,6 +177,34 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
+	anonymizer, err := anonymizer.NewSqlAnonymizer(metaDB)
+	if err != nil {
+		log.Warnf("failed to create callhome data anonymizer for assessment report: %v", err)
+	} else {
+		/*
+			Case to skip for sql statement anonymization:
+				1. if issue type is unsupported query construct or unsupported plpgsql object
+				2. if object type is view or materialized view
+				3. if sql statement is empty
+		*/
+		for i, issue := range assessmentReport.Issues {
+			skipCondition1 := slices.Contains([]string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY},
+				issue.Category)
+			skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER}, issue.ObjectType)
+			skipCondition3 := issue.SqlStatement == ""
+
+			if skipCondition1 || skipCondition2 || skipCondition3 {
+				continue
+			}
+
+			// NOTE: indexing/ordering needs to be same in obfuscatedIssues and assessmentReport.Issues
+			obfuscatedIssues[i].SqlStatement, err = anonymizer.Anonymize(issue.SqlStatement)
+			if err != nil {
+				log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+			}
+		}
+	}
+
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
@@ -209,7 +238,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
@@ -1924,11 +1953,6 @@ func generateAssessmentReportHtml(reportDir string) error {
 	if source.DBType == POSTGRESQL {
 		// marking this as empty to not display this in html report for PG
 		assessmentReport.SchemaSummary.SchemaNames = []string{}
-	}
-
-	err = assessmentReport.AnonymizeSqlStatements()
-	if err != nil {
-		return fmt.Errorf("failed to anonymize sql statements in the assessment report: %w", err)
 	}
 
 	type CombinedStruct struct {

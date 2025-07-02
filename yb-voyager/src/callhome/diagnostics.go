@@ -108,8 +108,9 @@ Version History
 1.1: Added a new field as ControlPlaneType
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 1.3: Added field Details in AssessmentIssueCallhome struct
+1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.3"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -134,6 +135,7 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
@@ -363,7 +365,8 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	// callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)

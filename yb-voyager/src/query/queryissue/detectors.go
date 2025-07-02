@@ -596,9 +596,9 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_ACONST_NODE {
 		return nil
 	}
-	aConstNode, err := queryparser.ProtoAsAConstNode(msg)
-	if err != nil {
-		return err
+	aConstNode, ok := queryparser.ProtoAsAConstNode(msg)
+	if !ok {
+		return fmt.Errorf("expected A_Const node, got %T", msg.Interface())
 	}
 	/*
 		Caveats can't report this issue for cases like -

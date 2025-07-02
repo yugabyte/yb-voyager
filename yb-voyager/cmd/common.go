@@ -45,7 +45,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -1457,24 +1456,6 @@ func (ar *AssessmentReport) getIndexStats() []*migassessment.TableIndexStats {
 		}
 	}
 	return res
-}
-
-func (ar *AssessmentReport) AnonymizeSqlStatements() error {
-	anonymizer, err := anonymizer.NewSqlAnonymizer(metaDB)
-	if err != nil {
-		utils.ErrExit("create sql anonymizer: %v", err)
-	}
-
-	for i := range ar.Issues {
-		if ar.Issues[i].SqlStatement != "" {
-			anonymizedSql, err := anonymizer.Anonymize(ar.Issues[i].SqlStatement)
-			if err != nil {
-				return fmt.Errorf("anonymize sql statement %q: %w", ar.Issues[i].SqlStatement, err)
-			}
-			ar.Issues[i].SqlStatement = anonymizedSql
-		}
-	}
-	return nil
 }
 
 func GetJsonAssessmentReportPath() string {
