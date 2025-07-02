@@ -268,10 +268,10 @@ type ImportDataPhasePayload struct {
 }
 
 type YBClusterMetrics struct {
-	Timestamp                 time.Time    `json:"timestamp"`                      // time when the metrics were collected
-	CPUAvgPct                 float64      `json:"cpu_avg_pct"`                    // mean of node CPU% across all nodes
-	TserverAvgMemSoftLimitPct float64      `json:"tserver_avg_mem_soft_limit_pct"` // mean of node tserver-soft-limit% across all nodes
-	Nodes                     []NodeMetric `json:"nodes"`                          // one entry per node
+	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
+	AvgCpuPct float64      `json:"avg_cpu_pct"` // mean of node CPU% across all nodes
+	MaxCpuPct float64      `json:"max_cpu_pct"` // max of node CPU% across all nodes
+	Nodes     []NodeMetric `json:"nodes"`       // one entry per node
 }
 
 // per-node snapshot

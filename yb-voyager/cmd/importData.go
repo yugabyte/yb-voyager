@@ -1688,7 +1688,7 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 
 	now := time.Now().UTC()
 	nodes := make([]callhome.NodeMetric, 0)
-	var totalCpuPct, totalMemPct float64
+	var totalCpuPct, maxCpuPct float64
 	for _, nodeMetrics := range clusterMetrics {
 		// in case of err value will be -1
 		cpuPct, err := nodeMetrics.GetCPUPercent()
@@ -1726,7 +1726,9 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 		})
 
 		totalCpuPct += cpuPct
-		totalMemPct += memPct
+		if cpuPct > maxCpuPct {
+			maxCpuPct = cpuPct
+		}
 	}
 
 	if len(nodes) == 0 {
@@ -1734,11 +1736,10 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	}
 
 	avgCpuPct := totalCpuPct / float64(len(nodes))
-	avgMemPct := totalMemPct / float64(len(nodes))
 	return callhome.YBClusterMetrics{
-		Timestamp:                 now,
-		CPUAvgPct:                 avgCpuPct,
-		TserverAvgMemSoftLimitPct: avgMemPct,
-		Nodes:                     nodes,
+		Timestamp: now,
+		AvgCpuPct: avgCpuPct,
+		MaxCpuPct: maxCpuPct,
+		Nodes:     nodes,
 	}, nil
 }
