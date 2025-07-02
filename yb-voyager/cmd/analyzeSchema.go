@@ -352,7 +352,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 	// Finalize and populate column metadata that depends on complete schema context.
 	// This includes metadata that can only be resolved after all SQL statements are parsed,
 	// such as foreign key constraints, inherited columns, and partitioned table columns.
-	parserIssueDetector.FinalizeColumnMetadata()
+	// Run this only if object type is TABLE, as it is the only one that has columns.
+	if objType == "TABLE" {
+		parserIssueDetector.FinalizeColumnMetadata()
+	}
 
 	for _, sqlStmtInfo := range sqlInfoArr {
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)
