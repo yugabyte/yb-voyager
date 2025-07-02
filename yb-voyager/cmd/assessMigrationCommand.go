@@ -188,6 +188,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 				3. if sql statement is empty
 		*/
 		for i, issue := range assessmentReport.Issues {
+			// TODO: add a hidden flag to enable anonymization for Unsupported Query Constructs
 			skipCondition1 := slices.Contains([]string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY},
 				issue.Category)
 			skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER}, issue.ObjectType)
@@ -204,6 +205,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			}
 		}
 	}
+
+	// TODO: anonymize and send the gathered metadata stats as well
 
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
