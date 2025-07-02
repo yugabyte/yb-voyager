@@ -153,8 +153,8 @@ func (yb *TargetYugabyteDB) Finalize() {
 }
 
 func (yb *TargetYugabyteDB) reconnect() error {
-	yb.Mutex.Lock()
-	defer yb.Mutex.Unlock()
+	yb.Lock()
+	defer yb.Unlock()
 
 	var err error
 	yb.disconnect()
@@ -222,8 +222,8 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	}
 
 	yb.EnsureConnected()
-	yb.Mutex.Lock()
-	defer yb.Mutex.Unlock()
+	yb.Lock()
+	defer yb.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
@@ -1660,6 +1660,10 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 	result := make(map[string]NodeMetrics)
 
 	query := "select uuid, metrics, status, error from yb_servers_metrics();"
+
+	// since this is a common/shared connection across all queries
+	yb.Lock()
+	defer yb.Unlock()
 	rows, err := yb.Query(query)
 	if err != nil {
 		return result, fmt.Errorf("querying yb_servers_metrics(): %w", err)
