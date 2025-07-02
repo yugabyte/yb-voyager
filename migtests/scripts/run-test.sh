@@ -2,10 +2,9 @@
 
 set -e
 
-if [ $# -gt 2 ]
-then
-	echo "Usage: $0 TEST_NAME [env.sh]"
-	exit 1
+if [ $# -gt 3 ]; then
+    echo "Usage: $0 TEST_NAME [env.sh] [--run-via-config-file]"
+    exit 1
 fi
 
 set -x
@@ -20,20 +19,31 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 
-# Order of env.sh import matters.
-if [ $2 != "" ] #if env.sh is passed as an argument, source it
-then
-    if [ ! -f "${TEST_DIR}/$2" ]
-	then
-		echo "$2 file not found in the test directory"
-		exit 1
-	fi
-	source ${TEST_DIR}/$2
+run_via_config_file=false
+env_file=""
+
+# Parse optional arguments
+shift # Remove TEST_NAME from $@
+for arg in "$@"; do
+    if [ "$arg" = "--run-via-config-file" ]; then
+        run_via_config_file=true
+    else
+        env_file="$arg"
+    fi
+done
+
+# Source env file if specified, else default to env.sh
+if [ -n "$env_file" ]; then
+    if [ ! -f "${TEST_DIR}/${env_file}" ]; then
+        echo "$env_file file not found in the test directory"
+        exit 1
+    fi
+    source "${TEST_DIR}/${env_file}"
 else
-	source ${TEST_DIR}/env.sh
+    source "${TEST_DIR}/env.sh"
 fi
 
-source ${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh
+source "${SCRIPTS}/${SOURCE_DB_TYPE}/env.sh"
 
 
 source ${SCRIPTS}/functions.sh
@@ -41,6 +51,12 @@ source ${SCRIPTS}/functions.sh
 normalize_and_export_vars "offline"
 
 source ${SCRIPTS}/yugabytedb/env.sh
+
+# Handling for config generation
+if [ "${run_via_config_file}" = true ]; then
+	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/offline-migration.yaml"
+	generate_voyager_config "$CONFIG_TEMPLATE"
+fi
 
 main() {
 	echo "Deleting the parent export-dir present in the test directory"
@@ -164,7 +180,7 @@ main() {
 	import_data
 	
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	import_schema --post-snapshot-import=true --refresh-mviews=true
+	finalize_schema_post_data_import
 	
 	run_ysql ${TARGET_DB_NAME} "\di"
 	run_ysql ${TARGET_DB_NAME} "\dft" 
@@ -214,6 +230,9 @@ main() {
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}"
+	if [ "${run_via_config_file}" = true ]; then
+	rm -f "${GENERATED_CONFIG}"
+	fi
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 
