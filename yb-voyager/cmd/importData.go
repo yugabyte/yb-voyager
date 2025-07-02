@@ -1678,7 +1678,7 @@ func isTargetDBImporter(importerRole string) bool {
 func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	yb, ok := tdb.(*tgtdb.TargetYugabyteDB)
 	if !ok {
-		utils.ErrExit("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
+		return callhome.YBClusterMetrics{}, fmt.Errorf("importData: expected tdb to be of type TargetYugabyteDB, got: %T", tdb)
 	}
 
 	clusterMetrics, err := yb.GetClusterMetrics()
@@ -1691,11 +1691,11 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	var totalCpuPct, totalMemPct float64
 	for _, nodeMetrics := range clusterMetrics {
 		// in case of err value will be -1
-		cpuPct, err := nodeMetrics.CPUPercent()
+		cpuPct, err := nodeMetrics.GetCPUPercent()
 		if err != nil {
 			log.Warnf("callhome: error getting CPU percent for node %s: %v", nodeMetrics.UUID, err)
 		}
-		memPct, err := nodeMetrics.MemPercent()
+		memPct, err := nodeMetrics.GetMemPercent()
 		if err != nil {
 			log.Warnf("callhome: error getting Mem percent for node %s: %v", nodeMetrics.UUID, err)
 		}
@@ -1730,8 +1730,7 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 	}
 
 	if len(nodes) == 0 {
-		log.Error("callhome: no nodes found in cluster metrics")
-		return callhome.YBClusterMetrics{}, nil
+		return callhome.YBClusterMetrics{}, fmt.Errorf("no nodes found in cluster metrics")
 	}
 
 	avgCpuPct := totalCpuPct / float64(len(nodes))

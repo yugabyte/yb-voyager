@@ -1772,7 +1772,7 @@ type NodeMetrics struct {
 }
 
 // CPUPercent returns (user + system) CPU usage as a percent (0–100).
-func (n *NodeMetrics) CPUPercent() (float64, error) {
+func (n *NodeMetrics) GetCPUPercent() (float64, error) {
 	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
 	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
 	if !ok1 || !ok2 {
@@ -1792,7 +1792,7 @@ func (n *NodeMetrics) CPUPercent() (float64, error) {
 }
 
 // MemPercent returns memory consumption as a percent of the soft limit (0–100).
-func (n *NodeMetrics) MemPercent() (float64, error) {
+func (n *NodeMetrics) GetMemPercent() (float64, error) {
 	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
 	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
 	if !ok1 || !ok2 {
