@@ -31,7 +31,7 @@ target:
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
   db-name: yugabyte 
 
-  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  ### Target schema name in YugabyteDB                       
   # db-schema: public      
 
   ### Username with which to connect to the target YugabyteDB server                                    
