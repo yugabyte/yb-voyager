@@ -3,12 +3,14 @@
 package anonymizer_test
 
 import (
+	"fmt"
 	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -22,8 +24,26 @@ import (
 	6. Also cover case sensitivity
 */
 
+func createMetaDB(exportDir string) (*metadb.MetaDB, error) {
+	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
+	if err != nil {
+		return nil, fmt.Errorf("could not create and init meta db: %w", err)
+	}
+
+	metaDBInstance, err := metadb.NewMetaDB(exportDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize MetaDB: %w", err)
+	}
+
+	err = metaDBInstance.InitMigrationStatusRecord()
+	if err != nil {
+		return nil, fmt.Errorf("failed to initialize migration status record: %w", err)
+	}
+	return metaDBInstance, nil
+}
+
 func newAnon(t *testing.T, exportDir string) *anonymizer.SqlAnonymizer {
-	metaDB, err := testutils.CreateMetaDB(exportDir)
+	metaDB, err := createMetaDB(exportDir)
 	testutils.FatalIfError(t, err)
 
 	a, err := anonymizer.NewSqlAnonymizer(metaDB)
