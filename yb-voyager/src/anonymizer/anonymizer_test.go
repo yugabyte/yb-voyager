@@ -35,6 +35,126 @@ func hasToken(s, prefix string) bool {
 	return strings.Contains(s, prefix)
 }
 
+// One test for each of the sql anonymization processor case implemented in anonymizer.go
+func TestAllAnonymizationProcessorCases(t *testing.T) {
+	cases := []struct {
+		nodeName string
+		sql      string   // input SQL
+		raw      []string // identifiers or literals that MUST be gone
+		prefixes []string // token prefixes that MUST appear
+	}{
+		/* ---------- Identifier nodes ---------- */
+		{
+			nodeName: "RangeVar (schema + table)",
+			sql:      `SELECT * FROM sales.orders;`,
+			raw:      []string{"sales", "orders"},
+			prefixes: []string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX},
+		},
+		{
+			nodeName: "ColumnDef",
+			sql:      `CREATE TABLE t(secret_col TEXT);`,
+			raw:      []string{"secret_col"},
+			prefixes: []string{anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "ColumnRef",
+			sql:      `SELECT password FROM users;`,
+			raw:      []string{"password", "users"},
+			prefixes: []string{anonymizer.COLUMN_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX},
+		},
+		{
+			nodeName: "IndexElem",
+			sql:      `CREATE INDEX idx_ab ON tbl(col1);`,
+			raw:      []string{"idx_ab", "tbl", "col1"},
+			prefixes: []string{anonymizer.INDEX_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "Constraint",
+			sql:      `CREATE TABLE tbl(id INT CONSTRAINT pk_t PRIMARY KEY);`,
+			raw:      []string{"pk_t"},
+			prefixes: []string{anonymizer.CONSTRAINT_KIND_PREFIX},
+		},
+		{
+			nodeName: "Constraint (ALTER TABLE)",
+			sql:      `ALTER TABLE ONLY public.foo ADD CONSTRAINT unique_1 UNIQUE (column1, column2) DEFERRABLE;`,
+			raw:      []string{"unique_1", "foo", "column1", "column2"},
+			prefixes: []string{anonymizer.CONSTRAINT_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "ResTarget",
+			sql:      `SELECT salary AS emp_sal FROM emp;`,
+			raw:      []string{"emp_sal"},
+			prefixes: []string{anonymizer.ALIAS_KIND_PREFIX},
+		},
+		{
+			nodeName: "Alias",
+			sql:      `SELECT * FROM customers cust;`,
+			raw:      []string{"cust"},
+			prefixes: []string{anonymizer.ALIAS_KIND_PREFIX},
+		},
+		{
+			nodeName: "TypeName",
+			sql:      `CREATE TABLE t(id my_custom_type);`,
+			raw:      []string{"my_custom_type"},
+			prefixes: []string{anonymizer.TYPE_KIND_PREFIX}, // flip once you anonymize TypeName.names
+		},
+		{
+			nodeName: "RoleSpec",
+			sql:      `GRANT SELECT ON foo TO reporting_user;`,
+			raw:      []string{"reporting_user"},
+			prefixes: []string{anonymizer.ROLE_KIND_PREFIX},
+		},
+
+		/* ---------- Literal nodes ---------- */
+		{
+			nodeName: "A_Const (string literal)",
+			sql:      `INSERT INTO foo VALUES ('superSecret');`,
+			raw:      []string{"superSecret"},
+			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+		},
+		{
+			nodeName: "A_ArrayExpr (wrapping A_Const)",
+			sql:      `INSERT INTO t(arr) VALUES (ARRAY['abc','xyz','123']);`,
+			raw:      []string{"abc", "xyz", "123"},
+			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+		},
+		{
+			nodeName: "A_Indirection (json key)",
+			sql:      `SELECT data->'password' FROM foo;`,
+			raw:      []string{"password"},
+			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+		},
+	}
+
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	a := newAnon(t, exportDir)
+
+	for _, tc := range cases {
+		tc := tc // capture
+		t.Run(tc.nodeName, func(t *testing.T) {
+			out, err := a.Anonymize(tc.sql)
+			if err != nil {
+				t.Fatalf("Anonymize: %v", err)
+			}
+			t.Logf("\nNODE : %s\nIN   : %s\nOUT  : %s", tc.nodeName, tc.sql, out)
+
+			// Raw strings must disappear
+			for _, r := range tc.raw {
+				if strings.Contains(out, r) {
+					t.Errorf("raw identifier/literal %q leaked", r)
+				}
+			}
+			// Expected token prefixes must appear
+			for _, p := range tc.prefixes {
+				if !hasToken(out, p) {
+					t.Errorf("missing token prefix %q", p)
+				}
+			}
+		})
+	}
+}
+
 func TestTableAndColumnDDLs(t *testing.T) {
 	tests := []struct {
 		name         string

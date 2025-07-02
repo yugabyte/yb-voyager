@@ -406,12 +406,12 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	return selectStmtNode, nil
 }
 
-func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
+func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, bool) {
 	aConstNode, ok := msg.Interface().(*pg_query.A_Const)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_ACONST_NODE)
+		return nil, false
 	}
-	return aConstNode, nil
+	return aConstNode, true
 }
 
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
@@ -504,6 +504,22 @@ func ProtoAsAliasNode(msg protoreflect.Message) (*pg_query.Alias, bool) {
 		return nil, false
 	}
 	return aliasNode, true
+}
+
+func ProtoAsTypeNameNode(msg protoreflect.Message) (*pg_query.TypeName, bool) {
+	typeNameNode, ok := msg.Interface().(*pg_query.TypeName)
+	if !ok {
+		return nil, false
+	}
+	return typeNameNode, true
+}
+
+func ProtoAsRoleSpecNode(msg protoreflect.Message) (*pg_query.RoleSpec, bool) {
+	roleSpecNode, ok := msg.Interface().(*pg_query.RoleSpec)
+	if !ok {
+		return nil, false
+	}
+	return roleSpecNode, true
 }
 
 /*

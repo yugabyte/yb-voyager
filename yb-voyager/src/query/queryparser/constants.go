@@ -56,6 +56,8 @@ const (
 
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE			= "pg_query.Alias"
+	PG_QUERY_TYPENAME_NODE       = "pg_query.TypeName"
+	PG_QUERY_ROLESPEC_NODE     = "pg_query.RoleSpec"
 	PG_QUERY_STRING_NODE         = "pg_query.String"
 	PG_QUERY_ASTAR_NODE          = "pg_query.A_Star"
 	PG_QUERY_ACONST_NODE         = "pg_query.A_Const"
