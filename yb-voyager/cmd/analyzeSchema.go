@@ -349,8 +349,10 @@ func checkStmtsUsingParser(sqlInfoArr []sqlInfo, fpath string, objType string, d
 		}
 	}
 
-	// Resolve all deferred foreign key references after processing all DDL statements
-	parserIssueDetector.ResolveReferencedColumnTypes()
+	// Finalize and populate column metadata that depends on complete schema context.
+	// This includes metadata that can only be resolved after all SQL statements are parsed,
+	// such as foreign key constraints, inherited columns, and partitioned table columns.
+	parserIssueDetector.FinalizeColumnMetadata()
 
 	for _, sqlStmtInfo := range sqlInfoArr {
 		ddlIssues, err := parserIssueDetector.GetDDLIssues(sqlStmtInfo.formattedStmt, targetDbVersion)

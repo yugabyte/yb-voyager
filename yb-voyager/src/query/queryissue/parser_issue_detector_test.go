@@ -366,7 +366,7 @@ func TestDDLIssues(t *testing.T) {
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
 
-	parserIssueDetector.ResolveReferencedColumnTypes()
+	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)

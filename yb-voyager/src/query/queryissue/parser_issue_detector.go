@@ -47,19 +47,22 @@ type ColumnMetadata struct {
 	ReferencedColumnType string
 }
 
-// deferredRef stores information about a foreign key reference that couldn't be fully resolved
-// during the initial parsing because the referenced column's metadata wasn't available yet.
-// These references are processed later in a second pass once all tables are parsed.
-type deferredRef struct {
-	table            string
-	column           string
-	referencedTable  string
-	referencedColumn string
+// foreignKeyConstraint represents a foreign key relationship defined in the schema.
+// It captures the child table and columns, and the corresponding referenced parent table and columns.
+// This structure is used to defer FK processing until all schema definitions are parsed.
+type foreignKeyConstraint struct {
+	tableName         string
+	columnNames       []string
+	referencedTable   string
+	referencedColumns []string
 }
 
 type ParserIssueDetector struct {
 	// key is table name, value is map of column name to ColumnMetadata
 	columnMetadata map[string]map[string]*ColumnMetadata
+
+	// list of foreign key constraints in the exported schema
+	foreignKeyConstraints []foreignKeyConstraint
 
 	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
@@ -84,20 +87,17 @@ type ParserIssueDetector struct {
 
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
-
-	// deferredRefs stores foreign key references that couldn't be resolved during the initial parsing
-	deferredRefs []deferredRef
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnMetadata:       make(map[string]map[string]*ColumnMetadata),
-		compositeTypes:       make([]string, 0),
-		enumTypes:            make([]string, 0),
-		partitionedTablesMap: make(map[string]bool),
-		primaryConsInAlter:   make(map[string]*queryparser.AlterTable),
-		columnStatistics:     make(map[string]utils.ColumnStatistics),
-		deferredRefs:         make([]deferredRef, 0),
+		columnMetadata:        make(map[string]map[string]*ColumnMetadata),
+		compositeTypes:        make([]string, 0),
+		enumTypes:             make([]string, 0),
+		partitionedTablesMap:  make(map[string]bool),
+		primaryConsInAlter:    make(map[string]*queryparser.AlterTable),
+		columnStatistics:      make(map[string]utils.ColumnStatistics),
+		foreignKeyConstraints: make([]foreignKeyConstraint, 0),
 	}
 }
 
@@ -257,6 +257,42 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
+func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+	p.finalizeForeignKeyConstraints()
+}
+
+// finalizeForeignKeyConstraints updates columnMetadata with foreign key details.
+// It iterates through all stored FK constraints and marks the corresponding local columns
+// as foreign keys, populating their referenced table, column, and type information.
+// This is done after all DDL statements have been processed to ensure complete metadata is
+func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
+	for _, fk := range p.foreignKeyConstraints {
+		for i, localCol := range fk.columnNames {
+			if _, ok := p.columnMetadata[fk.tableName]; !ok {
+				p.columnMetadata[fk.tableName] = make(map[string]*ColumnMetadata)
+			}
+			meta, ok := p.columnMetadata[fk.tableName][localCol]
+			if !ok {
+				meta = &ColumnMetadata{DataType: "unknown"}
+				p.columnMetadata[fk.tableName][localCol] = meta
+			}
+
+			meta.IsForeignKey = true
+			meta.ReferencedTable = fk.referencedTable
+			if i < len(fk.referencedColumns) {
+				refCol := fk.referencedColumns[i]
+				meta.ReferencedColumn = refCol
+
+				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
+					meta.ReferencedColumnType = refMeta.DataType
+				} else {
+					meta.ReferencedColumnType = "unknown"
+				}
+			}
+		}
+	}
+}
+
 // this function is to parse the DDL and process it to extract the metadata about schema like isGinIndexPresentInSchema, partition tables, etc.
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
@@ -281,36 +317,15 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
 			// Handle foreign key constraints in ALTER TABLE, even if the table isn't created yet
 
-			tblName := alter.GetObjectName()
-
-			if _, exists := p.columnMetadata[tblName]; !exists {
-				p.columnMetadata[tblName] = make(map[string]*ColumnMetadata)
-			}
-
-			for i, col := range alter.ConstraintColumns {
-				colMeta, exists := p.columnMetadata[tblName][col]
-				if !exists {
-					colMeta = &ColumnMetadata{
-						DataType: "unknown", // placeholder until table is actually created
-					}
-					p.columnMetadata[tblName][col] = colMeta
-				}
-
-				colMeta.IsForeignKey = true
-				colMeta.ReferencedTable = alter.ConstraintReferencedTable
-
-				if i < len(alter.ConstraintReferencedColumns) {
-					colMeta.ReferencedColumn = alter.ConstraintReferencedColumns[i]
-
-					// Defer resolving referenced column types until all tables are processed
-					p.deferredRefs = append(p.deferredRefs, deferredRef{
-						table:            tblName,
-						column:           col,
-						referencedTable:  alter.ConstraintReferencedTable,
-						referencedColumn: alter.ConstraintReferencedColumns[i],
-					})
-				}
-			}
+			// Collect the foreign key constraint details from ALTER TABLE statement.
+			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+			// once all tables and columns are parsed and available in columnMetadata.
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
+				tableName:         alter.GetObjectName(),
+				columnNames:       alter.ConstraintColumns,
+				referencedTable:   alter.ConstraintReferencedTable,
+				referencedColumns: alter.ConstraintReferencedColumns,
+			})
 		}
 
 	case *queryparser.Table:
@@ -362,38 +377,21 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 		}
 
-		// Process foreign key constraints defined inline in CREATE TABLE statements
+		// Collect the foreign key constraint details from CREATE TABLE statement.
+		// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+		// once all tables and columns are parsed and available in columnMetadata.
 		for _, constraint := range table.Constraints {
 			if constraint.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE {
 				continue
 			}
 
-			// Ensure table-level metadata exists
-			if _, exists := p.columnMetadata[tableName]; !exists {
-				p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
-			}
-
-			for i, localCol := range constraint.Columns {
-				meta, exists := p.columnMetadata[tableName][localCol]
-				if !exists {
-					meta = &ColumnMetadata{DataType: "unknown"} // Will be updated later
-					p.columnMetadata[tableName][localCol] = meta
-				}
-
-				meta.IsForeignKey = true
-				meta.ReferencedTable = constraint.ReferencedTable
-
-				if i < len(constraint.ReferencedColumns) {
-					meta.ReferencedColumn = constraint.ReferencedColumns[i]
-
-					p.deferredRefs = append(p.deferredRefs, deferredRef{
-						table:            tableName,
-						column:           localCol,
-						referencedTable:  constraint.ReferencedTable,
-						referencedColumn: constraint.ReferencedColumns[i],
-					})
-				}
-			}
+			// Populate the foreign key constraints
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
+				tableName:         tableName,
+				columnNames:       constraint.Columns,
+				referencedTable:   constraint.ReferencedTable,
+				referencedColumns: constraint.ReferencedColumns,
+			})
 		}
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
@@ -444,24 +442,6 @@ func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) 
 
 	default:
 		return typeName
-	}
-}
-
-/*
-ResolveReferencedColumnTypes processes all deferred foreign key references
-after all table and column metadata has been populated.
-
-It looks up the referenced column's type for each deferred foreign key
-and populates the ReferencedColumnType field in the local column's metadata.
-
-This is necessary because foreign key constraints may be defined before
-the referenced table is fully parsed, especially in ALTER TABLE statements.
-*/
-func (p *ParserIssueDetector) ResolveReferencedColumnTypes() {
-	for _, ref := range p.deferredRefs {
-		if refMeta := p.columnMetadata[ref.referencedTable][ref.referencedColumn]; refMeta != nil {
-			p.columnMetadata[ref.table][ref.column].ReferencedColumnType = refMeta.DataType
-		}
 	}
 }
 
