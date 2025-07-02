@@ -16,7 +16,6 @@ import (
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
@@ -356,24 +355,6 @@ func CheckTableExistencePG(t *testing.T, db *sql.DB, schema string, expectedTabl
 			t.Errorf("Unexpected table found: %s", actualTable)
 		}
 	}
-}
-
-func CreateMetaDB(exportDir string) (*metadb.MetaDB, error) {
-	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
-	if err != nil {
-		return nil, fmt.Errorf("could not create and init meta db: %w", err)
-	}
-
-	metaDBInstance, err := metadb.NewMetaDB(exportDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize MetaDB: %w", err)
-	}
-
-	err = metaDBInstance.InitMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize migration status record: %w", err)
-	}
-	return metaDBInstance, nil
 }
 
 // === assertion helper functions
