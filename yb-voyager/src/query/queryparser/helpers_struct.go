@@ -135,6 +135,42 @@ func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
 	return schemaName, objName
 }
 
+/*
+extractTypeMods extracts type modifier values (typmods) from a slice of pg_query AST nodes.
+
+Typmods represent additional information about a column's datatype — such as length for VARCHAR
+or precision and scale for NUMERIC.
+
+Examples:
+  - VARCHAR(10) has typmods: [10]
+  - NUMERIC(8, 2) has typmods: [8, 2]
+
+This function iterates over the typmod nodes, looks for A_Const integer constants, and returns
+the list of extracted integer values as a slice.
+
+Input AST (for NUMERIC(8,2)):
+
+	[ a_const: { ival: { ival: 8 } }, a_const: { ival: { ival: 2 } } ]
+
+Output:
+
+	[]int32{8, 2}
+*/
+func extractTypeMods(typmods []*pg_query.Node) []int32 {
+	result := make([]int32, 0, len(typmods))
+	for _, node := range typmods {
+		if aconst := node.GetAConst(); aconst != nil {
+			switch val := aconst.Val.(type) {
+			case *pg_query.A_Const_Ival:
+				if val.Ival != nil {
+					result = append(result, val.Ival.Ival)
+				}
+			}
+		}
+	}
+	return result
+}
+
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
 	return node, ok

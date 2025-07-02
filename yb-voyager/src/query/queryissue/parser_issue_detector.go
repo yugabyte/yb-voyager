@@ -30,36 +30,39 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
-//TODO: combine all these fields which are storing the columns information e.g. columnsWithUnsupportedIndexDatatypes, columnsWithHotspotRangeIndexesDatatypes, jsonbColumns, etc..
-//we can store in a single map all the columns information and the detector needs to take care of which types it is interested in.
-type ParserIssueDetector struct {
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		schema2.table2 -> {
-			column3: citext | jsonb | inet | tsquery | tsvector | array
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+// ColumnMetadata stores metadata about a column extracted during DDL parsing.
+// It tracks characteristics like data type, index suitability, special types
+// (e.g., JSONB, arrays), and foreign key relationships.
+type ColumnMetadata struct {
+	DataType               string
+	IsUnsupportedForIndex  bool
+	IsHotspotForRangeIndex bool
+	IsJsonb                bool
+	IsArray                bool
+	IsUserDefinedType      bool
 
-	/*
-		this will contain the information in this format:
-		public.table1 -> {
-			column1: timestamp | timestampz | date
-			...
-		}
-		schema2.table2 -> {
-			column3: timestamp | timestampz | date
-			...
-		}
-		Here only those columns on tables are stored which have unsupported type for Index in YB
-	*/
-	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
+	IsForeignKey         bool
+	ReferencedTable      string
+	ReferencedColumn     string
+	ReferencedColumnType string
+}
+
+// foreignKeyConstraint represents a foreign key relationship defined in the schema.
+// It captures the child table and columns, and the corresponding referenced parent table and columns.
+// This structure is used to defer FK processing until all schema definitions are parsed.
+type foreignKeyConstraint struct {
+	tableName         string
+	columnNames       []string
+	referencedTable   string
+	referencedColumns []string
+}
+
+type ParserIssueDetector struct {
+	// key is table name, value is map of column name to ColumnMetadata
+	columnMetadata map[string]map[string]*ColumnMetadata
+
+	// list of foreign key constraints in the exported schema
+	foreignKeyConstraints []foreignKeyConstraint
 
 	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
@@ -69,6 +72,12 @@ type ParserIssueDetector struct {
 
 	// key is partitioned table, value is true
 	partitionedTablesMap map[string]bool
+
+	// key is partitioned child table, value is its parent partitioned table
+	partitionedFrom map[string]string
+
+	// key is inherited child table, value is slice of parent table names (to handle multiple inheritance)
+	inheritedFrom map[string][]string
 
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
@@ -82,22 +91,21 @@ type ParserIssueDetector struct {
 	//Functions in exported schema
 	functionObjects []*queryparser.Function
 
-	//columns names with jsonb type
-	jsonbColumns []string
-
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
-		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
-		compositeTypes:                          make([]string, 0),
-		enumTypes:                               make([]string, 0),
-		partitionedTablesMap:                    make(map[string]bool),
-		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
-		columnStatistics:                        make(map[string]utils.ColumnStatistics),
+		columnMetadata:        make(map[string]map[string]*ColumnMetadata),
+		compositeTypes:        make([]string, 0),
+		enumTypes:             make([]string, 0),
+		partitionedTablesMap:  make(map[string]bool),
+		primaryConsInAlter:    make(map[string]*queryparser.AlterTable),
+		columnStatistics:      make(map[string]utils.ColumnStatistics),
+		foreignKeyConstraints: make([]foreignKeyConstraint, 0),
+		inheritedFrom:         make(map[string][]string),
+		partitionedFrom:       make(map[string]string),
 	}
 }
 
@@ -116,6 +124,57 @@ func (p *ParserIssueDetector) GetAllIssues(query string, targetDbVersion *ybvers
 	}
 
 	return p.getIssuesNotFixedInTargetDbVersion(issues, targetDbVersion)
+}
+
+// This function is used to get the jsonb columns from the parser issue detector
+// It is used in the JsonbSubscriptingDetector to check if the column is jsonb or not
+func (p *ParserIssueDetector) GetJsonbColumns() []string {
+	jsonbColumns := make([]string, 0)
+	for _, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsJsonb {
+				jsonbColumns = append(jsonbColumns, columnName)
+			}
+		}
+	}
+	return jsonbColumns
+}
+
+// GetColumnsWithUnsupportedIndexDatatypes returns a map of table names to column names
+// where the column uses a datatype not supported for indexing in YugabyteDB.
+// Each entry also includes the column's data type for context.
+func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[string]map[string]string {
+	columnsWithUnsupportedIndexDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsUnsupportedForIndex {
+				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
+					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+
+	return columnsWithUnsupportedIndexDatatypes
+}
+
+// GetColumnsWithHotspotRangeIndexesDatatypes returns a map of table names to column names
+// where the column's datatype is known to cause read/write hotspot issues when used in range indexes.
+// Each entry also includes the column's data type for context.
+func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[string]map[string]string {
+	columnsWithHotspotRangeIndexesDatatypes := make(map[string]map[string]string)
+	for tableName, columns := range p.columnMetadata {
+		for columnName, meta := range columns {
+			if meta.IsHotspotForRangeIndex {
+				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
+					columnsWithHotspotRangeIndexesDatatypes[tableName] = make(map[string]string)
+				}
+				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = meta.DataType
+			}
+		}
+	}
+	return columnsWithHotspotRangeIndexesDatatypes
 }
 
 func (p *ParserIssueDetector) getAllIssues(query string) ([]QueryIssue, error) {
@@ -206,6 +265,85 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
+// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
+func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+	p.finalizeInheritedTableColumns()
+	p.finalizePartitionedTableColumns()
+	p.finalizeForeignKeyConstraints()
+}
+
+// finalizeInheritedTableColumns copies column metadata from parent tables to inherited child tables.
+func (p *ParserIssueDetector) finalizeInheritedTableColumns() {
+	for child, parents := range p.inheritedFrom {
+		for _, parent := range parents {
+			parentCols, ok := p.columnMetadata[parent]
+			if !ok {
+				continue // Parent metadata not found
+			}
+			if _, exists := p.columnMetadata[child]; !exists {
+				p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+			}
+			for colName, colMeta := range parentCols {
+				if _, exists := p.columnMetadata[child][colName]; !exists {
+					copy := *colMeta
+					p.columnMetadata[child][colName] = &copy
+				}
+			}
+		}
+	}
+}
+
+// finalizePartitionedTableColumns copies column metadata from partitioned parent tables to their child partitions.
+func (p *ParserIssueDetector) finalizePartitionedTableColumns() {
+	for child, parent := range p.partitionedFrom {
+		parentCols, ok := p.columnMetadata[parent]
+		if !ok {
+			continue // Parent metadata not found
+		}
+		if _, exists := p.columnMetadata[child]; !exists {
+			p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+		}
+		for colName, colMeta := range parentCols {
+			if _, exists := p.columnMetadata[child][colName]; !exists {
+				copy := *colMeta
+				p.columnMetadata[child][colName] = &copy
+			}
+		}
+	}
+}
+
+// finalizeForeignKeyConstraints updates columnMetadata with foreign key details.
+// It iterates through all stored FK constraints and marks the corresponding local columns
+// as foreign keys, populating their referenced table, column, and type information.
+// This is done after all DDL statements have been processed to ensure complete metadata is
+func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
+	for _, fk := range p.foreignKeyConstraints {
+		for i, localCol := range fk.columnNames {
+			if _, ok := p.columnMetadata[fk.tableName]; !ok {
+				p.columnMetadata[fk.tableName] = make(map[string]*ColumnMetadata)
+			}
+			meta, ok := p.columnMetadata[fk.tableName][localCol]
+			if !ok {
+				meta = &ColumnMetadata{DataType: "unknown"}
+				p.columnMetadata[fk.tableName][localCol] = meta
+			}
+
+			meta.IsForeignKey = true
+			meta.ReferencedTable = fk.referencedTable
+			if i < len(fk.referencedColumns) {
+				refCol := fk.referencedColumns[i]
+				meta.ReferencedColumn = refCol
+
+				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
+					meta.ReferencedColumnType = refMeta.DataType
+				} else {
+					meta.ReferencedColumnType = "unknown"
+				}
+			}
+		}
+	}
+}
+
 // this function is to parse the DDL and process it to extract the metadata about schema like isGinIndexPresentInSchema, partition tables, etc.
 func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	parseTree, err := queryparser.Parse(query)
@@ -220,53 +358,110 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 	switch ddlObj.(type) {
 	case *queryparser.AlterTable:
 		alter, _ := ddlObj.(*queryparser.AlterTable)
+
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
 		}
+
+		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
+			// Collect the foreign key constraint details from ALTER TABLE statement.
+			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+			// once all tables and columns are parsed and available in columnMetadata.
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
+				tableName:         alter.GetObjectName(),
+				columnNames:       alter.ConstraintColumns,
+				referencedTable:   alter.ConstraintReferencedTable,
+				referencedColumns: alter.ConstraintReferencedColumns,
+			})
+		}
+
+		// If alter is to attach a partitioned table, track it
+		if alter.AlterType == queryparser.ATTACH_PARTITION {
+			// Ensure the partitioned table's parent is tracked in partitionedFrom
+			if _, exists := p.partitionedFrom[alter.GetObjectName()]; !exists {
+				p.partitionedFrom[alter.PartitionedChild] = alter.GetObjectName()
+			}
+		}
+
 	case *queryparser.Table:
 		table, _ := ddlObj.(*queryparser.Table)
+
+		tableName := table.GetObjectName()
+
 		if table.IsPartitioned {
-			p.partitionedTablesMap[table.GetObjectName()] = true
+			p.partitionedTablesMap[tableName] = true
+		}
+
+		// Track if table is a partition of another table
+		if table.IsPartitionOf {
+			p.partitionedFrom[tableName] = table.PartitionedFrom
+		}
+
+		// Track inheritance relationships
+		if table.IsInherited {
+			p.inheritedFrom[tableName] = append([]string{}, table.InheritedFrom...)
+		}
+
+		// Ensure map is initialized
+		if _, exists := p.columnMetadata[tableName]; !exists {
+			p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
 		}
 
 		for _, col := range table.Columns {
+			// Check if metadata already exists (e.g., from deferred FK)
+			meta, exists := p.columnMetadata[tableName][col.ColumnName]
+			if !exists {
+				meta = &ColumnMetadata{}
+				p.columnMetadata[tableName][col.ColumnName] = meta
+			}
+
+			// Always update the full type name
+			meta.DataType = p.getFullTypeName(col.TypeName, col.TypeMods)
+
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
 			isHotspotType := slices.Contains(hotspotRangeIndexesTypes, col.TypeName)
-			switch true {
+
+			switch {
 			case col.IsArrayType:
-				//For Array types and storing the type as "array" as of now we can enhance the to have specific type e.g. INT4ARRAY
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "array"
+				meta.IsArray = true
+				meta.IsUnsupportedForIndex = true
+				meta.DataType = "array"
+
 			case isUnsupportedType || isUDTType:
-				_, ok := p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()] = make(map[string]string)
+				meta.IsUnsupportedForIndex = true
+				if isUDTType {
+					meta.IsUserDefinedType = true
+					meta.DataType = "user_defined_type"
 				}
-				p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
-				if isUDTType { //For UDTs
-					p.columnsWithUnsupportedIndexDatatypes[table.GetObjectName()][col.ColumnName] = "user_defined_type"
-				}
+
 			case isHotspotType:
-				//For these types like timestamp/date the indexes can create read/write hotspot problem
-				_, ok := p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()]
-				if !ok {
-					p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()] = make(map[string]string)
-				}
-				p.columnsWithHotspotRangeIndexesDatatypes[table.GetObjectName()][col.ColumnName] = col.TypeName
+				meta.IsHotspotForRangeIndex = true
 			}
 
 			if col.TypeName == "jsonb" {
-				// used to detect the jsonb subscripting happening on these columns
-				p.jsonbColumns = append(p.jsonbColumns, col.ColumnName)
+				meta.IsJsonb = true
 			}
 		}
 
+		// Collect the foreign key constraint details from CREATE TABLE statement.
+		// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
+		// once all tables and columns are parsed and available in columnMetadata.
+		for _, constraint := range table.Constraints {
+			if constraint.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE {
+				continue
+			}
+
+			// Populate the foreign key constraints
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
+				tableName:         tableName,
+				columnNames:       constraint.Columns,
+				referencedTable:   constraint.ReferencedTable,
+				referencedColumns: constraint.ReferencedColumns,
+			})
+		}
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
@@ -284,6 +479,39 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
+}
+
+/*
+getFullTypeName constructs the full type name including type modifiers
+for supported PostgreSQL types.
+
+Examples:
+  - VARCHAR with typmods [10] becomes "varchar(10)"
+  - NUMERIC with typmods [8,2] becomes "numeric(8,2)"
+  - Types without relevant modifiers or unsupported formats return just the base type name.
+
+Currently supported:
+  - varchar(n)
+  - bpchar(n) (PostgreSQL's internal name for char(n))
+  - numeric(p, s)
+*/
+func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) string {
+	switch typeName {
+	case "varchar", "bpchar": // varchar(n), char(n)
+		if len(typmods) == 1 {
+			return fmt.Sprintf("%s(%d)", typeName, typmods[0])
+		}
+		return typeName
+
+	case "numeric":
+		if len(typmods) == 2 {
+			return fmt.Sprintf("numeric(%d,%d)", typmods[0], typmods[1])
+		}
+		return typeName
+
+	default:
+		return typeName
+	}
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
@@ -427,7 +655,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewMergeStatementDetector(query),
-		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
+		NewJsonbSubscriptingDetector(query, p.GetJsonbColumns(), p.getJsonbReturnTypeFunctions()),
 		NewUniqueNullsNotDistinctDetector(query),
 		NewJsonPredicateExprDetector(query),
 		NewNonDecimalIntegerLiteralDetector(query),
@@ -481,7 +709,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 	var jsonbFunctions []string
-	jsonbColumns := p.jsonbColumns
+	jsonbColumns := p.GetJsonbColumns()
 	for _, function := range p.functionObjects {
 		returnType := function.ReturnType
 		if strings.HasSuffix(returnType, "%TYPE") {

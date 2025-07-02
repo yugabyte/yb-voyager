@@ -105,6 +105,7 @@ const (
 	DISABLE_RULE                   = pg_query.AlterTableType_AT_DisableRule
 	CLUSTER_ON                     = pg_query.AlterTableType_AT_ClusterOn
 	SET_COMPRESSION_ALTER_SUB_TYPE = pg_query.AlterTableType_AT_SetCompression
+	ATTACH_PARTITION               = pg_query.AlterTableType_AT_AttachPartition
 	EXCLUSION_CONSTR_TYPE          = pg_query.ConstrType_CONSTR_EXCLUSION
 	FOREIGN_CONSTR_TYPE            = pg_query.ConstrType_CONSTR_FOREIGN
 	DEFAULT_SORTING_ORDER          = pg_query.SortByDir_SORTBY_DEFAULT
