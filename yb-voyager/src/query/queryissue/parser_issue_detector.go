@@ -265,6 +265,7 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 	}), nil
 }
 
+// FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
 func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 	p.finalizeInheritedTableColumns()
 	p.finalizePartitionedTableColumns()
