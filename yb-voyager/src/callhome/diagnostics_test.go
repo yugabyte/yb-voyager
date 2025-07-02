@@ -235,10 +235,10 @@ func TestCallhomeStructs(t *testing.T) {
 			name:       "Validate YBClusterMetrics Struct Definition",
 			actualType: reflect.TypeOf(YBClusterMetrics{}),
 			expectedType: struct {
-				Timestamp                 time.Time    `json:"timestamp"`
-				CPUAvgPct                 float64      `json:"cpu_avg_pct"`
-				TserverAvgMemSoftLimitPct float64      `json:"tserver_avg_mem_soft_limit_pct"`
-				Nodes                     []NodeMetric `json:"nodes"`
+				Timestamp time.Time    `json:"timestamp"`
+				AvgCpuPct float64      `json:"avg_cpu_pct"`
+				MaxCpuPct float64      `json:"max_cpu_pct"`
+				Nodes     []NodeMetric `json:"nodes"`
 			}{},
 		},
 		{
