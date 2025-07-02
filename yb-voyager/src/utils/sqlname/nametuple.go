@@ -237,3 +237,11 @@ func minQuote2(objectName, sourceDBType string) string {
 		panic("invalid source db type")
 	}
 }
+
+func NameTupleListToStrings(nameTuples []NameTuple) []string {
+	result := make([]string, len(nameTuples))
+	for i, nt := range nameTuples {
+		result[i] = nt.ForOutput()
+	}
+	return result
+}
