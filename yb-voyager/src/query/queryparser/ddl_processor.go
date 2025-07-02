@@ -117,11 +117,14 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 		*/
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
 		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
-		IsInherited:      tableProcessor.checkInheritance(createTableNode),
+		InheritedFrom:    make([]string, 0), // Names of parent tables from which inherited (can be multiple)
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 		PartitionColumns: make([]string, 0),
 	}
+
+	// Populate IsInherited, IsPartitionOf, InheritedFrom, PartitionedFrom
+	tableProcessor.detectInheritanceAndPartition(table, createTableNode)
 
 	// Parse columns and their properties
 	tableProcessor.parseTableElts(createTableNode.CreateStmt.TableElts, table)
@@ -256,6 +259,55 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 	}
 }
 
+func (tableProcessor *TableProcessor) detectInheritanceAndPartition(table *Table, createTableNode *pg_query.Node_CreateStmt) {
+	/*
+		CREATE TABLE Test(id int, name text) inherits(test_parent);
+		stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
+		inh_relations:{range_var:{relname:"test_parent" inh:true relpersistence:"p" location:46}} oncommit:ONCOMMIT_NOOP}} stmt_len:58}
+
+		CREATE TABLE accounts_list_partitioned_p_northwest PARTITION OF accounts_list_partitioned FOR VALUES IN ('OR', 'WA');
+		version:160001 stmts:{stmt:{create_stmt:{relation:{relname:"accounts_list_partitioned_p_northwest" inh:true relpersistence:"p" location:14}
+		inh_relations:{range_var:{relname:"accounts_list_partitioned" inh:true relpersistence:"p" location:65}} partbound:{strategy:"l" listdatums:{a_const:{sval:{sval:"OR"} location:106}}
+		listdatums:{a_const:{sval:{sval:"WA"} location:112}} location:102} oncommit:ONCOMMIT_NOOP}}
+	*/
+
+	inhRels := createTableNode.CreateStmt.GetInhRelations()
+
+	// This does not get populated in PG
+	// In PG the dump contains and ALTER TABLE ... ATTACH PARTITION statement
+	partBound := createTableNode.CreateStmt.GetPartbound()
+
+	if len(inhRels) > 0 {
+		if partBound != nil {
+			// This is a partition
+			table.IsPartitionOf = true
+			parentRangeVar := inhRels[0].GetRangeVar()
+			parentSchema := parentRangeVar.Schemaname
+			parentName := parentRangeVar.Relname
+
+			if parentSchema != "" {
+				table.PartitionedFrom = fmt.Sprintf("%s.%s", parentSchema, parentName)
+			} else {
+				table.PartitionedFrom = parentName
+			}
+		} else {
+			// This is a regular inherited table
+			table.IsInherited = true
+			for _, inh := range inhRels {
+				parentRangeVar := inh.GetRangeVar()
+				parentSchema := parentRangeVar.Schemaname
+				parentName := parentRangeVar.Relname
+
+				if parentSchema != "" {
+					table.InheritedFrom = append(table.InheritedFrom, fmt.Sprintf("%s.%s", parentSchema, parentName))
+				} else {
+					table.InheritedFrom = append(table.InheritedFrom, parentName)
+				}
+			}
+		}
+	}
+}
+
 func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
 	/*
 		CREATE TABLE Test(id int, name text) inherits(test_parent);
@@ -305,7 +357,10 @@ type Table struct {
 	TableName             string
 	IsUnlogged            bool
 	IsInherited           bool
-	IsPartitioned         bool
+	InheritedFrom         []string // Names of parent tables from which inherited (can be multiple)
+	IsPartitioned         bool     // true if this table is a partitioned table
+	IsPartitionOf         bool     // true if this table is a partition of a parent table
+	PartitionedFrom       string   // Name of the parent partitioned table if this is a partition
 	Columns               []TableColumn
 	IsExpressionPartition bool
 	PartitionStrategy     pg_query.PartitionStrategy
@@ -805,6 +860,16 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
 
 		*/
+
+	case pg_query.AlterTableType_AT_AttachPartition:
+		/*
+			e.g. ALTER TABLE ONLY public.device_events ATTACH PARTITION public.device_events_june2024 FOR VALUES FROM ('2024-06-01 00:00:00+00') TO ('2024-07-01 00:00:00+00');
+			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events_pkey" inh:true relpersistence:"p" location:12}
+			cmds:{alter_table_cmd:{subtype:AT_AttachPartition def:{partition_cmd:{name:{schemaname:"public" relname:"device_events_june2024_pkey" inh:true relpersistence:"p" location:55}}}behavior:DROP_RESTRICT}} objtype:OBJECT_INDEX}} stmt_len:89
+		*/
+		partitionCmd := cmd.GetDef().GetPartitionCmd()
+		partitionChildTable := partitionCmd.GetName()
+		alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
 	}
 
 	return alter, nil
@@ -826,6 +891,7 @@ type AlterTable struct {
 	ConstraintReferencedColumns []string //In case of Foreign key constraint
 	IsDeferrable                bool
 	ConstraintColumns           []string
+	PartitionedChild            string // In case this is a partitioned table
 }
 
 func (a *AlterTable) GetObjectName() string {

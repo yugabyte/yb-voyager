@@ -73,6 +73,12 @@ type ParserIssueDetector struct {
 	// key is partitioned table, value is true
 	partitionedTablesMap map[string]bool
 
+	// key is partitioned child table, value is its parent partitioned table
+	partitionedFrom map[string]string
+
+	// key is inherited child table, value is slice of parent table names (to handle multiple inheritance)
+	inheritedFrom map[string][]string
+
 	// key is partitioned table, value is sqlInfo (sqlstmt, fpath) where the ADD PRIMARY KEY statement resides
 	primaryConsInAlter map[string]*queryparser.AlterTable
 
@@ -98,6 +104,8 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		primaryConsInAlter:    make(map[string]*queryparser.AlterTable),
 		columnStatistics:      make(map[string]utils.ColumnStatistics),
 		foreignKeyConstraints: make([]foreignKeyConstraint, 0),
+		inheritedFrom:         make(map[string][]string),
+		partitionedFrom:       make(map[string]string),
 	}
 }
 
@@ -258,7 +266,49 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 }
 
 func (p *ParserIssueDetector) FinalizeColumnMetadata() {
+	p.finalizeInheritedTableColumns()
+	p.finalizePartitionedTableColumns()
 	p.finalizeForeignKeyConstraints()
+}
+
+// finalizeInheritedTableColumns copies column metadata from parent tables to inherited child tables.
+func (p *ParserIssueDetector) finalizeInheritedTableColumns() {
+	for child, parents := range p.inheritedFrom {
+		for _, parent := range parents {
+			parentCols, ok := p.columnMetadata[parent]
+			if !ok {
+				continue // Parent metadata not found
+			}
+			if _, exists := p.columnMetadata[child]; !exists {
+				p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+			}
+			for colName, colMeta := range parentCols {
+				if _, exists := p.columnMetadata[child][colName]; !exists {
+					copy := *colMeta
+					p.columnMetadata[child][colName] = &copy
+				}
+			}
+		}
+	}
+}
+
+// finalizePartitionedTableColumns copies column metadata from partitioned parent tables to their child partitions.
+func (p *ParserIssueDetector) finalizePartitionedTableColumns() {
+	for child, parent := range p.partitionedFrom {
+		parentCols, ok := p.columnMetadata[parent]
+		if !ok {
+			continue // Parent metadata not found
+		}
+		if _, exists := p.columnMetadata[child]; !exists {
+			p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+		}
+		for colName, colMeta := range parentCols {
+			if _, exists := p.columnMetadata[child][colName]; !exists {
+				copy := *colMeta
+				p.columnMetadata[child][colName] = &copy
+			}
+		}
+	}
 }
 
 // finalizeForeignKeyConstraints updates columnMetadata with foreign key details.
@@ -315,8 +365,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-			// Handle foreign key constraints in ALTER TABLE, even if the table isn't created yet
-
 			// Collect the foreign key constraint details from ALTER TABLE statement.
 			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
 			// once all tables and columns are parsed and available in columnMetadata.
@@ -328,13 +376,33 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			})
 		}
 
-	case *queryparser.Table:
-		table, _ := ddlObj.(*queryparser.Table)
-		if table.IsPartitioned {
-			p.partitionedTablesMap[table.GetObjectName()] = true
+		// If alter is to attach a partitioned table, track it
+		if alter.AlterType == queryparser.ATTACH_PARTITION {
+			// Ensure the partitioned table's parent is tracked in partitionedFrom
+			if _, exists := p.partitionedFrom[alter.GetObjectName()]; !exists {
+				p.partitionedFrom[alter.PartitionedChild] = alter.GetObjectName()
+			}
 		}
 
+	case *queryparser.Table:
+		table, _ := ddlObj.(*queryparser.Table)
+
 		tableName := table.GetObjectName()
+
+		if table.IsPartitioned {
+			p.partitionedTablesMap[tableName] = true
+		}
+
+		// Track if table is a partition of another table
+		if table.IsPartitionOf {
+			p.partitionedFrom[tableName] = table.PartitionedFrom
+		}
+
+		// Track inheritance relationships
+		if table.IsInherited {
+			p.inheritedFrom[tableName] = append([]string{}, table.InheritedFrom...)
+		}
+
 		// Ensure map is initialized
 		if _, exists := p.columnMetadata[tableName]; !exists {
 			p.columnMetadata[tableName] = make(map[string]*ColumnMetadata)
