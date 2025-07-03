@@ -421,12 +421,15 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in YugabyteDB.
-	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
-	createTableSQL1 := `CREATE TABLE public.test_data1 (id INTEGER PRIMARY KEY, name TEXT);`
-	testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{createTableSQL, createTableSQL1}...)
+	createTableSQL := `CREATE TABLE test_schema.test_data (id INTEGER PRIMARY KEY, name TEXT);`
+	createTableSQL1 := `CREATE TABLE test_schema.test_data1 (id INTEGER PRIMARY KEY, name TEXT);`
+	testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
+		"CREATE SCHEMA IF NOT EXISTS test_schema;",
+		createTableSQL, 
+		createTableSQL1,
+	}...)
 	defer testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
-		"DROP TABLE IF EXISTS public.test_data;",
-		"DROP TABLE IF EXISTS public.test_data1;",
+		"DROP SCHEMA IF EXISTS test_schema CASCADE;",
 	}...)
 
 	// Generate a CSV file with test data.
@@ -452,9 +455,9 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 		"--export-dir", tempExportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
-		"--target-db-schema", "public",
+		"--target-db-schema", "test_schema",
 		"--data-dir", filepath.Dir(dataFilePath),
-		"--file-table-map", "test_data.csv:public.test_data,test_data.csv:public.test_data1",
+		"--file-table-map", "test_data.csv:test_data,test_data.csv:test_data1",
 		"--format", "CSV",
 		"--has-header", "true",
 		"--yes",
@@ -482,23 +485,23 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 
 	// Ensure the snapshotRowsMap contains the expected data.
 	tblName := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data"),
 	}
 	tblName1 := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data1"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data1"),
+		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
+		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "test_schema.test_data1"),
 	}
 	tables := snapshotRowsMap.Keys()
 	assert.Equal(t, 2, len(tables), "There should be two tables in the snapshot rows map")
 
 	rowCountPair, ok := snapshotRowsMap.Get(tblName)
-	assert.True(t, ok, "Table public.test_data should exist in snapshot rows map")
+	assert.True(t, ok, "Table test_schema.test_data should exist in snapshot rows map")
 	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
 
 	rowCountPair1, ok := snapshotRowsMap.Get(tblName1)
-	assert.True(t, ok, "Table public.test_data1 should exist in snapshot rows map")
+	assert.True(t, ok, "Table test_schema.test_data1 should exist in snapshot rows map")
 	assert.Equal(t, int64(100), rowCountPair1.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair1.Errored, "Errored row count mismatch")
 
@@ -523,7 +526,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	assert.Equal(t, 2, len(statusReport), "Report should contain exactly one entry")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
+		TableName:          `test_schema."test_data"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,
@@ -533,7 +536,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	}, statusReport[0], "Status report row mismatch")
 
 	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data1"`,
+		TableName:          `test_schema."test_data1"`,
 		FileName:           "test_data.csv",
 		ImportedCount:      1092,
 		ErroredCount:       0,
