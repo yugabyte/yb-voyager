@@ -213,14 +213,14 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			var found bool
 			existingRows, found = outputRows[row.TableName]
 			if !found {
-				existingRows = []*tableMigStatusOutputRow{row}
-			} else {
-				//In import data case its always a single datafile for a table.
-				existingRows[0].TableName = row.TableName
-				existingRows[0].TotalCount += row.TotalCount
-				existingRows[0].ImportedCount += row.ImportedCount
-				existingRows[0].ErroredCount += row.ErroredCount
+				existingRows = []*tableMigStatusOutputRow{}
+				existingRows = append(existingRows, &tableMigStatusOutputRow{})
 			}
+			//In import data case its always a single datafile for a table.
+			existingRows[0].TableName = row.TableName
+			existingRows[0].TotalCount += row.TotalCount
+			existingRows[0].ImportedCount += row.ImportedCount
+			existingRows[0].ErroredCount += row.ErroredCount
 			outputRows[row.TableName] = existingRows
 		}
 	}
