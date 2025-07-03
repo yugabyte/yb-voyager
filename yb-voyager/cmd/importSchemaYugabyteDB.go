@@ -79,8 +79,8 @@ func generateAnalyzeReport() error {
 	if len(splits) < 4 {
 		return fmt.Errorf("invalid target db version %q", importTargetDBVersion)
 	}
-	importTargetDBVersionWithout := splits[2]
-	targetDbVersion, err = ybversion.NewYBVersion(importTargetDBVersionWithout)
+	targetDBVersionStr := splits[2]
+	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
 	if err != nil && errors.Is(err, ybversion.ErrUnsupportedSeries) {
 		targetDbVersion = ybversion.LatestStable
 	} else if err != nil {
