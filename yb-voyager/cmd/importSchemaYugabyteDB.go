@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -31,6 +32,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
 const CONTINUE_ON_ERROR_IGNORE_EXIST_MSG = "If you wish to ignore the errors and continue, use the '--continue-on-error true' flag. If you wish to ignore 'already exists' errors, use the '--ignore-exist true' flag."
@@ -52,9 +54,42 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		}
 		err := executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 		if err != nil {
+			reportErr := generateAnalyzeReport()
+			if reportErr != nil {
+				log.Errorf("Error generating analyze report: %v", reportErr)
+			}
 			return err
 		}
 	}
+	return nil
+}
+
+func generateAnalyzeReport() error {
+	//check if schema is already analyzed
+	if schemaIsAnalyzed() {
+		return nil
+	}
+
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return fmt.Errorf("get migration status record: %w", err)
+	}
+	//11.2-YB-2024.2.1.0-b10
+	splits := strings.Split(importTargetDBVersion, "-")
+	if len(splits) < 4 {
+		return fmt.Errorf("invalid target db version %q", importTargetDBVersion)
+	}
+	importTargetDBVersionWithout := splits[2]
+	targetDbVersion, err = ybversion.NewYBVersion(importTargetDBVersionWithout)
+	if err != nil && errors.Is(err, ybversion.ErrUnsupportedSeries) {
+		targetDbVersion = ybversion.LatestStable
+	} else if err != nil {
+		return fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
+	}
+	fmt.Printf("\n")
+	analyzeSchemaInternal(msr.SourceDBConf, true, false)
+	generateAnalyzeSchemaReport(msr, HTML)
+	color.Yellow("Review the schema analysis report for the issues that need to be addressed before import schema.\n\n")
 	return nil
 }
 
