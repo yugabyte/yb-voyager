@@ -177,7 +177,7 @@
                 </plugins>
             </build>
         </profile>
-        <!-- <profile>
+        <profile>
             <id>include-non-core-connectors</id>
             <activation>
                 <property>
@@ -202,6 +202,6 @@
                     <artifactId>debezium-connector-vitess</artifactId>
                 </dependency>
             </dependencies>
-        </profile> -->
+        </profile>
     </profiles>
 </project>

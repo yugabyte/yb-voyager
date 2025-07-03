@@ -464,7 +464,7 @@ assemble_debezium_server_voyager_local() {
 	fi
 	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
 	mvn -ntp clean install -Dquick -f ${pom}  1>&2
-	mvn -ntp package -Passembly -Dquick -f ${pom}  1>&2
+	mvn -ntp package -Passembly -Dquick -DskipNonCore -f ${pom}  1>&2
 
 	mkdir -p $REPO_ROOT/debezium-server-voyager/target
 	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
