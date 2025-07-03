@@ -1027,7 +1027,7 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 		}
 	}
-
+	fmt.Printf("Using data file descriptor: %s\n", spew.Sdump(dataFileDescriptor))
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
 	nameTupleTodataFileMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
