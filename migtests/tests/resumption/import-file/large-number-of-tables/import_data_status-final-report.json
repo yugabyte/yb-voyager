@@ -9333,7 +9333,7 @@
       "errored_count": 0
     },
     {
-      "table_name": "public.\"survey1250\"",
+      "table_name": "public.\"survey500\"",
       "file_name": "FY2021_Survey.csv",
       "status": "DONE",
       "total_count": 6575476,

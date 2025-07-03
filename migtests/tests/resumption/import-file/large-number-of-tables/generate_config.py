@@ -2,7 +2,7 @@
 
 import yaml
 
-def generate_yaml(num_tables=1250):
+def generate_yaml(num_tables=500):
     config = {
         "file_table_map": "",
         "additional_flags": {
@@ -37,5 +37,5 @@ def generate_yaml(num_tables=1250):
 
     print("YAML file generated successfully.")
 
-# Generate for 1250 tables
-generate_yaml(1250)
+# Generate for 500 tables
+generate_yaml(500)
