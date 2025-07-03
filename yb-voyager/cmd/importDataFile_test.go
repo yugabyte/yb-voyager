@@ -424,12 +424,10 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
 	createTableSQL1 := `CREATE TABLE public.test_data1 (id INTEGER PRIMARY KEY, name TEXT);`
 	testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{createTableSQL, createTableSQL1}...)
-	t.Cleanup(func() {
-		testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
-			"DROP TABLE IF EXISTS public.test_data;",
-			"DROP TABLE IF EXISTS public.test_data1;",
-		}...)
-	})
+	defer testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
+		"DROP TABLE IF EXISTS public.test_data;",
+		"DROP TABLE IF EXISTS public.test_data1;",
+	}...)
 
 	// Generate a CSV file with test data.
 	dataFilePath := filepath.Join("/tmp", "test_data.csv")
@@ -503,7 +501,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	assert.True(t, ok, "Table public.test_data1 should exist in snapshot rows map")
 	assert.Equal(t, int64(100), rowCountPair1.Imported, "Imported row count mismatch")
 	assert.Equal(t, int64(0), rowCountPair1.Errored, "Errored row count mismatch")
-	
+
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
 		"--export-dir", tempExportDir,
