@@ -191,7 +191,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
-	outputRows := make(map[string]*tableMigStatusOutputRow)
+	outputRows := make(map[string][]*tableMigStatusOutputRow)
 
 	for _, dataFile := range dataFileDescriptor.DataFileList {
 		row, err := prepareRowWithDatafile(dataFile, state)
@@ -199,38 +199,48 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
 		if importerRole == IMPORT_FILE_ROLE {
-			outputRows[row.TableName] = row
+			existingRows, found := outputRows[row.TableName]
+			if found {
+				//In import data file case, we may have multiple data files for the same table.
+				outputRows[row.TableName] = append(existingRows, row)
+			} else {
+				outputRows[row.TableName] = []*tableMigStatusOutputRow{row}
+			}
 		} else {
 			// In import-data, for partitioned tables, we may have multiple data files for the same table.
 			// We aggregate the counts for such tables.
-			var existingRow *tableMigStatusOutputRow
+			var existingRows []*tableMigStatusOutputRow
 			var found bool
-			existingRow, found = outputRows[row.TableName]
+			existingRows, found = outputRows[row.TableName]
 			if !found {
-				existingRow = &tableMigStatusOutputRow{}
-				outputRows[row.TableName] = existingRow
+				existingRows = []*tableMigStatusOutputRow{row}
+			} else {
+				//In import data case its always a single datafile for a table.
+				existingRows[0].TableName = row.TableName
+				existingRows[0].TotalCount += row.TotalCount
+				existingRows[0].ImportedCount += row.ImportedCount
+				existingRows[0].ErroredCount += row.ErroredCount
 			}
-			existingRow.TableName = row.TableName
-			existingRow.TotalCount += row.TotalCount
-			existingRow.ImportedCount += row.ImportedCount
-			existingRow.ErroredCount += row.ErroredCount
+			outputRows[row.TableName] = existingRows
 		}
 	}
 
-	for _, row := range outputRows {
-		row.PercentageComplete = (float64(row.ImportedCount) + float64(row.ErroredCount)) * 100.0 / float64(row.TotalCount)
-		if row.PercentageComplete == 100 {
-			if row.ErroredCount > 0 {
-				row.Status = STATUS_DONE_WITH_ERRORS
+	for _, rows := range outputRows {
+		for _, row := range rows {
+			row.PercentageComplete = (float64(row.ImportedCount) + float64(row.ErroredCount)) * 100.0 / float64(row.TotalCount)
+			if row.PercentageComplete == 100 {
+				if row.ErroredCount > 0 {
+					row.Status = STATUS_DONE_WITH_ERRORS
+				} else {
+					row.Status = STATUS_DONE
+				}
+			} else if row.PercentageComplete == 0 {
+				row.Status = STATUS_NOT_STARTED
 			} else {
-				row.Status = STATUS_DONE
+				row.Status = STATUS_MIGRATING
 			}
-		} else if row.PercentageComplete == 0 {
-			row.Status = STATUS_NOT_STARTED
-		} else {
-			row.Status = STATUS_MIGRATING
+			table = append(table, row)
 		}
-		table = append(table, row)
 	}
 
 	// First sort by status and then by table-name.
