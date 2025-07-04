@@ -232,7 +232,7 @@ debezium.source.database.ssl.truststore.password=%s
 `
 
 var yugabyteSrcConfigTemplate = `
-debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBgRPCConnector
 debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
