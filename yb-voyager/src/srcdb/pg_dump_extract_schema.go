@@ -63,7 +63,7 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
 		log.Infof("pg_dump failed to export schema with output: %s", string(stdout))
-		utils.ErrExit("data export unsuccessful: %v. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
+		utils.ErrExit("schema export unsuccessful: %v. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
 	}
 }
 
