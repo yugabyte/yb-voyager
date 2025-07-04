@@ -528,7 +528,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 					utils.PrintAndLog("Waiting to initialize export of change data from target DB...")
 					logFilePath := filepath.Join(exportDir, "logs", fmt.Sprintf("debezium-%s.log", exporterRole))
 					pollingMessage := "Beginning to poll the changes from the server"
-					err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 3*time.Minute)
+					err := utils.WaitForLineInLogFile(logFilePath, pollingMessage, 10*time.Minute)
 					if err != nil {
 						return false, fmt.Errorf("failed to poll for message in log file: %w", err)
 					}
