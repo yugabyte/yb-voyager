@@ -367,6 +367,19 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	return deparsedStmts, nil
 }
 
+func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", fmt.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return deparsedStmt, nil
+}
+
 func getAConstValue(node *pg_query.Node) string {
 
 	if node == nil {
@@ -408,9 +421,9 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 	switch {
 	case node.GetTypeCast() != nil:
 		/*
-		WHERE ((status)::text <> 'active'::text)
-		- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
-		  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"} 
+			WHERE ((status)::text <> 'active'::text)
+			- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
+			  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}
 		*/
 		return TraverseAndFindColumnName(node.GetTypeCast().Arg)
 		//add more cases if possible for columnRef TODO:

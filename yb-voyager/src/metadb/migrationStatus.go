@@ -12,6 +12,7 @@ import (
 
 type MigrationStatusRecord struct {
 	MigrationUUID                             string            `json:"MigrationUUID"`
+	AnonymizerSalt                            string            `json:"AnonymizerSalt"` // salt for anonymization, used to ensure consistent anonymization across runs
 	VoyagerVersion                            string            `json:"VoyagerVersion"`
 	ExportType                                string            `json:"ExportType"`
 	ArchivingEnabled                          bool              `json:"ArchivingEnabled"`

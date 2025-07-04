@@ -37,6 +37,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -121,6 +122,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg error) {
+	var err error
 	if !shouldSendCallhome() {
 		return
 	}
@@ -137,19 +139,44 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
 
+	schemaNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.SCHEMA_KIND_PREFIX)
+	tableNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.TABLE_KIND_PREFIX)
+	indexNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.INDEX_KIND_PREFIX)
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
-				//redacting schema and object name
-				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
+
+			// Anonymizing schema and object names
+			sname, err := schemaNameAnonymizer.Anonymize(stat.SchemaName)
+			if err != nil {
+				log.Warnf("failed to anonymize schema name %s: %v", stat.SchemaName, err)
+				newStat.SchemaName = constants.OBFUSCATE_STRING
+			} else {
+				newStat.SchemaName = sname
+			}
+
 			if stat.IsIndex {
+				iName, err := indexNameAnonymizer.Anonymize(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize index name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = iName
+				}
 				indexSizingStats = append(indexSizingStats, newStat)
 			} else {
+				tName, err := tableNameAnonymizer.Anonymize(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize table name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = tName
+				}
 				tableSizingStats = append(tableSizingStats, newStat)
 			}
 		}
@@ -175,6 +202,33 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		// appending the issue after obfuscating sensitive information
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
+
+	sqlAnonymizer := anon.NewSqlAnonymizer(SchemaTokenRegistry)
+	/*
+		Case to skip for sql statement anonymization:
+			1. if issue type is unsupported query construct or unsupported plpgsql object
+			2. if object type is view or materialized view
+			3. if sql statement is empty
+	*/
+	for i, issue := range assessmentReport.Issues {
+		// TODO: add a hidden flag to enable anonymization for Unsupported Query Constructs
+		skipCondition1 := slices.Contains([]string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY},
+			issue.Category)
+		skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER}, issue.ObjectType)
+		skipCondition3 := issue.SqlStatement == ""
+
+		if skipCondition1 || skipCondition2 || skipCondition3 {
+			continue
+		}
+
+		// NOTE: indexing/ordering needs to be same in obfuscatedIssues and assessmentReport.Issues
+		obfuscatedIssues[i].SqlStatement, err = sqlAnonymizer.Anonymize(issue.SqlStatement)
+		if err != nil {
+			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+		}
+	}
+
+	// TODO: anonymize and send the gathered metadata stats as well
 
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
@@ -209,7 +263,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
