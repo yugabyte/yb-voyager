@@ -1064,6 +1064,9 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
 
+	// Verify snapshot report.
+	exportDir = tempExportDir
+
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
@@ -1098,8 +1101,6 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import Data command failed")
 
-	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -1160,6 +1161,8 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	tempExportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(tempExportDir)
 
+	// Verify snapshot report.
+	exportDir = tempExportDir
 	// create backupDIr
 	backupDir := testutils.CreateBackupDir(t)
 
