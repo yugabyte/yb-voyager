@@ -33,7 +33,7 @@ DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"2b5eb9f485d6a0e54c9af4e6a99d3abaa6839a
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875024c8068efe43e51"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
-DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar"
+DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/vdz.1.9.5.yb.grpc.2024.2.3/debezium-connector-yugabytedb-dz.1.9.5.yb.grpc.2024.2.3.jar"
 DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.2.3/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.2.3-jar-with-dependencies.jar"
 
 # only rebuild voyager

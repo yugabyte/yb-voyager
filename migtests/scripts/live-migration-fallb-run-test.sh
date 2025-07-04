@@ -227,6 +227,7 @@ main() {
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
+			tail_log_file "debezium-target_db_exporter_fb.log"
 			exit 1
         fi
     else
