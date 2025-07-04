@@ -1055,18 +1055,15 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
-
-	// Verify snapshot report.
-	exportDir = tempExportDir
-
+	
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
@@ -1086,7 +1083,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Export data from Postgres.
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
 		"--yes",
@@ -1095,7 +1092,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Import data into YugabyteDB.
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false).Run()
@@ -1123,13 +1120,13 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -1158,11 +1155,9 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	ctx := context.Background()
 
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
-	// Verify snapshot report.
-	exportDir = tempExportDir
 	// create backupDIr
 	backupDir := testutils.CreateBackupDir(t)
 
@@ -1198,7 +1193,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Export data from Postgres.
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
 		"--yes",
@@ -1207,7 +1202,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Import data into YugabyteDB with --error-policy stash-and-continue.
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--error-policy-snapshot", "stash-and-continue",
 		"--batch-size", "10",
@@ -1216,12 +1211,11 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
 	}
-	err = InitNameRegistry(tempExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
@@ -1239,13 +1233,13 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -1271,7 +1265,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
 	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--backup-data-files", "true",
 		"--backup-dir", backupDir,
 		"--backup-log-files", "true",
@@ -1284,7 +1278,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	// Verify that the backup directory contains the expected error files.
 	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", "test_data")
-	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(tempExportDir, "data", "test_data_data.sql")))
+	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(exportDir, "data", "test_data_data.sql")))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
 	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
 	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)

@@ -36,8 +36,8 @@ import (
 // TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
 func TestImportDataFileReport(t *testing.T) {
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)
@@ -69,7 +69,7 @@ func TestImportDataFileReport(t *testing.T) {
 
 	// Import data from the CSV file into YugabyteDB.
 	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
 		"--target-db-schema", "public",
@@ -84,7 +84,6 @@ func TestImportDataFileReport(t *testing.T) {
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -111,13 +110,13 @@ func TestImportDataFileReport(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -142,8 +141,8 @@ func TestImportDataFileReport(t *testing.T) {
 
 func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// create backupDIr
 	backupDir := testutils.CreateBackupDir(t)
@@ -184,7 +183,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 
 	// Import data from the CSV file into YugabyteDB with --error-policy stash-and-continue.
 	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
 		"--target-db-schema", "public",
@@ -200,7 +199,6 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	testutils.FatalIfError(t, err, "Import data file command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -210,6 +208,9 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	defer func(){
+		dataFileDescriptor = nil
+	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
@@ -227,13 +228,13 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -259,7 +260,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
 	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--backup-data-files", "true",
 		"--backup-dir", backupDir,
 		"--backup-log-files", "true",
@@ -283,8 +284,8 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 
 func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)
@@ -331,7 +332,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	w.Flush()
 	// Import data from the CSV file into YugabyteDB.
 	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
 		"--target-db-schema", "public",
@@ -346,7 +347,6 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -356,6 +356,9 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	defer func(){
+		dataFileDescriptor = nil
+	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
 	if err != nil {
@@ -373,13 +376,13 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -414,8 +417,8 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 
 func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start YugabyteDB container.
 	setupYugabyteTestDb(t)
@@ -452,7 +455,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 
 	// Import data from the CSV file into YugabyteDB.
 	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--batch-size", "10",
 		"--target-db-schema", "test_schema",
@@ -467,7 +470,6 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -477,6 +479,9 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	defer func(){
+		dataFileDescriptor = nil
+	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
 	if err != nil {
@@ -507,13 +512,13 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
