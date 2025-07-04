@@ -93,6 +93,9 @@ func TestImportDataFileReport(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
+	defer func() {
+		dataFileDescriptor = nil
+	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
 	if err != nil {
@@ -208,7 +211,7 @@ func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
-	defer func(){
+	defer func() {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
@@ -356,7 +359,7 @@ func TestImportDataFile_MultipleTasksForATable(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
-	defer func(){
+	defer func() {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
@@ -428,7 +431,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	createTableSQL1 := `CREATE TABLE test_schema.test_data1 (id INTEGER PRIMARY KEY, name TEXT);`
 	testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
 		"CREATE SCHEMA IF NOT EXISTS test_schema;",
-		createTableSQL, 
+		createTableSQL,
 		createTableSQL1,
 	}...)
 	defer testYugabyteDBTarget.TestContainer.ExecuteSqls([]string{
@@ -479,7 +482,7 @@ func TestImportDataFile_SameFileForMultipleTables(t *testing.T) {
 	metaDB = initMetaDB(exportDir)
 	state := NewImportDataState(exportDir)
 	dataFileDescriptor, err = prepareDummyDescriptor(state)
-	defer func(){
+	defer func() {
 		dataFileDescriptor = nil
 	}()
 	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
