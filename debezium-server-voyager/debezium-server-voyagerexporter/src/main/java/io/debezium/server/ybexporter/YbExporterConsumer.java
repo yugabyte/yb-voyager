@@ -428,7 +428,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
         if ((exportStatus.getMode() == ExportMode.STREAMING) && (snapshotMode.equals("initial_only"))) {
             LOGGER.info("Snapshot complete. Interrupting thread as snapshot mode = initial_only");
             exportStatus.flushToDisk();
-            Thread.currentThread().interrupt();
+            System.exit(0);
         }
     }
 
