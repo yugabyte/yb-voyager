@@ -37,7 +37,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -177,7 +177,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	anonymizer, err := anonymizer.NewSqlAnonymizer(metaDB)
+	sqlAnonymizer, err := anon.NewSqlAnonymizer(SchemaTokenRegistry)
 	if err != nil {
 		log.Warnf("failed to create callhome data anonymizer for assessment report: %v", err)
 	} else {
@@ -199,7 +199,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			}
 
 			// NOTE: indexing/ordering needs to be same in obfuscatedIssues and assessmentReport.Issues
-			obfuscatedIssues[i].SqlStatement, err = anonymizer.Anonymize(issue.SqlStatement)
+			obfuscatedIssues[i].SqlStatement, err = sqlAnonymizer.Anonymize(issue.SqlStatement)
 			if err != nil {
 				log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
 			}

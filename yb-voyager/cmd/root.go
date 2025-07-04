@@ -32,6 +32,7 @@ import (
 	"github.com/tebeka/atexit"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -167,6 +168,12 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			if err != nil {
 				utils.ErrExit("ERROR: setting up control plane: %v", err)
 			}
+		}
+
+		// initialising the schema token registry
+		SchemaTokenRegistry, err = anon.NewSchemaTokenRegistry(metaDB)
+		if err != nil {
+			utils.ErrExit("ERROR: initializing schema token registry: %v", err)
 		}
 
 		// Log the flag values set from the config file

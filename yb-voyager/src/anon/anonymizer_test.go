@@ -1,6 +1,6 @@
 //go:build unit
 
-package anonymizer_test
+package anon
 
 import (
 	"fmt"
@@ -9,10 +9,11 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/anonymizer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
+
+var schemaTokenRegistry TokenRegistry
 
 /*
 	Tests to add:
@@ -42,11 +43,14 @@ func createMetaDB(exportDir string) (*metadb.MetaDB, error) {
 	return metaDBInstance, nil
 }
 
-func newAnon(t *testing.T, exportDir string) *anonymizer.SqlAnonymizer {
+func newAnon(t *testing.T, exportDir string) Anonymizer {
 	metaDB, err := createMetaDB(exportDir)
 	testutils.FatalIfError(t, err)
 
-	a, err := anonymizer.NewSqlAnonymizer(metaDB)
+	schemaTokenRegistry, err = NewSchemaTokenRegistry(metaDB)
+	testutils.FatalIfError(t, err)
+
+	a, err := NewSqlAnonymizer(schemaTokenRegistry)
 	testutils.FatalIfError(t, err)
 	return a
 }
@@ -55,7 +59,7 @@ func hasToken(s, prefix string) bool {
 	return strings.Contains(s, prefix)
 }
 
-// One test for each of the sql anonymization processor case implemented in anonymizer.go
+// One test for each of the sql anonymization processor case implemented in anon.go
 func TestAllAnonymizationProcessorCases(t *testing.T) {
 	cases := []struct {
 		nodeName string
@@ -68,61 +72,61 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			nodeName: "RangeVar (schema + table)",
 			sql:      `SELECT * FROM sales.orders;`,
 			raw:      []string{"sales", "orders"},
-			prefixes: []string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX},
+			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
 		},
 		{
 			nodeName: "ColumnDef",
 			sql:      `CREATE TABLE t(secret_col TEXT);`,
 			raw:      []string{"secret_col"},
-			prefixes: []string{anonymizer.COLUMN_KIND_PREFIX},
+			prefixes: []string{COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "ColumnRef",
 			sql:      `SELECT password FROM users;`,
 			raw:      []string{"password", "users"},
-			prefixes: []string{anonymizer.COLUMN_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX},
+			prefixes: []string{COLUMN_KIND_PREFIX, TABLE_KIND_PREFIX},
 		},
 		{
 			nodeName: "IndexElem",
 			sql:      `CREATE INDEX idx_ab ON tbl(col1);`,
 			raw:      []string{"idx_ab", "tbl", "col1"},
-			prefixes: []string{anonymizer.INDEX_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			prefixes: []string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "Constraint",
 			sql:      `CREATE TABLE tbl(id INT CONSTRAINT pk_t PRIMARY KEY);`,
 			raw:      []string{"pk_t"},
-			prefixes: []string{anonymizer.CONSTRAINT_KIND_PREFIX},
+			prefixes: []string{CONSTRAINT_KIND_PREFIX},
 		},
 		{
 			nodeName: "Constraint (ALTER TABLE)",
 			sql:      `ALTER TABLE ONLY public.foo ADD CONSTRAINT unique_1 UNIQUE (column1, column2) DEFERRABLE;`,
 			raw:      []string{"unique_1", "foo", "column1", "column2"},
-			prefixes: []string{anonymizer.CONSTRAINT_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			prefixes: []string{CONSTRAINT_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "ResTarget",
 			sql:      `SELECT salary AS emp_sal FROM emp;`,
 			raw:      []string{"emp_sal"},
-			prefixes: []string{anonymizer.ALIAS_KIND_PREFIX},
+			prefixes: []string{ALIAS_KIND_PREFIX},
 		},
 		{
 			nodeName: "Alias",
 			sql:      `SELECT * FROM customers cust;`,
 			raw:      []string{"cust"},
-			prefixes: []string{anonymizer.ALIAS_KIND_PREFIX},
+			prefixes: []string{ALIAS_KIND_PREFIX},
 		},
 		{
 			nodeName: "TypeName",
 			sql:      `CREATE TABLE t(id my_custom_type);`,
 			raw:      []string{"my_custom_type"},
-			prefixes: []string{anonymizer.TYPE_KIND_PREFIX}, // flip once you anonymize TypeName.names
+			prefixes: []string{TYPE_KIND_PREFIX}, // flip once you anonymize TypeName.names
 		},
 		{
 			nodeName: "RoleSpec",
 			sql:      `GRANT SELECT ON foo TO reporting_user;`,
 			raw:      []string{"reporting_user"},
-			prefixes: []string{anonymizer.ROLE_KIND_PREFIX},
+			prefixes: []string{ROLE_KIND_PREFIX},
 		},
 
 		/* ---------- Literal nodes ---------- */
@@ -130,19 +134,19 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			nodeName: "A_Const (string literal)",
 			sql:      `INSERT INTO foo VALUES ('superSecret');`,
 			raw:      []string{"superSecret"},
-			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+			prefixes: []string{CONST_KIND_PREFIX},
 		},
 		{
 			nodeName: "A_ArrayExpr (wrapping A_Const)",
 			sql:      `INSERT INTO t(arr) VALUES (ARRAY['abc','xyz','123']);`,
 			raw:      []string{"abc", "xyz", "123"},
-			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+			prefixes: []string{CONST_KIND_PREFIX},
 		},
 		{
 			nodeName: "A_Indirection (json key)",
 			sql:      `SELECT data->'password' FROM foo;`,
 			raw:      []string{"password"},
-			prefixes: []string{anonymizer.CONST_KIND_PREFIX},
+			prefixes: []string{CONST_KIND_PREFIX},
 		},
 	}
 
@@ -186,19 +190,19 @@ func TestTableAndColumnDDLs(t *testing.T) {
 			"simple create",
 			"CREATE TABLE foo (id INT, name TEXT);",
 			[]string{"foo", "id", "name"},
-			[]string{anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			[]string{TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			"schema-qualified",
 			`CREATE TABLE sales.orders (OrderID int, Total numeric);`,
 			[]string{"sales", "orders", "OrderID", "Total"},
-			[]string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			"quoted / mixed case",
 			`CREATE TABLE "Customer"."LineItems" ("LineID" int, "ProductSKU" text);`,
 			[]string{"Customer", "LineItems", "LineID", "ProductSKU"},
-			[]string{anonymizer.SCHEMA_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 	}
 
@@ -240,19 +244,19 @@ func TestIndexConstraintAlias(t *testing.T) {
 			"index + table",
 			"CREATE INDEX idx_foo ON mytable(bar);",
 			[]string{"idx_foo", "mytable", "bar"},
-			[]string{anonymizer.INDEX_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			"constraint",
-			"CREATE TABLE t (id int CONSTRAINT pk_t PRIMARY KEY);",
-			[]string{"t", "pk_t"},
-			[]string{anonymizer.TABLE_KIND_PREFIX, anonymizer.CONSTRAINT_KIND_PREFIX},
+			"CREATE TABLE foo (id int CONSTRAINT pk_foo PRIMARY KEY);",
+			[]string{"foo", "pk_foo"},
+			[]string{TABLE_KIND_PREFIX, CONSTRAINT_KIND_PREFIX},
 		},
 		{
 			"alias reference",
-			"SELECT * FROM orders o WHERE o.amount > 100;",
-			[]string{"orders", "o", "amount"},
-			[]string{anonymizer.ALIAS_KIND_PREFIX, anonymizer.TABLE_KIND_PREFIX, anonymizer.COLUMN_KIND_PREFIX},
+			"SELECT * FROM orders order_alias WHERE o.amount > 100;",
+			[]string{"orders", "order_alias", "amount"},
+			[]string{ALIAS_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 	}
 

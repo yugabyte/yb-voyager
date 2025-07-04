@@ -45,6 +45,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -64,6 +65,7 @@ import (
 
 var (
 	metaDB                 *metadb.MetaDB
+	SchemaTokenRegistry    anon.TokenRegistry
 	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
 	startTime              time.Time
 	targetDbVersionStrFlag string
