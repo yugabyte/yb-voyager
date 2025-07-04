@@ -1028,24 +1028,23 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 		}
 	}
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-	nameTupleTodataFileMap := utils.NewStructMap[sqlname.NameTuple, []string]()
+	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
 			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			list, ok := nameTupleTodataFileMap.Get(nt)
+			list, ok := nameTupleTodataFilesMap.Get(nt)
 			if !ok {
 				list = []string{}
 			}
 			list = append(list, fileEntry.FilePath)
-			nameTupleTodataFileMap.Put(nt, list)
+			nameTupleTodataFilesMap.Put(nt, list)
 		}
 	}
 
-	//for dataFilePath, nt := range dataFilePathNtMap {
-	err := nameTupleTodataFileMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
 		for _, dataFilePath := range dataFilePaths {
 			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
 			if err != nil {
