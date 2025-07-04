@@ -30,10 +30,10 @@ type SqlAnonymizer struct {
 	registry TokenRegistry
 }
 
-func NewSqlAnonymizer(registry TokenRegistry) (Anonymizer, error) {
+func NewSqlAnonymizer(registry TokenRegistry) (Anonymizer) {
 	return &SqlAnonymizer{
 		registry: registry,
-	}, nil
+	}
 }
 
 func (a *SqlAnonymizer) Anonymize(inputSql string) (string, error) {

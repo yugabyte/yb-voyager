@@ -499,6 +499,11 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
+	// initialising the schema token registry
+	SchemaTokenRegistry, err = anon.NewSchemaTokenRegistry(metaDBInstance)
+	if err != nil {
+		utils.ErrExit("ERROR: initializing schema token registry: %v", err)
+	}
 	return metaDBInstance
 }
 

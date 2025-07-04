@@ -50,7 +50,7 @@ func newAnon(t *testing.T, exportDir string) Anonymizer {
 	schemaTokenRegistry, err = NewSchemaTokenRegistry(metaDB)
 	testutils.FatalIfError(t, err)
 
-	a, err := NewSqlAnonymizer(schemaTokenRegistry)
+	a := NewSqlAnonymizer(schemaTokenRegistry)
 	testutils.FatalIfError(t, err)
 	return a
 }
