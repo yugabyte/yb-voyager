@@ -1,12 +1,8 @@
-package anonymizer
+package anon
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
-	"sync"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -31,56 +27,12 @@ type Anonymizer interface {
 }
 
 type SqlAnonymizer struct {
-	/*
-		Salt for anonymization, used to ensure consistent anonymization across runs
-		Importance: If not used, the generated token will be globally unique not unique per run.
-		Consider generic table names like users, employees, orders etc which are common across many databases.
-		So using salt makes it much more safer and making it more difficult to reverse engineer the anonymized SQL.
-	*/
-	salt string
-
-	// In-memory cache to avoid repeated generation for same identifier
-	// Worst‐case memory analysis:
-	//   - Key string: len(kind)+len(identifier) = ~8 + 16 = 24 bytes
-	//   - Value string: len(kind)+16 hex chars  = ~8 + 16 = 24 bytes
-	//   - Go map overhead: ~48 bytes per entry
-	// Total per entry = 24 + 24 + 48 = 104 bytes
-	// For N = 10^5 entries, ~10.4 MB
-	tokenMap map[string]string
-
-	mu sync.RWMutex // Mutex to protect concurrent access to tokenMap
+	registry TokenRegistry
 }
 
-func NewSqlAnonymizer(metaDB *metadb.MetaDB) (*SqlAnonymizer, error) {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("error getting migration status record: %w", err)
-	}
-
-	var salt string
-	if msr != nil && msr.AnonymizerSalt != "" {
-		salt = msr.AnonymizerSalt
-	} else {
-		salt, err = GenerateSalt(SALT_SIZE)
-		if err != nil {
-			return nil, fmt.Errorf("error generating salt: %w", err)
-		}
-
-		// Store the generated salt in the migration status record
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if record == nil { // should not happen, but just in case
-				record = &metadb.MigrationStatusRecord{}
-			}
-			record.AnonymizerSalt = salt
-		})
-		if err != nil {
-			return nil, fmt.Errorf("error updating migration status record with salt: %w", err)
-		}
-	}
-
+func NewSqlAnonymizer(registry TokenRegistry) (Anonymizer, error) {
 	return &SqlAnonymizer{
-		salt:     salt,
-		tokenMap: make(map[string]string),
+		registry: registry,
 	}, nil
 }
 
@@ -112,43 +64,6 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 	return nil
 }
 
-func (a *SqlAnonymizer) lookupOrCreate(kind string, identifier string) (string, error) {
-	if identifier == "" {
-		return "", nil // No identifier to anonymize
-	}
-
-	key := kind + identifier // for map lookup
-	a.mu.RLock()
-	if token, exists := a.tokenMap[key]; exists {
-		a.mu.RUnlock()
-		return token, nil // Return cached token
-	}
-	a.mu.RUnlock()
-
-	// Generate a new token
-	h := sha256.New() // generates 32-byte hash
-	h.Write([]byte(kind + a.salt + identifier))
-	sum := h.Sum(nil)
-	token := kind + hex.EncodeToString(sum)[:16] // 16 hex chars == 8 bytes
-
-	/*
-		Note: For SHA-256, collision probablity mathematically is (N^2)/(2M)
-		where N is the number of unique identifiers and M is the size of the hash space.
-
-		For eg:
-		M is 8bytes/16hex/32bits and N is 1000, the collision chances in % are 2.7 * 10^-12
-		M is 8bytes/16hex/32bits and N is 10^6, the collision chances in % are 2.7 * 10^-6
-
-		Hence even for 1M unique objects, the chances of collision are extremely low.
-	*/
-
-	// Cache the token
-	a.mu.Lock()
-	a.tokenMap[key] = token
-	a.mu.Unlock()
-	return token, nil
-}
-
 func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error {
 	var err error
 	switch queryparser.GetMsgFullName(msg) {
@@ -158,12 +73,12 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("cast to RangeVar: %w", err)
 		}
 		if rv.Schemaname != "" {
-			rv.Schemaname, err = a.lookupOrCreate(SCHEMA_KIND_PREFIX, rv.Schemaname)
+			rv.Schemaname, err = a.registry.Token(SCHEMA_KIND_PREFIX, rv.Schemaname)
 			if err != nil {
 				return fmt.Errorf("anon schema: %w", err)
 			}
 		}
-		rv.Relname, err = a.lookupOrCreate(TABLE_KIND_PREFIX, rv.Relname)
+		rv.Relname, err = a.registry.Token(TABLE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return fmt.Errorf("anon table: %w", err)
 		}
@@ -173,7 +88,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected ColumnDef, got %T", msg.Interface())
 		}
-		cd.Colname, err = a.lookupOrCreate(COLUMN_KIND_PREFIX, cd.Colname)
+		cd.Colname, err = a.registry.Token(COLUMN_KIND_PREFIX, cd.Colname)
 		if err != nil {
 			return fmt.Errorf("anon coldef: %w", err)
 		}
@@ -191,7 +106,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				continue
 			}
 
-			str.Sval, err = a.lookupOrCreate(COLUMN_KIND_PREFIX, str.Sval)
+			str.Sval, err = a.registry.Token(COLUMN_KIND_PREFIX, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon colref[%d]=%q lookup: %w", i, str.Sval, err)
 			}
@@ -203,7 +118,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
 		if rt.Name != "" {
-			rt.Name, err = a.lookupOrCreate(ALIAS_KIND_PREFIX, rt.Name)
+			rt.Name, err = a.registry.Token(ALIAS_KIND_PREFIX, rt.Name)
 			if err != nil {
 				return fmt.Errorf("anon alias: %w", err)
 			}
@@ -216,12 +131,12 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		}
 
 		if idx.Idxname != "" {
-			idx.Idxname, err = a.lookupOrCreate(INDEX_KIND_PREFIX, idx.Idxname)
+			idx.Idxname, err = a.registry.Token(INDEX_KIND_PREFIX, idx.Idxname)
 			if err != nil {
 				return fmt.Errorf("anon idxname: %w", err)
 			}
 		}
-		idx.Relation.Relname, err = a.lookupOrCreate(TABLE_KIND_PREFIX, idx.Relation.Relname)
+		idx.Relation.Relname, err = a.registry.Token(TABLE_KIND_PREFIX, idx.Relation.Relname)
 		if err != nil {
 			return fmt.Errorf("anon idx table: %w", err)
 		}
@@ -232,7 +147,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return err
 		}
 		if ie.Name != "" {
-			ie.Name, err = a.lookupOrCreate(COLUMN_KIND_PREFIX, ie.Name)
+			ie.Name, err = a.registry.Token(COLUMN_KIND_PREFIX, ie.Name)
 			if err != nil {
 				return fmt.Errorf("anon index column %q: %w", ie.Name, err)
 			}
@@ -250,7 +165,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return err
 		}
 		if cons.Conname != "" {
-			cons.Conname, err = a.lookupOrCreate(CONSTRAINT_KIND_PREFIX, cons.Conname)
+			cons.Conname, err = a.registry.Token(CONSTRAINT_KIND_PREFIX, cons.Conname)
 			if err != nil {
 				return fmt.Errorf("anon constraint: %w", err)
 			}
@@ -266,7 +181,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				if colName == "" {
 					continue // skip empty names
 				}
-				key.GetString_().Sval, err = a.lookupOrCreate(COLUMN_KIND_PREFIX, colName)
+				key.GetString_().Sval, err = a.registry.Token(COLUMN_KIND_PREFIX, colName)
 				if err != nil {
 					return fmt.Errorf("anon constraint key[%d]=%q: %w", i, colName, err)
 				}
@@ -279,7 +194,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected Alias, got %T", msg.Interface())
 		}
 		if alias.Aliasname != "" {
-			alias.Aliasname, err = a.lookupOrCreate(ALIAS_KIND_PREFIX, alias.Aliasname)
+			alias.Aliasname, err = a.registry.Token(ALIAS_KIND_PREFIX, alias.Aliasname)
 			if err != nil {
 				return fmt.Errorf("anon aliasnode: %w", err)
 			}
@@ -303,7 +218,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			if str == nil || str.Sval == "" {
 				continue
 			}
-			str.Sval, err = a.lookupOrCreate(TYPE_KIND_PREFIX, str.Sval)
+			str.Sval, err = a.registry.Token(TYPE_KIND_PREFIX, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon typename[%d]=%q lookup: %w", i, str.Sval, err)
 			}
@@ -320,7 +235,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected RoleSpec, got %T", msg.Interface())
 		}
 
-		rs.Rolename, err = a.lookupOrCreate(ROLE_KIND_PREFIX, rs.Rolename)
+		rs.Rolename, err = a.registry.Token(ROLE_KIND_PREFIX, rs.Rolename)
 		if err != nil {
 			return fmt.Errorf("anon rolespec: %w", err)
 		}
@@ -346,7 +261,7 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 
 		if ac.Val != nil && ac.GetSval() != nil && ac.GetSval().Sval != "" {
 			// Anonymize the string literal
-			tok, err := a.lookupOrCreate(CONST_KIND_PREFIX, ac.GetSval().Sval)
+			tok, err := a.registry.Token(CONST_KIND_PREFIX, ac.GetSval().Sval)
 			if err != nil {
 				return fmt.Errorf("anon A_Const: %w", err)
 			}

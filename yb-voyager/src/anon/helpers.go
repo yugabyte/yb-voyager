@@ -1,4 +1,4 @@
-package anonymizer
+package anon
 
 import (
 	"crypto/rand"
