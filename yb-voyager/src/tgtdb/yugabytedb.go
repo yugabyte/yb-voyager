@@ -567,7 +567,7 @@ func (yb *TargetYugabyteDB) TruncateTables(tables []sqlname.NameTuple) error {
 		return nt.ForUserQuery()
 	})
 	commaSeparatedTableNames := strings.Join(tableNames, ", ")
-	query := fmt.Sprintf("TRUNCATE TABLE %s", commaSeparatedTableNames)
+	query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", commaSeparatedTableNames)
 	_, err := yb.Exec(query)
 	if err != nil {
 		return err
