@@ -157,9 +157,15 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		/* ---------- Miscellaneous ---------- */
 		{
 			nodeName: "CreateExtensionStmt",
-			sql: `CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public`,
+			sql:      `CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public`,
 			raw:      []string{"public"},
 			prefixes: []string{SCHEMA_KIND_PREFIX},
+		},
+		{
+			nodeName: "CreateForeignTableStmt",
+			sql:      `CREATE FOREIGN TABLE foreign_table_foo(col1 serial, col2_ts timestamptz(0) default now(), col_j json, col_t text, col_enum myenum, column_composite mycomposit) server p10 options (TABLE_name 'remote_table');`,
+			raw:      []string{"foreign_table_foo", "col1", "col2_ts", "col_j", "col_t", "col_enum", "column_composite", "remote_table" /*, "p10"*/},
+			prefixes: []string{TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, TYPE_KIND_PREFIX},
 		},
 	}
 

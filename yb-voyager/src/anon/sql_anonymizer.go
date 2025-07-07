@@ -323,6 +323,32 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) er
 				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.Token(SCHEMA_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
 			}
 		}
+
+	/*
+		SQL: 		CREATE FOREIGN TABLE f_t(i serial, ts timestamptz(0) default now(), j json, t text, e myenum, c mycomposit) server p10 options (TABLE_name 't');
+		ParseTree: 	stmt:{create_foreign_table_stmt:{base_stmt:{relation:{relname:"f_t" ...} table_elts:{column_def:{colname:"i" type_name:{names:{string:{sval:"serial"}} ...} ...}}
+					table_elts:{column_def:{colname:"ts" type_name:{names:{string:{sval:"timestamptz"}} ...}} typemod:-1 location:38}
+					constraints:{constraint:{contype:CONSTR_DEFAULT location:53 raw_expr:{func_call:{funcname:{string:{sval:"now"}} ....}}}} location:35}}
+					table_elts:{column_def:{colname:"j" type_name:{names:{string:{sval:"json"}} typemod:-1 location:70} is_local:true location:68}}
+					table_elts:{column_def:{colname:"t" type_name:{names:{string:{sval:"text"}} typemod:-1 location:78} is_local:true location:76}}
+					table_elts:{column_def:{colname:"e" type_name:{names:{string:{sval:"myenum"}} typemod:-1 location:86} is_local:true location:84}}
+					table_elts:{column_def:{colname:"c" type_name:{names:{string:{sval:"mycomposit"}} ....}} oncommit:ONCOMMIT_NOOP}
+					servername:"p10" options:{def_elem:{defname:"table_name" arg:{string:{sval:"t"}} defaction:DEFELEM_UNSPEC location:128}}}} stmt_len:143
+	*/
+	// FOREIGN TABLE name part will be anonymized in the identifierNodesProcessor, here handling the remote table name
+	// TODO: avoiding server name anonymization for now. (for eg: 'p10' above)
+	case queryparser.PG_QUERY_CREATE_FOREIGN_TABLE_STMT:
+		cfts, ok := queryparser.ProtoAsCreateForeignTableStmt(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateForeignTableStmt, got %T", msg.Interface())
+		}
+
+		for _, opt := range cfts.Options {
+			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "table_name" {
+				// Anonymize the table name and quote it
+				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.Token(TABLE_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
+			}
+		}
 	}
 
 	return nil

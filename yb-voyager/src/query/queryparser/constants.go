@@ -53,6 +53,7 @@ const (
 	PG_QUERY_CREATE_TABLE_AS_STMT  = "pg_query.CreateTableAsStmt"
 	PG_QUERY_CREATE_FUNCTION_STMT  = "pg_query.CreateFunctionStmt"
 	PG_QUERY_CREATE_EXTENSION_STMT = "pg_query.CreateExtensionStmt"
+	PG_QUERY_CREATE_FOREIGN_TABLE_STMT	= "pg_query.CreateForeignTableStmt"
 
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE			= "pg_query.Alias"
