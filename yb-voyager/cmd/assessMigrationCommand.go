@@ -1870,7 +1870,9 @@ func generateAssessmentReportJson(reportDir string) error {
 		- If there are no performance optimizations, no message is shown (the table is simply omitted).
 
 		7. Sorting:
-		- Sorting by "Category" is only available in the general issues table.
+		- Sorting by "Category" is only available in the Assessment issues table only i.e. not onlyPerf case.
+		- Sorting by "Issue" / "Optimization" is available in both the tables
+		- Sorting by "Impact" is available in both tables.
 
 		These differences are controlled by the `.onlyPerf` flag passed to the template and are reflected in both the Go template logic and the rendered HTML structure.
 

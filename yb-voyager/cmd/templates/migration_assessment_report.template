@@ -523,14 +523,10 @@
 {{ define "issuesTable" }}
   {{ $heading := "Assessment Issues" }}
   {{ $issues := filterOutPerformanceOptimizationIssues .Issues }}
-
   {{ $totalCountKeyWord := "Total issues" }}
-
   {{ $issueKeyword := "Issue" }}
-
   {{ $expandButton := "expandAllButton" }}
   {{ $collapseButton := "collapseAllButton" }}
-
 
   {{ if .onlyPerf }}
     {{ $heading = "Performance Optimzations" }}
@@ -539,7 +535,6 @@
     {{ $issueKeyword = "Optimization" }}
     {{ $expandButton = "expandAllButton-perf" }}
     {{ $collapseButton = "collapseAllButton-perf" }}
-
   {{ end }}
 
         {{ if $issues }}
