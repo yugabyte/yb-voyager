@@ -414,6 +414,14 @@ func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, bool) {
 	return aConstNode, true
 }
 
+func ProtoAsCreateExtensionStmt(msg protoreflect.Message) (*pg_query.CreateExtensionStmt, bool) {
+	createExtStmtNode, ok := msg.Interface().(*pg_query.CreateExtensionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createExtStmtNode, true
+}
+
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
 	cteNode, ok := msg.Interface().(*pg_query.CommonTableExpr)
 	if !ok {

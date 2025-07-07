@@ -19,6 +19,7 @@ const (
 	// Database Object types
 	TABLE             = "TABLE"
 	FUNCTION          = "FUNCTION"
+	PROCEDURE		  = "PROCEDURE"
 	COLUMN            = "COLUMN"
 	INDEX             = "INDEX"
 	TYPE              = "TYPE"

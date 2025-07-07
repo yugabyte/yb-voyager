@@ -214,7 +214,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		// TODO: add a hidden flag to enable anonymization for Unsupported Query Constructs
 		skipCondition1 := slices.Contains([]string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY},
 			issue.Category)
-		skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER}, issue.ObjectType)
+		skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}, issue.ObjectType)
 		skipCondition3 := issue.SqlStatement == ""
 
 		if skipCondition1 || skipCondition2 || skipCondition3 {

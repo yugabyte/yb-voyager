@@ -154,6 +154,13 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			raw:      []string{"password"},
 			prefixes: []string{CONST_KIND_PREFIX},
 		},
+		/* ---------- Miscellaneous ---------- */
+		{
+			nodeName: "CreateExtensionStmt",
+			sql: `CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public`,
+			raw:      []string{"public"},
+			prefixes: []string{SCHEMA_KIND_PREFIX},
+		},
 	}
 
 	exportDir := testutils.CreateTempExportDir()
@@ -292,3 +299,43 @@ func TestIndexConstraintAlias(t *testing.T) {
 		})
 	}
 }
+
+// We have not enabled anonymization for DMLs right now
+// but building test suite for that already
+// func TestDMLs(t *testing.T) {
+// 	sqlStatements := []string{
+// 		`SELECT
+//     s.section_name,
+//     b.title,
+//     b.author
+// FROM
+//     library_nested l,
+//     XMLTABLE(
+//         '/library/section'
+//         PASSING l.lib_data
+//         COLUMNS
+//             section_name TEXT PATH '@name',
+//             books XML PATH '.'
+//     ) AS s,
+//     XMLTABLE(
+//         '/section/book'
+//         PASSING s.books
+//         COLUMNS
+//             title TEXT PATH 'title',
+//             author TEXT PATH 'author'
+// ) AS b;`,
+// 	}
+
+// 	exportDir := testutils.CreateTempExportDir()
+// 	defer testutils.RemoveTempExportDir(exportDir)
+// 	a := newAnon(t, exportDir)
+// 	for _, sql := range sqlStatements {
+// 		t.Run("DML", func(t *testing.T) {
+// 			out, err := a.Anonymize(sql)
+// 			if err != nil {
+// 				t.Fatalf("Anonymize error: %v", err)
+// 			}
+// 			t.Logf("\nIN : %s\nOUT: %s", sql, out)
+// 		})
+// 	}
+// }

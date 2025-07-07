@@ -62,6 +62,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
 	// three categories of nodes: Identifier nodes, literal nodes, Misc nodes for rest
 	a.identifierNodesProcessor(msg)
 	a.literalNodesProcessor(msg)
+	a.miscellaneousNodesProcessor(msg)
 	return nil
 }
 
@@ -274,8 +275,6 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 }
 
 func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
-	// var err error
-
 	switch queryparser.GetMsgFullName(msg) {
 
 	/*
@@ -298,6 +297,32 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 			ac.GetSval().Sval = tok
 		}
 
+	}
+
+	return nil
+}
+
+func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) error {
+	switch queryparser.GetMsgFullName(msg) {
+
+	/*
+		SQL: 		CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
+		ParseTree: 	stmt:{create_extension_stmt:{extname:"postgis"  if_not_exists:true
+					options:{def_elem:{defname:"schema"  arg:{string:{sval:"public"}}  defaction:DEFELEM_UNSPEC ...}}}}
+	*/
+	case queryparser.PG_QUERY_CREATE_EXTENSION_STMT:
+		ces, ok := queryparser.ProtoAsCreateExtensionStmt(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateExtensionStmt, got %T", msg.Interface())
+		}
+
+		// remove schema name from extension def
+		for _, opt := range ces.Options {
+			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "schema" {
+				// Anonymize the schema name
+				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.Token(SCHEMA_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
+			}
+		}
 	}
 
 	return nil
