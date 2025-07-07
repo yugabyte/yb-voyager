@@ -41,9 +41,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -295,6 +296,24 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
+func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {
+	if err == nil {
+		return false
+	}
+	// Check if the error is a primary key violation error.
+	for _, pkConstraintName := range pkConstraintNames {
+		pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, pkConstraintName)
+		if strings.Contains(err.Error(), pkViolationErr) {
+			log.Infof("matched primary key violation error for constraint %q\nexpectedErr=%s, actualErr=%s\n",
+				pkConstraintName, pkViolationErr, err.Error())
+			return true
+		}
+	}
+
+	log.Infof("not a primary key violation error, expected one of the following: %v, actualErr=%s", pkConstraintNames, err.Error())
+	return false
+}
+
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
 	rows, err := yb.Query(query)
@@ -471,24 +490,56 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
 // If the table does not have a primary key, it returns an empty string and no error
-func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+// If the table is partitioned, it returns the list of primary key constraint names for all partitions
+//
+//	If multi level partitioning, need to return all the primary key constraint names for all levels(recursively)
+func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	recursiveCTEQuery := fmt.Sprintf(`
+WITH RECURSIVE all_parts AS (
+  -- 1) Seed: include the parent table's OID
+  SELECT oid AS tbl_oid
+    FROM pg_class
+   WHERE oid = '%s'::regclass
 
-	var constraintName string
-	err := yb.QueryRow(query).Scan(&constraintName)
+  UNION ALL
+
+  -- 2) Recursion: find each table's immediate partitions
+  SELECT inh.inhrelid
+    FROM pg_inherits inh
+    JOIN all_parts ap ON inh.inhparent = ap.tbl_oid
+)
+-- 3) Pull every primary-key constraint on the parent or any partition
+SELECT
+  c.conname AS constraint_name
+FROM pg_constraint c
+JOIN all_parts ap
+  ON ap.tbl_oid = c.conrelid   -- only constraints on our collected tables
+WHERE c.contype = 'p';          -- filter for PRIMARY KEY only`, table.ForOutput()) // use the fully qualified table name
+
+	log.Infof("Querying for primary key constraint names for table %s: %s", table.ForMinOutput(), recursiveCTEQuery)
+	var constraintNames []string
+	rows, err := yb.Query(recursiveCTEQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
+			return nil, nil // No primary key constraint found
 		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query PK constraint name for table %s: %w", table.ForMinOutput(), err)
 	}
-	return constraintName, nil
+	defer rows.Close()
+
+	for rows.Next() {
+		var cn string
+		if err := rows.Scan(&cn); err != nil {
+			return nil, fmt.Errorf("scan PK constraint name for table %s: %w", table.ForMinOutput(), err)
+		}
+		constraintNames = append(constraintNames, cn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over PK constraint names for table %s: %w", table.ForMinOutput(), err)
+	}
+
+	log.Infof("found %d primary key constraint(s) for table %s: %v", len(constraintNames), table.ForMinOutput(), constraintNames)
+	return constraintNames, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -559,7 +610,9 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	var tx pgx.Tx
 	tx, err = conn.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
-		return 0, fmt.Errorf("begin transaction: %w", err)
+		return 0, newImportBatchErrorPgYb(err, batch,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+			errs.IMPORT_BATCH_ERROR_STEP_BEGIN_TXN)
 	}
 	defer func() {
 		var err2 error
@@ -567,13 +620,17 @@ func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 			err2 = tx.Rollback(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = fmt.Errorf("rollback txn: %w (while processing %s)", err2, err)
+				err = newImportBatchErrorPgYb(fmt.Errorf("%w (while processing %s)", err2, err), batch,
+					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+					errs.IMPORT_BATCH_ERROR_STEP_ROLLBACK_TXN)
 			}
 		} else {
 			err2 = tx.Commit(ctx)
 			if err2 != nil {
 				rowsAffected = 0
-				err = fmt.Errorf("commit txn: %w", err2)
+				err = newImportBatchErrorPgYb(err2, batch,
+					errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL,
+					errs.IMPORT_BATCH_ERROR_STEP_COMMIT_TXN)
 			}
 		}
 	}()
@@ -596,9 +653,7 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
 	*/
-	pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-	if err != nil && strings.Contains(err.Error(), pkViolationErr) {
-		log.Debugf("importBatchFast: expectedErr=%s, actualErr=%s\n", pkViolationErr, err.Error())
+	if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 		log.Infof("falling back to importBatchFastRecover for batch %q: %s", batch.GetFilePath(), err.Error())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
@@ -610,7 +665,10 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 1. Open the batch file
 	file, err := batch.Open()
 	if err != nil {
-		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
+		return 0, err
 	}
 	defer file.Close()
 
@@ -621,6 +679,9 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	// 3. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
 		return 0, err
 	}
 	if alreadyImported {
@@ -642,19 +703,22 @@ func (yb *TargetYugabyteDB) copyBatchCore(conn *pgx.Conn, batch Batch, args *Imp
 	log.Infof("Importing %q using COPY command: [%s]", batch.GetFilePath(), copyCommand)
 	res, err = conn.PgConn().CopyFrom(context.Background(), file, copyCommand)
 	if err != nil {
-		var pgerr *pgconn.PgError
-		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
-		}
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_COPY)
+
 		return res.RowsAffected(), err
 	}
 
 	// 5. Record the import in the DB.
 	err = yb.recordEntryInDB(conn, batch, res.RowsAffected())
 	if err != nil {
-		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
+		err = newImportBatchErrorPgYb(err, batch,
+			lo.Ternary(args.ShouldUseFastPath(), errs.IMPORT_BATCH_ERROR_FLOW_COPY_FAST, errs.IMPORT_BATCH_ERROR_FLOW_COPY_NORMAL),
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
+		return res.RowsAffected(), err
 	}
-	return res.RowsAffected(), err
+	return res.RowsAffected(), nil
 }
 
 // importBatchFastRecover is used to import a batch which was previously tried via fast path but failed
@@ -663,7 +727,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// 1. Check if the split is already imported.
 	alreadyImported, rowsAffected, err := yb.isBatchAlreadyImported(conn, batch)
 	if err != nil {
-		return 0, err
+		return 0, newImportBatchErrorPgYb(err, batch,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
+			errs.IMPORT_BATCH_ERROR_STEP_CHECK_BATCH_ALREADY_IMPORTED)
 	}
 	if alreadyImported {
 		log.Infof("batch %q already imported, skipping fast recover", batch.GetFilePath())
@@ -673,7 +739,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// 2. Open the batch file as datafile
 	df, err := batch.OpenAsDataFile()
 	if err != nil {
-		return 0, fmt.Errorf("open file %s: %w", batch.GetFilePath(), err)
+		return 0, newImportBatchErrorPgYb(err, batch,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
+			errs.IMPORT_BATCH_ERROR_STEP_OPEN_BATCH)
 	}
 	defer df.Close()
 
@@ -688,7 +756,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	for {
 		line, _, readLinErr := df.NextLine()
 		if readLinErr != nil && readLinErr != io.EOF {
-			return 0, fmt.Errorf("read line from file %s: %w", batch.GetFilePath(), err)
+			return 0, newImportBatchErrorPgYb(err, batch,
+				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
+				errs.IMPORT_BATCH_ERROR_STEP_READ_LINE_BATCH)
 		}
 
 		/*
@@ -716,18 +786,16 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
 			// Ignore err if its VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH only
-			pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-			if strings.Contains(err.Error(), pkViolationErr) {
+			if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 				// logging lineNum might not be useful as batches are truncated later on
 				log.Debugf("ignoring error %s for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line
 				continue
 			}
 
-			var pgerr *pgconn.PgError
-			if errors.As(err, &pgerr) {
-				err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
-			}
+			err = newImportBatchErrorPgYb(err, batch,
+				errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
+				errs.IMPORT_BATCH_ERROR_STEP_COPY)
 			return rowsAffected + rowsIgnored, err
 		}
 
@@ -752,8 +820,9 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 	// account for rowsIgnored and rowsAffected both, as partial ingestion in last run didn't update the metadata
 	err = yb.recordEntryInDB(conn, batch, totalRowsInBatch)
 	if err != nil {
-		err = fmt.Errorf("record entry in DB for batch %q: %w", batch.GetFilePath(), err)
-		return 0, err
+		return 0, newImportBatchErrorPgYb(err, batch,
+			errs.IMPORT_BATCH_ERROR_FLOW_COPY_RECOVER,
+			errs.IMPORT_BATCH_ERROR_STEP_METADATA_ENTRY)
 	}
 
 	// 7. log the summary: how many conflicts, how many inserted, how many update/upserted
@@ -764,6 +833,24 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 
 	// 8. returns total number of rows so that stats reporting(import data status) is consistent
 	return totalRowsInBatch, nil
+}
+
+func newImportBatchErrorPgYb(underlyingErr error, batch Batch, flow string, step string) errs.ImportBatchError {
+	dbContext := map[string]string{}
+	var pgerr *pgconn.PgError
+	if errors.As(underlyingErr, &pgerr) {
+		if pgerr.Where != "" {
+			dbContext["where"] = pgerr.Where
+		}
+	}
+
+	return errs.NewImportBatchError(
+		batch.GetTableName(),
+		batch.GetFilePath(),
+		underlyingErr,
+		flow,
+		step,
+		dbContext)
 }
 
 func (yb *TargetYugabyteDB) GetListOfTableAttributes(nt sqlname.NameTuple) ([]string, error) {

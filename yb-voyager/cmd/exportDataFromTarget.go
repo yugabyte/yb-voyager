@@ -162,7 +162,7 @@ func initSourceConfFromTargetConf(cmd *cobra.Command) error {
 	return nil
 }
 
-func packAndSendExportDataFromTargetPayload(status string, errorMsg string) {
+func packAndSendExportDataFromTargetPayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}

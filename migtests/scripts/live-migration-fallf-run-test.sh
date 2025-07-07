@@ -3,14 +3,14 @@
 set -e
 set -m
 
-if [ $# -ne 1 ]
-then
-	echo "Usage: $0 TEST_NAME"
-	exit 1
+if [ $# -gt 2 ]; then
+    echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+    exit 1
 fi
 
 set -x
 
+export VOYAGER_WORKFLOW="live-migration-with-fall-forward"
 export YB_VOYAGER_SEND_DIAGNOSTICS=false
 export TEST_NAME=$1
 
@@ -22,6 +22,19 @@ export TEST_DIR="${TESTS_DIR}/${TEST_NAME}"
 export PYTHONPATH="${REPO_ROOT}/migtests/lib"
 export PATH="${PATH}:/usr/lib/oracle/21/client64/bin"
 export QUEUE_SEGMENT_MAX_BYTES=400
+
+run_via_config_file=false
+
+# Parse optional second argument
+if [ $# -eq 2 ]; then
+    if [ "$2" = "--run-via-config-file" ]; then
+        run_via_config_file=true
+    else
+        echo "Unknown option: $2"
+        echo "Usage: $0 TEST_NAME [--run-via-config-file]"
+        exit 1
+    fi
+fi
 
 # Order of env.sh import matters.
 if [ -f "${TEST_DIR}/live_env.sh" ]; then
@@ -44,6 +57,12 @@ normalize_and_export_vars "fallf"
 source ${SCRIPTS}/${SOURCE_DB_TYPE}/ff_env.sh
 
 source ${SCRIPTS}/yugabytedb/env.sh
+
+# Handling for config generation
+if [ "${run_via_config_file}" = true ]; then
+	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/live-migration-with-fall-forward.yaml"
+	generate_voyager_config "$CONFIG_TEMPLATE"
+fi
 
 main() {
 
@@ -136,7 +155,7 @@ main() {
 
 	step "Export data."
 	# false if exit code of export_data is non-zero
-	export_data --export-type "snapshot-and-changes" || { 
+	export_data || { 
 		tail_log_file "yb-voyager-export-data.log"
 		tail_log_file "debezium-source_db_exporter.log"
 		exit 1
@@ -202,7 +221,7 @@ main() {
 	sleep 60
 
 	step "Import remaining schema (FK, index, and trigger) and Refreshing MViews if present."
-	finalize_schema_post_data_import --refresh-mviews true
+	finalize_schema_post_data_import
 	
 	step "Run snapshot validations."
 	"${TEST_DIR}/validate" --live_migration 'true' --ff_enabled 'true' --fb_enabled 'false' || {
@@ -230,6 +249,7 @@ main() {
             tail_log_file "yb-voyager-export-data.log"
             tail_log_file "yb-voyager-import-data.log"
 			tail_log_file "debezium-source_db_exporter.log"
+			tail_log_file "debezium-target_db_exporter_ff.log"
 			exit 1
         fi
     else
@@ -291,6 +311,9 @@ main() {
 	step "Clean up"
 	./cleanup-db
 	rm -rf "${EXPORT_DIR}"
+	if [ "${run_via_config_file}" = true ]; then
+	rm -f "${GENERATED_CONFIG}"
+	fi
 	run_ysql yugabyte "DROP DATABASE IF EXISTS ${TARGET_DB_NAME};"
 }
 

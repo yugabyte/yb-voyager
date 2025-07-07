@@ -46,9 +46,11 @@ import (
 	"golang.org/x/term"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/dbzm"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
@@ -359,7 +361,7 @@ func renameDatafileDescriptor(exportDir string) {
 	datafileDescriptor.Save()
 }
 
-func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask) {
+func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFileTask, errorHandler importdata.ImportDataErrorHandler) {
 	if importerRole == IMPORT_FILE_ROLE {
 		fmt.Printf("import report\n")
 	} else {
@@ -430,6 +432,14 @@ func displayImportedRowCountSnapshot(state *ImportDataState, tasks []*ImportFile
 		fmt.Printf("\n")
 		fmt.Println(uitable)
 		fmt.Printf("\n")
+	}
+	if hasErrors {
+		// in case there are errored rows, and we are in on-pk-conflict ignore mode,
+		// it is possible that the batches which errored out were partially ingested.
+		if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+			utils.PrintAndLog(color.YellowString("Note: It is possible that the table row count on the target DB may not match the IMPORTED ROW COUNT as some batches may have been partially ingested."))
+		}
+		utils.PrintAndLog(color.RedString("Errored snapshot rows are stashed in %q", errorHandler.GetErrorsLocation()))
 	}
 }
 
@@ -1518,10 +1528,10 @@ func PackAndSendCallhomePayloadOnExit() {
 		return
 	}
 
-	var errorMsg string
+	var exitErr error
 	var status string
 	if utils.ErrExitErr != nil {
-		errorMsg = utils.ErrExitErr.Error()
+		exitErr = utils.ErrExitErr
 		status = ERROR
 	} else {
 		status = EXIT
@@ -1529,29 +1539,29 @@ func PackAndSendCallhomePayloadOnExit() {
 
 	switch currentCommand {
 	case assessMigrationCmd.CommandPath():
-		packAndSendAssessMigrationPayload(status, errorMsg)
+		packAndSendAssessMigrationPayload(status, exitErr)
 	case assessMigrationBulkCmd.CommandPath():
-		packAndSendAssessMigrationBulkPayload(status, errorMsg)
+		packAndSendAssessMigrationBulkPayload(status, exitErr)
 	case exportSchemaCmd.CommandPath():
-		packAndSendExportSchemaPayload(status, errorMsg)
+		packAndSendExportSchemaPayload(status, exitErr)
 	case analyzeSchemaCmd.CommandPath():
-		packAndSendAnalyzeSchemaPayload(status, errorMsg)
+		packAndSendAnalyzeSchemaPayload(status, exitErr)
 	case importSchemaCmd.CommandPath():
-		packAndSendImportSchemaPayload(status, errorMsg)
+		packAndSendImportSchemaPayload(status, exitErr)
 	case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-		packAndSendExportDataPayload(status, errorMsg)
+		packAndSendExportDataPayload(status, exitErr)
 	case exportDataFromTargetCmd.CommandPath():
-		packAndSendExportDataFromTargetPayload(status, errorMsg)
+		packAndSendExportDataFromTargetPayload(status, exitErr)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(status, errorMsg)
+		packAndSendImportDataPayload(status, exitErr)
 	case importDataToSourceCmd.CommandPath():
-		packAndSendImportDataToSourcePayload(status, errorMsg)
+		packAndSendImportDataToSourcePayload(status, exitErr)
 	case importDataToSourceReplicaCmd.CommandPath():
-		packAndSendImportDataToSrcReplicaPayload(status, errorMsg)
+		packAndSendImportDataToSrcReplicaPayload(status, exitErr)
 	case endMigrationCmd.CommandPath():
-		packAndSendEndMigrationPayload(status, errorMsg)
+		packAndSendEndMigrationPayload(status, exitErr)
 	case importDataFileCmd.CommandPath():
-		packAndSendImportDataFilePayload(status, errorMsg)
+		packAndSendImportDataFilePayload(status, exitErr)
 	}
 }
 
@@ -1613,17 +1623,17 @@ func sendCallhomePayloadAtIntervals() {
 		time.Sleep(15 * time.Minute)
 		switch currentCommand {
 		case exportDataCmd.CommandPath(), exportDataFromSrcCmd.CommandPath():
-			packAndSendExportDataPayload(INPROGRESS, "")
+			packAndSendExportDataPayload(INPROGRESS, nil)
 		case exportDataFromTargetCmd.CommandPath():
-			packAndSendExportDataFromTargetPayload(INPROGRESS, "")
+			packAndSendExportDataFromTargetPayload(INPROGRESS, nil)
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS, "")
+			packAndSendImportDataPayload(INPROGRESS, nil)
 		case importDataToSourceCmd.CommandPath():
-			packAndSendImportDataToSourcePayload(INPROGRESS, "")
+			packAndSendImportDataToSourcePayload(INPROGRESS, nil)
 		case importDataToSourceReplicaCmd.CommandPath():
-			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, "")
+			packAndSendImportDataToSrcReplicaPayload(INPROGRESS, nil)
 		case importDataFileCmd.CommandPath():
-			packAndSendImportDataFilePayload(INPROGRESS, "")
+			packAndSendImportDataFilePayload(INPROGRESS, nil)
 		}
 	}
 }

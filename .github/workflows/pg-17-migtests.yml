@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: ['main']
+    branches: [main]
 
 jobs:
   run-pg-17-migration-tests:
@@ -176,11 +176,11 @@ jobs:
 
       - name: "TEST: pg-partitions"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: migtests/scripts/run-test.sh pg/partitions 
+        run: migtests/scripts/run-test.sh pg/partitions
 
       - name: "TEST: pg-partitions with (table-list)"
         if: ${{ !cancelled() && matrix.test_group == 'offline' }}
-        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions 
+        run: EXPORT_TABLE_LIST='customers,sales,emp,p2.boston,p2.london,p2.sydney,range_columns_partition_test,sales_region,test_partitions_sequences' migtests/scripts/run-test.sh pg/partitions
 
       # Broken for v2.15 and v2.16: https://github.com/yugabyte/yugabyte-db/issues/14529
       # Fixed in 2.17.1.0-b368
@@ -255,4 +255,3 @@ jobs:
       - name: "TEST: pg-live-migration-partitions-fall-forward"
         if: ${{ !cancelled() && matrix.test_group == 'live_advanced' }}
         run: migtests/scripts/live-migration-fallf-run-test.sh pg/partitions
-      

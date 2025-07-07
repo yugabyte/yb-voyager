@@ -1,0 +1,90 @@
+export-dir: {{ EXPORT_DIR }}
+
+source:
+  db-type: {{ SOURCE_DB_TYPE }}
+  {% if SOURCE_DB_ORACLE_TNS_ALIAS is not defined or SOURCE_DB_ORACLE_TNS_ALIAS == "" %}
+  db-host: {{ SOURCE_DB_HOST }}
+  db-port: {{ SOURCE_DB_PORT }}
+  {% endif %}
+  db-name: {{ SOURCE_DB_NAME }}
+  {% if SOURCE_DB_TYPE != "mysql" %}
+  db-schema: {{ SOURCE_DB_SCHEMA }}
+  {% endif %}
+  db-user: {{ SOURCE_DB_USER }}
+  db-password: {{ SOURCE_DB_PASSWORD }}
+  
+  {% if SOURCE_DB_SSL_MODE is defined and SOURCE_DB_SSL_MODE != "" %}
+  ssl-mode: {{ SOURCE_DB_SSL_MODE }}
+  {% endif %}
+
+  {% if SOURCE_DB_SSL_CERT is defined and SOURCE_DB_SSL_CERT != "" %}
+  ssl-cert: {{ SOURCE_DB_SSL_CERT }}
+  {% endif %}
+
+  {% if SOURCE_DB_SSL_KEY is defined and SOURCE_DB_SSL_KEY != "" %}
+  ssl-key: {{ SOURCE_DB_SSL_KEY }}
+  {% endif %}
+
+  {% if SOURCE_DB_SSL_ROOT_CERT is defined and SOURCE_DB_SSL_ROOT_CERT != "" %}
+  ssl-root-cert: {{ SOURCE_DB_SSL_ROOT_CERT }}
+  {% endif %}
+
+  {% if SOURCE_DB_ORACLE_TNS_ALIAS is defined and SOURCE_DB_ORACLE_TNS_ALIAS != "" %}
+  oracle-tns-alias: {{ SOURCE_DB_ORACLE_TNS_ALIAS }}
+  {% endif %}
+  {% if SOURCE_DB_ORACLE_CDB_TNS_ALIAS is defined and SOURCE_DB_ORACLE_CDB_TNS_ALIAS != "" %}
+  oracle-cdb-tns-alias: {{ SOURCE_DB_ORACLE_CDB_TNS_ALIAS }}
+  {% endif %}
+  {% if SOURCE_DB_TYPE == "oracle" %}
+  oracle-cdb-name: {{ ORACLE_CDB_NAME }}
+  {% endif %}
+
+target:
+  db-host: {{ TARGET_DB_HOST }}
+  db-port: {{ TARGET_DB_PORT }}
+  db-name: {{ TARGET_DB_NAME }}
+  {% if SOURCE_DB_TYPE != "postgresql" %}
+  db-schema: {{ TARGET_DB_SCHEMA }}
+  {% endif %}
+  db-user: {{ TARGET_DB_USER }}
+  db-password: {{ TARGET_DB_PASSWORD }}
+
+assess-migration:
+  iops-capture-interval: 0
+
+export-data-from-source:
+  export-type: snapshot-and-changes
+
+  {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}
+  table-list: '{{ EXPORT_TABLE_LIST }}'
+  {% endif %}
+
+  {% if EXPORT_EX_TABLE_LIST is defined and EXPORT_EX_TABLE_LIST != "" %}
+  exclude-table-list: '{{ EXPORT_EX_TABLE_LIST }}'
+  {% endif %}
+  
+  {% if EXPORT_TABLE_LIST_FILE_PATH is defined and EXPORT_TABLE_LIST_FILE_PATH != "" %}
+  table-list-file-path: '{{ EXPORT_TABLE_LIST_FILE_PATH }}'
+  {% endif %}
+
+  {% if EXPORT_EX_TABLE_LIST_FILE_PATH is defined and EXPORT_EX_TABLE_LIST_FILE_PATH != "" %}
+  exclude-table-list-file-path: '{{ EXPORT_EX_TABLE_LIST_FILE_PATH }}'
+  {% endif %}
+
+import-data-to-target:
+  enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+
+archive-changes:
+  delete-changes-without-archiving: true
+
+finalize-schema-post-data-import:
+  refresh-mviews: true
+
+initiate-cutover-to-target:
+  prepare-for-fall-back: false
+
+end-migration:
+  backup-schema-files: false                                  
+  backup-data-files: false                                    
+  save-migration-reports: false                               
+  backup-log-files: false                

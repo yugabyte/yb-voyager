@@ -199,23 +199,9 @@ func (tdb *TargetOracleDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]stri
 	return columns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (tdb *TargetOracleDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	sname, tname := table.ForCatalogQuery()
-	query := fmt.Sprintf(`SELECT CONSTRAINT_NAME FROM ALL_CONSTRAINTS WHERE TABLE_NAME = '%s' AND OWNER = '%s' AND CONSTRAINT_TYPE = 'P'`, tname, sname)
-	row := tdb.QueryRow(query)
-
-	var constraintName string
-	err := row.Scan(&constraintName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
-		}
-		return "", fmt.Errorf("failed to get primary key constraint name: %w", err)
-	}
-
-	return constraintName, nil
+// No need to implement GetPrimaryKeyColumns for Oracle fall-forward/fall-back as fast path is not valid there
+func (tdb *TargetOracleDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (tdb *TargetOracleDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -275,11 +261,7 @@ func (tdb *TargetOracleDB) RestoreSequences(sequencesLastVal map[string]int64) e
 	return nil
 }
 
-func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, nonTxnPath bool) (int64, error) {
-	if nonTxnPath {
-		panic("non-transactional path for import batch is not supported in Oracle")
-	}
-
+func (tdb *TargetOracleDB) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
 	tdb.Lock()
 	defer tdb.Unlock()
 

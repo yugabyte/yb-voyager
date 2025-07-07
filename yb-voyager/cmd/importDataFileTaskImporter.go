@@ -16,6 +16,7 @@ limitations under the License.
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/sourcegraph/conc/pool"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -203,7 +205,13 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	log.Infof("%q => %d rows affected", batch.FilePath, rowsAffected)
 	if err != nil {
 		if fti.errorHandler.ShouldAbort() {
-			utils.ErrExit("import batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
+			var ibe errs.ImportBatchError
+			if errors.As(err, &ibe) {
+				// If the error is an ImportBatchError, we abort directly because the string
+				// representation of the error is already formatted with all the details.
+				utils.ErrExit("%w", err)
+			}
+			utils.ErrExit("import batch: %q into %s: %w", batch.FilePath, batch.TableNameTup.ForOutput(), err)
 		}
 
 		// Handle the error
@@ -309,6 +317,12 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
+	/*
+		How is table partitioning handled here?
+		- For partitioned tables, we import the datafiles of leafs into root
+		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
+	*/
+	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
@@ -318,7 +332,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
-	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
@@ -336,7 +350,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
-		PKConstraintName:  pkConstraintName,
+		PKConstraintNames: pkConstraintNames,
 		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,

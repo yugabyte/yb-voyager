@@ -96,7 +96,7 @@ var importDataFileCmd = &cobra.Command{
 		importFileTasks := getImportFileTasks(fileTableMapping)
 		prepareForImportDataCmd(importFileTasks)
 		importData(importFileTasks, errorPolicySnapshotFlag)
-		packAndSendImportDataFilePayload(COMPLETE, "")
+		packAndSendImportDataFilePayload(COMPLETE, nil)
 
 	},
 	PostRun: func(cmd *cobra.Command, args []string) {
@@ -225,9 +225,9 @@ func checkImportDataFileFlags(cmd *cobra.Command) {
 	validateTargetSchemaFlag()
 	validateParallelismFlags()
 
-	err := validateOnPrimaryKeyConflictFlag()
+	err := validateImportDataFlags()
 	if err != nil {
-		utils.ErrExit("Error validating --on-primary-key-conflict flag: %w", err)
+		utils.ErrExit("Error validating import data flags: %s", err.Error())
 	}
 }
 
@@ -347,7 +347,7 @@ func checkAndParseEscapeAndQuoteChar() {
 
 }
 
-func packAndSendImportDataFilePayload(status string, errorMsg string) {
+func packAndSendImportDataFilePayload(status string, errorMsg error) {
 	if !shouldSendCallhome() {
 		return
 	}
