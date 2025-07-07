@@ -3,6 +3,7 @@ package anon
 import (
 	"fmt"
 
+	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -30,7 +31,7 @@ type SqlAnonymizer struct {
 	registry TokenRegistry
 }
 
-func NewSqlAnonymizer(registry TokenRegistry) (Anonymizer) {
+func NewSqlAnonymizer(registry TokenRegistry) Anonymizer {
 	return &SqlAnonymizer{
 		registry: registry,
 	}
@@ -184,6 +185,35 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				key.GetString_().Sval, err = a.registry.Token(COLUMN_KIND_PREFIX, colName)
 				if err != nil {
 					return fmt.Errorf("anon constraint key[%d]=%q: %w", i, colName, err)
+				}
+			}
+		}
+
+	/*
+		ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";
+		stmt: {alter_table_stmt:{relation:{schemaname:"humanresources" relname:"department" ...}
+			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"PK_Department_DepartmentID" behavior:...}} objtype:OBJECT_TABLE}}
+	*/
+	case queryparser.PG_QUERY_ALTER_TABLE_STMT:
+		ats, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterTableStmt, got %T", msg.Interface())
+		}
+
+		for _, cmd := range ats.Cmds {
+			alterTableCmdNode := cmd.GetAlterTableCmd()
+			if alterTableCmdNode == nil {
+				continue // skip if not an AlterTableCmd
+			}
+
+			if alterTableCmdNode.GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
+				// AT_ClusterOn has a name field that needs anonymization
+				name := alterTableCmdNode.GetName()
+				if name != "" {
+					alterTableCmdNode.Name, err = a.registry.Token(CONSTRAINT_KIND_PREFIX, name)
+					if err != nil {
+						return fmt.Errorf("anon alter table cluster on index: %w", err)
+					}
 				}
 			}
 		}

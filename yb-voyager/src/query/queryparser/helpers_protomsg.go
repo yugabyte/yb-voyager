@@ -457,6 +457,15 @@ func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint,
 	return consNode, nil
 }
 
+func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableStmt, bool) {
+	alterTableStmtNode, ok := msg.Interface().(*pg_query.AlterTableStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableStmtNode, true
+}
+
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
 	node, ok := msg.Interface().(*pg_query.TransactionStmt)
 	if !ok {

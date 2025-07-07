@@ -88,9 +88,9 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		},
 		{
 			nodeName: "IndexElem",
-			sql:      `CREATE INDEX idx_ab ON tbl(col1);`,
-			raw:      []string{"idx_ab", "tbl", "col1"},
-			prefixes: []string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+			sql:      `CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);`,
+			raw:      []string{"idx_emp_name_date", "hr", "employee", "last_name", "first_name", "hire_date"},
+			prefixes: []string{INDEX_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "Constraint",
@@ -103,6 +103,12 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			sql:      `ALTER TABLE ONLY public.foo ADD CONSTRAINT unique_1 UNIQUE (column1, column2) DEFERRABLE;`,
 			raw:      []string{"unique_1", "foo", "column1", "column2"},
 			prefixes: []string{CONSTRAINT_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "Cluster ON (ALTER TABLE)",
+			sql:      `ALTER TABLE humanresources.department CLUSTER ON "PK_Department_DepartmentID";`,
+			raw:      []string{"humanresources", "department", "PK_Department_DepartmentID"},
+			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONSTRAINT_KIND_PREFIX},
 		},
 		{
 			nodeName: "ResTarget",
