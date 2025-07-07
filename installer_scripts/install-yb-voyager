@@ -495,7 +495,7 @@ package_debezium_server_local(){
 	sudo mkdir -p debezium-server/debezium-server-1.9.5/yb-grpc-connector
 
 	# debezium yugabyte connector
-	wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/yb-grpc-connector 1>&2
+	sudo wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/yb-grpc-connector 1>&2
 	
 	# yugabyte admin client
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/
