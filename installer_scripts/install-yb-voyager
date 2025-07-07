@@ -492,7 +492,7 @@ package_debezium_server_local(){
 	rm ${debezium_server_tar_file_1x}
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
 	
-	sudo mkdir -p "${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION}/debezium-server/debezium-server-1.9.5/yb-grpc-connector"
+	sudo mkdir -p debezium-server/debezium-server-1.9.5/yb-grpc-connector
 
 	# debezium yugabyte connector
 	wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/yb-grpc-connector 1>&2
