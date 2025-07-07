@@ -75,4 +75,4 @@ else
     DEBUGGER="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005"
 fi
 
-exec "$JAVA_BINARY" $DEBEZIUM_OPTS $JAVA_OPTS -Xmx3g $DEBUGGER -cp "$LIB_PATH/sqlite-jdbc-3.42.0.0.jar:$RUNNER"$PATH_SEP"conf"$PATH_SEP$LIB_PATH$PATH_SEP$YB_OR_PG_CONNECTOR_PATH -Dquarkus.config.locations=$PROPERTIES_FILE_PATH -Doracle.net.tns_admin=$TNS_ADMIN io.debezium.server.Main
+exec "$JAVA_BINARY" $DEBEZIUM_OPTS $JAVA_OPTS -Xmx3g $DEBUGGER -cp "$RUNNER"$PATH_SEP"conf"$PATH_SEP$LIB_PATH$PATH_SEP$YB_OR_PG_CONNECTOR_PATH -Dquarkus.config.locations=$PROPERTIES_FILE_PATH -Doracle.net.tns_admin=$TNS_ADMIN io.debezium.server.Main

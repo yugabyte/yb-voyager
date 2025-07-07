@@ -103,7 +103,7 @@ func (d *Debezium) Start() error {
 			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-connector")
 		} else {
 			// In case of gRPC connector the DEBEZIUM_DIST_DIR is set to debezium-server-1.9.5, hence the connector path is empty to avoid any errors in run.sh
-			YB_OR_PG_CONNECTOR_PATH = ""
+			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-grpc-connector")
 		}
 	} else {
 		// In case of source db exporter we need the path /opt/yb-voyager/debezium-server/pg-connector
