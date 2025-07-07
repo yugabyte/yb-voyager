@@ -104,6 +104,9 @@ func (d *Debezium) Start() error {
 		} else {
 			// In case of gRPC connector the DEBEZIUM_DIST_DIR is set to debezium-server-1.9.5 and the connector is in debezium-server-1.9.5/yb-grpc-connector
 			//This is done to load this jar at the end in the classpath to avoid classpath issues with the jar
+			// Faced an issue with error `java.sql.SQLException: No suitable driver found for jdbc:sqlite`
+			// the grpc connector has a service java.sql.Driver which has com.yugabyte.Driver implementation but the class wasn't found in the built jar 
+			// because of which it errors out and doesn't load rest of the dependencies and sqlite driver is not loaded and hence it errored out
 			YB_OR_PG_CONNECTOR_PATH = filepath.Join(DEBEZIUM_DIST_DIR, "yb-grpc-connector")
 		}
 	} else {
