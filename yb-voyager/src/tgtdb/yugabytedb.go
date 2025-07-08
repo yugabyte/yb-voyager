@@ -582,10 +582,11 @@ ImportBatch function handles variety of cases for importing a batch into Yugabyt
 3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
 */
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
-	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 
 	var rowsAffected int64
 	var err error
+	var isPartialBatchIngestionPossibleOnError bool
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if args.ShouldUseFastPath() {
 			if !isRecoveryCandidate {
@@ -593,6 +594,15 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 			} else {
 				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
 			}
+			// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
+			// it is likely that there was partial ingestion of the batch.
+			// This is not necessarily always the case. For instance, if there is an error while reading the file,
+			// (i.e. before even executing COPY), the entire batch was not ingested, so it's not really a case of partial ingeetion.
+			// However, if it's a resumption case (i.e. batch is retried after a stop-start), then, even if it fails while reading the file,
+			// it is likely that the batch was partially ingested in the previous attempt, so it is indeed a case of partial ingestion.
+			// Since this is hard to determine, we always assume that if there is an error in the fast path,
+			// it is likely that the batch was partially ingested.
+			isPartialBatchIngestionPossibleOnError = lo.Ternary(err != nil, true, false)
 		} else {
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
 			rowsAffected, err = yb.importBatch(conn, batch, args)
@@ -600,7 +610,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, isPartialBatchIngestionPossibleOnError
 }
 
 func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
