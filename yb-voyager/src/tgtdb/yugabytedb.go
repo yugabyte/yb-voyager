@@ -41,9 +41,9 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
-	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	_ "github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/namereg"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -544,17 +544,15 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 			} else {
 				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
 			}
-			if err != nil {
-				// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
-				// it is likely that there was partial ingestion of the batch.
-				// This is not 100% guaranteed, because there can be cases where the whole batch was not ingested
-				// (for instance if there was an error when reading the file), but it is tricky to determine that,
-				// especially in cases where there was resumption. For instance, even if there is an error when reading the file,
-				// it is possible that it was a resumption case, and in the previous attempt, the batch was partially ingested,
-				// so we can't conclude that it was not ingested at all.)
-				// Therefore, we simply assume that in the fast path, if there is an error, it is likely that the batch was partially ingested.
-				isPartialBatchIngestionPossibleOnError = true
-			}
+			// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
+			// it is likely that there was partial ingestion of the batch.
+			// This is not necessarily always the case. For instance, if there is an error while reading the file,
+			// (i.e. before even executing COPY), the entire batch was not ingested, so it's not really a case of partial ingeetion.
+			// However, if it's a resumption case (i.e. batch is retried after a stop-start), then, even if it fails while reading the file,
+			// it is likely that the batch was partially ingested in the previous attempt, so it is indeed a case of partial ingestion.
+			// Since this is hard to determine, we always assume that if there is an error in the fast path,
+			// it is likely that the batch was partially ingested.
+			isPartialBatchIngestionPossibleOnError = lo.Ternary(err != nil, true, false)
 		} else {
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
 			rowsAffected, err = yb.importBatch(conn, batch, args)
