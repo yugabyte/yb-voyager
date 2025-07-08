@@ -300,7 +300,10 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
+	err = handleStartCleanIfNeededForAssessMigration(assessmentMetadataDirFlag != "")
+	if err != nil {
+		return fmt.Errorf("failed to handle start clean for assess migration: %w", err)
+	}
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
@@ -593,32 +596,38 @@ func runAssessment() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
+func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) error {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
-	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
+	assessmentFilesExists := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
 	if !metadataDirPassedByUser {
-		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+		assessmentFilesExists = assessmentFilesExists || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
 
-	if assessmentAlreadyDone {
-		if startClean {
-			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
-			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
-			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
-			err := ClearMigrationAssessmentDone()
-			if err != nil {
-				utils.ErrExit("failed to clear migration assessment completed flag in msr during start clean: %v", err)
-			}
-		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
-		}
+	isAssessmentDone, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		return fmt.Errorf("failed to check if migration assessment is done: %w", err)
 	}
+
+	needCleanupOfLeftoverFiles := assessmentFilesExists && !isAssessmentDone
+	if bool(startClean) || needCleanupOfLeftoverFiles {
+		utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
+		utils.CleanDir(filepath.Join(assessmentDir, "reports"))
+		utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
+		err := ClearMigrationAssessmentDone()
+		if err != nil {
+			return fmt.Errorf("failed to clear migration assessment done in MSR: %w", err)
+		}
+	} else if assessmentFilesExists { // if not startClean but assessment files already exist
+		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+	}
+
+	return nil
 }
 
 func gatherAssessmentMetadata() (err error) {
@@ -1816,66 +1825,66 @@ func generateAssessmentReportJson(reportDir string) error {
 	utils.PrintAndLog("generated JSON assessment report at: %s", jsonReportFilePath)
 	return nil
 }
+
 /*
-   Template: issuesTable
+	   Template: issuesTable
 
-	Description:
-	------------
-	This Go template partial renders a dynamic table for displaying assessment issues or performance optimizations in a migration assessment report. The table adapts its headings, columns, and button controls based on the context (general issues vs. performance optimizations), as determined by the `.onlyPerf` flag.
+		Description:
+		------------
+		This Go template partial renders a dynamic table for displaying assessment issues or performance optimizations in a migration assessment report. The table adapts its headings, columns, and button controls based on the context (general issues vs. performance optimizations), as determined by the `.onlyPerf` flag.
 
-	Features:
-	---------
-	- Dynamically sets headings, keywords, and button IDs based on the type of issues being displayed.
-	- Provides "Expand All" and "Collapse All" buttons for toggling the visibility of detailed issue information.
-	- Supports sorting by category, name, and impact via clickable table headers.
-	- For each issue/optimization:
-		- Displays a summary row with key information (category, name, object/SQL preview, impact).
-		- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
-	- Handles cases where no issues are found, displaying an appropriate message.
-	- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
+		Features:
+		---------
+		- Dynamically sets headings, keywords, and button IDs based on the type of issues being displayed.
+		- Provides "Expand All" and "Collapse All" buttons for toggling the visibility of detailed issue information.
+		- Supports sorting by category, name, and impact via clickable table headers.
+		- For each issue/optimization:
+			- Displays a summary row with key information (category, name, object/SQL preview, impact).
+			- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
+		- Handles cases where no issues are found, displaying an appropriate message.
+		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
 
-	Usage:
-	------
-	- Include this template in a parent template using `{{ template "issuesTable" . }}`.
-	- Expects the following data structure in the context:
-		- .Issues: List of issue objects with fields like Category, Name, Impact, ObjectType, ObjectName, SqlStatement, Description, DocsLink, Details, MinimumVersionsFixedIn, CategoryDescription.
-		- .onlyPerf: Boolean flag indicating whether to show performance optimizations or general issues.
+		Usage:
+		------
+		- Include this template in a parent template using `{{ template "issuesTable" . }}`.
+		- Expects the following data structure in the context:
+			- .Issues: List of issue objects with fields like Category, Name, Impact, ObjectType, ObjectName, SqlStatement, Description, DocsLink, Details, MinimumVersionsFixedIn, CategoryDescription.
+			- .onlyPerf: Boolean flag indicating whether to show performance optimizations or general issues.
 
-		Differences Between the Two Tables Rendered by issuesTable
-		----------------------------------------------------------
+			Differences Between the Two Tables Rendered by issuesTable
+			----------------------------------------------------------
 
-		The `issuesTable` template is used twice in the report: once for general assessment issues and once for performance optimizations. The differences between the two tables are as follows:
+			The `issuesTable` template is used twice in the report: once for general assessment issues and once for performance optimizations. The differences between the two tables are as follows:
 
-		1. Heading and Labels:
-		- The heading is "Assessment Issues" for general issues and "Performance Optimizations" for performance-related issues.
-		- The count label is "Total issues" for general issues and "Total optimizations" for performance optimizations.
-		- The keyword in the table header is "Issue" or "Optimization" accordingly.
+			1. Heading and Labels:
+			- The heading is "Assessment Issues" for general issues and "Performance Optimizations" for performance-related issues.
+			- The count label is "Total issues" for general issues and "Total optimizations" for performance optimizations.
+			- The keyword in the table header is "Issue" or "Optimization" accordingly.
 
-		2. Data Source:
-		- For general issues, the table uses `filterOutPerformanceOptimizationIssues .Issues` to exclude performance optimizations.
-		- For performance optimizations, the table uses `getPerformanceOptimizationIssues .Issues` to include only those.
+			2. Data Source:
+			- For general issues, the table uses `filterOutPerformanceOptimizationIssues .Issues` to exclude performance optimizations.
+			- For performance optimizations, the table uses `getPerformanceOptimizationIssues .Issues` to include only those.
 
-		3. Table Columns:
-		- The general issues table includes a "Category" column (with an expand/collapse arrow).
-		- The performance optimizations table omits the "Category" column and places the expand/collapse arrow in the "Optimization" column.
+			3. Table Columns:
+			- The general issues table includes a "Category" column (with an expand/collapse arrow).
+			- The performance optimizations table omits the "Category" column and places the expand/collapse arrow in the "Optimization" column.
 
-		4. Button IDs:
-		- The "Expand All" and "Collapse All" buttons have different IDs for each table to allow independent control.
+			4. Button IDs:
+			- The "Expand All" and "Collapse All" buttons have different IDs for each table to allow independent control.
 
-		5. Details Display:
-		- The details rows for general issues may include a "Category Description" field, which is omitted for performance optimizations.
+			5. Details Display:
+			- The details rows for general issues may include a "Category Description" field, which is omitted for performance optimizations.
 
-		6. Empty State:
-		- If there are no general issues, a message "No issues were found in the assessment." is shown.
-		- If there are no performance optimizations, no message is shown (the table is simply omitted).
+			6. Empty State:
+			- If there are no general issues, a message "No issues were found in the assessment." is shown.
+			- If there are no performance optimizations, no message is shown (the table is simply omitted).
 
-		7. Sorting:
-		- Sorting by "Category" is only available in the Assessment issues table only i.e. not onlyPerf case.
-		- Sorting by "Issue" / "Optimization" is available in both the tables
-		- Sorting by "Impact" is available in both tables.
+			7. Sorting:
+			- Sorting by "Category" is only available in the Assessment issues table only i.e. not onlyPerf case.
+			- Sorting by "Issue" / "Optimization" is available in both the tables
+			- Sorting by "Impact" is available in both tables.
 
-		These differences are controlled by the `.onlyPerf` flag passed to the template and are reflected in both the Go template logic and the rendered HTML structure.
-
+			These differences are controlled by the `.onlyPerf` flag passed to the template and are reflected in both the Go template logic and the rendered HTML structure.
 */
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
@@ -1907,7 +1916,7 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
 		"dict":                                   dict,
 	}
-	
+
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
 	log.Infof("execute template for assessment report...")
