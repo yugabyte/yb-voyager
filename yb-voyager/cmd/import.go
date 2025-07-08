@@ -534,5 +534,8 @@ func validateOnPrimaryKeyConflictFlag() error {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+		utils.PrintAndLog("Note: --on-primary-key-conflict is set as 'IGNORE'. Rows with existing primary keys will be skipped during import.")
+	}
 	return nil
 }
