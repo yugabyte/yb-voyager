@@ -52,8 +52,8 @@ func (d *dummyYb) IsDBColocated() (bool, error) {
 }
 
 func (d *dummyYb) ImportBatch(batch tgtdb.Batch, args *tgtdb.ImportBatchArgs, exportDir string,
-	tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
-	return 1, nil
+	tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
+	return 1, nil, false
 }
 
 func TestSequentialTaskPickerBasic(t *testing.T) {
