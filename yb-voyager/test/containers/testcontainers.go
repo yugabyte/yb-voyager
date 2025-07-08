@@ -129,21 +129,21 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		panic("YB_VERSION env variable is not set. ")
+		ybVersion = "2024.2.3.1-b3" // default to current latest yb version for now
 	}
 
 	pgVersion := os.Getenv("PG_VERSION")
 	if pgVersion == "" {
-		panic("PG_VERSION env variable is not set. ")
+		pgVersion = "14"
 	}
 
 	oracleVersion := os.Getenv("ORACLE_VERSION")
 	if oracleVersion == "" {
-		panic("ORACLE_VERSION env variable is not set. ")
+		oracleVersion = "21"
 	}
 	mysqlVersion := os.Getenv("MYSQL_VERSION")
 	if mysqlVersion == "" {
-		panic("MYSQL_VERSION env variable is not set. ")
+		mysqlVersion = "8.4"
 	}
 
 	config.DBType = dbType

@@ -28,8 +28,9 @@ import (
 )
 
 const (
-	PROCESSING_ERRORS_LOG_FILE = "processing-errors.log"
-	INGESTION_ERROR_PREFIX     = "ingestion-error"
+	PROCESSING_ERRORS_LOG_FILE                = "processing-errors.log"
+	INGESTION_ERROR_PREFIX                    = "ingestion-error"
+	STASH_AND_CONTINUE_RECOMMENDATION_MESSAGE = "To continue with the import without aborting, set the configuration parameter `error-policy`/`error-policy-snapshot` to `stash-and-continue`"
 )
 
 var defaultProcessingErrorFileSize int64 = 5 * 1024 * 1024 // 5MB
@@ -39,6 +40,7 @@ type ImportDataErrorHandler interface {
 	HandleRowProcessingError(row string, rowErr error, tableName sqlname.NameTuple, taskFilePath string) error
 	HandleBatchIngestionError(batch ErroredBatch, taskFilePath string, batchErr error, isPartialBatchIngestionPossible bool) error
 	CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error
+	GetErrorsLocation() string
 }
 
 type ErroredBatch interface {
@@ -73,6 +75,10 @@ func (handler *ImportDataAbortHandler) HandleBatchIngestionError(batch ErroredBa
 func (handler *ImportDataAbortHandler) CleanUpStoredErrors(tableName sqlname.NameTuple, taskFilePath string) error {
 	// nothing to do.
 	return nil
+}
+
+func (handler *ImportDataAbortHandler) GetErrorsLocation() string {
+	return ""
 }
 
 // -----------------------------------------------------------------------------------------------------//
@@ -191,6 +197,10 @@ func (handler *ImportDataStashAndContinueHandler) CleanUpStoredErrors(tableName 
 		return fmt.Errorf("removing errors folder for table : %s", err)
 	}
 	return nil
+}
+
+func (handler *ImportDataStashAndContinueHandler) GetErrorsLocation() string {
+	return filepath.Join(handler.dataDir, "errors")
 }
 
 // exporting this only to enable unit testing from cmd package.

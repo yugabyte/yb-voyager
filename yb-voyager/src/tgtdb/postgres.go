@@ -360,27 +360,9 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
-
-	var constraintName string
-	err := pg.QueryRow(query).Scan(&constraintName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
-		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
-	}
-
-	return constraintName, nil
+// No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
