@@ -34,7 +34,7 @@ DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"5ecdc1ddb4dc4444b361ff6260553ee81d23b7
 DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"5113760532d987747cc43e07bc3af4478e264a7d"}
 DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"3b101d509e652b08f795cd5fe7e0d6432778f35a"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
-DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/v1.9.5.y.220.1/debezium-connector-yugabytedb-1.9.5.y.220.1.jar"
+DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/vdz.1.9.5.yb.grpc.2024.2.3/debezium-connector-yugabytedb-dz.1.9.5.yb.grpc.2024.2.3.jar"
 DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.2.3/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.2.3-jar-with-dependencies.jar"
 
 # only rebuild voyager
@@ -492,9 +492,11 @@ package_debezium_server_local(){
 	tar -xvzf ${debezium_server_tar_file_1x} -C debezium-server/ 1>&2
 	rm ${debezium_server_tar_file_1x}
 	mv debezium-server/debezium-server debezium-server/debezium-server-1.9.5
+	
+	sudo mkdir -p debezium-server/debezium-server-1.9.5/yb-grpc-connector
 
 	# debezium yugabyte connector
-	wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/lib 1>&2
+	sudo wget -nv "${DEBEZIUM_YUGABYTE_CONNECTOR_URL}" -P debezium-server/debezium-server-1.9.5/yb-grpc-connector 1>&2
 	
 	# yugabyte admin client
 	mv ../yb-client-cdc-stream-wrapper/target/yb-client-cdc-stream-wrapper.jar debezium-server/debezium-server-1.9.5/

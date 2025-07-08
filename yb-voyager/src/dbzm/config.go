@@ -236,7 +236,7 @@ debezium.source.database.ssl.truststore.password=%s
 `
 
 var yugabyteSrcConfigTemplate = `
-debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBConnector
+debezium.source.connector.class=io.debezium.connector.yugabytedb.YugabyteDBgRPCConnector
 debezium.source.database.hostname=%s
 debezium.source.database.port=%d
 debezium.source.database.dbname=%s
@@ -271,6 +271,7 @@ debezium.source.publication.name=%s
 
 var yugabyteSrcTransactionOrderingConfigTemplate = `
 debezium.source.transaction.ordering=true
+debezium.source.TEST.override.transaction.ordering.deprecation=true
 debezium.source.tasks.max=1
 `
 var yugabyteConfigTemplate = baseConfigTemplate +
