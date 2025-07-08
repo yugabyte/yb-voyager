@@ -105,7 +105,11 @@ debezium.source.topic.prefix=yb-voyager
 debezium.source.database.server.name=yb-voyager
 
 debezium.source.errors.max.retries=15
+debezium.source.internal.task.management.timeout.ms=6000
 `
+
+// Context for : debezium.source.internal.task.management.timeout.ms is the timeout for the task management operations, such as starting and stopping tasks.
+//               https://debezium.zulipchat.com/#narrow/channel/350571-community-dbz-server/topic/Graceful.20shutdown.20of.20debezium-server.20-.20initial_only.20snapshot/with/527455651
 // errors.max.retries config doesn't work currently as there is a known bug on debezium end https://issues.redhat.com/browse/DBZ-8711, so when we update to latest it will work.
 
 var baseSinkConfigTemplate = `
