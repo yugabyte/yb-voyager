@@ -64,18 +64,48 @@ func NewUnloggedTableIssue(objectType string, objectName string, sqlStatement st
 	return newQueryIssue(unloggedTableIssue, objectType, objectName, sqlStatement, details)
 }
 
-var unsupportedIndexMethodIssue = issue.Issue{
-	Type:        UNSUPPORTED_INDEX_METHOD,
-	Name:        UNSUPPORTED_INDEX_METHOD_ISSUE_NAME,
+var unsupportedGistIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_GIST_INDEX_METHOD,
+	Name:        UNSUPPORTED_GIST_INDEX_METHOD_ISSUE_NAME,
 	Impact:      constants.IMPACT_LEVEL_1,
 	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
 	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
 }
 
-func NewUnsupportedIndexMethodIssue(objectType string, objectName string, sqlStatement string, indexAccessMethod string) QueryIssue {
-	issue := unsupportedIndexMethodIssue
-	issue.Description = fmt.Sprintf(issue.Description, strings.ToUpper(indexAccessMethod))
+func NewUnsupportedGistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedGistIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "GIST")
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var unsupportedBrinIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_BRIN_INDEX_METHOD,
+	Name:        UNSUPPORTED_BRIN_INDEX_METHOD_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+}
+
+func NewUnsupportedBrinIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedBrinIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "BRIN")
+	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
+}
+
+var unsupportedSpgistIndexMethodIssue = issue.Issue{
+	Type:        UNSUPPORTED_SPGIST_INDEX_METHOD,
+	Name:        UNSUPPORTED_SPGIST_INDEX_METHOD_ISSUE_NAME,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: UNSUPPORTED_INDEX_METHOD_DESCRIPTION,
+	GH:          "https://github.com/YugaByte/yugabyte-db/issues/1337",
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#gist-brin-and-spgist-index-types-are-not-supported",
+}
+
+func NewUnsupportedSpgistIndexMethodIssue(objectType string, objectName string, sqlStatement string) QueryIssue {
+	issue := unsupportedSpgistIndexMethodIssue
+	issue.Description = fmt.Sprintf(issue.Description, "SPGIST")
 	return newQueryIssue(issue, objectType, objectName, sqlStatement, map[string]interface{}{})
 }
 

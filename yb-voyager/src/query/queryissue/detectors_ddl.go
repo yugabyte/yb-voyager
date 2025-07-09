@@ -594,13 +594,29 @@ func (d *IndexIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	var issues []QueryIssue
 
 	// Check for unsupported index methods
-	if slices.Contains(UnsupportedIndexMethods, index.AccessMethod) {
-		issues = append(issues, NewUnsupportedIndexMethodIssue(
+	switch index.AccessMethod {
+
+	case "gist":
+		issues = append(issues, NewUnsupportedGistIndexMethodIssue(
 			obj.GetObjectType(),
 			index.GetObjectName(),
 			"", // query string
-			index.AccessMethod,
 		))
+
+	case "brin":
+		issues = append(issues, NewUnsupportedBrinIndexMethodIssue(
+			obj.GetObjectType(),
+			index.GetObjectName(),
+			"", // query string
+		))
+
+	case "spgist":
+		issues = append(issues, NewUnsupportedSpgistIndexMethodIssue(
+			obj.GetObjectType(),
+			index.GetObjectName(),
+			"", // query string
+		))
+
 	}
 
 	// Check for storage parameters
