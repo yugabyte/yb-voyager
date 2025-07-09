@@ -375,6 +375,8 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
 					meta.ReferencedColumnType = refMeta.DataType
 				} else {
+					log.Warnf("Referenced column type for %s in table %s not found in metadata for foreign key in table %s",
+						refCol, fk.referencedTable, fk.tableName)
 					meta.ReferencedColumnType = "unknown"
 				}
 			} else {

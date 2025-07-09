@@ -292,7 +292,7 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 		if !ok || !colMetadata.IsForeignKey {
 			continue
 		}
-		if colMetadata.ReferencedColumn == "" {
+		if colMetadata.ReferencedColumnType == "" {
 			continue
 		}
 		if colMetadata.DataType == colMetadata.ReferencedColumnType {
