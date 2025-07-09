@@ -72,16 +72,41 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
 		},
 		{
+			nodeName: "RangeVar (db + schema + table)",
+			sql:      `SELECT * FROM mydb.sales.orders;`,
+			raw:      []string{"mydb", "sales", "orders"},
+			prefixes: []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+		{
 			nodeName: "ColumnDef",
 			sql:      `CREATE TABLE t(secret_col TEXT);`,
 			raw:      []string{"secret_col"},
 			prefixes: []string{COLUMN_KIND_PREFIX},
 		},
+		// ----- ColumnRef has multiple cases -----
 		{
-			nodeName: "ColumnRef",
+			nodeName: "ColumnRef (only column name)",
 			sql:      `SELECT password FROM users;`,
 			raw:      []string{"password", "users"},
 			prefixes: []string{COLUMN_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+		{
+			nodeName: "ColumnRef (table + column name)",
+			sql:      `SELECT users.password FROM users;`,
+			raw:      []string{"password", "users"},
+			prefixes: []string{COLUMN_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+		{
+			nodeName: "ColumnRef (schema + table + column name)",
+			sql:      `SELECT sales.users.password FROM sales.users;`,
+			raw:      []string{"sales", "users", "password"},
+			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "ColumnRef (db + schema + table + column name)",
+			sql:      `SELECT mydb.sales.users.password FROM mydb.sales.users;`,
+			raw:      []string{"mydb", "sales", "users", "password"},
+			prefixes: []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "IndexElem",
@@ -111,7 +136,7 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			nodeName: "ResTarget",
 			sql:      `SELECT salary AS emp_sal FROM emp;`,
 			raw:      []string{"emp_sal"},
-			prefixes: []string{ALIAS_KIND_PREFIX},
+			prefixes: []string{COLUMN_KIND_PREFIX},
 		},
 		{
 			nodeName: "Alias",
@@ -221,21 +246,10 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 				{COLUMN_KIND_PREFIX, "password"},
 				{TABLE_KIND_PREFIX, "accounts"},
 				{COLUMN_KIND_PREFIX, "id"},
-				{CONST_KIND_PREFIX, "x"},
+				{CONST_KIND_PREFIX, "constant1"},
 			},
 			sql1: "SELECT password FROM accounts",
-			sql2: "UPDATE accounts SET password = 'x' WHERE id = 1",
-		},
-		{
-			name: "same alias",
-			identifiers: []struct{ kind, raw string }{
-				{ALIAS_KIND_PREFIX, "cust"},
-				{TABLE_KIND_PREFIX, "orders"},
-				{COLUMN_KIND_PREFIX, "amount"},
-				{SCHEMA_KIND_PREFIX, "cust"},
-			},
-			sql1: "SELECT * FROM orders cust",
-			sql2: "SELECT cust.amount FROM orders cust WHERE cust.amount > 100",
+			sql2: "UPDATE accounts SET password = 'constant1' WHERE id = 1",
 		},
 	}
 

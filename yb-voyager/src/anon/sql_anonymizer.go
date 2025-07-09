@@ -4,11 +4,13 @@ import (
 	"fmt"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 const (
+	DATABASE_KIND_PREFIX   = "db_"
 	SCHEMA_KIND_PREFIX     = "schema_"
 	TABLE_KIND_PREFIX      = "table_"
 	COLUMN_KIND_PREFIX     = "col_"
@@ -57,22 +59,46 @@ func (a *SqlAnonymizer) Anonymize(inputSql string) (string, error) {
 	return anonymizedSql, nil
 }
 
-func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) error {
+func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) (err error) {
 	// three categories of nodes: Identifier nodes, literal nodes, Misc nodes for rest
-	a.identifierNodesProcessor(msg)
-	a.literalNodesProcessor(msg)
-	a.miscellaneousNodesProcessor(msg)
+	err = a.identifierNodesProcessor(msg)
+	if err != nil {
+		return fmt.Errorf("error processing identifier nodes: %w", err)
+	}
+
+	err = a.literalNodesProcessor(msg)
+	if err != nil {
+		return fmt.Errorf("error processing literal nodes: %w", err)
+	}
+
+	err = a.miscellaneousNodesProcessor(msg)
+	if err != nil {
+		return fmt.Errorf("error processing miscellaneous nodes: %w", err)
+	}
 	return nil
 }
 
 func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error {
 	var err error
 	switch queryparser.GetMsgFullName(msg) {
+	/*
+		RangeVar node is for tablename in FROM clause of a query
+			SQL:		SELECT * FROM sales.orders;
+			ParseTree:
+	*/
 	case queryparser.PG_QUERY_RANGEVAR_NODE:
 		rv, err := queryparser.ProtoAsRangeVarNode(msg)
 		if err != nil {
 			return fmt.Errorf("cast to RangeVar: %w", err)
 		}
+
+		if rv.Catalogname != "" {
+			rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
+			if err != nil {
+				return fmt.Errorf("anon catalog: %w", err)
+			}
+		}
+
 		if rv.Schemaname != "" {
 			rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
 			if err != nil {
@@ -84,6 +110,12 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("anon table: %w", err)
 		}
 
+	/*
+		Column Definition node in CREATE TABLE statements
+			SQL:		CREATE TABLE foo(column1 INT);
+			ParseTree:	{create_stmt:{relation:{relname:"foo" ...}  table_elts:{column_def:{colname:"column1"  type_name:{names:{string:{sval:"pg_catalog"}}
+							names:{string:{sval:"int4"}}  ...}  }}  }}
+	*/
 	case queryparser.PG_QUERY_COLUMNDEF_NODE:
 		cd, ok := queryparser.ProtoAsColumnDef(msg)
 		if !ok {
@@ -94,32 +126,34 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("anon coldef: %w", err)
 		}
 
+	/*
+		ColumnRef node is for column names in SELECT, WHERE, etc.
+	*/
 	case queryparser.PG_QUERY_COLUMNREF_NODE:
-		cr, ok := queryparser.ProtoAsColumnRef(msg)
-		if !ok {
-			return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
+		err = a.columnRefNodeProcessor(msg)
+		if err != nil {
+			return fmt.Errorf("error processing ColumnRef node: %w", err)
 		}
 
-		// For each field (could be schema, table, or column name), see if it has a String node
-		for i, node := range cr.Fields {
-			str := node.GetString_()
-			if str == nil || str.Sval == "" {
-				continue
-			}
+	/*
+		This node generally stores the column name or alias for column name
+		SQL:		SELECT column1 FROM users;
+		SQL: 		SELECT column1 AS alias1 FROM users;
 
-			str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
-			if err != nil {
-				return fmt.Errorf("anon colref[%d]=%q lookup: %w", i, str.Sval, err)
-			}
-		}
+		ParseTree:	stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{string:{sval:"column1"}} }} }}
+					from_clause:{range_var:{relname:"users"  ...}} ...}}
 
+		ParseTree:	stmt:{select_stmt:{target_list:{res_target:{name:"alias1"  val:{column_ref:{fields:{string:{sval:"column1"}} }}  }}
+					from_clause:{range_var:{relname:"users" ...}}  }}
+
+	*/
 	case queryparser.PG_QUERY_RESTARGET_NODE:
 		rt, ok := queryparser.ProtoAsResTargetNode(msg)
 		if !ok {
 			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
 		if rt.Name != "" {
-			rt.Name, err = a.registry.GetHash(ALIAS_KIND_PREFIX, rt.Name)
+			rt.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, rt.Name)
 			if err != nil {
 				return fmt.Errorf("anon alias: %w", err)
 			}
@@ -350,5 +384,110 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) er
 		}
 	}
 
+	return nil
+}
+
+/*
+SQL:		SELECT sales.orders.column1 FROM sales.orders WHERE column2 = 'value';
+ParseTree:	stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:
+
+		{fields:{string:{sval:"sales"}}
+		fields:{string:{sval:"orders"}}
+		fields:{string:{sval:"column1"}} }} }}
+	from_clause:{range_var:{schemaname:"sales" relname:"orders" ...}}
+	where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} lexpr:{column_ref:{fields:{string:{sval:"column2"}} }} rexpr:{a_const:{sval:{sval:"value"} }} }} ...}}
+*/
+func (a *SqlAnonymizer) columnRefNodeProcessor(msg protoreflect.Message) (err error) {
+	/*
+		ColumnRef node is for column names in SELECT, WHERE, etc.
+		SQL:		SELECT column1 FROM sales.orders WHERE column2 = 'value';
+
+	*/
+	cr, ok := queryparser.ProtoAsColumnRef(msg)
+	if !ok {
+		return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
+	}
+
+	log.Infof("processing ColumnRef node: %s\n", cr.String())
+	log.Infof("total number of fields in ColumnRef node: %d\n", len(cr.Fields))
+
+	// Fully qualified column name syntax: DB.Schema.Table.Column
+	// so we need to anonymize each part of the column reference node as per its kind
+
+	/*
+		Note: need to operate on string fields only in ColumnRef
+		SQL: 		SELECT * from sales.orders;
+		ParseTree:	{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+					from_clause:{range_var:{schemaname:"sales"  relname:"orders" }}  }}
+
+		Other example: SELECT *, col1, col2 from sales.orders;
+	*/
+	var strFields []*pg_query.String
+	for _, field := range cr.Fields {
+		if field.GetString_() != nil {
+			strFields = append(strFields, field.GetString_())
+		}
+	}
+
+	switch len(strFields) {
+	case 1: // col
+		str := strFields[0]
+		str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=1, column field: %w", err)
+		}
+	case 2: // tbl/alias . col
+		// corner case not handled: it can be a table name or table alias
+		tbl := strFields[0]
+		col := strFields[1]
+		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=2, table field: %w", err)
+		}
+		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=2, column field: %w", err)
+		}
+	case 3: // schema . table . col
+		sch := strFields[0]
+		tbl := strFields[1]
+		col := strFields[2]
+		sch.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, sch.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=3, schema field: %w", err)
+		}
+		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=3, table field: %w", err)
+		}
+		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=3, column field: %w", err)
+		}
+	case 4: // db . schema . table . col
+		db := strFields[0]
+		sch := strFields[1]
+		tbl := strFields[2]
+		col := strFields[3]
+		db.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, db.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=4, database field: %w", err)
+		}
+		sch.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, sch.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=4, schema field: %w", err)
+		}
+		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=4, table field: %w", err)
+		}
+		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
+		if err != nil {
+			return fmt.Errorf("anon ColumnRef, fieldLen=4, column field: %w", err)
+		}
+
+	default: // zero fields
+		return nil
+	}
 	return nil
 }
