@@ -119,8 +119,8 @@
 		{
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_INDEX_METHOD",
-			"Name": "Index with access method",
+			"Type": "UNSUPPORTED_GIST_INDEX_METHOD",
+			"Name": "Index with GIST access method",
 			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
