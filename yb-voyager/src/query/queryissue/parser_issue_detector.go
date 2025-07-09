@@ -64,6 +64,34 @@ type ParserIssueDetector struct {
 	// list of foreign key constraints in the exported schema
 	foreignKeyConstraints []foreignKeyConstraint
 
+	/*
+		this will contain the information in this format:
+		public.table1 -> {
+			column1: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		schema2.table2 -> {
+			column3: citext | jsonb | inet | tsquery | tsvector | array
+			...
+		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
+	*/
+	columnsWithUnsupportedIndexDatatypes map[string]map[string]string
+
+	/*
+		this will contain the information in this format:
+		public.table1 -> {
+			column1: timestamp | timestampz | date
+			...
+		}
+		schema2.table2 -> {
+			column3: timestamp | timestampz | date
+			...
+		}
+		Here only those columns on tables are stored which have unsupported type for Index in YB
+	*/
+	columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string
+
 	// list of composite types with fully qualified typename in the exported schema
 	compositeTypes []string
 
@@ -91,21 +119,27 @@ type ParserIssueDetector struct {
 	//Functions in exported schema
 	functionObjects []*queryparser.Function
 
+	//columns names with jsonb type
+	jsonbColumns []string
+
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
 	return &ParserIssueDetector{
-		columnMetadata:        make(map[string]map[string]*ColumnMetadata),
-		compositeTypes:        make([]string, 0),
-		enumTypes:             make([]string, 0),
-		partitionedTablesMap:  make(map[string]bool),
-		primaryConsInAlter:    make(map[string]*queryparser.AlterTable),
-		columnStatistics:      make(map[string]utils.ColumnStatistics),
-		foreignKeyConstraints: make([]foreignKeyConstraint, 0),
-		inheritedFrom:         make(map[string][]string),
-		partitionedFrom:       make(map[string]string),
+		columnMetadata:                          make(map[string]map[string]*ColumnMetadata),
+		compositeTypes:                          make([]string, 0),
+		enumTypes:                               make([]string, 0),
+		partitionedTablesMap:                    make(map[string]bool),
+		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
+		columnStatistics:                        make(map[string]utils.ColumnStatistics),
+		foreignKeyConstraints:                   make([]foreignKeyConstraint, 0),
+		inheritedFrom:                           make(map[string][]string),
+		partitionedFrom:                         make(map[string]string),
+		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
+		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
+		jsonbColumns:                            make([]string, 0),
 	}
 }
 
@@ -279,6 +313,17 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 	p.finalizeColumnsFromParentMap(partitionParentMap)
 
 	p.finalizeForeignKeyConstraints()
+
+	p.populateColumnMetadataDerivedVars()
+
+}
+
+func (p *ParserIssueDetector) populateColumnMetadataDerivedVars() {
+	p.columnsWithUnsupportedIndexDatatypes = p.GetColumnsWithUnsupportedIndexDatatypes()
+
+	p.columnsWithHotspotRangeIndexesDatatypes = p.GetColumnsWithHotspotRangeIndexesDatatypes()
+
+	p.jsonbColumns = p.GetJsonbColumns()
 }
 
 // finalizeColumnsFromParentMap copies column metadata from parent tables to their children,

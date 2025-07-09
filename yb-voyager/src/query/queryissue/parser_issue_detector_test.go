@@ -310,6 +310,9 @@ func TestAllIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -1581,6 +1584,9 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.Nil(t, err)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
