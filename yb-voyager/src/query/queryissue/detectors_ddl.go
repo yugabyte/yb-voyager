@@ -291,6 +291,12 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 			continue
 		}
 		if colMetadata.ReferencedColumnType == "" {
+			log.Warnf("Referenced column type for %s.%s (referenced by foreign key on %s.%s) not found in column metadata",
+				colMetadata.ReferencedTable, colMetadata.ReferencedColumn, objectName, col)
+			continue
+		}
+		if colMetadata.DataType == "" {
+			log.Warnf("Data type for column %s in table %s not found in column metadata", col, objectName)
 			continue
 		}
 		if colMetadata.DataType == colMetadata.ReferencedColumnType {

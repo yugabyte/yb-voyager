@@ -318,6 +318,7 @@ func (p *ParserIssueDetector) FinalizeColumnMetadata() {
 
 }
 
+// populateColumnMetadataDerivedVars populates the variables in ParserIssueDetector struct that are derived from column metadata.
 func (p *ParserIssueDetector) populateColumnMetadataDerivedVars() {
 	p.columnsWithUnsupportedIndexDatatypes = p.GetColumnsWithUnsupportedIndexDatatypes()
 
@@ -407,7 +408,7 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 			}
 			meta, ok := p.columnMetadata[fk.tableName][localCol]
 			if !ok {
-				meta = &ColumnMetadata{DataType: "unknown"}
+				meta = &ColumnMetadata{}
 				p.columnMetadata[fk.tableName][localCol] = meta
 			}
 
@@ -419,10 +420,6 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 
 				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
 					meta.ReferencedColumnType = refMeta.DataType
-				} else {
-					log.Warnf("Referenced column type for %s in table %s not found in metadata for foreign key in table %s",
-						refCol, fk.referencedTable, fk.tableName)
-					meta.ReferencedColumnType = "unknown"
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
