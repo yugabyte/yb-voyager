@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
@@ -159,32 +160,56 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			}
 		}
 
+	/*
+		IndexStmtNode check is for anonymizing the index name
+		IndexElemNode check is for anonymizing the column names in index definition
+
+		SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
+		ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
+					index_params:{index_elem:{name:"last_name" ...}} index_params:{index_elem:{name:"first_name" ...}} index_params:{index_elem:{name:"hire_date" ...}}}}
+	*/
 	case queryparser.PG_QUERY_INDEX_STMT_NODE:
 		idx, err := queryparser.ProtoAsIndexStmtNode(msg)
 		if err != nil {
 			return err
 		}
-
 		if idx.Idxname != "" {
 			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
 			if err != nil {
 				return fmt.Errorf("anon idxname: %w", err)
 			}
 		}
-		idx.Relation.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, idx.Relation.Relname)
-		if err != nil {
-			return fmt.Errorf("anon idx table: %w", err)
-		}
 
 	case queryparser.PG_QUERY_INDEXELEM_NODE:
 		ie, err := queryparser.ProtoAsIndexElemNode(msg)
 		if err != nil {
-			return err
+			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
 		}
+
+		// 1) Plain column index: (Name != "")
+		//    CREATE INDEX … ON tbl(col1);
 		if ie.Name != "" {
 			ie.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, ie.Name)
 			if err != nil {
-				return fmt.Errorf("anon index column %q: %w", ie.Name, err)
+				return fmt.Errorf("anon index column name: %w", err)
+			}
+		}
+
+		// 2) Expression index: (Expr != nil, Name == "")
+		//    CREATE INDEX … ON tbl((col1+col2));
+		if ie.Expr != nil {
+			// Walk into the expression node and anonymize any ColumnRefs inside.
+			// Assuming you already handle ColumnRef elsewhere in your visitor:
+			//   queryparser.TraverseParseTree(ie.Expr, visited, a.anonymizationProcessor)
+		}
+
+		// 3) Expression alias: (Indexcolname != "")
+		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
+		//	 above this sql syntax is invalid, couldn't find an example of Indexcolname but still keeping the anonymization logic here
+		if ie.Indexcolname != "" {
+			ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
+			if err != nil {
+				return fmt.Errorf("anon index column alias: %w", err)
 			}
 		}
 
@@ -265,10 +290,10 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		}
 
 	/*
-		SQL: CREATE TABLE foo(id my_custom_type);
-		ParseTree: stmt:{create_stmt:{relation:{relname:"foo"  inh:true  ...}
-			table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"my_custom_type"}}  ....}
-			....}}  oncommit:ONCOMMIT_NOOP}}
+		SQL:		CREATE TABLE foo(id my_custom_type);
+		ParseTree:	stmt:{create_stmt:{relation:{relname:"foo"  inh:true  ...}
+					table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"my_custom_type"}}  ....}
+					....}}  oncommit:ONCOMMIT_NOOP}}
 	*/
 	case queryparser.PG_QUERY_TYPENAME_NODE:
 		tn, ok := queryparser.ProtoAsTypeNameNode(msg)
@@ -278,7 +303,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 
 		// get string node sval from TypeName
 		for i, node := range tn.Names {
-			str := node.GetString_() // returns *pg_query.String or nil
+			str := node.GetString_()
 			if str == nil || str.Sval == "" {
 				continue
 			}
@@ -335,29 +360,14 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 	return nil
 }
 
-func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) error {
+func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (err error) {
 	switch queryparser.GetMsgFullName(msg) {
 
 	/*
 		SQL: 		CREATE EXTENSION IF NOT EXISTS postgis SCHEMA public;
 		ParseTree: 	stmt:{create_extension_stmt:{extname:"postgis"  if_not_exists:true
 					options:{def_elem:{defname:"schema"  arg:{string:{sval:"public"}}  defaction:DEFELEM_UNSPEC ...}}}}
-	*/
-	case queryparser.PG_QUERY_CREATE_EXTENSION_STMT:
-		ces, ok := queryparser.ProtoAsCreateExtensionStmt(msg)
-		if !ok {
-			return fmt.Errorf("expected CreateExtensionStmt, got %T", msg.Interface())
-		}
 
-		// remove schema name from extension def
-		for _, opt := range ces.Options {
-			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "schema" {
-				// Anonymize the schema name
-				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.GetHash(SCHEMA_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
-			}
-		}
-
-	/*
 		SQL: 		CREATE FOREIGN TABLE f_t(i serial, ts timestamptz(0) default now(), j json, t text, e myenum, c mycomposit) server p10 options (TABLE_name 't');
 		ParseTree: 	stmt:{create_foreign_table_stmt:{base_stmt:{relation:{relname:"f_t" ...} table_elts:{column_def:{colname:"i" type_name:{names:{string:{sval:"serial"}} ...} ...}}
 					table_elts:{column_def:{colname:"ts" type_name:{names:{string:{sval:"timestamptz"}} ...}} typemod:-1 location:38}
@@ -367,19 +377,26 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) er
 					table_elts:{column_def:{colname:"e" type_name:{names:{string:{sval:"myenum"}} typemod:-1 location:86} is_local:true location:84}}
 					table_elts:{column_def:{colname:"c" type_name:{names:{string:{sval:"mycomposit"}} ....}} oncommit:ONCOMMIT_NOOP}
 					servername:"p10" options:{def_elem:{defname:"table_name" arg:{string:{sval:"t"}} defaction:DEFELEM_UNSPEC location:128}}}} stmt_len:143
+
+		Note: FOREIGN TABLE name part will be anonymized in the identifierNodesProcessor, here handling the remote table name
+
+
 	*/
-	// FOREIGN TABLE name part will be anonymized in the identifierNodesProcessor, here handling the remote table name
-	// TODO: avoiding server name anonymization for now. (for eg: 'p10' above)
-	case queryparser.PG_QUERY_CREATE_FOREIGN_TABLE_STMT:
-		cfts, ok := queryparser.ProtoAsCreateForeignTableStmt(msg)
+	case queryparser.PG_QUERY_DEFELEM_NODE:
+		// DEFELEM node used in CREATE EXTENSION, CREATE FOREIGN TABLE have table_name and schema
+		defElem, ok := queryparser.ProtoAsDefElemNode(msg)
 		if !ok {
-			return fmt.Errorf("expected CreateForeignTableStmt, got %T", msg.Interface())
+			return fmt.Errorf("expected DefElem, got %T", msg.Interface())
 		}
 
-		for _, opt := range cfts.Options {
-			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "table_name" {
-				// Anonymize the table name and quote it
-				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.GetHash(TABLE_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
+		defName := defElem.GetDefname()
+		if defName == "table_name" || defName == "schema" {
+			kind := lo.Ternary(defName == "table_name", TABLE_KIND_PREFIX, SCHEMA_KIND_PREFIX)
+			if defElem.Arg != nil && defElem.Arg.GetString_() != nil {
+				defElem.Arg.GetString_().Sval, err = a.registry.GetHash(kind, defElem.Arg.GetString_().Sval)
+				if err != nil {
+					return fmt.Errorf("anon DefElem %q: %w", defName, err)
+				}
 			}
 		}
 	}

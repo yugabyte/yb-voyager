@@ -438,12 +438,12 @@ func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error)
 	return cteNode, nil
 }
 
-func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, error) {
+func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, bool) {
 	defElemNode, ok := msg.Interface().(*pg_query.DefElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+		return nil, false
 	}
-	return defElemNode, nil
+	return defElemNode, true
 }
 
 func ProtoAsIndexStmtNode(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
@@ -560,9 +560,9 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 			return nil
 		}
 
-		defElemNode, err := ProtoAsDefElemNode(msg)
-		if err != nil {
-			return err
+		defElemNode, ok := ProtoAsDefElemNode(msg)
+		if !ok {
+			return fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
 		}
 
 		defName := defElemNode.Defname

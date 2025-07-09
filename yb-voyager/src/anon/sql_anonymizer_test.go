@@ -109,9 +109,15 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			prefixes: []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
-			nodeName: "IndexElem",
+			nodeName: "IndexElem (column list)",
 			sql:      `CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);`,
 			raw:      []string{"idx_emp_name_date", "hr", "employee", "last_name", "first_name", "hire_date"},
+			prefixes: []string{INDEX_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			nodeName: "IndexElem (expression)",
+			sql:      `CREATE INDEX idx_expr ON sales.orders((amount + tax));`,
+			raw:      []string{"idx_expr", "sales", "orders", "amount", "tax"},
 			prefixes: []string{INDEX_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
 		{
