@@ -230,6 +230,13 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt55 = `CREATE TABLE derived_items_1 (extra_info TEXT) INHERITS (base_items);`
 	stmt56 = `CREATE TABLE derived_items_2 (notes TEXT, item_id BIGINT) INHERITS (derived_items_1);`
 	stmt57 = `ALTER TABLE derived_items_2 ADD CONSTRAINT fk_item_id FOREIGN KEY (item_id) REFERENCES base_items(item_id);`
+
+	// Case 10: Cross-schema foreign key with BIGINT → INTEGER mismatch
+	stmt58 = `CREATE SCHEMA schema1;`
+	stmt59 = `CREATE SCHEMA schema2;`
+	stmt60 = `CREATE TABLE schema2.departments (dept_id INTEGER PRIMARY KEY);`
+	stmt61 = `CREATE TABLE schema1.employees (emp_id SERIAL PRIMARY KEY, dept_id BIGINT);`
+	stmt62 = `ALTER TABLE schema1.employees ADD CONSTRAINT fk_dept FOREIGN KEY (dept_id) REFERENCES schema2.departments(dept_id);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -319,7 +326,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -401,6 +408,9 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt57: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "int8", "int4"),
+		},
+		stmt62: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "int8", "int4"),
 		},
 	}
 	for _, stmt := range requiredDDLs {

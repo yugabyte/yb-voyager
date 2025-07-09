@@ -267,7 +267,6 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 
 // FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
 func (p *ParserIssueDetector) FinalizeColumnMetadata() {
-
 	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
 	p.finalizeColumnsFromParentMap(p.inheritedFrom)
 
