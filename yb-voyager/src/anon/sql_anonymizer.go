@@ -28,10 +28,10 @@ type Anonymizer interface {
 }
 
 type SqlAnonymizer struct {
-	registry TokenRegistry
+	registry IdentifierHashRegistry
 }
 
-func NewSqlAnonymizer(registry TokenRegistry) Anonymizer {
+func NewSqlAnonymizer(registry IdentifierHashRegistry) Anonymizer {
 	return &SqlAnonymizer{
 		registry: registry,
 	}

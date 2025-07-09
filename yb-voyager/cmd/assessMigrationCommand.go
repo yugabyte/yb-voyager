@@ -139,9 +139,9 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
 
-	schemaNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.SCHEMA_KIND_PREFIX)
-	tableNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.TABLE_KIND_PREFIX)
-	indexNameAnonymizer := anon.NewStringAnonymizer(SchemaTokenRegistry, anon.INDEX_KIND_PREFIX)
+	schemaNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.SCHEMA_KIND_PREFIX)
+	tableNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.TABLE_KIND_PREFIX)
+	indexNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.INDEX_KIND_PREFIX)
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
@@ -203,7 +203,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	sqlAnonymizer := anon.NewSqlAnonymizer(SchemaTokenRegistry)
+	sqlAnonymizer := anon.NewSqlAnonymizer(SchemaIdentifierHashRegistry)
 	/*
 		Case to skip for sql statement anonymization:
 			1. if issue type is unsupported query construct or unsupported plpgsql object

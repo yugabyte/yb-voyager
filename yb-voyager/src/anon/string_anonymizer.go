@@ -1,11 +1,11 @@
 package anon
 
 type StringAnonymizer struct {
-	registry TokenRegistry
+	registry IdentifierHashRegistry
 	kind     string
 }
 
-func NewStringAnonymizer(registry TokenRegistry, kind string) Anonymizer {
+func NewStringAnonymizer(registry IdentifierHashRegistry, kind string) Anonymizer {
 	return &StringAnonymizer{
 		registry: registry,
 		kind:     kind,

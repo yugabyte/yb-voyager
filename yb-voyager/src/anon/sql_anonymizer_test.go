@@ -15,7 +15,7 @@ import (
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-var schemaTokenRegistry TokenRegistry
+var schemaIdentifierTestRegistry IdentifierHashRegistry
 
 /*
 	Tests to add:
@@ -50,27 +50,27 @@ func newAnon(t *testing.T, exportDir string) Anonymizer {
 	metaDB, err := createMetaDB(exportDir)
 	testutils.FatalIfError(t, err)
 
-	schemaTokenRegistry, err = NewSchemaTokenRegistry(metaDB)
+	schemaIdentifierTestRegistry, err = NewSchemaIdentifierHashRegistry(metaDB)
 	testutils.FatalIfError(t, err)
 
-	a := NewSqlAnonymizer(schemaTokenRegistry)
+	a := NewSqlAnonymizer(schemaIdentifierTestRegistry)
 	testutils.FatalIfError(t, err)
 
 	return a
 }
 
-func getToken(t *testing.T, a Anonymizer, orig string) string {
+func getIdentifierHash(t *testing.T, a Anonymizer, orig string) string {
 	sqlAnonymizer, ok := a.(*SqlAnonymizer)
 	if !ok {
 		t.Fatalf("expected SqlAnonymizer, got %T", a)
 	}
 
-	schemaRegistry, ok := sqlAnonymizer.registry.(*SchemaTokenRegistry)
+	schemaRegistry, ok := sqlAnonymizer.registry.(*SchemaIdentifierHashRegistry)
 	if !ok {
-		t.Fatalf("expected SchemaTokenRegistry, got %T", sqlAnonymizer.registry)
+		t.Fatalf("expected SchemaIdentifierHashRegistry, got %T", sqlAnonymizer.registry)
 	}
 
-	return schemaRegistry.tokenMap[orig]
+	return schemaRegistry.identifierMap[orig]
 }
 
 func hasToken(s, prefix string) bool {
@@ -277,7 +277,7 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 
 			// For each (kind, raw) pair, lookup token via kind+raw
 			for _, e := range tc.identifiers {
-				token := getToken(t, a, e.kind+e.raw)
+				token := getIdentifierHash(t, a, e.kind+e.raw)
 				if token == "" {
 					t.Fatalf("no token for kind+raw %q", e.kind+e.raw)
 				}

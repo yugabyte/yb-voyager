@@ -64,12 +64,12 @@ import (
 )
 
 var (
-	metaDB                 *metadb.MetaDB
-	SchemaTokenRegistry    anon.TokenRegistry
-	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
-	startTime              time.Time
-	targetDbVersionStrFlag string
-	targetDbVersion        *ybversion.YBVersion
+	metaDB                       *metadb.MetaDB
+	SchemaIdentifierHashRegistry anon.IdentifierHashRegistry
+	PARENT_COMMAND_USAGE         = "Parent command. Refer to the sub-commands for usage help."
+	startTime                    time.Time
+	targetDbVersionStrFlag       string
+	targetDbVersion              *ybversion.YBVersion
 )
 
 func PrintElapsedDuration() {
@@ -500,7 +500,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	}
 
 	// initialising the schema token registry
-	SchemaTokenRegistry, err = anon.NewSchemaTokenRegistry(metaDBInstance)
+	SchemaIdentifierHashRegistry, err = anon.NewSchemaIdentifierHashRegistry(metaDBInstance)
 	if err != nil {
 		utils.ErrExit("ERROR: initializing schema token registry: %v", err)
 	}
