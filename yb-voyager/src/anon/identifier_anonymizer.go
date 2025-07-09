@@ -1,25 +1,25 @@
 package anon
 
-type StringAnonymizer struct {
-	registry IdentifierHashRegistry
+type IdentifierAnonymizer struct {
+	registry IdentifierHasher
 	kind     string
 }
 
-func NewStringAnonymizer(registry IdentifierHashRegistry, kind string) Anonymizer {
-	return &StringAnonymizer{
+func NewIdentifierAnonymizer(registry IdentifierHasher, kind string) Anonymizer {
+	return &IdentifierAnonymizer{
 		registry: registry,
 		kind:     kind,
 	}
 }
 
-func (s *StringAnonymizer) Anonymize(origString string) (string, error) {
+func (s *IdentifierAnonymizer) Anonymize(origString string) (string, error) {
 	// For metadata anonymization, we can use the registry to generate tokens
 	// for the input object. This is a placeholder implementation.
 	if origString == "" {
 		return "", nil // No object to anonymize
 	}
 
-	token, err := s.registry.Token(s.kind, origString)
+	token, err := s.registry.GetHash(s.kind, origString)
 	if err != nil {
 		return "", err
 	}

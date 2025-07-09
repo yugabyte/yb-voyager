@@ -20,7 +20,6 @@ const (
 	CONST_KIND_PREFIX      = "const_"
 	DEFAULT_KIND_PREFIX    = "anon_"           // fallback for any other identifiers
 	SALT_KEY_METADB        = "anonymizer_salt" // Key to store salt in MetaDB MSR for consistent anonymization across runs
-	SALT_SIZE              = 16                // Size of salt in bytes, can be adjusted as needed
 )
 
 type Anonymizer interface {
@@ -28,10 +27,10 @@ type Anonymizer interface {
 }
 
 type SqlAnonymizer struct {
-	registry IdentifierHashRegistry
+	registry IdentifierHasher
 }
 
-func NewSqlAnonymizer(registry IdentifierHashRegistry) Anonymizer {
+func NewSqlAnonymizer(registry IdentifierHasher) Anonymizer {
 	return &SqlAnonymizer{
 		registry: registry,
 	}
@@ -75,12 +74,12 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("cast to RangeVar: %w", err)
 		}
 		if rv.Schemaname != "" {
-			rv.Schemaname, err = a.registry.Token(SCHEMA_KIND_PREFIX, rv.Schemaname)
+			rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
 			if err != nil {
 				return fmt.Errorf("anon schema: %w", err)
 			}
 		}
-		rv.Relname, err = a.registry.Token(TABLE_KIND_PREFIX, rv.Relname)
+		rv.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return fmt.Errorf("anon table: %w", err)
 		}
@@ -90,7 +89,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected ColumnDef, got %T", msg.Interface())
 		}
-		cd.Colname, err = a.registry.Token(COLUMN_KIND_PREFIX, cd.Colname)
+		cd.Colname, err = a.registry.GetHash(COLUMN_KIND_PREFIX, cd.Colname)
 		if err != nil {
 			return fmt.Errorf("anon coldef: %w", err)
 		}
@@ -108,7 +107,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				continue
 			}
 
-			str.Sval, err = a.registry.Token(COLUMN_KIND_PREFIX, str.Sval)
+			str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon colref[%d]=%q lookup: %w", i, str.Sval, err)
 			}
@@ -120,7 +119,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
 		if rt.Name != "" {
-			rt.Name, err = a.registry.Token(ALIAS_KIND_PREFIX, rt.Name)
+			rt.Name, err = a.registry.GetHash(ALIAS_KIND_PREFIX, rt.Name)
 			if err != nil {
 				return fmt.Errorf("anon alias: %w", err)
 			}
@@ -133,12 +132,12 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		}
 
 		if idx.Idxname != "" {
-			idx.Idxname, err = a.registry.Token(INDEX_KIND_PREFIX, idx.Idxname)
+			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
 			if err != nil {
 				return fmt.Errorf("anon idxname: %w", err)
 			}
 		}
-		idx.Relation.Relname, err = a.registry.Token(TABLE_KIND_PREFIX, idx.Relation.Relname)
+		idx.Relation.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, idx.Relation.Relname)
 		if err != nil {
 			return fmt.Errorf("anon idx table: %w", err)
 		}
@@ -149,7 +148,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return err
 		}
 		if ie.Name != "" {
-			ie.Name, err = a.registry.Token(COLUMN_KIND_PREFIX, ie.Name)
+			ie.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, ie.Name)
 			if err != nil {
 				return fmt.Errorf("anon index column %q: %w", ie.Name, err)
 			}
@@ -167,7 +166,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return err
 		}
 		if cons.Conname != "" {
-			cons.Conname, err = a.registry.Token(CONSTRAINT_KIND_PREFIX, cons.Conname)
+			cons.Conname, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, cons.Conname)
 			if err != nil {
 				return fmt.Errorf("anon constraint: %w", err)
 			}
@@ -183,7 +182,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				if colName == "" {
 					continue // skip empty names
 				}
-				key.GetString_().Sval, err = a.registry.Token(COLUMN_KIND_PREFIX, colName)
+				key.GetString_().Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, colName)
 				if err != nil {
 					return fmt.Errorf("anon constraint key[%d]=%q: %w", i, colName, err)
 				}
@@ -211,7 +210,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				// AT_ClusterOn has a name field that needs anonymization
 				name := alterTableCmdNode.GetName()
 				if name != "" {
-					alterTableCmdNode.Name, err = a.registry.Token(CONSTRAINT_KIND_PREFIX, name)
+					alterTableCmdNode.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, name)
 					if err != nil {
 						return fmt.Errorf("anon alter table cluster on index: %w", err)
 					}
@@ -225,7 +224,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected Alias, got %T", msg.Interface())
 		}
 		if alias.Aliasname != "" {
-			alias.Aliasname, err = a.registry.Token(ALIAS_KIND_PREFIX, alias.Aliasname)
+			alias.Aliasname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, alias.Aliasname)
 			if err != nil {
 				return fmt.Errorf("anon aliasnode: %w", err)
 			}
@@ -249,7 +248,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			if str == nil || str.Sval == "" {
 				continue
 			}
-			str.Sval, err = a.registry.Token(TYPE_KIND_PREFIX, str.Sval)
+			str.Sval, err = a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon typename[%d]=%q lookup: %w", i, str.Sval, err)
 			}
@@ -266,7 +265,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected RoleSpec, got %T", msg.Interface())
 		}
 
-		rs.Rolename, err = a.registry.Token(ROLE_KIND_PREFIX, rs.Rolename)
+		rs.Rolename, err = a.registry.GetHash(ROLE_KIND_PREFIX, rs.Rolename)
 		if err != nil {
 			return fmt.Errorf("anon rolespec: %w", err)
 		}
@@ -290,7 +289,7 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 
 		if ac.Val != nil && ac.GetSval() != nil && ac.GetSval().Sval != "" {
 			// Anonymize the string literal
-			tok, err := a.registry.Token(CONST_KIND_PREFIX, ac.GetSval().Sval)
+			tok, err := a.registry.GetHash(CONST_KIND_PREFIX, ac.GetSval().Sval)
 			if err != nil {
 				return fmt.Errorf("anon A_Const: %w", err)
 			}
@@ -320,7 +319,7 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) er
 		for _, opt := range ces.Options {
 			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "schema" {
 				// Anonymize the schema name
-				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.Token(SCHEMA_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
+				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.GetHash(SCHEMA_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
 			}
 		}
 
@@ -346,7 +345,7 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) er
 		for _, opt := range cfts.Options {
 			if opt.GetDefElem() != nil && opt.GetDefElem().GetDefname() == "table_name" {
 				// Anonymize the table name and quote it
-				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.Token(TABLE_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
+				opt.GetDefElem().Arg.GetString_().Sval, _ = a.registry.GetHash(TABLE_KIND_PREFIX, opt.GetDefElem().Arg.GetString_().Sval)
 			}
 		}
 	}

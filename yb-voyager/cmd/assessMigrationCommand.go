@@ -37,7 +37,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -139,9 +138,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	}
 
-	schemaNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.SCHEMA_KIND_PREFIX)
-	tableNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.TABLE_KIND_PREFIX)
-	indexNameAnonymizer := anon.NewStringAnonymizer(SchemaIdentifierHashRegistry, anon.INDEX_KIND_PREFIX)
 	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
@@ -152,7 +148,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			}
 
 			// Anonymizing schema and object names
-			sname, err := schemaNameAnonymizer.Anonymize(stat.SchemaName)
+			sname, err := anonymizer.AnonymizeSchemaName(stat.SchemaName)
 			if err != nil {
 				log.Warnf("failed to anonymize schema name %s: %v", stat.SchemaName, err)
 				newStat.SchemaName = constants.OBFUSCATE_STRING
@@ -161,7 +157,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 			}
 
 			if stat.IsIndex {
-				iName, err := indexNameAnonymizer.Anonymize(stat.ObjectName)
+				iName, err := anonymizer.AnonymizeIndexName(stat.ObjectName)
 				if err != nil {
 					log.Warnf("failed to anonymize index name %s: %v", stat.ObjectName, err)
 					newStat.ObjectName = constants.OBFUSCATE_STRING
@@ -170,7 +166,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 				}
 				indexSizingStats = append(indexSizingStats, newStat)
 			} else {
-				tName, err := tableNameAnonymizer.Anonymize(stat.ObjectName)
+				tName, err := anonymizer.AnonymizeTableName(stat.ObjectName)
 				if err != nil {
 					log.Warnf("failed to anonymize table name %s: %v", stat.ObjectName, err)
 					newStat.ObjectName = constants.OBFUSCATE_STRING
@@ -203,7 +199,6 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
 	}
 
-	sqlAnonymizer := anon.NewSqlAnonymizer(SchemaIdentifierHashRegistry)
 	/*
 		Case to skip for sql statement anonymization:
 			1. if issue type is unsupported query construct or unsupported plpgsql object
@@ -222,7 +217,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}
 
 		// NOTE: indexing/ordering needs to be same in obfuscatedIssues and assessmentReport.Issues
-		obfuscatedIssues[i].SqlStatement, err = sqlAnonymizer.Anonymize(issue.SqlStatement)
+		obfuscatedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
 		if err != nil {
 			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
 		}

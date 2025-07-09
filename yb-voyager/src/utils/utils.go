@@ -17,7 +17,9 @@ package utils
 
 import (
 	"bufio"
+	crand "crypto/rand"
 	"database/sql"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"math/rand"
@@ -952,4 +954,21 @@ func RetryWorkWithTimeout(sleep time.Duration, timeout time.Duration, work func(
 		time.Sleep(sleep * time.Second)
 	}
 	return false
+}
+
+// GenerateAnonymisationSalt returns a hex-encoded salt string of length 2*n characters,
+// where n is the number of random bytes in salt.
+// For example, GenerateAnonymisationSalt(8) gives you a 16-char hex string.
+func GenerateAnonymisationSalt(n int) (string, error) {
+	if n <= 0 {
+		return "", fmt.Errorf("invalid salt length %d; must be > 0", n)
+	}
+
+	b := make([]byte, n)
+	if _, err := crand.Read(b); err != nil {
+		return "", fmt.Errorf("failed to generate salt: %w", err)
+	}
+
+	// convert bytes to hex to make it printable ASCII string
+	return hex.EncodeToString(b), nil
 }

@@ -3,19 +3,17 @@
 package anon
 
 import (
-	"fmt"
 	"strings"
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
-	log "github.com/sirupsen/logrus"
 	"gotest.tools/assert"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
-var schemaIdentifierTestRegistry IdentifierHashRegistry
+var identifierRegistryTest IdentifierHasher
 
 /*
 	Tests to add:
@@ -27,33 +25,14 @@ var schemaIdentifierTestRegistry IdentifierHashRegistry
 	6. Also cover case sensitivity
 */
 
-func createMetaDB(exportDir string) (*metadb.MetaDB, error) {
-	log.SetLevel(log.ErrorLevel)
-	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
-	if err != nil {
-		return nil, fmt.Errorf("could not create and init meta db: %w", err)
-	}
-
-	metaDBInstance, err := metadb.NewMetaDB(exportDir)
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize MetaDB: %w", err)
-	}
-
-	err = metaDBInstance.InitMigrationStatusRecord()
-	if err != nil {
-		return nil, fmt.Errorf("failed to initialize migration status record: %w", err)
-	}
-	return metaDBInstance, nil
-}
-
 func newAnon(t *testing.T, exportDir string) Anonymizer {
-	metaDB, err := createMetaDB(exportDir)
+	salt, err := utils.GenerateAnonymisationSalt(16)
 	testutils.FatalIfError(t, err)
 
-	schemaIdentifierTestRegistry, err = NewSchemaIdentifierHashRegistry(metaDB)
+	identifierRegistryTest, err = NewIdentifierHashRegistry(salt)
 	testutils.FatalIfError(t, err)
 
-	a := NewSqlAnonymizer(schemaIdentifierTestRegistry)
+	a := NewSqlAnonymizer(identifierRegistryTest)
 	testutils.FatalIfError(t, err)
 
 	return a
@@ -65,12 +44,12 @@ func getIdentifierHash(t *testing.T, a Anonymizer, orig string) string {
 		t.Fatalf("expected SqlAnonymizer, got %T", a)
 	}
 
-	schemaRegistry, ok := sqlAnonymizer.registry.(*SchemaIdentifierHashRegistry)
+	schemaRegistry, ok := sqlAnonymizer.registry.(*IdentifierHashRegistry)
 	if !ok {
-		t.Fatalf("expected SchemaIdentifierHashRegistry, got %T", sqlAnonymizer.registry)
+		t.Fatalf("expected IdentifierHashRegistry, got %T", sqlAnonymizer.registry)
 	}
 
-	return schemaRegistry.identifierMap[orig]
+	return schemaRegistry.identifierHashMap[orig]
 }
 
 func hasToken(s, prefix string) bool {

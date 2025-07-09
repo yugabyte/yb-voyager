@@ -3,21 +3,18 @@ package anon
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"sync"
-
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 )
 
-type IdentifierHashRegistry interface {
-	// Token returns a deterministic anonymised string for identifier with kind prefix.
-	Token(kind string, identifier string) (string, error)
+type IdentifierHasher interface {
+	// GetHash returns a deterministic anonymised string for identifier with kind prefix.
+	GetHash(kind string, identifier string) (string, error)
 }
 
-// SchemaIdentifierHashRegistry is meant to be shared across voyager commands/processes under the migration_uuid
+// IdentifierHashRegistry is meant to be shared across voyager commands/processes under the migration_uuid
 // also across various anonymizer in same run - sql anonymizer, metadata anonymizer etc.
 // so that the same identifier always gets the same anonymized token irrespective of the command or anonymizer used.
-type SchemaIdentifierHashRegistry struct {
+type IdentifierHashRegistry struct {
 	/*
 		Salt for anonymization, used to ensure consistent anonymization across runs
 		Importance: If not used, the generated token will be globally unique not unique per run.
@@ -33,24 +30,19 @@ type SchemaIdentifierHashRegistry struct {
 	//   - Go map overhead: ~48 bytes per entry
 	// Total per entry = 24 + 24 + 48 = 104 bytes
 	// For N = 10^5 entries, ~10.4 MB
-	identifierMap map[string]string
+	identifierHashMap map[string]string
 
 	mu sync.RWMutex // Mutex to protect concurrent access to tokenMap
 }
 
-func NewSchemaIdentifierHashRegistry(metaDB *metadb.MetaDB) (IdentifierHashRegistry, error) {
-	salt, err := loadOrCreateSalt(metaDB)
-	if err != nil {
-		return nil, fmt.Errorf("error loading or creating salt: %w", err)
-	}
-
-	return &SchemaIdentifierHashRegistry{
-		salt:          salt,
-		identifierMap: make(map[string]string),
+func NewIdentifierHashRegistry(salt string) (IdentifierHasher, error) {
+	return &IdentifierHashRegistry{
+		salt:              salt,
+		identifierHashMap: make(map[string]string),
 	}, nil
 }
 
-func (r *SchemaIdentifierHashRegistry) Token(kind string, identifier string) (string, error) {
+func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string, error) {
 	if identifier == "" {
 		return "", nil // No identifier to anonymize
 	}
@@ -59,7 +51,7 @@ func (r *SchemaIdentifierHashRegistry) Token(kind string, identifier string) (st
 	// for eg: users as tablename(unqualified) and users as columnname
 	key := kind + identifier
 	r.mu.RLock()
-	if token, exists := r.identifierMap[key]; exists {
+	if token, exists := r.identifierHashMap[key]; exists {
 		r.mu.RUnlock()
 		return token, nil // Return cached token
 	}
@@ -84,36 +76,7 @@ func (r *SchemaIdentifierHashRegistry) Token(kind string, identifier string) (st
 
 	// Cache the token
 	r.mu.Lock()
-	r.identifierMap[key] = token
+	r.identifierHashMap[key] = token
 	r.mu.Unlock()
 	return token, nil
-}
-
-func loadOrCreateSalt(metaDB *metadb.MetaDB) (string, error) {
-	msr, err := metaDB.GetMigrationStatusRecord()
-	if err != nil {
-		return "", fmt.Errorf("error getting migration status record: %w", err)
-	}
-
-	var salt string
-	if msr != nil && msr.AnonymizerSalt != "" {
-		salt = msr.AnonymizerSalt
-	} else {
-		salt, err = GenerateSalt(SALT_SIZE)
-		if err != nil {
-			return "", fmt.Errorf("error generating salt: %w", err)
-		}
-
-		// Store the generated salt in the migration status record
-		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
-			if record == nil { // should not happen, but just in case
-				record = &metadb.MigrationStatusRecord{}
-			}
-			record.AnonymizerSalt = salt
-		})
-		if err != nil {
-			return "", fmt.Errorf("error updating migration status record with salt: %w", err)
-		}
-	}
-	return salt, nil
 }
