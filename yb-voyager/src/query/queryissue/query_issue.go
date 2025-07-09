@@ -93,6 +93,7 @@ var SensitiveKeysInIssueDetailsMap = []string{
 	VALUE,
 	CONSTRAINT_NAME,
 	FUNCTION_NAMES,
+	REFERENCED_COLUMN_NAME,
 }
 
 type IssueTypeAndName struct {

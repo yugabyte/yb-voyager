@@ -267,15 +267,41 @@ func (p *ParserIssueDetector) getPLPGSQLIssues(query string) ([]QueryIssue, erro
 
 // FinalizeColumnMetadata processes the column metadata after all DDL statements have been parsed.
 func (p *ParserIssueDetector) FinalizeColumnMetadata() {
-	p.finalizeInheritedTableColumns()
-	p.finalizePartitionedTableColumns()
+
+	// Finalize column metadata for inherited tables - copying columns from parent tables to child tables
+	p.finalizeColumnsFromParentMap(p.inheritedFrom)
+
+	// Finalize column metadata for partitioned tables - copying columns from partitioned parent tables to their child partitions
+	// Convert partitionedFrom: map[string]string → map[string][]string first to pass it to finalizeColumnsFromParentMap
+	partitionParentMap := make(map[string][]string)
+	for child, parent := range p.partitionedFrom {
+		partitionParentMap[child] = []string{parent}
+	}
+	p.finalizeColumnsFromParentMap(partitionParentMap)
+
 	p.finalizeForeignKeyConstraints()
 }
 
-// finalizeInheritedTableColumns copies column metadata from parent tables to inherited child tables.
-func (p *ParserIssueDetector) finalizeInheritedTableColumns() {
-	for child, parents := range p.inheritedFrom {
-		for _, parent := range parents {
+// finalizeColumnsFromParentMap copies column metadata from parent tables to their children,
+// based on a given parent-child dependency map.
+//
+// The input is a map from child table name to a list of parent table names,
+// and the function uses topological sorting to ensure all parent metadata is available
+// before copying columns to their children.
+//
+// For each child, it creates a column metadata map if it doesn't exist,
+// and copies any missing columns from each of its parents.
+//
+// This function is used to populate column metadata for both inherited and partitioned tables.
+func (p *ParserIssueDetector) finalizeColumnsFromParentMap(parentMap map[string][]string) {
+	orderedChildren := topoSort(parentMap)
+
+	for _, child := range orderedChildren {
+		parentList, exists := parentMap[child]
+		if !exists || len(parentList) == 0 {
+			continue // This is a root table with no parents
+		}
+		for _, parent := range parentList {
 			parentCols, ok := p.columnMetadata[parent]
 			if !ok {
 				continue // Parent metadata not found
@@ -293,23 +319,36 @@ func (p *ParserIssueDetector) finalizeInheritedTableColumns() {
 	}
 }
 
-// finalizePartitionedTableColumns copies column metadata from partitioned parent tables to their child partitions.
-func (p *ParserIssueDetector) finalizePartitionedTableColumns() {
-	for child, parent := range p.partitionedFrom {
-		parentCols, ok := p.columnMetadata[parent]
-		if !ok {
-			continue // Parent metadata not found
+// topoSort returns a topological ordering of the keys in a dependency map,
+// ensuring that all parent tables are visited before their children.
+//
+// The input is a map from child table name to a list of parent table names.
+// This supports both partitioned tables (single parent) and inherited tables (multiple parents).
+//
+// It performs a depth-first traversal and returns a slice of table names
+// such that for any entry [child -> parents], all parents appear before the child in the result.
+//
+// Assumes there are no cycles in the dependency map. This should not happen in either partitioned or inherited tables.
+func topoSort(dependencyMap map[string][]string) []string {
+	visited := make(map[string]bool)
+	var result []string
+
+	var dfs func(string)
+	dfs = func(curr string) {
+		if visited[curr] {
+			return
 		}
-		if _, exists := p.columnMetadata[child]; !exists {
-			p.columnMetadata[child] = make(map[string]*ColumnMetadata)
+		for _, parent := range dependencyMap[curr] {
+			dfs(parent)
 		}
-		for colName, colMeta := range parentCols {
-			if _, exists := p.columnMetadata[child][colName]; !exists {
-				copy := *colMeta
-				p.columnMetadata[child][colName] = &copy
-			}
-		}
+		visited[curr] = true
+		result = append(result, curr)
 	}
+
+	for child := range dependencyMap {
+		dfs(child)
+	}
+	return result
 }
 
 // finalizeForeignKeyConstraints updates columnMetadata with foreign key details.
@@ -339,6 +378,9 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 				} else {
 					meta.ReferencedColumnType = "unknown"
 				}
+			} else {
+				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
+					fk.tableName, fk.columnNames, fk.referencedColumns)
 			}
 		}
 	}

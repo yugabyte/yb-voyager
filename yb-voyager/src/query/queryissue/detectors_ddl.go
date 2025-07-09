@@ -125,23 +125,13 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 				))
 			}
 			if c.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-				// Check for foreign key datatype mismatch
-				for _, col := range c.Columns {
-					colMetadata, ok := d.columnMetadata[table.GetObjectName()][col]
-					if ok && colMetadata.IsForeignKey {
-						if colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
-							issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
-								obj.GetObjectType(),
-								table.GetObjectName(),
-								"", // query string
-								table.GetObjectName()+"."+col,
-								colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
-								colMetadata.DataType,
-								colMetadata.ReferencedColumnType,
-							))
-						}
-					}
-				}
+				detectForeignKeyDatatypeMismatch(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					c.Columns,
+					d.columnMetadata,
+					&issues,
+				)
 			}
 
 			if c.ConstraintType != queryparser.FOREIGN_CONSTR_TYPE && c.IsDeferrable {
@@ -294,6 +284,31 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 	}
 
 	return issues, nil
+}
+
+func detectForeignKeyDatatypeMismatch(objectType string, objectName string, columnList []string, columnMetadata map[string]map[string]*ColumnMetadata, issues *[]QueryIssue) {
+	for _, col := range columnList {
+		colMetadata, ok := columnMetadata[objectName][col]
+		if !ok || !colMetadata.IsForeignKey {
+			continue
+		}
+		if colMetadata.ReferencedColumn == "" {
+			continue
+		}
+		if colMetadata.DataType == colMetadata.ReferencedColumnType {
+			continue
+		}
+
+		*issues = append(*issues, NewForeignKeyDatatypeMismatchIssue(
+			objectType,
+			objectName,
+			"", // query string
+			objectName+"."+col,
+			colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
+			colMetadata.DataType,
+			colMetadata.ReferencedColumnType,
+		))
+	}
 }
 
 func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
@@ -1003,23 +1018,13 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 
 		// Foreign key datatype mismatch
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
-			for _, col := range alter.ConstraintColumns {
-				colMetadata, ok := aid.columnMetadata[alter.GetObjectName()][col]
-				if !ok {
-					continue
-				}
-				if colMetadata.IsForeignKey && colMetadata.ReferencedColumnType != "" && colMetadata.DataType != colMetadata.ReferencedColumnType {
-					issues = append(issues, NewForeignKeyDatatypeMismatchIssue(
-						obj.GetObjectType(),
-						alter.GetObjectName(),
-						"", // query string
-						alter.GetObjectName()+"."+col,
-						colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
-						colMetadata.DataType,
-						colMetadata.ReferencedColumnType,
-					))
-				}
-			}
+			detectForeignKeyDatatypeMismatch(
+				obj.GetObjectType(),
+				alter.GetObjectName(),
+				alter.ConstraintColumns,
+				aid.columnMetadata,
+				&issues,
+			)
 		}
 
 		if alter.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE &&

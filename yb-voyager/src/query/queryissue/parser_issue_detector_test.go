@@ -200,6 +200,36 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt39 = `CREATE TABLE products2 (product_id SERIAL PRIMARY KEY, price NUMERIC(10,2));`
 	stmt40 = `CREATE TABLE orders3 (order_id SERIAL PRIMARY KEY, product_price NUMERIC(8,2));`
 	stmt41 = `ALTER TABLE orders3 ADD CONSTRAINT fk_price FOREIGN KEY (product_price) REFERENCES products2(price);`
+
+	// Case 6: Case sensitive tables and columns, INTERGER → BIGINT mismatch
+	stmt42 = `CREATE TABLE "Accounts" ("UserID" INTEGER PRIMARY KEY);`
+	stmt43 = `CREATE TABLE "Sessions" ("SessionID" SERIAL PRIMARY KEY, "UserID" BIGINT);`
+	stmt44 = `ALTER TABLE "Sessions" ADD CONSTRAINT fk_userid FOREIGN KEY ("UserID") REFERENCES "Accounts"("UserID");`
+
+	// Case 7: Partitioned table (single level), BIGINT → INTEGER mismatch
+	stmt45 = `CREATE TABLE customers_root (id INTEGER PRIMARY KEY);`
+	stmt46 = `CREATE TABLE orders_partitioned (
+		order_id SERIAL,
+		customer_id BIGINT
+	) PARTITION BY RANGE (order_id);`
+	stmt47 = `CREATE TABLE orders_p1 PARTITION OF orders_partitioned FOR VALUES FROM (1) TO (10000);`
+	stmt48 = `ALTER TABLE orders_partitioned ADD CONSTRAINT fk_customer_id FOREIGN KEY (customer_id) REFERENCES customers_root(id);`
+
+	// Case 8: Multi-level partitioned table, BIGINT → INTEGER mismatch
+	stmt49 = `CREATE TABLE products_root (id INTEGER PRIMARY KEY);`
+	stmt50 = `CREATE TABLE sales (
+		sale_id INT,
+		product_id BIGINT
+	) PARTITION BY RANGE (sale_id);`
+	stmt51 = `CREATE TABLE sales_q1 PARTITION OF sales FOR VALUES FROM (1) TO (1000) PARTITION BY RANGE (sale_id);`
+	stmt52 = `CREATE TABLE sales_q1_jan PARTITION OF sales_q1 FOR VALUES FROM (1) TO (250);`
+	stmt53 = `ALTER TABLE sales ADD CONSTRAINT fk_product_id FOREIGN KEY (product_id) REFERENCES products_root(id);`
+
+	// Case 9: Inherited table (multi-level), BIGINT → INTEGER mismatch
+	stmt54 = `CREATE TABLE base_items (item_id INTEGER PRIMARY KEY);`
+	stmt55 = `CREATE TABLE derived_items_1 (extra_info TEXT) INHERITS (base_items);`
+	stmt56 = `CREATE TABLE derived_items_2 (notes TEXT, item_id BIGINT) INHERITS (derived_items_1);`
+	stmt57 = `ALTER TABLE derived_items_2 ADD CONSTRAINT fk_item_id FOREIGN KEY (item_id) REFERENCES base_items(item_id);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -289,7 +319,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -359,6 +389,18 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt41: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
+		},
+		stmt44: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "int8", "int4"),
+		},
+		stmt48: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "int8", "int4"),
+		},
+		stmt53: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "int8", "int4"),
+		},
+		stmt57: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "int8", "int4"),
 		},
 	}
 	for _, stmt := range requiredDDLs {

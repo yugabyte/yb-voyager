@@ -277,54 +277,24 @@ func (tableProcessor *TableProcessor) detectInheritanceAndPartition(table *Table
 	// In PG the dump contains and ALTER TABLE ... ATTACH PARTITION statement
 	partBound := createTableNode.CreateStmt.GetPartbound()
 
-	if len(inhRels) > 0 {
-		if partBound != nil {
-			// This is a partition
-			table.IsPartitionOf = true
-			parentRangeVar := inhRels[0].GetRangeVar()
-			parentSchema := parentRangeVar.Schemaname
-			parentName := parentRangeVar.Relname
+	if len(inhRels) == 0 {
+		return
+	}
 
-			if parentSchema != "" {
-				table.PartitionedFrom = fmt.Sprintf("%s.%s", parentSchema, parentName)
-			} else {
-				table.PartitionedFrom = parentName
-			}
-		} else {
-			// This is a regular inherited table
-			table.IsInherited = true
-			for _, inh := range inhRels {
-				parentRangeVar := inh.GetRangeVar()
-				parentSchema := parentRangeVar.Schemaname
-				parentName := parentRangeVar.Relname
-
-				if parentSchema != "" {
-					table.InheritedFrom = append(table.InheritedFrom, fmt.Sprintf("%s.%s", parentSchema, parentName))
-				} else {
-					table.InheritedFrom = append(table.InheritedFrom, parentName)
-				}
-			}
+	if partBound != nil {
+		// This is a partition
+		table.IsPartitionOf = true
+		parentRangeVar := inhRels[0].GetRangeVar()
+		table.PartitionedFrom = utils.BuildObjectName(parentRangeVar.Schemaname, parentRangeVar.Relname)
+	} else {
+		// This is a regular inherited table
+		table.IsInherited = true
+		for _, inh := range inhRels {
+			parentRangeVar := inh.GetRangeVar()
+			table.InheritedFrom = append(table.InheritedFrom, utils.BuildObjectName(parentRangeVar.Schemaname, parentRangeVar.Relname))
 		}
 	}
-}
 
-func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
-	/*
-		CREATE TABLE Test(id int, name text) inherits(test_parent);
-		stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
-		inh_relations:{range_var:{relname:"test_parent" inh:true relpersistence:"p" location:46}} oncommit:ONCOMMIT_NOOP}} stmt_len:58}
-
-		CREATE TABLE accounts_list_partitioned_p_northwest PARTITION OF accounts_list_partitioned FOR VALUES IN ('OR', 'WA');
-		version:160001 stmts:{stmt:{create_stmt:{relation:{relname:"accounts_list_partitioned_p_northwest" inh:true relpersistence:"p" location:14}
-		inh_relations:{range_var:{relname:"accounts_list_partitioned" inh:true relpersistence:"p" location:65}} partbound:{strategy:"l" listdatums:{a_const:{sval:{sval:"OR"} location:106}}
-		listdatums:{a_const:{sval:{sval:"WA"} location:112}} location:102} oncommit:ONCOMMIT_NOOP}}
-	*/
-	inheritsRel := createTableNode.CreateStmt.GetInhRelations()
-	if inheritsRel != nil {
-		isPartitionOf := createTableNode.CreateStmt.GetPartbound() != nil
-		return !isPartitionOf
-	}
-	return false
 }
 
 func (tableProcessor *TableProcessor) parseColumnsFromExclusions(list []*pg_query.Node) []string {
