@@ -90,7 +90,7 @@ func generateAnalyzeReport() error {
 		return fmt.Errorf("generate analyze schema report: %w", err)
 	}
 
-	color.Yellow("Review the schema analysis report for any issues or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful migration.\n\n")
+	color.Yellow("Review the schema analysis report for any issues or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import.\n\n")
 	return nil
 }
 
