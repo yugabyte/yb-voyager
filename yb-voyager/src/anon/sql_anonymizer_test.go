@@ -8,6 +8,8 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
+	"gotest.tools/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
@@ -26,6 +28,7 @@ var schemaTokenRegistry TokenRegistry
 */
 
 func createMetaDB(exportDir string) (*metadb.MetaDB, error) {
+	log.SetLevel(log.ErrorLevel)
 	err := metadb.CreateAndInitMetaDBIfRequired(exportDir)
 	if err != nil {
 		return nil, fmt.Errorf("could not create and init meta db: %w", err)
@@ -52,7 +55,22 @@ func newAnon(t *testing.T, exportDir string) Anonymizer {
 
 	a := NewSqlAnonymizer(schemaTokenRegistry)
 	testutils.FatalIfError(t, err)
+
 	return a
+}
+
+func getToken(t *testing.T, a Anonymizer, orig string) string {
+	sqlAnonymizer, ok := a.(*SqlAnonymizer)
+	if !ok {
+		t.Fatalf("expected SqlAnonymizer, got %T", a)
+	}
+
+	schemaRegistry, ok := sqlAnonymizer.registry.(*SchemaTokenRegistry)
+	if !ok {
+		t.Fatalf("expected SchemaTokenRegistry, got %T", sqlAnonymizer.registry)
+	}
+
+	return schemaRegistry.tokenMap[orig]
 }
 
 func hasToken(s, prefix string) bool {
@@ -198,110 +216,81 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 	}
 }
 
-func TestTableAndColumnDDLs(t *testing.T) {
-	tests := []struct {
-		name         string
-		sql          string   // input
-		badStrings   []string // must disappear
-		wantPrefixes []string
-	}{
-		{
-			"simple create",
-			"CREATE TABLE foo (id INT, name TEXT);",
-			[]string{"foo", "id", "name"},
-			[]string{TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-		{
-			"schema-qualified",
-			`CREATE TABLE sales.orders (OrderID int, Total numeric);`,
-			[]string{"sales", "orders", "OrderID", "Total"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-		{
-			"quoted / mixed case",
-			`CREATE TABLE "Customer"."LineItems" ("LineID" int, "ProductSKU" text);`,
-			[]string{"Customer", "LineItems", "LineID", "ProductSKU"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-	}
-
+func TestSameTokenForSameObjectName(t *testing.T) {
 	exportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 	a := newAnon(t, exportDir)
 
-	for _, tc := range tests {
-		tc := tc // capture
-		t.Run(tc.name, func(t *testing.T) {
-			out, err := a.Anonymize(tc.sql)
-			if err != nil {
-				t.Fatalf("Anonymize: %v", err)
-			}
-			t.Logf("\nIN : %s\nOUT: %s", tc.sql, out)
-
-			for _, bad := range tc.badStrings {
-				if strings.Contains(out, bad) {
-					t.Errorf("found raw identifier %q in output", bad)
-				}
-			}
-			for _, pref := range tc.wantPrefixes {
-				if !hasToken(out, pref) {
-					t.Errorf("expected token with prefix %q", pref)
-				}
-			}
-		})
-	}
-}
-
-func TestIndexConstraintAlias(t *testing.T) {
-	tests := []struct {
-		name         string
-		sql          string
-		bad          []string
-		wantPrefixes []string
+	cases := []struct {
+		name        string
+		identifiers []struct{ kind, raw string }
+		sql1, sql2  string
 	}{
 		{
-			"index + table",
-			"CREATE INDEX idx_foo ON mytable(bar);",
-			[]string{"idx_foo", "mytable", "bar"},
-			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+			name: "same table & columns",
+			identifiers: []struct{ kind, raw string }{
+				{TABLE_KIND_PREFIX, "users"},
+				{COLUMN_KIND_PREFIX, "id"},
+				{COLUMN_KIND_PREFIX, "name"},
+			},
+			sql1: "SELECT * FROM users",
+			sql2: "SELECT id, name FROM users WHERE id > 10",
 		},
 		{
-			"constraint",
-			"CREATE TABLE foo (id int CONSTRAINT pk_foo PRIMARY KEY);",
-			[]string{"foo", "pk_foo"},
-			[]string{TABLE_KIND_PREFIX, CONSTRAINT_KIND_PREFIX},
+			name: "same column",
+			identifiers: []struct{ kind, raw string }{
+				{COLUMN_KIND_PREFIX, "password"},
+				{TABLE_KIND_PREFIX, "accounts"},
+				{COLUMN_KIND_PREFIX, "id"},
+				{CONST_KIND_PREFIX, "x"},
+			},
+			sql1: "SELECT password FROM accounts",
+			sql2: "UPDATE accounts SET password = 'x' WHERE id = 1",
 		},
 		{
-			"alias reference",
-			"SELECT * FROM orders order_alias WHERE o.amount > 100;",
-			[]string{"orders", "order_alias", "amount"},
-			[]string{ALIAS_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+			name: "same alias",
+			identifiers: []struct{ kind, raw string }{
+				{ALIAS_KIND_PREFIX, "cust"},
+				{TABLE_KIND_PREFIX, "orders"},
+				{COLUMN_KIND_PREFIX, "amount"},
+				{SCHEMA_KIND_PREFIX, "cust"},
+			},
+			sql1: "SELECT * FROM orders cust",
+			sql2: "SELECT cust.amount FROM orders cust WHERE cust.amount > 100",
 		},
 	}
 
-	exportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-	a := newAnon(t, exportDir)
-
-	for _, tc := range tests {
+	for _, tc := range cases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			out, err := a.Anonymize(tc.sql)
+			actual1, err := a.Anonymize(tc.sql1)
 			if err != nil {
-				t.Fatalf("Anonymize error: %v", err)
+				t.Fatalf("1st Anonymize: %v", err)
 			}
-			t.Logf("\nIN : %s\nOUT: %s", tc.sql, out)
+			actual2, err := a.Anonymize(tc.sql2)
+			if err != nil {
+				t.Fatalf("2nd Anonymize: %v", err)
+			}
 
-			for _, b := range tc.bad {
-				if strings.Contains(out, b) {
-					t.Errorf("found raw %q", b)
+			expected1 := tc.sql1
+			expected2 := tc.sql2
+
+			// For each (kind, raw) pair, lookup token via kind+raw
+			for _, e := range tc.identifiers {
+				token := getToken(t, a, e.kind+e.raw)
+				if token == "" {
+					t.Fatalf("no token for kind+raw %q", e.kind+e.raw)
 				}
+				t.Logf("Replacing raw %q with token %q", e.raw, token)
+				expected1 = strings.ReplaceAll(expected1, e.raw, token)
+				expected2 = strings.ReplaceAll(expected2, e.raw, token)
 			}
-			for _, p := range tc.wantPrefixes {
-				if !hasToken(out, p) {
-					t.Errorf("missing token prefix %q", p)
-				}
-			}
+
+			t.Logf("\nIN1 : %s\nOUT1: %s\nEXP1: %s", tc.sql1, actual1, expected1)
+			t.Logf("\nIN2 : %s\nOUT2: %s\nEXP2: %s", tc.sql2, actual2, expected2)
+
+			assert.Equal(t, actual1, expected1, "Anonymized SQL1 mismatch: \n got: %s\nwant: %s", actual1, expected1)
+			assert.Equal(t, actual2, expected2, "Anonymized SQL2 mismatch: \n got: %s\nwant: %s", actual2, expected2)
 		})
 	}
 }
