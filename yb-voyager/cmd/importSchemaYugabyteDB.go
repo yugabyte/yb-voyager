@@ -17,7 +17,6 @@ package cmd
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -81,9 +80,7 @@ func generateAnalyzeReport() error {
 	}
 	targetDBVersionStr := splits[2]
 	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
-	if err != nil && errors.Is(err, ybversion.ErrUnsupportedSeries) {
-		return fmt.Errorf("unsupported target db version %q", importTargetDBVersion)
-	} else if err != nil {
+	if err != nil {
 		return fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
 	}
 	fmt.Printf("\n")
