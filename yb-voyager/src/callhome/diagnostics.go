@@ -241,7 +241,7 @@ type ImportSchemaPhasePayload struct {
 /*
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
-1.1: Added YBClusterMetrics field
+1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 */
 var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
