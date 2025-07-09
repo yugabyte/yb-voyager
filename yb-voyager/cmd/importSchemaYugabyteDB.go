@@ -82,14 +82,18 @@ func generateAnalyzeReport() error {
 	targetDBVersionStr := splits[2]
 	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
 	if err != nil && errors.Is(err, ybversion.ErrUnsupportedSeries) {
-		targetDbVersion = ybversion.LatestStable
+		return fmt.Errorf("unsupported target db version %q", importTargetDBVersion)
 	} else if err != nil {
 		return fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
 	}
 	fmt.Printf("\n")
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
-	generateAnalyzeSchemaReport(msr, HTML)
-	color.Yellow("Review the schema analysis report for the issues that need to be addressed before import schema.\n\n")
+	err = generateAnalyzeSchemaReport(msr, HTML)
+	if err != nil {
+		return fmt.Errorf("generate analyze schema report: %w", err)
+	}
+
+	color.Yellow("Review the schema analysis report for any issues or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful migration.\n\n")
 	return nil
 }
 
