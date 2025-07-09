@@ -1661,7 +1661,8 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 
 	query := "select uuid, metrics, status, error from yb_servers_metrics();"
 
-	// since this is a common/shared connection across all queries
+	// since the query is run on a single common connection shared across all queries to be executed on target.
+	// GetClusterMetrics() function itself in being used at multiple places: Monitoring, Adaptive Parallelism, and callhome
 	yb.Lock()
 	defer yb.Unlock()
 	rows, err := yb.Query(query)

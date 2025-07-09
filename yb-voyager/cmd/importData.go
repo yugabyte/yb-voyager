@@ -1693,6 +1693,7 @@ func BuildCallhomeYBClusterMetrics() (callhome.YBClusterMetrics, error) {
 		// in case of err value will be -1
 		cpuPct, err := nodeMetrics.GetCPUPercent()
 		if err != nil {
+			// ignore and not error out - getter function can fail for a node but we would still like to collect metrics for other nodes
 			log.Warnf("callhome: error getting CPU percent for node %s: %v", nodeMetrics.UUID, err)
 		}
 		memPct, err := nodeMetrics.GetMemPercent()
