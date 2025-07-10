@@ -415,7 +415,7 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		`Action to take on primary key conflict during data import.
 Supported values:
 ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
-IGNORE		: Skips rows with existing primary keys and uses fast-path import for better performance with colocated tables.`)
+IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 	cmd.Flags().MarkHidden("skip-node-health-checks")
