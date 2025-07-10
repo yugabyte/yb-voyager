@@ -394,6 +394,8 @@ func exportData() bool {
 					// we have the PID of the process running debezium export
 					// so we can suggest the user to terminate it
 					errorMsg = fmt.Sprintf("%s. Terminate the process on the pid %s, and re-run the command.", errorMsg, pid)
+				} else {
+					log.Errorf("error getting debezium PID: %v", err)
 				}
 				utils.ErrExit(color.RedString("\n%s", errorMsg))
 			}
