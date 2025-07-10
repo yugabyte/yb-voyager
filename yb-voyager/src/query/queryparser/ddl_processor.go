@@ -117,11 +117,14 @@ func (tableProcessor *TableProcessor) Process(parseTree *pg_query.ParseResult) (
 		*/
 		IsUnlogged:       createTableNode.CreateStmt.Relation.GetRelpersistence() == "u",
 		IsPartitioned:    createTableNode.CreateStmt.GetPartspec() != nil,
-		IsInherited:      tableProcessor.checkInheritance(createTableNode),
+		InheritedFrom:    make([]string, 0), // Names of parent tables from which inherited (can be multiple)
 		GeneratedColumns: make([]string, 0),
 		Constraints:      make([]TableConstraint, 0),
 		PartitionColumns: make([]string, 0),
 	}
+
+	// Populate IsInherited, IsPartitionOf, InheritedFrom, PartitionedFrom
+	tableProcessor.detectInheritanceAndPartition(table, createTableNode)
 
 	// Parse columns and their properties
 	tableProcessor.parseTableElts(createTableNode.CreateStmt.TableElts, table)
@@ -158,6 +161,11 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 
 			typeNames := element.GetColumnDef().GetTypeName().GetNames()
 			typeSchemaName, typeName := getSchemaAndObjectName(typeNames)
+
+			// Extract typmod values like length or precision from the column definition (e.g., VARCHAR(10) → [10])
+			typmods := element.GetColumnDef().GetTypeName().GetTypmods()
+			extractedMods := extractTypeMods(typmods)
+
 			/*
 				e.g. CREATE TABLE test_xml_type(id int, data xml);
 				relation:{relname:"test_xml_type" inh:true relpersistence:"p" location:15} table_elts:{column_def:{colname:"id"
@@ -172,6 +180,7 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 			table.Columns = append(table.Columns, TableColumn{
 				ColumnName:  colName,
 				TypeName:    typeName,
+				TypeMods:    extractedMods,
 				TypeSchema:  typeSchemaName,
 				IsArrayType: isArrayType(element.GetColumnDef().GetTypeName()),
 				/*
@@ -211,7 +220,7 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 
 							In case of FKs there is field called PkTable which has reference table information
 						*/
-						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable)
+						table.addConstraint(constraint.Contype, []string{colName}, constraint.Conname, false, constraint.Pktable, constraint.PkAttrs)
 					}
 				}
 			}
@@ -244,13 +253,13 @@ func (tableProcessor *TableProcessor) parseTableElts(tableElts []*pg_query.Node,
 				//fk_attrs:{string:{sval:"abc_id"}} pk_attrs:{string:{sval:"id"}}
 				columns = parseColumnsFromKeys(fkAttrs)
 			}
-			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable, constraint.Pktable)
+			table.addConstraint(conType, columns, constraint.Conname, constraint.Deferrable, constraint.Pktable, constraint.PkAttrs)
 
 		}
 	}
 }
 
-func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query.Node_CreateStmt) bool {
+func (tableProcessor *TableProcessor) detectInheritanceAndPartition(table *Table, createTableNode *pg_query.Node_CreateStmt) {
 	/*
 		CREATE TABLE Test(id int, name text) inherits(test_parent);
 		stmts:{stmt:{create_stmt:{relation:{relname:"test" inh:true relpersistence:"p" location:13} table_elts:{column_def:{colname:"id" ....
@@ -261,12 +270,31 @@ func (tableProcessor *TableProcessor) checkInheritance(createTableNode *pg_query
 		inh_relations:{range_var:{relname:"accounts_list_partitioned" inh:true relpersistence:"p" location:65}} partbound:{strategy:"l" listdatums:{a_const:{sval:{sval:"OR"} location:106}}
 		listdatums:{a_const:{sval:{sval:"WA"} location:112}} location:102} oncommit:ONCOMMIT_NOOP}}
 	*/
-	inheritsRel := createTableNode.CreateStmt.GetInhRelations()
-	if inheritsRel != nil {
-		isPartitionOf := createTableNode.CreateStmt.GetPartbound() != nil
-		return !isPartitionOf
+
+	inhRels := createTableNode.CreateStmt.GetInhRelations()
+
+	// This does not get populated in PG
+	// In PG the dump contains and ALTER TABLE ... ATTACH PARTITION statement
+	partBound := createTableNode.CreateStmt.GetPartbound()
+
+	if len(inhRels) == 0 {
+		return
 	}
-	return false
+
+	if partBound != nil {
+		// This is a partition
+		table.IsPartitionOf = true
+		parentRangeVar := inhRels[0].GetRangeVar()
+		table.PartitionedFrom = utils.BuildObjectName(parentRangeVar.Schemaname, parentRangeVar.Relname)
+	} else {
+		// This is a regular inherited table
+		table.IsInherited = true
+		for _, inh := range inhRels {
+			parentRangeVar := inh.GetRangeVar()
+			table.InheritedFrom = append(table.InheritedFrom, utils.BuildObjectName(parentRangeVar.Schemaname, parentRangeVar.Relname))
+		}
+	}
+
 }
 
 func (tableProcessor *TableProcessor) parseColumnsFromExclusions(list []*pg_query.Node) []string {
@@ -283,7 +311,6 @@ func parseColumnsFromKeys(keys []*pg_query.Node) []string {
 		res = append(res, k.GetString_().Sval)
 	}
 	return res
-
 }
 
 func (tableProcessor *TableProcessor) isGeneratedColumn(colDef *pg_query.ColumnDef) bool {
@@ -300,7 +327,10 @@ type Table struct {
 	TableName             string
 	IsUnlogged            bool
 	IsInherited           bool
-	IsPartitioned         bool
+	InheritedFrom         []string // Names of parent tables from which inherited (can be multiple)
+	IsPartitioned         bool     // true if this table is a partitioned table
+	IsPartitionOf         bool     // true if this table is a partition of a parent table
+	PartitionedFrom       string   // Name of the parent partitioned table if this is a partition
 	Columns               []TableColumn
 	IsExpressionPartition bool
 	PartitionStrategy     pg_query.PartitionStrategy
@@ -312,6 +342,7 @@ type Table struct {
 type TableColumn struct {
 	ColumnName  string
 	TypeName    string
+	TypeMods    []int32
 	TypeSchema  string
 	IsArrayType bool
 	Compression string
@@ -322,11 +353,12 @@ func (tc *TableColumn) GetFullTypeName() string {
 }
 
 type TableConstraint struct {
-	ConstraintType  pg_query.ConstrType
-	ConstraintName  string
-	IsDeferrable    bool
-	ReferencedTable string
-	Columns         []string
+	ConstraintType    pg_query.ConstrType
+	ConstraintName    string
+	IsDeferrable      bool
+	ReferencedTable   string
+	Columns           []string
+	ReferencedColumns []string
 }
 
 func (c *TableConstraint) IsPrimaryKeyORUniqueConstraint() bool {
@@ -377,7 +409,7 @@ func (t *Table) UniqueKeyColumns() []string {
 	return uniqueCols
 }
 
-func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool, referencedTable *pg_query.RangeVar) {
+func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, specifiedConName string, deferrable bool, referencedTable *pg_query.RangeVar, referencedCols []*pg_query.Node) {
 	tc := TableConstraint{
 		ConstraintType: conType,
 		Columns:        columns,
@@ -388,6 +420,9 @@ func (t *Table) addConstraint(conType pg_query.ConstrType, columns []string, spe
 	tc.ConstraintName = conName
 	if conType == FOREIGN_CONSTR_TYPE {
 		tc.ReferencedTable = utils.BuildObjectName(referencedTable.Schemaname, referencedTable.Relname)
+		if referencedCols != nil {
+			tc.ReferencedColumns = parseColumnsFromKeys(referencedCols)
+		}
 	}
 	t.Constraints = append(t.Constraints, tc)
 }
@@ -778,6 +813,7 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			*/
 			alter.ConstraintColumns = parseColumnsFromKeys(constraint.FkAttrs)
 			alter.ConstraintReferencedTable = utils.BuildObjectName(constraint.Pktable.Schemaname, constraint.Pktable.Relname)
+			alter.ConstraintReferencedColumns = parseColumnsFromKeys(constraint.PkAttrs)
 		}
 
 	case pg_query.AlterTableType_AT_DisableRule:
@@ -794,6 +830,16 @@ func (atProcessor *AlterTableProcessor) Process(parseTree *pg_query.ParseResult)
 			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"idx" behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:32
 
 		*/
+
+	case pg_query.AlterTableType_AT_AttachPartition:
+		/*
+			e.g. ALTER TABLE ONLY public.device_events ATTACH PARTITION public.device_events_june2024 FOR VALUES FROM ('2024-06-01 00:00:00+00') TO ('2024-07-01 00:00:00+00');
+			stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"device_events_pkey" inh:true relpersistence:"p" location:12}
+			cmds:{alter_table_cmd:{subtype:AT_AttachPartition def:{partition_cmd:{name:{schemaname:"public" relname:"device_events_june2024_pkey" inh:true relpersistence:"p" location:55}}}behavior:DROP_RESTRICT}} objtype:OBJECT_INDEX}} stmt_len:89
+		*/
+		partitionCmd := cmd.GetDef().GetPartitionCmd()
+		partitionChildTable := partitionCmd.GetName()
+		alter.PartitionedChild = utils.BuildObjectName(partitionChildTable.Schemaname, partitionChildTable.Relname)
 	}
 
 	return alter, nil
@@ -808,12 +854,14 @@ type AlterTable struct {
 	NumSetAttributes  int
 	NumStorageOptions int
 	//In case AlterType - ADD_CONSTRAINT
-	ConstraintType            pg_query.ConstrType
-	ConstraintName            string
-	ConstraintNotValid        bool
-	ConstraintReferencedTable string
-	IsDeferrable              bool
-	ConstraintColumns         []string
+	ConstraintType              pg_query.ConstrType
+	ConstraintName              string
+	ConstraintNotValid          bool
+	ConstraintReferencedTable   string
+	ConstraintReferencedColumns []string //In case of Foreign key constraint
+	IsDeferrable                bool
+	ConstraintColumns           []string
+	PartitionedChild            string // In case this is a partitioned table
 }
 
 func (a *AlterTable) GetObjectName() string {
