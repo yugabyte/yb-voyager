@@ -388,14 +388,14 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
+				errorMsg := fmt.Sprintf("Replication slot '%s' is active.", msr.PGReplicationSlotName)
 				pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
-				if err != nil && errors.Is(err, os.ErrNotExist) {
-					// If lock file does not exist, it means the debezium export is not running, so we can exit with generic error message
-					utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any other process is using it.", msr.PGReplicationSlotName)
-				} else if err != nil {
-					utils.ErrExit("error checking if replication slot is active: %v", err)
+				if err == nil {
+					// we have the PID of the process running debezium export
+					// so we can suggest the user to terminate it
+					errorMsg = fmt.Sprintf("%s Terminate the process on the pid %s and re-run the command", errorMsg, pid)
 				}
-				utils.ErrExit(color.RedString("\nReplication slot '%s' is active. Check and terminate if there is any process running on this PID: %s.", msr.PGReplicationSlotName, pid))
+				utils.ErrExit(color.RedString("\n%s", errorMsg))
 			}
 
 			// Setting up sequence values for debezium to start tracking from..
