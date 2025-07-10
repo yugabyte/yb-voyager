@@ -364,6 +364,100 @@ CREATE TABLE test_schema.test_data (
 	}
 }
 
+func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_PartitionedTableAlreadyHasData(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+	createTableSQL := `
+CREATE TABLE test_schema.emp (
+	emp_id   INT,
+	emp_name TEXT,
+	dep_code INT,
+	PRIMARY KEY (emp_id)
+) PARTITION BY HASH (emp_id);
+
+CREATE TABLE test_schema.emp_0 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE test_schema.emp_1 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+`
+
+	// insert 100 rows in the table
+	var pgInsertStatements, ybInsertStatements []string
+	for i := 0; i < 100; i++ {
+		empID := i + 1
+		depCode := i % 5
+		insertStatement := fmt.Sprintf(
+			`INSERT INTO test_schema.emp (emp_id, emp_name, dep_code) VALUES (%d, 'name_%d', %d);`,
+			empID, i, depCode,
+		)
+
+		if (i % 2) == 0 {
+			ybInsertStatements = append(ybInsertStatements, insertStatement)
+		}
+		pgInsertStatements = append(pgInsertStatements, insertStatement)
+	}
+
+	// prepare Postgres with full data
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	postgresContainer.ExecuteSqls(pgInsertStatements...)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// pre-load half the data into Yugabyte to cause PK conflicts
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	yugabytedbContainer.ExecuteSqls(ybInsertStatements...)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Export data from Postgres.
+	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	err := exportRunner.Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	// Import into Yugabyte with IGNORE on PK conflict.
+	importRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--on-primary-key-conflict", "IGNORE",
+		"--yes",
+	}, nil, false)
+	err = importRunner.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB.
+	// We assume the table "emp" has a primary key "emp_id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.emp", "emp_id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+}
+
 // This test uses Fast Path import with --on-primary-key-conflict=IGNORE
 // Focuses on testing the import of all data types via import batch recovery mode(INSERT ON CONFLICT DO NOTHING statements)
 func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *testing.T) {

@@ -100,6 +100,15 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	return nil
 }
 
+func validateImportDataFlags() error {
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
+
+	return nil
+}
+
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
@@ -525,5 +534,8 @@ func validateOnPrimaryKeyConflictFlag() error {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+		utils.PrintAndLog("Note: --on-primary-key-conflict is set as 'IGNORE'. Rows with existing primary keys will be skipped during import.")
+	}
 	return nil
 }

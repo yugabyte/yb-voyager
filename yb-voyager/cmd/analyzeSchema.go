@@ -649,6 +649,9 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	migrationCaveatsIssues = append(migrationCaveatsIssues, queryissue.UnsupportedDatatypesInLiveMigrationIssuesWithFForFBIssues...)
 
 	switch true {
+	case slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type):
+		issueType = PERFORMANCE_OPTIMIZATIONS_CATEGORY
+
 	case isPlPgSQLIssue:
 		issueType = UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY
 	case slices.ContainsFunc(migrationCaveatsIssues, func(i string) bool {
@@ -659,8 +662,7 @@ func convertIssueInstanceToAnalyzeIssue(issueInstance queryissue.QueryIssue, fil
 	case strings.HasPrefix(issueInstance.Name, UNSUPPORTED_DATATYPE):
 		//Adding the UNSUPPORTED_DATATYPES issueType of the utils.Issue for these issues whose TypeName starts with "Unsupported datatype ..."
 		issueType = UNSUPPORTED_DATATYPES_CATEGORY
-	case slices.Contains(queryissue.PerformanceOptimizationIssues, issueInstance.Type):
-		issueType = PERFORMANCE_OPTIMIZATIONS_CATEGORY
+
 	}
 
 	var constraintIssues = []string{

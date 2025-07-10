@@ -296,6 +296,24 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
 }
 
+func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {
+	if err == nil {
+		return false
+	}
+	// Check if the error is a primary key violation error.
+	for _, pkConstraintName := range pkConstraintNames {
+		pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, pkConstraintName)
+		if strings.Contains(err.Error(), pkViolationErr) {
+			log.Infof("matched primary key violation error for constraint %q\nexpectedErr=%s, actualErr=%s\n",
+				pkConstraintName, pkViolationErr, err.Error())
+			return true
+		}
+	}
+
+	log.Infof("not a primary key violation error, expected one of the following: %v, actualErr=%s", pkConstraintNames, err.Error())
+	return false
+}
+
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
 	query := "SELECT schema_name FROM information_schema.schemata"
 	rows, err := yb.Query(query)
@@ -472,24 +490,56 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
 // If the table does not have a primary key, it returns an empty string and no error
-func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+// If the table is partitioned, it returns the list of primary key constraint names for all partitions
+//
+//	If multi level partitioning, need to return all the primary key constraint names for all levels(recursively)
+func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	recursiveCTEQuery := fmt.Sprintf(`
+WITH RECURSIVE all_parts AS (
+  -- 1) Seed: include the parent table's OID
+  SELECT oid AS tbl_oid
+    FROM pg_class
+   WHERE oid = '%s'::regclass
 
-	var constraintName string
-	err := yb.QueryRow(query).Scan(&constraintName)
+  UNION ALL
+
+  -- 2) Recursion: find each table's immediate partitions
+  SELECT inh.inhrelid
+    FROM pg_inherits inh
+    JOIN all_parts ap ON inh.inhparent = ap.tbl_oid
+)
+-- 3) Pull every primary-key constraint on the parent or any partition
+SELECT
+  c.conname AS constraint_name
+FROM pg_constraint c
+JOIN all_parts ap
+  ON ap.tbl_oid = c.conrelid   -- only constraints on our collected tables
+WHERE c.contype = 'p';          -- filter for PRIMARY KEY only`, table.ForOutput()) // use the fully qualified table name
+
+	log.Infof("Querying for primary key constraint names for table %s: %s", table.ForMinOutput(), recursiveCTEQuery)
+	var constraintNames []string
+	rows, err := yb.Query(recursiveCTEQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
+			return nil, nil // No primary key constraint found
 		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query PK constraint name for table %s: %w", table.ForMinOutput(), err)
 	}
-	return constraintName, nil
+	defer rows.Close()
+
+	for rows.Next() {
+		var cn string
+		if err := rows.Scan(&cn); err != nil {
+			return nil, fmt.Errorf("scan PK constraint name for table %s: %w", table.ForMinOutput(), err)
+		}
+		constraintNames = append(constraintNames, cn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over PK constraint names for table %s: %w", table.ForMinOutput(), err)
+	}
+
+	log.Infof("found %d primary key constraint(s) for table %s: %v", len(constraintNames), table.ForMinOutput(), constraintNames)
+	return constraintNames, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -532,10 +582,11 @@ ImportBatch function handles variety of cases for importing a batch into Yugabyt
 3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
 */
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
-	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 
 	var rowsAffected int64
 	var err error
+	var isPartialBatchIngestionPossibleOnError bool
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if args.ShouldUseFastPath() {
 			if !isRecoveryCandidate {
@@ -543,6 +594,15 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 			} else {
 				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
 			}
+			// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
+			// it is likely that there was partial ingestion of the batch.
+			// This is not necessarily always the case. For instance, if there is an error while reading the file,
+			// (i.e. before even executing COPY), the entire batch was not ingested, so it's not really a case of partial ingeetion.
+			// However, if it's a resumption case (i.e. batch is retried after a stop-start), then, even if it fails while reading the file,
+			// it is likely that the batch was partially ingested in the previous attempt, so it is indeed a case of partial ingestion.
+			// Since this is hard to determine, we always assume that if there is an error in the fast path,
+			// it is likely that the batch was partially ingested.
+			isPartialBatchIngestionPossibleOnError = lo.Ternary(err != nil, true, false)
 		} else {
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
 			rowsAffected, err = yb.importBatch(conn, batch, args)
@@ -550,7 +610,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, isPartialBatchIngestionPossibleOnError
 }
 
 func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
@@ -603,9 +663,7 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
 	*/
-	pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-	if err != nil && strings.Contains(err.Error(), pkViolationErr) {
-		log.Debugf("importBatchFast: expectedErr=%s, actualErr=%s\n", pkViolationErr, err.Error())
+	if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 		log.Infof("falling back to importBatchFastRecover for batch %q: %s", batch.GetFilePath(), err.Error())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
@@ -738,8 +796,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
 			// Ignore err if its VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH only
-			pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-			if strings.Contains(err.Error(), pkViolationErr) {
+			if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 				// logging lineNum might not be useful as batches are truncated later on
 				log.Debugf("ignoring error %s for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line

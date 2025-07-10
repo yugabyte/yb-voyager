@@ -143,6 +143,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	var rowsAffected int64
 	var err error // Note: make sure to not define any other err variable in this scope
+	var isPartialBatchIngestionPossibleOnError bool
 
 	if batch.RecordCount == 0 {
 		// an empty batch is possible in case there are errors while reading and procesing rows in the file
@@ -189,7 +190,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	for attempt := 0; attempt < COPY_MAX_RETRY_COUNT; attempt++ {
 		tableSchema, _ := TableNameToSchema.Get(batch.TableNameTup)
 		isRecoveryCandidate := (recoveryBatch || attempt > 0)
-		rowsAffected, err = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
+		rowsAffected, err, isPartialBatchIngestionPossibleOnError = tdb.ImportBatch(batch, &importBatchArgs, exportDir, tableSchema, isRecoveryCandidate)
 		if err == nil || tdb.IsNonRetryableCopyError(err) {
 			break
 		}
@@ -217,7 +218,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		// Handle the error
 		log.Errorf("Handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err)
 		var err2 error
-		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err)
+		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
 			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
 		}
@@ -317,6 +318,12 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote column names: %s", err)
 	}
 
+	/*
+		How is table partitioning handled here?
+		- For partitioned tables, we import the datafiles of leafs into root
+		  Hence query is made on root tables which will fetch all the constraints names(parent and all children)
+	*/
+	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
@@ -326,7 +333,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		utils.ErrExit("if required quote primary key column names: %s", err)
 	}
 
-	pkConstraintName, err := tdb.GetPrimaryKeyConstraintName(tableNameTup)
+	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
 		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
 	}
@@ -344,7 +351,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 		TableNameTup:      tableNameTup,
 		Columns:           columns,
 		PrimaryKeyColumns: pkColumns,
-		PKConstraintName:  pkConstraintName,
+		PKConstraintNames: pkConstraintNames,
 		PKConflictAction:  tconf.OnPrimaryKeyConflictAction,
 		FileFormat:        fileFormat,
 		Delimiter:         dataFileDescriptor.Delimiter,
