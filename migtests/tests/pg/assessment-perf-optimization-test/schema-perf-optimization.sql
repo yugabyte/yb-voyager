@@ -293,6 +293,19 @@ CREATE INDEX idx2 ON test.t USING btree (val1);
 
 CREATE INDEX idx_try ON test.t_low_most USING btree (id);
 
+CREATE TABLE tbl(id int);
+
+INSERT INTO tbl(id)
+SELECT i%2 FROM generate_series(1, 1000) AS i;
+
+CREATE INDEX idx_try on public.tbl(id);
+
+CREATE OR REPLACE FUNCTION test_perf_plpgsql()
+RETURNS VOID AS $$
+BEGIN
+	CREATE INDEX idx_try1 on public.tbl(id);
+END;
+$$ LANGUAGE plpgsql;
 
 --
 -- PostgreSQL database dump complete

@@ -461,6 +461,10 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
+
+	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
+	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
+	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type '%s', while the referenced column is of type '%s'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other."
 )
 
 // Object types

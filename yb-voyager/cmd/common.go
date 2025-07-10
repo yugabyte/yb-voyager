@@ -1027,34 +1027,42 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 		}
 	}
-
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-	dataFilePathNtMap := map[string]sqlname.NameTuple{}
+	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
 			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			dataFilePathNtMap[fileEntry.FilePath] = nt
+			list, ok := nameTupleTodataFilesMap.Get(nt)
+			if !ok {
+				list = []string{}
+			}
+			list = append(list, fileEntry.FilePath)
+			nameTupleTodataFilesMap.Put(nt, list)
 		}
 	}
 
-	for dataFilePath, nt := range dataFilePathNtMap {
-		importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
+	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+		for _, dataFilePath := range dataFilePaths {
+			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
+			if err != nil {
+				return false, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
+			}
+			erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
+			if err != nil {
+				return false, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
+			}
+			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
+			existingRowCountPair.Imported += importedRowCount
+			existingRowCountPair.Errored += erroredRowCount
+			snapshotRowsMap.Put(nt, existingRowCountPair)
 		}
-		erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
-		}
-		existingRowCountPair, _ := snapshotRowsMap.Get(nt)
-		updatedRowCountPair := RowCountPair{
-			Imported: existingRowCountPair.Imported + importedRowCount,
-			Errored:  existingRowCountPair.Errored + erroredRowCount,
-		}
-		snapshotRowsMap.Put(nt, updatedRowCountPair)
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error getting row count of tables: %v", err)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1553,7 +1561,7 @@ func PackAndSendCallhomePayloadOnExit() {
 	case exportDataFromTargetCmd.CommandPath():
 		packAndSendExportDataFromTargetPayload(status, exitErr)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(status, exitErr)
+		packAndSendImportDataToTargetPayload(status, exitErr)
 	case importDataToSourceCmd.CommandPath():
 		packAndSendImportDataToSourcePayload(status, exitErr)
 	case importDataToSourceReplicaCmd.CommandPath():
@@ -1627,7 +1635,7 @@ func sendCallhomePayloadAtIntervals() {
 		case exportDataFromTargetCmd.CommandPath():
 			packAndSendExportDataFromTargetPayload(INPROGRESS, nil)
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS, nil)
+			packAndSendImportDataToTargetPayload(INPROGRESS, nil)
 		case importDataToSourceCmd.CommandPath():
 			packAndSendImportDataToSourcePayload(INPROGRESS, nil)
 		case importDataToSourceReplicaCmd.CommandPath():
