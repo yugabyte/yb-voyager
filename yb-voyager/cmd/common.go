@@ -1055,11 +1055,9 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 				return false, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
 			}
 			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
-			updatedRowCountPair := RowCountPair{
-				Imported: existingRowCountPair.Imported + importedRowCount,
-				Errored:  existingRowCountPair.Errored + erroredRowCount,
-			}
-			snapshotRowsMap.Put(nt, updatedRowCountPair)
+			existingRowCountPair.Imported += importedRowCount
+			existingRowCountPair.Errored += erroredRowCount
+			snapshotRowsMap.Put(nt, existingRowCountPair)
 		}
 		return true, nil
 	})
