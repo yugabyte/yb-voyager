@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"syscall"
 	"time"
 
@@ -230,5 +231,6 @@ func GetPIDOfDebeziumOnExportDir(exportDir string, exporterRole string) (string,
 	if err != nil {
 		return "", fmt.Errorf("read debezium lock file: %v", err)
 	}
-	return string(pid), nil
+	pidStr := strings.TrimSuffix(string(pid), "\n")
+	return pidStr, nil
 }

@@ -388,12 +388,12 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				errorMsg := fmt.Sprintf("Replication slot '%s' is active.", msr.PGReplicationSlotName)
+				errorMsg := fmt.Sprintf("Replication slot '%s' is active", msr.PGReplicationSlotName)
 				pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
 				if err == nil {
 					// we have the PID of the process running debezium export
 					// so we can suggest the user to terminate it
-					errorMsg = fmt.Sprintf("%s Terminate the process on the pid %s and re-run the command", errorMsg, pid)
+					errorMsg = fmt.Sprintf("%s. Terminate the process on the pid %s, and re-run the command.", errorMsg, pid)
 				}
 				utils.ErrExit(color.RedString("\n%s", errorMsg))
 			}
