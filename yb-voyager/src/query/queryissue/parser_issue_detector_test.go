@@ -888,6 +888,10 @@ FROM test_jsonb1;`,
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	// Finalize column metadata after processing all DDLs
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -1128,6 +1132,9 @@ REFERENCES schema1.abc (id);
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
