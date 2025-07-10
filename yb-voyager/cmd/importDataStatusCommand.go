@@ -191,6 +191,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 		}
 	}
 
+	//For import data file, we can have multiple files for a table so the key is a combination of table name and file name.
+	//For import data, we can only single data file for a table so the key is just the table name.
 	outputRows := make(map[string]*tableMigStatusOutputRow)
 
 	for _, dataFile := range dataFileDescriptor.DataFileList {
@@ -199,7 +201,8 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			return nil, fmt.Errorf("prepare row with datafile: %w", err)
 		}
 		if importerRole == IMPORT_FILE_ROLE {
-			outputRows[row.TableName] = row
+			key := row.TableName + "-" + row.FileName
+			outputRows[key] = row
 		} else {
 			// In import-data, for partitioned tables, we may have multiple data files for the same table.
 			// We aggregate the counts for such tables.
@@ -208,12 +211,12 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			existingRow, found = outputRows[row.TableName]
 			if !found {
 				existingRow = &tableMigStatusOutputRow{}
-				outputRows[row.TableName] = existingRow
 			}
 			existingRow.TableName = row.TableName
 			existingRow.TotalCount += row.TotalCount
 			existingRow.ImportedCount += row.ImportedCount
 			existingRow.ErroredCount += row.ErroredCount
+			outputRows[row.TableName] = existingRow
 		}
 	}
 
@@ -231,6 +234,7 @@ func prepareImportDataStatusTable() ([]*tableMigStatusOutputRow, error) {
 			row.Status = STATUS_MIGRATING
 		}
 		table = append(table, row)
+
 	}
 
 	// First sort by status and then by table-name.
