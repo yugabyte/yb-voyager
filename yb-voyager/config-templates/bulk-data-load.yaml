@@ -158,6 +158,12 @@ import-data-file:
   ### Default - 20000
   # batch-size: 20000
 
+  ### Action to take on primary key conflict during data import.
+  ### Accepted values:
+  ###   ERROR   : fail on any PK conflict (default)
+  ###   IGNORE  : skip rows with existing PKs for a fast-path import
+  # on-primary-key-conflict: ERROR
+
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
   ### Accepted values - (trace, debug, info, warn, error, fatal, panic) 
