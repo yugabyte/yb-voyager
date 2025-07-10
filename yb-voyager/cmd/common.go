@@ -506,7 +506,7 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 	// TODO: initialising anonymizer should be a top-level function call, like in root.go
 	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)
 	// so just keeping it here until we refactor and cleanup the code.
-	err = initAnonymizer(metaDB)
+	err = initAnonymizer(metaDBInstance)
 	if err != nil {
 		utils.ErrExit("could not initialize anonymizer: %v", err)
 	}
