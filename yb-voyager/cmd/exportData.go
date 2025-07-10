@@ -388,7 +388,14 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+				pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
+				if err != nil && errors.Is(err, os.ErrNotExist) {
+					// If lock file does not exist, it means the debezium export is not running, so we can exit with generic error message
+					utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any other process is using it.", msr.PGReplicationSlotName)
+				} else if err != nil {
+					utils.ErrExit("error checking if replication slot is active: %v", err)
+				}
+				utils.ErrExit(color.RedString("\nReplication slot '%s' is active. Check and terminate if there is any process running on this PID: %s.", msr.PGReplicationSlotName, pid))
 			}
 
 			// Setting up sequence values for debezium to start tracking from..
