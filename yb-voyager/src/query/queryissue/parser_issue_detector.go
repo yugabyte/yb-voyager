@@ -740,7 +740,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 		NewJsonConstructorFuncDetector(query),
 		NewJsonQueryFunctionDetector(query),
 		NewMergeStatementDetector(query),
-		NewJsonbSubscriptingDetector(query, p.GetJsonbColumns(), p.getJsonbReturnTypeFunctions()),
+		NewJsonbSubscriptingDetector(query, p.jsonbColumns, p.getJsonbReturnTypeFunctions()),
 		NewUniqueNullsNotDistinctDetector(query),
 		NewJsonPredicateExprDetector(query),
 		NewNonDecimalIntegerLiteralDetector(query),
@@ -794,7 +794,7 @@ func (p *ParserIssueDetector) genericIssues(query string) ([]QueryIssue, error) 
 
 func (p *ParserIssueDetector) getJsonbReturnTypeFunctions() []string {
 	var jsonbFunctions []string
-	jsonbColumns := p.GetJsonbColumns()
+	jsonbColumns := p.jsonbColumns
 	for _, function := range p.functionObjects {
 		returnType := function.ReturnType
 		if strings.HasSuffix(returnType, "%TYPE") {
