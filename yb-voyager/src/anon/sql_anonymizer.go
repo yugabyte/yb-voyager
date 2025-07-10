@@ -186,6 +186,13 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
 		}
 
+		/*
+			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
+			ParseTree:	{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
+						index_params:{index_elem:{name:"last_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+						index_params:{index_elem:{name:"first_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+						index_params:{index_elem:{name:"hire_date" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:79
+		*/
 		// 1) Plain column index: (Name != "")
 		//    CREATE INDEX … ON tbl(col1);
 		if ie.Name != "" {
@@ -195,13 +202,15 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			}
 		}
 
+		/*
+			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee((last_name + first_name));
+			ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} ...
+						index_params:{index_elem:{expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"+"}} lexpr:{column_ref:{fields:{string:{sval:"last_name"}} location:47}}
+						rexpr:{column_ref:{fields:{string:{sval:"first_name"}} ...}} ...}} ...}}}}
+		*/
 		// 2) Expression index: (Expr != nil, Name == "")
 		//    CREATE INDEX … ON tbl((col1+col2));
-		if ie.Expr != nil {
-			// Walk into the expression node and anonymize any ColumnRefs inside.
-			// Assuming you already handle ColumnRef elsewhere in your visitor:
-			//   queryparser.TraverseParseTree(ie.Expr, visited, a.anonymizationProcessor)
-		}
+		// this case will be handled already by ColumnRefNode processor
 
 		// 3) Expression alias: (Indexcolname != "")
 		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
@@ -437,7 +446,11 @@ func (a *SqlAnonymizer) columnRefNodeProcessor(msg protoreflect.Message) (err er
 		ParseTree:	{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
 					from_clause:{range_var:{schemaname:"sales"  relname:"orders" }}  }}
 
-		Other example: SELECT *, col1, col2 from sales.orders;
+		Other example:	SELECT *, mydb.sales.users.password FROM mydb.sales.users;
+		ParseTree:		stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+						target_list:{res_target:{val:{ column_ref:
+						{fields:{string:{sval:"mydb"}}  fields:{string:{sval:"sales"}}  fields:{string:{sval:"users"}}  fields:{string:{sval:"password"}}  }}  }}
+						from_clause:{range_var:{catalogname:"mydb"  schemaname:"sales"  relname:"users"  inh:true  relpersistence:"p"  location:41}}  }}
 	*/
 	var strFields []*pg_query.String
 	for _, field := range cr.Fields {

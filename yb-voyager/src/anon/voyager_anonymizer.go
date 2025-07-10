@@ -14,7 +14,7 @@ type VoyagerAnonymizer struct {
 }
 
 func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) {
-	registry, err := NewIdentifierHashRegistry(anonymizationSalt) // Assuming nil for MetaDB in this context
+	registry, err := NewIdentifierHashRegistry(anonymizationSalt)
 	if err != nil {
 		return nil, fmt.Errorf("error creating schema identifier hash registry: %w", err)
 	}

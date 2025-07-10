@@ -139,7 +139,7 @@ type AssessmentIssueCallhome struct {
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -365,8 +365,7 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	// callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
-	callhomeURL := fmt.Sprintf("http://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)

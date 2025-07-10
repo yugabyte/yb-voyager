@@ -503,6 +503,18 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
+	// TODO: initialising anonymizer should be a top-level function call, like in root.go
+	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)
+	// so just keeping it here until we refactor and cleanup the code.
+	err = initAnonymizer(metaDB)
+	if err != nil {
+		utils.ErrExit("could not initialize anonymizer: %v", err)
+	}
+
+	return metaDBInstance
+}
+
+func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
 	// generate salt and initialise the anonymiser
 	salt, err := loadOrGenerateAnonymisationSalt(metaDBInstance)
 	if err != nil {
@@ -511,10 +523,11 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 
 	anonymizer, err = anon.NewVoyagerAnonymizer(salt)
 	if err != nil {
-		utils.ErrExit("ERROR: initializing anonymiser: %v", err)
+		return fmt.Errorf("could not create anonymizer: %w", err)
+	} else if anonymizer == nil {
+		return errors.New("anonymizer is nil, this should not happen")
 	}
-
-	return metaDBInstance
+	return nil
 }
 
 func loadOrGenerateAnonymisationSalt(metaDB *metadb.MetaDB) (string, error) {

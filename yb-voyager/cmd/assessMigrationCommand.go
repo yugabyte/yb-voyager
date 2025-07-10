@@ -186,44 +186,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}),
 	}
 
-	var obfuscatedIssues []callhome.AssessmentIssueCallhome
-	for _, issue := range assessmentReport.Issues {
-		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
-
-		// special handling for extensions issue: adding extname to issue.Name
-		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
-			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
-		}
-
-		// appending the issue after obfuscating sensitive information
-		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
-	}
-
-	/*
-		Case to skip for sql statement anonymization:
-			1. if issue type is unsupported query construct or unsupported plpgsql object
-			2. if object type is view or materialized view
-			3. if sql statement is empty
-	*/
-	for i, issue := range assessmentReport.Issues {
-		// TODO: add a hidden flag to enable anonymization for Unsupported Query Constructs
-		skipCondition1 := slices.Contains([]string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY},
-			issue.Category)
-		skipCondition2 := slices.Contains([]string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}, issue.ObjectType)
-		skipCondition3 := issue.SqlStatement == ""
-
-		if skipCondition1 || skipCondition2 || skipCondition3 {
-			continue
-		}
-
-		// NOTE: indexing/ordering needs to be same in obfuscatedIssues and assessmentReport.Issues
-		obfuscatedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
-		if err != nil {
-			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
-		}
-	}
-
-	// TODO: anonymize and send the gathered metadata stats as well
+	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
@@ -248,7 +211,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         obfuscatedIssues,
+		Issues:                         anonymizedIssues,
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
@@ -262,6 +225,45 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
+	/*
+		Case to skip for sql statement anonymization:
+			1. if issue type is unsupported query construct or unsupported plpgsql object
+			2. if object type is view or materialized view
+			3. if sql statement is empty
+	*/
+	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
+		skipCategories := []string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY}
+		skipObjects := []string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}
+
+		return slices.Contains(skipCategories, issue.Category) ||
+			slices.Contains(skipObjects, issue.ObjectType) ||
+			issue.SqlStatement == ""
+	}
+
+	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
+	for i, issue := range assessmentIssues {
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
+		}
+
+		if shouldSkipAnonymization(issue) {
+			continue
+		}
+
+		var err error
+		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
+		if err != nil {
+			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+		}
+	}
+
+	return anonymizedIssues
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
