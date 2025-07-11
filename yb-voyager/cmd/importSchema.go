@@ -35,6 +35,8 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
+var importTargetDBVersion string
+
 var importSchemaCmd = &cobra.Command{
 	Use: "schema",
 	Short: "Import schema into the target YugabyteDB database\n" +
@@ -138,14 +140,12 @@ func importSchema() error {
 		return fmt.Errorf("failed to connect to target database: %v", err)
 	}
 	defer conn.Close(context.Background())
-
-	targetDBVersion := ""
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
+	err = conn.QueryRow(context.Background(), query).Scan(&importTargetDBVersion)
 	if err != nil {
 		return fmt.Errorf("failed to get target db version: %s", err)
 	}
-	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
+	utils.PrintAndLog("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
@@ -354,6 +354,11 @@ func dumpStatements(stmts []string, filePath string) {
 	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
 	color.Red(msg)
 	log.Info(msg)
+	//if there is failed sql statements, generate analyze report
+	reportErr := generateAnalyzeReport()
+	if reportErr != nil {
+		log.Errorf("Error generating analyze report: %v", reportErr)
+	}
 }
 
 // installs Orafce extension in target YugabyteDB.
