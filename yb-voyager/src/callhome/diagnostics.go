@@ -108,8 +108,9 @@ Version History
 1.1: Added a new field as ControlPlaneType
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 1.3: Added field Details in AssessmentIssueCallhome struct
+1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.3"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -134,10 +135,11 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,

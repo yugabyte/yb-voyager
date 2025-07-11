@@ -406,12 +406,28 @@ func ProtoAsSelectStmt(msg protoreflect.Message) (*pg_query.SelectStmt, error) {
 	return selectStmtNode, nil
 }
 
-func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, error) {
+func ProtoAsAConstNode(msg protoreflect.Message) (*pg_query.A_Const, bool) {
 	aConstNode, ok := msg.Interface().(*pg_query.A_Const)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_ACONST_NODE)
+		return nil, false
 	}
-	return aConstNode, nil
+	return aConstNode, true
+}
+
+func ProtoAsCreateExtensionStmt(msg protoreflect.Message) (*pg_query.CreateExtensionStmt, bool) {
+	createExtStmtNode, ok := msg.Interface().(*pg_query.CreateExtensionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createExtStmtNode, true
+}
+
+func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateForeignTableStmt, bool) {
+	createForeignTableStmtNode, ok := msg.Interface().(*pg_query.CreateForeignTableStmt)
+	if !ok {
+		return nil, false
+	}
+	return createForeignTableStmtNode, true
 }
 
 func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error) {
@@ -422,30 +438,48 @@ func ProtoAsCTENode(msg protoreflect.Message) (*pg_query.CommonTableExpr, error)
 	return cteNode, nil
 }
 
-func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, error) {
+func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, bool) {
 	defElemNode, ok := msg.Interface().(*pg_query.DefElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
+		return nil, false
 	}
-	return defElemNode, nil
+	return defElemNode, true
 }
 
-func ProtoAsIndexStmt(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+func ProtoAsIndexStmtNode(msg protoreflect.Message) (*pg_query.IndexStmt, bool) {
 	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+		return nil, false
 	}
 
-	return indexStmtNode, nil
+	return indexStmtNode, true
 }
 
-func ProtoAsTableConstraint(msg protoreflect.Message) (*pg_query.Constraint, error) {
-	consNode, ok := msg.Interface().(*pg_query.Constraint)
+func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, bool) {
+	indexElemNode, ok := msg.Interface().(*pg_query.IndexElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
+		return nil, false
 	}
 
-	return consNode, nil
+	return indexElemNode, true
+}
+
+func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
+	consNode, ok := msg.Interface().(*pg_query.Constraint)
+	if !ok {
+		return nil, false
+	}
+
+	return consNode, true
+}
+
+func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableStmt, bool) {
+	alterTableStmtNode, ok := msg.Interface().(*pg_query.AlterTableStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableStmtNode, true
 }
 
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
@@ -457,6 +491,61 @@ func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt
 	return node, nil
 }
 
+func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
+	rangeVarNode, ok := msg.Interface().(*pg_query.RangeVar)
+	if !ok {
+		return nil, false
+	}
+	return rangeVarNode, true
+}
+
+func ProtoAsColumnDef(msg protoreflect.Message) (*pg_query.ColumnDef, bool) {
+	columnDefNode, ok := msg.Interface().(*pg_query.ColumnDef)
+	if !ok {
+		return nil, false
+	}
+	return columnDefNode, true
+}
+
+func ProtoAsColumnRef(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
+	columnRefNode, ok := msg.Interface().(*pg_query.ColumnRef)
+	if !ok {
+		return nil, false
+	}
+	return columnRefNode, true
+}
+
+func ProtoAsResTargetNode(msg protoreflect.Message) (*pg_query.ResTarget, bool) {
+	resTargetNode, ok := msg.Interface().(*pg_query.ResTarget)
+	if !ok {
+		return nil, false
+	}
+	return resTargetNode, true
+}
+
+func ProtoAsAliasNode(msg protoreflect.Message) (*pg_query.Alias, bool) {
+	aliasNode, ok := msg.Interface().(*pg_query.Alias)
+	if !ok {
+		return nil, false
+	}
+	return aliasNode, true
+}
+
+func ProtoAsTypeNameNode(msg protoreflect.Message) (*pg_query.TypeName, bool) {
+	typeNameNode, ok := msg.Interface().(*pg_query.TypeName)
+	if !ok {
+		return nil, false
+	}
+	return typeNameNode, true
+}
+
+func ProtoAsRoleSpecNode(msg protoreflect.Message) (*pg_query.RoleSpec, bool) {
+	roleSpecNode, ok := msg.Interface().(*pg_query.RoleSpec)
+	if !ok {
+		return nil, false
+	}
+	return roleSpecNode, true
+}
 
 /*
 Example:
@@ -471,14 +560,14 @@ func TraverseAndExtractDefNamesFromDefElem(msg protoreflect.Message) (map[string
 			return nil
 		}
 
-		defElemNode, err := ProtoAsDefElemNode(msg)
-		if err != nil {
-			return err
+		defElemNode, ok := ProtoAsDefElemNode(msg)
+		if !ok {
+			return fmt.Errorf("failed to cast msg to %s", PG_QUERY_DEFELEM_NODE)
 		}
 
 		defName := defElemNode.Defname
 		arg := defElemNode.GetArg()
-		if arg != nil && arg.GetString_()!= nil {
+		if arg != nil && arg.GetString_() != nil {
 			defElemVal := arg.GetString_().Sval
 			defNamesWithValues[defName] = defElemVal
 		} else {

@@ -121,6 +121,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg error) {
+	var err error
 	if !shouldSendCallhome() {
 		return
 	}
@@ -141,15 +142,37 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
-				//redacting schema and object name
-				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
+
+			// Anonymizing schema and object names
+			sname, err := anonymizer.AnonymizeSchemaName(stat.SchemaName)
+			if err != nil {
+				log.Warnf("failed to anonymize schema name %s: %v", stat.SchemaName, err)
+				newStat.SchemaName = constants.OBFUSCATE_STRING
+			} else {
+				newStat.SchemaName = sname
+			}
+
 			if stat.IsIndex {
+				iName, err := anonymizer.AnonymizeIndexName(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize index name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = iName
+				}
 				indexSizingStats = append(indexSizingStats, newStat)
 			} else {
+				tName, err := anonymizer.AnonymizeTableName(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize table name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = tName
+				}
 				tableSizingStats = append(tableSizingStats, newStat)
 			}
 		}
@@ -163,18 +186,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}),
 	}
 
-	var obfuscatedIssues []callhome.AssessmentIssueCallhome
-	for _, issue := range assessmentReport.Issues {
-		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
-
-		// special handling for extensions issue: adding extname to issue.Name
-		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
-			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
-		}
-
-		// appending the issue after obfuscating sensitive information
-		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
-	}
+	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
@@ -199,7 +211,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         obfuscatedIssues,
+		Issues:                         anonymizedIssues,
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
@@ -209,10 +221,49 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
+	/*
+		Case to skip for sql statement anonymization:
+			1. if issue type is unsupported query construct or unsupported plpgsql object
+			2. if object type is view or materialized view
+			3. if sql statement is empty
+	*/
+	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
+		skipCategories := []string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY}
+		skipObjects := []string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}
+
+		return slices.Contains(skipCategories, issue.Category) ||
+			slices.Contains(skipObjects, issue.ObjectType) ||
+			issue.SqlStatement == ""
+	}
+
+	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
+	for i, issue := range assessmentIssues {
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
+		}
+
+		if shouldSkipAnonymization(issue) {
+			continue
+		}
+
+		var err error
+		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
+		if err != nil {
+			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+		}
+	}
+
+	return anonymizedIssues
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {

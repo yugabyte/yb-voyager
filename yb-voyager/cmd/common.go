@@ -45,6 +45,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -62,8 +63,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
+const (
+	ANONYMISATION_SALT_SIZE = 16 // Size of salt in bytes, can be adjusted as needed
+)
+
 var (
 	metaDB                 *metadb.MetaDB
+	anonymizer             *anon.VoyagerAnonymizer
 	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
 	startTime              time.Time
 	targetDbVersionStrFlag string
@@ -497,7 +503,60 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
+	// TODO: initialising anonymizer should be a top-level function call, like in root.go
+	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)
+	// so just keeping it here until we refactor and cleanup the code.
+	err = initAnonymizer(metaDBInstance)
+	if err != nil {
+		utils.ErrExit("could not initialize anonymizer: %v", err)
+	}
+
 	return metaDBInstance
+}
+
+func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
+	// generate salt and initialise the anonymiser
+	salt, err := loadOrGenerateAnonymisationSalt(metaDBInstance)
+	if err != nil {
+		utils.ErrExit("could not load or generate anonymisation salt: %v", err)
+	}
+
+	anonymizer, err = anon.NewVoyagerAnonymizer(salt)
+	if err != nil {
+		return fmt.Errorf("could not create anonymizer: %w", err)
+	} else if anonymizer == nil {
+		return errors.New("anonymizer is nil, this should not happen")
+	}
+	return nil
+}
+
+func loadOrGenerateAnonymisationSalt(metaDB *metadb.MetaDB) (string, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", fmt.Errorf("error getting migration status record: %w", err)
+	}
+
+	var salt string
+	if msr != nil && msr.AnonymizerSalt != "" {
+		salt = msr.AnonymizerSalt
+	} else {
+		salt, err = utils.GenerateAnonymisationSalt(ANONYMISATION_SALT_SIZE)
+		if err != nil {
+			return "", fmt.Errorf("error generating salt: %w", err)
+		}
+
+		// Store the generated salt in the migration status record
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			if record == nil { // should not happen, but just in case
+				record = &metadb.MigrationStatusRecord{}
+			}
+			record.AnonymizerSalt = salt
+		})
+		if err != nil {
+			return "", fmt.Errorf("error updating migration status record with salt: %w", err)
+		}
+	}
+	return salt, nil
 }
 
 func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportDir string) {
