@@ -446,31 +446,31 @@ func ProtoAsDefElemNode(msg protoreflect.Message) (*pg_query.DefElem, bool) {
 	return defElemNode, true
 }
 
-func ProtoAsIndexStmtNode(msg protoreflect.Message) (*pg_query.IndexStmt, error) {
+func ProtoAsIndexStmtNode(msg protoreflect.Message) (*pg_query.IndexStmt, bool) {
 	indexStmtNode, ok := msg.Interface().(*pg_query.IndexStmt)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEX_STMT_NODE)
+		return nil, false
 	}
 
-	return indexStmtNode, nil
+	return indexStmtNode, true
 }
 
-func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, error) {
+func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, bool) {
 	indexElemNode, ok := msg.Interface().(*pg_query.IndexElem)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_INDEXELEM_NODE)
+		return nil, false
 	}
 
-	return indexElemNode, nil
+	return indexElemNode, true
 }
 
-func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, error) {
+func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
 	consNode, ok := msg.Interface().(*pg_query.Constraint)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_CONSTRAINT_NODE)
+		return nil, false
 	}
 
-	return consNode, nil
+	return consNode, true
 }
 
 func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableStmt, bool) {
@@ -491,12 +491,12 @@ func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt
 	return node, nil
 }
 
-func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, error) {
+func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
 	rangeVarNode, ok := msg.Interface().(*pg_query.RangeVar)
 	if !ok {
-		return nil, fmt.Errorf("failed to cast msg to %s", PG_QUERY_RANGEVAR_NODE)
+		return nil, false
 	}
-	return rangeVarNode, nil
+	return rangeVarNode, true
 }
 
 func ProtoAsColumnDef(msg protoreflect.Message) (*pg_query.ColumnDef, bool) {

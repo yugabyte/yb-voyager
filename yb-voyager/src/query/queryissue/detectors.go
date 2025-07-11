@@ -530,9 +530,9 @@ func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error 
 			d.detected = true
 		}
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_CONSTRAINT_NODE {
-		constraintNode, err := queryparser.ProtoAsTableConstraintNode(msg)
-		if err != nil {
-			return err
+		constraintNode, ok := queryparser.ProtoAsTableConstraintNode(msg)
+		if !ok {
+			return fmt.Errorf("expected TableConstraint node, got %T", msg.Interface())
 		}
 
 		if constraintNode.Contype == queryparser.UNIQUE_CONSTR_TYPE && constraintNode.NullsNotDistinct {

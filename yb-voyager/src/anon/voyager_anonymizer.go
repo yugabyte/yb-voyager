@@ -2,6 +2,9 @@ package anon
 
 import "fmt"
 
+// VoyagerAnonymizer is a wrapper around various Anonymizer implementations,
+// using a shared IdentifierHasher to generate consistent hash tokens and dispatching
+// anonymization for SQL statements, schema names, table names, column names, and index names.
 type VoyagerAnonymizer struct {
 	identifierHashRegistry IdentifierHasher
 

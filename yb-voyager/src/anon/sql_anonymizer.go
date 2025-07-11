@@ -10,25 +10,6 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-const (
-	DATABASE_KIND_PREFIX   = "db_"
-	SCHEMA_KIND_PREFIX     = "schema_"
-	TABLE_KIND_PREFIX      = "table_"
-	COLUMN_KIND_PREFIX     = "col_"
-	INDEX_KIND_PREFIX      = "index_"
-	CONSTRAINT_KIND_PREFIX = "constraint_"
-	ALIAS_KIND_PREFIX      = "alias_"
-	TYPE_KIND_PREFIX       = "type_"
-	ROLE_KIND_PREFIX       = "role_"
-	CONST_KIND_PREFIX      = "const_"
-	DEFAULT_KIND_PREFIX    = "anon_"           // fallback for any other identifiers
-	SALT_KEY_METADB        = "anonymizer_salt" // Key to store salt in MetaDB MSR for consistent anonymization across runs
-)
-
-type Anonymizer interface {
-	Anonymize(input string) (string, error)
-}
-
 type SqlAnonymizer struct {
 	registry IdentifierHasher
 }
@@ -88,9 +69,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			ParseTree:
 	*/
 	case queryparser.PG_QUERY_RANGEVAR_NODE:
-		rv, err := queryparser.ProtoAsRangeVarNode(msg)
-		if err != nil {
-			return fmt.Errorf("cast to RangeVar: %w", err)
+		rv, ok := queryparser.ProtoAsRangeVarNode(msg)
+		if !ok {
+			return fmt.Errorf("expected RangeVar, got %T", msg.Interface())
 		}
 
 		if rv.Catalogname != "" {
@@ -169,10 +150,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 					index_params:{index_elem:{name:"last_name" ...}} index_params:{index_elem:{name:"first_name" ...}} index_params:{index_elem:{name:"hire_date" ...}}}}
 	*/
 	case queryparser.PG_QUERY_INDEX_STMT_NODE:
-		idx, err := queryparser.ProtoAsIndexStmtNode(msg)
-		if err != nil {
-			return err
+		idx, ok := queryparser.ProtoAsIndexStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexStmt, got %T", msg.Interface())
 		}
+
 		if idx.Idxname != "" {
 			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
 			if err != nil {
@@ -181,8 +163,8 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		}
 
 	case queryparser.PG_QUERY_INDEXELEM_NODE:
-		ie, err := queryparser.ProtoAsIndexElemNode(msg)
-		if err != nil {
+		ie, ok := queryparser.ProtoAsIndexElemNode(msg)
+		if !ok {
 			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
 		}
 
@@ -229,10 +211,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 					keys:{string:{sval:"column2"}}}} behavior:DROP_RESTRICT}} ...}}
 	*/
 	case queryparser.PG_QUERY_CONSTRAINT_NODE:
-		cons, err := queryparser.ProtoAsTableConstraintNode(msg)
-		if err != nil {
-			return err
+		cons, ok := queryparser.ProtoAsTableConstraintNode(msg)
+		if !ok {
+			return fmt.Errorf("expected TableConstraint, got %T", msg.Interface())
 		}
+
 		if cons.Conname != "" {
 			cons.Conname, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, cons.Conname)
 			if err != nil {
