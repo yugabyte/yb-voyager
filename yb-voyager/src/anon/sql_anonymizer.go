@@ -62,6 +62,22 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) (err er
 
 func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error {
 	var err error
+
+	err = a.handleSchemaObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling schema object nodes: %w", err)
+	}
+
+	err = a.handleCollationObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling collation object nodes: %w", err)
+	}
+
+	err = a.handleExtensionObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling extension object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -375,7 +391,7 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (e
 
 	*/
 	case queryparser.PG_QUERY_DEFELEM_NODE:
-		// DEFELEM node used in CREATE EXTENSION, CREATE FOREIGN TABLE have table_name and schema
+		// DEFELEM node is used in CREATE EXTENSION, CREATE FOREIGN TABLE have table_name and schema
 		defElem, ok := queryparser.ProtoAsDefElemNode(msg)
 		if !ok {
 			return fmt.Errorf("expected DefElem, got %T", msg.Interface())
@@ -501,6 +517,321 @@ func (a *SqlAnonymizer) columnRefNodeProcessor(msg protoreflect.Message) (err er
 
 	default: // zero fields
 		return nil
+	}
+	return nil
+}
+
+// ----- smaller helper function for each object type processing ----
+
+func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	// ─── SCHEMA: CREATE ───────────────────────────────────────────
+	case queryparser.PG_QUERY_CREATE_SCHEMA_STMT_NODE:
+		cs, ok := queryparser.ProtoAsCreateSchemaStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateSchemaStmt, got %T", msg.Interface())
+		}
+		// anonymize the schema name
+		cs.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, cs.Schemaname)
+		if err != nil {
+			return fmt.Errorf("anon schema create: %w", err)
+		}
+
+	// ─── SCHEMA: ALTER (RENAME) ────────────────────────────
+	/*
+		SQL:			ALTER SCHEMA sales RENAME TO sales_new
+		ParseTree:		stmt:{rename_stmt:{rename_type:OBJECT_SCHEMA  relation_type:OBJECT_ACCESS_METHOD  subname:"sales"  newname:"sales_new" ...}}
+
+		SQL:			ALTER SCHEMA sales_new OWNER TO sales_owner
+		ParseTree:		stmt:{alter_owner_stmt:{object_type:OBJECT_SCHEMA  object:{string:{sval:"sales_new"}}  newowner:{roletype:ROLESPEC_CSTRING  rolename:"sales_owner"  location:32}}}  stmt_len:43
+	*/
+	case queryparser.PG_QUERY_RENAME_STMT_NODE:
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterSchemaStmt, got %T", msg.Interface())
+		}
+
+		if rs.RenameType != pg_query.ObjectType_OBJECT_SCHEMA {
+			return nil // not a schema DDL, skip
+		}
+		// anonymize the old and new schema names
+		if rs.Subname != "" {
+			rs.Subname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rs.Subname)
+			if err != nil {
+				return fmt.Errorf("anon schema rename: %w", err)
+			}
+		}
+		if rs.Newname != "" {
+			rs.Newname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rs.Newname)
+			if err != nil {
+				return fmt.Errorf("anon schema rename newname: %w", err)
+			}
+		}
+
+	// ─── SCHEMA: ALTER(OWNER) ────────────────────────────────────────────
+	case queryparser.PG_QUERY_ALTER_OWNER_STMT_NODE:
+		ao, ok := queryparser.ProtoAsAlterOwnerStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterOwnerStmt, got %T", msg.Interface())
+		}
+
+		if ao.ObjectType != pg_query.ObjectType_OBJECT_SCHEMA {
+			return nil // not a schema DDL, skip
+		}
+
+		if ao.Object != nil && ao.Object.GetString_() != nil {
+			// anonymize the schema name
+			ao.Object.GetString_().Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, ao.Object.GetString_().Sval)
+			if err != nil {
+				return fmt.Errorf("anon schema alter owner: %w", err)
+			}
+		}
+
+	// ─── SCHEMA: DROP ────────────────────────────────────────────
+	/*
+		SQL:		DROP SCHEMA IF EXISTS schema1, schema2 CASCADE;
+		ParseTree:	stmt:{drop_stmt:{objects:{string:{sval:"schema1"}}  objects:{string:{sval:"schema2"}}  remove_type:OBJECT_SCHEMA  behavior:DROP_CASCADE  missing_ok:true}}
+	*/
+	case queryparser.PG_QUERY_DROP_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected DropStmt, got %T", msg.Interface())
+		}
+
+		if ds.RemoveType != pg_query.ObjectType_OBJECT_SCHEMA {
+			return nil // not a schema DDL, skip
+		}
+
+		// Anonymize each schema name in the DROP list
+		for _, obj := range ds.Objects {
+			// Note: schema names are not qualified with database name, i.e. only one identifier here
+			if str := obj.GetString_(); str != nil && str.Sval != "" {
+				str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+				if err != nil {
+					return fmt.Errorf("anon schema drop: %w", err)
+				}
+			}
+		}
+
+	case queryparser.PG_QUERY_GRANT_STMT_NODE:
+		gs, ok := queryparser.ProtoAsGrantStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected GrantStmt, got %T", msg.Interface())
+		}
+
+		if gs.Objtype != pg_query.ObjectType_OBJECT_SCHEMA {
+			return nil // not a schema DDL, skip
+		}
+
+		// Anonymize each schema name in the GRANT list
+		for _, obj := range gs.Objects {
+			if str := obj.GetString_(); str != nil && str.Sval != "" {
+				str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+				if err != nil {
+					return fmt.Errorf("anon schema grant: %w", err)
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (a *SqlAnonymizer) handleCollationObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	// ─── COLLATION: CREATE ────────────────────────────────────────────
+	/*
+		SQL:  		CREATE COLLATION sales.nocase (provider = icu, locale = 'und');
+		ParseTree: 	stmt:{define_stmt:{kind:OBJECT_COLLATION defnames:{string:{sval:"sales"}} defnames:{string:{sval:"nocase"}} definition:{def_elem:{defname:"provider"
+					arg:{type_name:{names:{string:{sval:"icu"}} typemod:-1 location:43}} defaction:DEFELEM_UNSPEC location:32}} definition:{def_elem:{defname:"locale" arg:{string:{sval:"und"}} ...}}}
+	*/
+	case queryparser.PG_QUERY_DEFINE_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDefineStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected DefineStmt, got %T", msg.Interface())
+		}
+
+		if ds.Kind != pg_query.ObjectType_OBJECT_COLLATION {
+			return nil // not a collation DDL, skip
+		}
+
+		// Anonymize the qualified collation name
+		// defnames may be:
+		//   [name]
+		//   [schema, name]
+		//   [dbname, schema, name]
+		// parser won't fail if defnames has more than 3 elements, but thats not a valid SQL
+		for i, nameNode := range ds.Defnames {
+			if str := nameNode.GetString_(); str != nil && str.Sval != "" {
+				switch {
+				case len(ds.Defnames) == 3 && i == 0:
+					// first element is database
+					tok, err := a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
+					if err != nil {
+						return fmt.Errorf("anon collation create db: %w", err)
+					}
+					str.Sval = tok
+
+				case (len(ds.Defnames) == 3 || len(ds.Defnames) == 2) && i == len(ds.Defnames)-2:
+					// second‐to‐last element is schema (when 2 or 3 parts)
+					tok, err := a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+					if err != nil {
+						return fmt.Errorf("anon collation create schema: %w", err)
+					}
+					str.Sval = tok
+
+				case i == len(ds.Defnames)-1:
+					// last element is the collation name
+					tok, err := a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
+					if err != nil {
+						return fmt.Errorf("anon collation create name: %w", err)
+					}
+					str.Sval = tok
+				}
+			}
+		}
+
+	// ─── COLLATION: ALTER (RENAME) ────────────────────────────
+	/*
+		SQL: 		ALTER COLLATION sales.nocase RENAME TO nocase2;
+		ParseTree: 	stmt:{rename_stmt:{rename_type:OBJECT_COLLATION relation_type:OBJECT_ACCESS_METHOD
+					object:{list:{items:{string:{sval:"sales"}} items:{string:{sval:"nocase"}}}} newname:"nocase2" ...}}
+
+	*/
+	case queryparser.PG_QUERY_RENAME_STMT_NODE:
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected RenameStmt, got %T", msg.Interface())
+		}
+
+		if rs.RenameType != pg_query.ObjectType_OBJECT_COLLATION {
+			return nil // not a collation DDL, skip
+		}
+
+		// Anonymize the old name
+		if rs.Object != nil && rs.Object.GetList() != nil {
+			// rs.Object is a list of string nodes
+			// but for RENAME statement it will have only 1 item(i.e. old name)
+			items := rs.Object.GetList().Items
+			for i, item := range items {
+				if str := item.GetString_(); str != nil && str.Sval != "" {
+					switch {
+					case len(items) == 3 && i == 0:
+						// first element is database
+						str.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
+						if err != nil {
+							return fmt.Errorf("anon collation rename db: %w", err)
+						}
+
+					case (len(items) == 3 || len(items) == 2) && i == len(items)-2:
+						// second‐to‐last element is schema
+						str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+						if err != nil {
+							return fmt.Errorf("anon collation rename schema: %w", err)
+						}
+
+					case i == len(items)-1: // last element is the collation name
+						str.Sval, err = a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
+						if err != nil {
+							return fmt.Errorf("anon collation rename name: %w", err)
+						}
+					}
+				}
+			}
+		}
+
+		// Anonymize the new name
+		if rs.Newname != "" {
+			rs.Newname, err = a.registry.GetHash(COLLATION_KIND_PREFIX, rs.Newname)
+			if err != nil {
+				return fmt.Errorf("anon collation rename newname: %w", err)
+			}
+		}
+
+	// ─── COLLATION: DROP ────────────────────────────────────────────
+	/*
+		SQL:		DROP COLLATION IF EXISTS postgres.sales.nocase, postgres.sales.nocase2;
+		ParseTree:	stmt:{drop_stmt:{objects:{list:{items:{string:{sval:"postgres"}} items:{string:{sval:"sales"}} items:{string:{sval:"nocase"}}}}
+					objects:{list:{items:{string:{sval:"postgres"}} items:{string:{sval:"sales"}} items:{string:{sval:"nocase2"}}}} ....}}
+	*/
+	case queryparser.PG_QUERY_DROP_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected DropStmt, got %T", msg.Interface())
+		}
+
+		if ds.RemoveType != pg_query.ObjectType_OBJECT_COLLATION {
+			return nil // not a collation DDL, skip
+		}
+
+		// Anonymize each collation name in the DROP list
+		for _, obj := range ds.Objects {
+			if list := obj.GetList(); list != nil {
+				// obj is a list of string nodes
+				items := list.Items
+				for i, item := range items {
+					if str := item.GetString_(); str != nil && str.Sval != "" {
+						switch {
+						case len(items) == 3 && i == 0:
+							// first element is database
+							str.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
+							if err != nil {
+								return fmt.Errorf("anon collation drop db: %w", err)
+							}
+
+						case (len(items) == 3 || len(items) == 2) && i == len(items)-2:
+							// second‐to‐last element is schema
+							str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+							if err != nil {
+								return fmt.Errorf("anon collation drop schema: %w", err)
+							}
+
+						case i == len(items)-1: // last element is the collation name
+							str.Sval, err = a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
+							if err != nil {
+								return fmt.Errorf("anon collation drop name: %w", err)
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func (a *SqlAnonymizer) handleExtensionObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	// ─── EXTENSION: CREATE ────────────────────────────────────────────
+	// already covered in miscellaneousNodesProcessor as DefElemNode
+
+	// ─── EXTENSION: ALTER (change schema) ────────────────────────────
+	/*
+		SQL: 		ALTER EXTENSION postgis SET SCHEMA archive;
+		ParseTree: 	stmt:{alter_object_schema_stmt:{object_type:OBJECT_EXTENSION object:{string:{sval:"postgis"}} newschema:"archive"}} stmt_len:42
+	*/
+	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
+		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterObjectSchemaStmt, got %T", msg.Interface())
+		}
+		if aos.ObjectType != pg_query.ObjectType_OBJECT_EXTENSION {
+			return nil // not an extension DDL, skip
+		}
+
+		// anonymize the schema name
+		if aos.Newschema != "" {
+			aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
+			if err != nil {
+				return fmt.Errorf("anon alter extension schema: %w", err)
+			}
+		}
+
+		// ─── EXTENSION: ALTER (OTHER) ────────────────────────────
+		// there are other alter extension statement where you add or drop a member_object [skipping]
+		// for eg: ALTER EXTENSION hstore ADD FUNCTION populate_record(anyelement, hstore);
+		// but this is too much of a corner case and not sure if pg_dump will generate such statements
+
 	}
 	return nil
 }
