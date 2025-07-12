@@ -8,19 +8,23 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"regexp"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	"regexp"
+	"strconv"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	"gopkg.in/yaml.v2"
 )
 
-// ConfigFile represents a yb-voyager configuration file structure
+// ConfigFile represents a YB Voyager configuration file structure
 type ConfigFile struct {
 	ExportDir string `yaml:"export-dir"`
 	LogLevel  string `yaml:"log-level"`
@@ -62,6 +66,131 @@ type ExportDirInfo struct {
 	HasMetaDB     bool     `json:"has_metadb"`
 	Size          int64    `json:"size_bytes"`
 	Contents      []string `json:"contents"`
+}
+
+// AssessmentReport represents the migration assessment report structure
+// This mirrors the structure from cmd/common.go to avoid import cycles
+type AssessmentReport struct {
+	VoyagerVersion                 string                                `json:"VoyagerVersion"`
+	TargetDBVersion                *ybversion.YBVersion                  `json:"TargetDBVersion"`
+	MigrationComplexity            string                                `json:"MigrationComplexity"`
+	MigrationComplexityExplanation string                                `json:"MigrationComplexityExplanation"`
+	SchemaSummary                  utils.SchemaSummary                   `json:"SchemaSummary"`
+	Sizing                         *migassessment.SizingAssessmentReport `json:"Sizing"`
+	Issues                         []AssessmentIssue                     `json:"AssessmentIssues"`
+	TableIndexStats                *[]migassessment.TableIndexStats      `json:"TableIndexStats"`
+	Notes                          []string                              `json:"Notes"`
+}
+
+// AssessmentIssue represents an individual assessment issue
+type AssessmentIssue struct {
+	Category               string                          `json:"Category"`
+	CategoryDescription    string                          `json:"CategoryDescription"`
+	Type                   string                          `json:"Type"`
+	Name                   string                          `json:"Name"`
+	Description            string                          `json:"Description"`
+	Impact                 string                          `json:"Impact"`
+	ObjectType             string                          `json:"ObjectType"`
+	ObjectName             string                          `json:"ObjectName"`
+	SqlStatement           string                          `json:"SqlStatement"`
+	DocsLink               string                          `json:"DocsLink"`
+	MinimumVersionsFixedIn map[string]*ybversion.YBVersion `json:"MinimumVersionsFixedIn"`
+	Details                map[string]interface{}          `json:"Details,omitempty"`
+}
+
+// Helper functions for parsing reports using YB Voyager's jsonfile utility
+func parseAssessmentReport(reportPath string) (*AssessmentReport, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	var report AssessmentReport
+	err := jsonfile.NewJsonFile[AssessmentReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
+
+func parseSchemaAnalysisReport(reportPath string) (*utils.SchemaReport, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	var report utils.SchemaReport
+	err := jsonfile.NewJsonFile[utils.SchemaReport](reportPath).Load(&report)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse json report file %q: %w", reportPath, err)
+	}
+
+	return &report, nil
+}
+
+// Helper methods for AssessmentReport
+func (ar *AssessmentReport) GetShardedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch sharded tables")
+	}
+	return ar.Sizing.SizingRecommendation.ShardedTables, nil
+}
+
+func (ar *AssessmentReport) GetColocatedTablesRecommendation() ([]string, error) {
+	if ar.Sizing == nil {
+		return nil, fmt.Errorf("sizing report is null, can't fetch colocated tables")
+	}
+	return ar.Sizing.SizingRecommendation.ColocatedTables, nil
+}
+
+func (ar *AssessmentReport) GetClusterSizingRecommendation() string {
+	if ar.Sizing == nil {
+		return ""
+	}
+	if ar.Sizing.FailureReasoning != "" {
+		return ar.Sizing.FailureReasoning
+	}
+	return fmt.Sprintf("Num Nodes: %f, vCPU per instance: %d, Memory per instance: %d, Estimated Import Time: %f minutes",
+		ar.Sizing.SizingRecommendation.NumNodes, ar.Sizing.SizingRecommendation.VCPUsPerInstance,
+		ar.Sizing.SizingRecommendation.MemoryPerInstance, ar.Sizing.SizingRecommendation.EstimatedTimeInMinForImport)
+}
+
+func (ar *AssessmentReport) GetTotalTableRowCount() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+	var totalTableRowCount int64
+	for _, stat := range *ar.TableIndexStats {
+		if !stat.IsIndex {
+			totalTableRowCount += utils.SafeDereferenceInt64(stat.RowCount)
+		}
+	}
+	return totalTableRowCount
+}
+
+func (ar *AssessmentReport) GetTotalTableSize() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+	var totalTableSize int64
+	for _, stat := range *ar.TableIndexStats {
+		if !stat.IsIndex {
+			totalTableSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+		}
+	}
+	return totalTableSize
+}
+
+func (ar *AssessmentReport) GetTotalIndexSize() int64 {
+	if ar.TableIndexStats == nil {
+		return -1
+	}
+	var totalIndexSize int64
+	for _, stat := range *ar.TableIndexStats {
+		if stat.IsIndex {
+			totalIndexSize += utils.SafeDereferenceInt64(stat.SizeInBytes)
+		}
+	}
+	return totalIndexSize
 }
 
 // Tool handlers
@@ -577,42 +706,402 @@ func getLogsResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, 
 	}, nil
 }
 
-// getSchemaAnalysisResource returns schema analysis as a resource
-func getSchemaAnalysisResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+// getAssessmentReportResource returns the migration assessment report as a resource
+func getAssessmentReportResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
 	exportDir := extractExportDirFromURI(uri)
 	if exportDir == "" {
 		return nil, fmt.Errorf("export_dir not found in URI")
 	}
 
-	// Check for schema analysis files
+	// Check for assessment report files
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	jsonReportPath := filepath.Join(assessmentReportDir, "migration_assessment_report.json")
+	htmlReportPath := filepath.Join(assessmentReportDir, "migration_assessment_report.html")
+
+	result := map[string]interface{}{
+		"export_dir":       exportDir,
+		"assessment_dir":   assessmentReportDir,
+		"timestamp":        time.Now().Format(time.RFC3339),
+		"json_report_path": jsonReportPath,
+		"html_report_path": htmlReportPath,
+		"json_exists":      utils.FileOrFolderExists(jsonReportPath),
+		"html_exists":      utils.FileOrFolderExists(htmlReportPath),
+	}
+
+	// Try to read and parse the JSON assessment report using YB Voyager's parser
+	if utils.FileOrFolderExists(jsonReportPath) {
+		assessmentReport, err := parseAssessmentReport(jsonReportPath)
+		if err != nil {
+			result["parse_error"] = err.Error()
+			// Fallback to raw content if parsing fails
+			if jsonData, readErr := ioutil.ReadFile(jsonReportPath); readErr == nil {
+				result["raw_content"] = string(jsonData)
+			}
+		} else {
+			// Use the properly parsed AssessmentReport struct
+			result["assessment_report"] = assessmentReport
+
+			// Extract key metrics for easy LLM access
+			result["voyager_version"] = assessmentReport.VoyagerVersion
+			result["migration_complexity"] = assessmentReport.MigrationComplexity
+			result["migration_complexity_explanation"] = assessmentReport.MigrationComplexityExplanation
+			result["total_issues"] = len(assessmentReport.Issues)
+
+			// Categorize issues by impact and category
+			impactCounts := make(map[string]int)
+			categoryCounts := make(map[string]int)
+			for _, issue := range assessmentReport.Issues {
+				impactCounts[issue.Impact]++
+				categoryCounts[issue.Category]++
+			}
+			result["issues_by_impact"] = impactCounts
+			result["issues_by_category"] = categoryCounts
+
+			// Extract schema summary
+			result["schema_summary"] = assessmentReport.SchemaSummary
+
+			// Extract sizing recommendations if available
+			if assessmentReport.Sizing != nil {
+				result["sizing_recommendations"] = assessmentReport.Sizing
+				result["cluster_sizing_recommendation"] = assessmentReport.GetClusterSizingRecommendation()
+
+				shardedTables, err := assessmentReport.GetShardedTablesRecommendation()
+				if err == nil {
+					result["sharded_tables"] = shardedTables
+				}
+
+				colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
+				if err == nil {
+					result["colocated_tables"] = colocatedTables
+				}
+			}
+
+			// Extract table and index statistics
+			if assessmentReport.TableIndexStats != nil {
+				result["total_table_row_count"] = assessmentReport.GetTotalTableRowCount()
+				result["total_table_size"] = assessmentReport.GetTotalTableSize()
+				result["total_index_size"] = assessmentReport.GetTotalIndexSize()
+				result["table_index_stats"] = assessmentReport.TableIndexStats
+			}
+
+			// Extract notes
+			result["notes"] = assessmentReport.Notes
+
+			// Extract target DB version
+			if assessmentReport.TargetDBVersion != nil {
+				result["target_db_version"] = assessmentReport.TargetDBVersion.String()
+			}
+		}
+	} else {
+		result["status"] = "Assessment report not found. Run 'assess-migration' command first."
+	}
+
+	// Try to read and parse the JSON schema analysis report using YB Voyager's parser
+	if utils.FileOrFolderExists(jsonReportPath) {
+		schemaReport, err := parseSchemaAnalysisReport(jsonReportPath)
+		if err != nil {
+			result["parse_error"] = err.Error()
+			// Fallback to raw content if parsing fails
+			if jsonData, readErr := ioutil.ReadFile(jsonReportPath); readErr == nil {
+				result["raw_content"] = string(jsonData)
+			}
+		} else {
+			// Use the properly parsed SchemaReport struct
+			result["schema_analysis_report"] = schemaReport
+
+			// Extract key metrics for easy LLM access
+			result["voyager_version"] = schemaReport.VoyagerVersion
+			result["total_issues"] = len(schemaReport.Issues)
+
+			// Extract target DB version
+			if schemaReport.TargetDBVersion != nil {
+				result["target_db_version"] = schemaReport.TargetDBVersion.String()
+			}
+
+			// Categorize issues by type and impact
+			typeCounts := make(map[string]int)
+			impactCounts := make(map[string]int)
+			objectTypeCounts := make(map[string]int)
+
+			for _, issue := range schemaReport.Issues {
+				typeCounts[issue.IssueType]++
+				impactCounts[issue.Impact]++
+				objectTypeCounts[issue.ObjectType]++
+			}
+			result["issues_by_type"] = typeCounts
+			result["issues_by_impact"] = impactCounts
+			result["issues_by_object_type"] = objectTypeCounts
+
+			// Extract schema summary
+			result["schema_summary"] = schemaReport.SchemaSummary
+
+			// Extract database objects summary with detailed breakdown
+			if len(schemaReport.SchemaSummary.DBObjects) > 0 {
+				result["total_db_objects"] = len(schemaReport.SchemaSummary.DBObjects)
+
+				objectCounts := make(map[string]map[string]interface{})
+				totalObjects := 0
+				totalInvalidObjects := 0
+
+				for _, obj := range schemaReport.SchemaSummary.DBObjects {
+					objectCounts[obj.ObjectType] = map[string]interface{}{
+						"total_count":   obj.TotalCount,
+						"invalid_count": obj.InvalidCount,
+						"valid_count":   obj.TotalCount - obj.InvalidCount,
+						"object_names":  obj.ObjectNames,
+						"details":       obj.Details,
+					}
+					totalObjects += obj.TotalCount
+					totalInvalidObjects += obj.InvalidCount
+				}
+
+				result["objects_by_type"] = objectCounts
+				result["total_objects_count"] = totalObjects
+				result["total_invalid_objects"] = totalInvalidObjects
+				result["total_valid_objects"] = totalObjects - totalInvalidObjects
+			}
+
+			// Extract database information
+			result["database_name"] = schemaReport.SchemaSummary.DBName
+			result["database_version"] = schemaReport.SchemaSummary.DBVersion
+			result["schema_names"] = schemaReport.SchemaSummary.SchemaNames
+			result["notes"] = schemaReport.SchemaSummary.Notes
+		}
+	} else {
+		result["status"] = "Schema analysis report not found. Run 'analyze-schema' command first."
+	}
+
+	// Get file metadata if reports exist
+	if utils.FileOrFolderExists(jsonReportPath) {
+		if stat, err := os.Stat(jsonReportPath); err == nil {
+			result["json_file_size"] = stat.Size()
+			result["json_modified"] = stat.ModTime().Format(time.RFC3339)
+		}
+	}
+	if utils.FileOrFolderExists(htmlReportPath) {
+		if stat, err := os.Stat(htmlReportPath); err == nil {
+			result["html_file_size"] = stat.Size()
+			result["html_modified"] = stat.ModTime().Format(time.RFC3339)
+		}
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
+		},
+	}, nil
+}
+
+// getSchemaAnalysisReportResource returns the schema analysis report as a resource
+func getSchemaAnalysisReportResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
+	}
+
+	// Check for schema analysis report files
+	reportsDir := filepath.Join(exportDir, "reports")
+	jsonReportPath := filepath.Join(reportsDir, "schema_analysis_report.json")
+	htmlReportPath := filepath.Join(reportsDir, "schema_analysis_report.html")
+
+	result := map[string]interface{}{
+		"export_dir":       exportDir,
+		"reports_dir":      reportsDir,
+		"timestamp":        time.Now().Format(time.RFC3339),
+		"json_report_path": jsonReportPath,
+		"html_report_path": htmlReportPath,
+		"json_exists":      utils.FileOrFolderExists(jsonReportPath),
+		"html_exists":      utils.FileOrFolderExists(htmlReportPath),
+	}
+
+	// Try to read and parse the JSON schema analysis report using YB Voyager's parser
+	if utils.FileOrFolderExists(jsonReportPath) {
+		schemaReport, err := parseSchemaAnalysisReport(jsonReportPath)
+		if err != nil {
+			result["parse_error"] = err.Error()
+			// Fallback to raw content if parsing fails
+			if jsonData, readErr := ioutil.ReadFile(jsonReportPath); readErr == nil {
+				result["raw_content"] = string(jsonData)
+			}
+		} else {
+			// Use the properly parsed SchemaReport struct
+			result["schema_analysis_report"] = schemaReport
+
+			// Extract key metrics for easy LLM access
+			result["voyager_version"] = schemaReport.VoyagerVersion
+			result["total_issues"] = len(schemaReport.Issues)
+
+			// Extract target DB version
+			if schemaReport.TargetDBVersion != nil {
+				result["target_db_version"] = schemaReport.TargetDBVersion.String()
+			}
+
+			// Categorize issues by type and impact
+			typeCounts := make(map[string]int)
+			impactCounts := make(map[string]int)
+			objectTypeCounts := make(map[string]int)
+
+			for _, issue := range schemaReport.Issues {
+				typeCounts[issue.IssueType]++
+				impactCounts[issue.Impact]++
+				objectTypeCounts[issue.ObjectType]++
+			}
+			result["issues_by_type"] = typeCounts
+			result["issues_by_impact"] = impactCounts
+			result["issues_by_object_type"] = objectTypeCounts
+
+			// Extract schema summary
+			result["schema_summary"] = schemaReport.SchemaSummary
+
+			// Extract database objects summary with detailed breakdown
+			if len(schemaReport.SchemaSummary.DBObjects) > 0 {
+				result["total_db_objects"] = len(schemaReport.SchemaSummary.DBObjects)
+
+				objectCounts := make(map[string]map[string]interface{})
+				totalObjects := 0
+				totalInvalidObjects := 0
+
+				for _, obj := range schemaReport.SchemaSummary.DBObjects {
+					objectCounts[obj.ObjectType] = map[string]interface{}{
+						"total_count":   obj.TotalCount,
+						"invalid_count": obj.InvalidCount,
+						"valid_count":   obj.TotalCount - obj.InvalidCount,
+						"object_names":  obj.ObjectNames,
+						"details":       obj.Details,
+					}
+					totalObjects += obj.TotalCount
+					totalInvalidObjects += obj.InvalidCount
+				}
+
+				result["objects_by_type"] = objectCounts
+				result["total_objects_count"] = totalObjects
+				result["total_invalid_objects"] = totalInvalidObjects
+				result["total_valid_objects"] = totalObjects - totalInvalidObjects
+			}
+
+			// Extract database information
+			result["database_name"] = schemaReport.SchemaSummary.DBName
+			result["database_version"] = schemaReport.SchemaSummary.DBVersion
+			result["schema_names"] = schemaReport.SchemaSummary.SchemaNames
+			result["notes"] = schemaReport.SchemaSummary.Notes
+		}
+	} else {
+		result["status"] = "Schema analysis report not found. Run 'analyze-schema' command first."
+	}
+
+	// Get file metadata if reports exist
+	if utils.FileOrFolderExists(jsonReportPath) {
+		if stat, err := os.Stat(jsonReportPath); err == nil {
+			result["json_file_size"] = stat.Size()
+			result["json_modified"] = stat.ModTime().Format(time.RFC3339)
+		}
+	}
+	if utils.FileOrFolderExists(htmlReportPath) {
+		if stat, err := os.Stat(htmlReportPath); err == nil {
+			result["html_file_size"] = stat.Size()
+			result["html_modified"] = stat.ModTime().Format(time.RFC3339)
+		}
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
+		},
+	}, nil
+}
+
+// getSchemaFilesResource returns information about exported schema files
+func getSchemaFilesResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
+	}
+
+	// Check for schema files
 	schemaDir := filepath.Join(exportDir, "schema")
-	assessmentDir := filepath.Join(exportDir, "assessment")
 
 	result := map[string]interface{}{
 		"export_dir": exportDir,
+		"schema_dir": schemaDir,
 		"timestamp":  time.Now().Format(time.RFC3339),
+		"dir_exists": utils.FileOrFolderExists(schemaDir),
 	}
 
 	if utils.FileOrFolderExists(schemaDir) {
-		files, _ := ioutil.ReadDir(schemaDir)
-		var schemaFiles []string
-		for _, file := range files {
-			if !file.IsDir() {
-				schemaFiles = append(schemaFiles, file.Name())
-			}
-		}
-		result["schema_files"] = schemaFiles
-	}
+		files, err := ioutil.ReadDir(schemaDir)
+		if err != nil {
+			result["read_error"] = err.Error()
+		} else {
+			var schemaFiles []map[string]interface{}
+			var totalSize int64
 
-	if utils.FileOrFolderExists(assessmentDir) {
-		files, _ := ioutil.ReadDir(assessmentDir)
-		var assessmentFiles []string
-		for _, file := range files {
-			if !file.IsDir() {
-				assessmentFiles = append(assessmentFiles, file.Name())
+			for _, file := range files {
+				if !file.IsDir() {
+					fileInfo := map[string]interface{}{
+						"name":     file.Name(),
+						"size":     file.Size(),
+						"modified": file.ModTime().Format(time.RFC3339),
+					}
+
+					// Determine file type based on extension and name
+					fileName := file.Name()
+					if strings.HasSuffix(fileName, ".sql") {
+						fileInfo["type"] = "sql"
+
+						// Categorize SQL files by object type
+						if strings.Contains(fileName, "table") {
+							fileInfo["object_type"] = "table"
+						} else if strings.Contains(fileName, "view") {
+							fileInfo["object_type"] = "view"
+						} else if strings.Contains(fileName, "function") {
+							fileInfo["object_type"] = "function"
+						} else if strings.Contains(fileName, "procedure") {
+							fileInfo["object_type"] = "procedure"
+						} else if strings.Contains(fileName, "trigger") {
+							fileInfo["object_type"] = "trigger"
+						} else if strings.Contains(fileName, "index") {
+							fileInfo["object_type"] = "index"
+						} else if strings.Contains(fileName, "sequence") {
+							fileInfo["object_type"] = "sequence"
+						} else {
+							fileInfo["object_type"] = "other"
+						}
+					} else {
+						fileInfo["type"] = "other"
+					}
+
+					schemaFiles = append(schemaFiles, fileInfo)
+					totalSize += file.Size()
+				}
 			}
+
+			result["schema_files"] = schemaFiles
+			result["total_files"] = len(schemaFiles)
+			result["total_size"] = totalSize
+
+			// Group files by object type
+			objectTypes := make(map[string][]string)
+			for _, file := range schemaFiles {
+				if objType, ok := file["object_type"].(string); ok {
+					if fileName, ok := file["name"].(string); ok {
+						objectTypes[objType] = append(objectTypes[objType], fileName)
+					}
+				}
+			}
+			result["files_by_object_type"] = objectTypes
 		}
-		result["assessment_files"] = assessmentFiles
+	} else {
+		result["status"] = "Schema directory not found. Run 'export-schema' command first."
 	}
 
 	jsonData, _ := json.MarshalIndent(result, "", "  ")
@@ -1142,4 +1631,55 @@ func formatDuration(d time.Duration) string {
 	} else {
 		return fmt.Sprintf("%.1fm", d.Minutes())
 	}
+}
+
+// getSchemaAnalysisResource returns schema analysis as a resource (kept for backward compatibility)
+func getSchemaAnalysisResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
+	}
+
+	// Check for schema analysis files
+	schemaDir := filepath.Join(exportDir, "schema")
+	assessmentDir := filepath.Join(exportDir, "assessment")
+
+	result := map[string]interface{}{
+		"export_dir": exportDir,
+		"timestamp":  time.Now().Format(time.RFC3339),
+		"note":       "This resource is deprecated. Use voyager://assessment-report/{export_dir} or voyager://schema-analysis-report/{export_dir} instead.",
+	}
+
+	if utils.FileOrFolderExists(schemaDir) {
+		files, _ := ioutil.ReadDir(schemaDir)
+		var schemaFiles []string
+		for _, file := range files {
+			if !file.IsDir() {
+				schemaFiles = append(schemaFiles, file.Name())
+			}
+		}
+		result["schema_files"] = schemaFiles
+	}
+
+	if utils.FileOrFolderExists(assessmentDir) {
+		files, _ := ioutil.ReadDir(assessmentDir)
+		var assessmentFiles []string
+		for _, file := range files {
+			if !file.IsDir() {
+				assessmentFiles = append(assessmentFiles, file.Name())
+			}
+		}
+		result["assessment_files"] = assessmentFiles
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
+		},
+	}, nil
 }
