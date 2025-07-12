@@ -139,16 +139,22 @@ The MCP server follows a config-first approach:
    - Ensure the full absolute path to the binary is used in the config
    - Verify the binary is executable: `chmod +x yb-voyager`
 
-2. **"Permission denied" error**:
+2. **"yb-voyager executable not found in PATH" error**:
+   - The MCP server now automatically finds the yb-voyager executable
+   - If this fails, ensure yb-voyager is installed and accessible
+   - Check with: `which yb-voyager` in your terminal
+
+3. **"Permission denied" error**:
    - Check file permissions on the binary
    - Ensure Claude Desktop has necessary permissions
+   - For file writing issues, use the `generate_config_content` tool instead of `create_config_file`
 
-3. **"Connection failed" error**:
+4. **"Connection failed" error**:
    - Verify the JSON configuration syntax
    - Check the logs in Claude Desktop developer tools
    - Ensure YB Voyager is in the system PATH
 
-4. **"Tool not available" error**:
+5. **"Tool not available" error**:
    - Restart Claude Desktop after configuration changes
    - Verify the MCP server is running: `./yb-voyager mcp-server`
 
