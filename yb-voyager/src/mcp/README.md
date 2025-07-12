@@ -34,6 +34,61 @@ The YB Voyager MCP server provides LLMs with the ability to:
 2. **`optimize_performance`** - Performance optimization recommendations
 3. **`generate_config`** - Guided configuration file creation
 
+### Enhanced Output Features
+The MCP server provides rich, structured output for all command executions:
+
+#### 📊 **Executive Summary**
+- Clean, emoji-enhanced summaries for quick understanding
+- Command-specific insights (e.g., table counts for assessments)
+- Status indicators with visual feedback
+
+#### 🔍 **Structured Data**
+- Parsed command output for LLM reasoning
+- Extracted metrics (table counts, error counts, etc.)
+- Status tracking (completed, in_progress, failed)
+
+#### 📋 **Raw Output**
+- Complete, unmodified command output
+- Useful for detailed debugging and analysis
+- Preserved formatting and error messages
+
+#### ⏱️ **Execution Metrics**
+- Command duration timing
+- Exit codes and error details
+- Execution timestamps
+
+#### 🎨 **Rich Formatting**
+- Markdown-formatted output for better readability
+- Syntax-highlighted code blocks
+- Organized sections for different data types
+
+**Example Output Structure:**
+```markdown
+# YB Voyager Command Execution
+
+## Summary
+✅ Assessment completed successfully
+📊 Found 15 tables, 8 indexes
+⚠️  2 issues found
+
+## Command Details
+- **Command**: yb-voyager assess-migration --config-file config.yaml
+- **Duration**: 2.3s
+- **Status**: ✅ Success
+- **Timestamp**: 2024-01-15 14:30:25
+
+## Raw Output
+[Complete command output...]
+
+## Structured Data
+{
+  "tables_count": 15,
+  "indexes_count": 8,
+  "issues": ["Warning: Large table detected", "Info: Index optimization suggested"],
+  "status": "completed"
+}
+```
+
 ## Setup Instructions
 
 ### Prerequisites
