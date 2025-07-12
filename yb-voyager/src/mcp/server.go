@@ -96,7 +96,7 @@ func (s *Server) registerTools() {
 	s.server.AddTool(
 		mcp.NewTool("execute_voyager_with_config",
 			mcp.WithDescription("Execute YB Voyager commands using a configuration file"),
-			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export-schema')")),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
 			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the configuration file")),
 			mcp.WithString("additional_args", mcp.Description("Additional command-line arguments")),
 		),
@@ -106,7 +106,7 @@ func (s *Server) registerTools() {
 	s.server.AddTool(
 		mcp.NewTool("execute_voyager_command",
 			mcp.WithDescription("Execute YB Voyager commands with individual parameters (legacy method)"),
-			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute")),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
 			mcp.WithString("export_dir", mcp.Description("Export directory path")),
 			mcp.WithString("args", mcp.Description("Additional command arguments")),
 		),

@@ -341,8 +341,11 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 
 	additionalArgs := req.GetString("additional_args", "")
 
-	// Build the command arguments
-	cmdArgs := []string{command, "--config-file", configPath}
+	// Parse command - handle hierarchical commands like "export data" or "import schema"
+	commandParts := strings.Fields(command)
+
+	// Build the command arguments starting with parsed command parts
+	cmdArgs := append(commandParts, "--config-file", configPath)
 
 	// Add additional arguments if provided
 	if additionalArgs != "" {
@@ -484,8 +487,11 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	exportDir := req.GetString("export_dir", "")
 	args := req.GetString("args", "")
 
-	// Build the command arguments
-	cmdArgs := []string{command}
+	// Parse command - handle hierarchical commands like "export data" or "import schema"
+	commandParts := strings.Fields(command)
+
+	// Build the command arguments starting with parsed command parts
+	cmdArgs := commandParts
 
 	// Add export-dir if provided
 	if exportDir != "" {
@@ -1704,17 +1710,35 @@ func generateConfigContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 func parseVoyagerOutput(command, rawOutput string, execErr error) (summary string, structuredData map[string]interface{}) {
 	structuredData = make(map[string]interface{})
 
-	// Parse based on command type
-	switch command {
-	case "assess-migration":
-		return parseAssessmentOutput(rawOutput, execErr)
-	case "export", "export-schema":
-		return parseExportOutput(rawOutput, execErr)
-	case "import", "import-schema":
-		return parseImportOutput(rawOutput, execErr)
-	default:
-		return parseGenericOutput(rawOutput, execErr)
+	// Parse command to handle hierarchical commands
+	commandParts := strings.Fields(command)
+
+	// Determine command type based on the command parts
+	if len(commandParts) == 1 {
+		// Single command like "assess-migration"
+		switch commandParts[0] {
+		case "assess-migration":
+			return parseAssessmentOutput(rawOutput, execErr)
+		case "analyze-schema":
+			return parseGenericOutput(rawOutput, execErr)
+		default:
+			return parseGenericOutput(rawOutput, execErr)
+		}
+	} else if len(commandParts) >= 2 {
+		// Hierarchical commands like "export schema", "export data", "import schema", "import data"
+		mainCommand := commandParts[0]
+
+		switch mainCommand {
+		case "export":
+			return parseExportOutput(rawOutput, execErr)
+		case "import":
+			return parseImportOutput(rawOutput, execErr)
+		default:
+			return parseGenericOutput(rawOutput, execErr)
+		}
 	}
+
+	return parseGenericOutput(rawOutput, execErr)
 }
 
 // parseAssessmentOutput parses assess-migration command output
