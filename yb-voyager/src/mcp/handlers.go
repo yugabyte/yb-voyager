@@ -352,6 +352,7 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 	startTime := time.Now()
 	voyagerPath := findYbVoyagerPath()
 	cmd := exec.CommandContext(ctx, voyagerPath, cmdArgs...)
+	cmd.Env = buildEnvWithExtraPath()
 	cmd.Dir = filepath.Dir(configPath) // Set working directory to config file directory
 
 	output, err := cmd.CombinedOutput()
@@ -499,6 +500,7 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	startTime := time.Now()
 	voyagerPath := findYbVoyagerPath()
 	cmd := exec.CommandContext(ctx, voyagerPath, cmdArgs...)
+	cmd.Env = buildEnvWithExtraPath()
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startTime)
 
@@ -741,13 +743,13 @@ func getAssessmentReportResource(ctx context.Context, uri string) (*mcp.ReadReso
 			// Use the properly parsed AssessmentReport struct
 			result["assessment_report"] = assessmentReport
 
-			// Extract key metrics for easy LLM access
+			// Extract key metrics for easy LLM access using struct fields
 			result["voyager_version"] = assessmentReport.VoyagerVersion
 			result["migration_complexity"] = assessmentReport.MigrationComplexity
 			result["migration_complexity_explanation"] = assessmentReport.MigrationComplexityExplanation
 			result["total_issues"] = len(assessmentReport.Issues)
 
-			// Categorize issues by impact and category
+			// Categorize issues by impact and category using struct fields
 			impactCounts := make(map[string]int)
 			categoryCounts := make(map[string]int)
 			for _, issue := range assessmentReport.Issues {
@@ -757,10 +759,10 @@ func getAssessmentReportResource(ctx context.Context, uri string) (*mcp.ReadReso
 			result["issues_by_impact"] = impactCounts
 			result["issues_by_category"] = categoryCounts
 
-			// Extract schema summary
+			// Extract schema summary using struct fields
 			result["schema_summary"] = assessmentReport.SchemaSummary
 
-			// Extract sizing recommendations if available
+			// Extract sizing recommendations if available using struct methods
 			if assessmentReport.Sizing != nil {
 				result["sizing_recommendations"] = assessmentReport.Sizing
 				result["cluster_sizing_recommendation"] = assessmentReport.GetClusterSizingRecommendation()
@@ -776,7 +778,7 @@ func getAssessmentReportResource(ctx context.Context, uri string) (*mcp.ReadReso
 				}
 			}
 
-			// Extract table and index statistics
+			// Extract table and index statistics using struct methods
 			if assessmentReport.TableIndexStats != nil {
 				result["total_table_row_count"] = assessmentReport.GetTotalTableRowCount()
 				result["total_table_size"] = assessmentReport.GetTotalTableSize()
@@ -784,10 +786,10 @@ func getAssessmentReportResource(ctx context.Context, uri string) (*mcp.ReadReso
 				result["table_index_stats"] = assessmentReport.TableIndexStats
 			}
 
-			// Extract notes
+			// Extract notes using struct fields
 			result["notes"] = assessmentReport.Notes
 
-			// Extract target DB version
+			// Extract target DB version using struct fields
 			if assessmentReport.TargetDBVersion != nil {
 				result["target_db_version"] = assessmentReport.TargetDBVersion.String()
 			}
@@ -932,16 +934,16 @@ func getSchemaAnalysisReportResource(ctx context.Context, uri string) (*mcp.Read
 			// Use the properly parsed SchemaReport struct
 			result["schema_analysis_report"] = schemaReport
 
-			// Extract key metrics for easy LLM access
+			// Extract key metrics for easy LLM access using struct fields
 			result["voyager_version"] = schemaReport.VoyagerVersion
 			result["total_issues"] = len(schemaReport.Issues)
 
-			// Extract target DB version
+			// Extract target DB version using struct fields
 			if schemaReport.TargetDBVersion != nil {
 				result["target_db_version"] = schemaReport.TargetDBVersion.String()
 			}
 
-			// Categorize issues by type and impact
+			// Categorize issues by type and impact using struct fields
 			typeCounts := make(map[string]int)
 			impactCounts := make(map[string]int)
 			objectTypeCounts := make(map[string]int)
@@ -955,10 +957,10 @@ func getSchemaAnalysisReportResource(ctx context.Context, uri string) (*mcp.Read
 			result["issues_by_impact"] = impactCounts
 			result["issues_by_object_type"] = objectTypeCounts
 
-			// Extract schema summary
+			// Extract schema summary using struct fields
 			result["schema_summary"] = schemaReport.SchemaSummary
 
-			// Extract database objects summary with detailed breakdown
+			// Extract database objects summary with detailed breakdown using struct fields
 			if len(schemaReport.SchemaSummary.DBObjects) > 0 {
 				result["total_db_objects"] = len(schemaReport.SchemaSummary.DBObjects)
 
@@ -984,7 +986,7 @@ func getSchemaAnalysisReportResource(ctx context.Context, uri string) (*mcp.Read
 				result["total_valid_objects"] = totalObjects - totalInvalidObjects
 			}
 
-			// Extract database information
+			// Extract database information using struct fields
 			result["database_name"] = schemaReport.SchemaSummary.DBName
 			result["database_version"] = schemaReport.SchemaSummary.DBVersion
 			result["schema_names"] = schemaReport.SchemaSummary.SchemaNames
@@ -1303,6 +1305,251 @@ Use the create_config_file tool to generate the configuration file once you have
 				},
 			},
 		},
+	}, nil
+}
+
+// summarizeAssessmentReportTool provides structured assessment report analysis as a tool
+func summarizeAssessmentReportTool(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	exportDir, err := req.RequireString("export_dir")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
+	}
+
+	// Try to parse the assessment report using YB Voyager's native parser
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	jsonReportPath := filepath.Join(assessmentReportDir, "migration_assessment_report.json")
+
+	if !utils.FileOrFolderExists(jsonReportPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Assessment report not found at %s. Run 'assess-migration' command first.", jsonReportPath)), nil
+	}
+
+	// Parse the assessment report using the native parser
+	assessmentReport, err := parseAssessmentReport(jsonReportPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse assessment report: %v", err)), nil
+	}
+
+	// Generate structured summary using the actual struct fields
+	summary := "# 📊 YB Voyager Assessment Report Summary\n\n"
+
+	// Migration Overview
+	summary += "## 📊 MIGRATION OVERVIEW\n"
+	summary += fmt.Sprintf("- **Voyager Version**: %s\n", assessmentReport.VoyagerVersion)
+	summary += fmt.Sprintf("- **Migration Complexity**: %s\n", assessmentReport.MigrationComplexity)
+	if assessmentReport.MigrationComplexityExplanation != "" {
+		summary += fmt.Sprintf("- **Complexity Explanation**: %s\n", assessmentReport.MigrationComplexityExplanation)
+	}
+	if assessmentReport.TargetDBVersion != nil {
+		summary += fmt.Sprintf("- **Target DB Version**: %s\n", assessmentReport.TargetDBVersion.String())
+	}
+	summary += fmt.Sprintf("- **Assessment Date**: %s\n\n", time.Now().Format("2006-01-02"))
+
+	// Issues Analysis
+	summary += "## ⚠️ ISSUES ANALYSIS\n"
+	summary += fmt.Sprintf("- **Total Issues Found**: %d\n", len(assessmentReport.Issues))
+
+	// Categorize issues by impact
+	impactCounts := make(map[string]int)
+	categoryCounts := make(map[string]int)
+	for _, issue := range assessmentReport.Issues {
+		impactCounts[issue.Impact]++
+		categoryCounts[issue.Category]++
+	}
+
+	for impact, count := range impactCounts {
+		summary += fmt.Sprintf("- **%s Issues**: %d\n", impact, count)
+	}
+	summary += "\n"
+
+	// Sizing Recommendations
+	summary += "## 🎯 SIZING RECOMMENDATIONS\n"
+	if assessmentReport.Sizing != nil {
+		clusterRec := assessmentReport.GetClusterSizingRecommendation()
+		if clusterRec != "" {
+			summary += fmt.Sprintf("- **Cluster Sizing**: %s\n", clusterRec)
+		}
+
+		shardedTables, err := assessmentReport.GetShardedTablesRecommendation()
+		if err == nil && len(shardedTables) > 0 {
+			summary += fmt.Sprintf("- **Sharded Tables**: %d tables recommended for sharding\n", len(shardedTables))
+		}
+
+		colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
+		if err == nil && len(colocatedTables) > 0 {
+			summary += fmt.Sprintf("- **Colocated Tables**: %d tables recommended for colocation\n", len(colocatedTables))
+		}
+	}
+	summary += "\n"
+
+	// Schema Summary
+	summary += "## 🏗️ SCHEMA SUMMARY\n"
+	summary += fmt.Sprintf("- **Database Name**: %s\n", assessmentReport.SchemaSummary.DBName)
+	summary += fmt.Sprintf("- **Database Version**: %s\n", assessmentReport.SchemaSummary.DBVersion)
+	if len(assessmentReport.SchemaSummary.SchemaNames) > 0 {
+		summary += fmt.Sprintf("- **Schema Names**: %s\n", strings.Join(assessmentReport.SchemaSummary.SchemaNames, ", "))
+	}
+
+	for _, obj := range assessmentReport.SchemaSummary.DBObjects {
+		summary += fmt.Sprintf("- **%s**: %d objects\n", obj.ObjectType, obj.TotalCount)
+	}
+	summary += "\n"
+
+	// Performance Stats
+	summary += "## 📈 DATABASE STATISTICS\n"
+	if totalRows := assessmentReport.GetTotalTableRowCount(); totalRows > 0 {
+		summary += fmt.Sprintf("- **Total Table Rows**: %d\n", totalRows)
+	}
+	if totalSize := assessmentReport.GetTotalTableSize(); totalSize > 0 {
+		summary += fmt.Sprintf("- **Total Table Size**: %s\n", utils.HumanReadableByteCount(totalSize))
+	}
+	if indexSize := assessmentReport.GetTotalIndexSize(); indexSize > 0 {
+		summary += fmt.Sprintf("- **Total Index Size**: %s\n", utils.HumanReadableByteCount(indexSize))
+	}
+	summary += "\n"
+
+	// Issues by Category
+	if len(categoryCounts) > 0 {
+		summary += "## 📋 ISSUES BY CATEGORY\n"
+		for category, count := range categoryCounts {
+			summary += fmt.Sprintf("- **%s**: %d issues\n", utils.SnakeCaseToTitleCase(category), count)
+		}
+		summary += "\n"
+	}
+
+	// Recommendations
+	summary += "## 💡 KEY RECOMMENDATIONS\n"
+	summary += "1. **Address Critical Issues**: Focus on Level-1 issues first as they may block migration\n"
+	summary += "2. **Review Sizing**: Implement recommended sharding and colocation strategies\n"
+	summary += "3. **Plan Testing**: Thoroughly test migrated objects, especially those with compatibility issues\n"
+	summary += "4. **Performance Tuning**: Monitor and optimize based on the sizing recommendations\n\n"
+
+	// Add notes if available
+	if len(assessmentReport.Notes) > 0 {
+		summary += "## 📝 NOTES\n"
+		for i, note := range assessmentReport.Notes {
+			summary += fmt.Sprintf("%d. %s\n", i+1, note)
+		}
+		summary += "\n"
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(summary)},
+	}, nil
+}
+
+// summarizeSchemaAnalysisTool provides structured schema analysis report summary as a tool
+func summarizeSchemaAnalysisTool(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	exportDir, err := req.RequireString("export_dir")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
+	}
+
+	// Try to parse the schema analysis report using YB Voyager's native parser
+	reportsDir := filepath.Join(exportDir, "reports")
+	jsonReportPath := filepath.Join(reportsDir, "schema_analysis_report.json")
+
+	if !utils.FileOrFolderExists(jsonReportPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Schema analysis report not found at %s. Run 'analyze-schema' command first.", jsonReportPath)), nil
+	}
+
+	// Parse the schema analysis report using the native parser
+	schemaReport, err := parseSchemaAnalysisReport(jsonReportPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse schema analysis report: %v", err)), nil
+	}
+
+	// Generate structured summary using the actual struct fields
+	summary := "# 📊 YB Voyager Schema Analysis Report Summary\n\n"
+
+	// Schema Overview
+	summary += "## 📊 SCHEMA OVERVIEW\n"
+	summary += fmt.Sprintf("- **Voyager Version**: %s\n", schemaReport.VoyagerVersion)
+	summary += fmt.Sprintf("- **Database Name**: %s\n", schemaReport.SchemaSummary.DBName)
+	summary += fmt.Sprintf("- **Database Version**: %s\n", schemaReport.SchemaSummary.DBVersion)
+	if schemaReport.TargetDBVersion != nil {
+		summary += fmt.Sprintf("- **Target DB Version**: %s\n", schemaReport.TargetDBVersion.String())
+	}
+	if len(schemaReport.SchemaSummary.SchemaNames) > 0 {
+		summary += fmt.Sprintf("- **Schema Names**: %s\n", strings.Join(schemaReport.SchemaSummary.SchemaNames, ", "))
+	}
+	summary += fmt.Sprintf("- **Analysis Date**: %s\n\n", time.Now().Format("2006-01-02"))
+
+	// Database Objects Summary
+	summary += "## 🏗️ DATABASE OBJECTS SUMMARY\n"
+	totalObjects := 0
+	totalInvalidObjects := 0
+	for _, obj := range schemaReport.SchemaSummary.DBObjects {
+		totalObjects += obj.TotalCount
+		totalInvalidObjects += obj.InvalidCount
+		summary += fmt.Sprintf("- **%s**: %d total (%d valid, %d invalid)\n",
+			obj.ObjectType, obj.TotalCount, obj.TotalCount-obj.InvalidCount, obj.InvalidCount)
+	}
+	summary += fmt.Sprintf("- **Total Objects**: %d\n", totalObjects)
+	summary += fmt.Sprintf("- **Total Valid Objects**: %d\n", totalObjects-totalInvalidObjects)
+	summary += fmt.Sprintf("- **Total Invalid Objects**: %d\n\n", totalInvalidObjects)
+
+	// Compatibility Issues
+	summary += "## ⚠️ COMPATIBILITY ISSUES\n"
+	summary += fmt.Sprintf("- **Total Issues Found**: %d\n", len(schemaReport.Issues))
+
+	// Categorize issues by impact and type
+	impactCounts := make(map[string]int)
+	typeCounts := make(map[string]int)
+	objectTypeCounts := make(map[string]int)
+
+	for _, issue := range schemaReport.Issues {
+		impactCounts[issue.Impact]++
+		typeCounts[issue.IssueType]++
+		objectTypeCounts[issue.ObjectType]++
+	}
+
+	for impact, count := range impactCounts {
+		summary += fmt.Sprintf("- **%s Issues**: %d\n", impact, count)
+	}
+
+	if len(typeCounts) > 0 {
+		summary += "\n### Issues by Type:\n"
+		for issueType, count := range typeCounts {
+			summary += fmt.Sprintf("- **%s**: %d\n", utils.SnakeCaseToTitleCase(issueType), count)
+		}
+	}
+
+	if len(objectTypeCounts) > 0 {
+		summary += "\n### Issues by Object Type:\n"
+		for objType, count := range objectTypeCounts {
+			summary += fmt.Sprintf("- **%s**: %d\n", objType, count)
+		}
+	}
+	summary += "\n"
+
+	// Migration Readiness
+	summary += "## 📋 MIGRATION READINESS ASSESSMENT\n"
+	summary += fmt.Sprintf("- **Ready for Migration**: %d objects\n", totalObjects-totalInvalidObjects)
+	summary += fmt.Sprintf("- **Require Modifications**: %d objects\n", totalInvalidObjects)
+	if totalObjects > 0 {
+		readyPercentage := float64(totalObjects-totalInvalidObjects) / float64(totalObjects) * 100
+		summary += fmt.Sprintf("- **Readiness Score**: %.1f%%\n", readyPercentage)
+	}
+	summary += "\n"
+
+	// Key Recommendations
+	summary += "## 💡 KEY RECOMMENDATIONS\n"
+	summary += "1. **Address Critical Issues**: Focus on Level-1 schema issues first\n"
+	summary += "2. **Review Invalid Objects**: Examine objects marked as invalid for compatibility\n"
+	summary += "3. **Plan Schema Changes**: Prepare modifications for unsupported features\n"
+	summary += "4. **Test Thoroughly**: Validate schema changes in a test environment\n\n"
+
+	// Add notes if available
+	if len(schemaReport.SchemaSummary.Notes) > 0 {
+		summary += "## 📝 NOTES\n"
+		for i, note := range schemaReport.SchemaSummary.Notes {
+			summary += fmt.Sprintf("%d. %s\n", i+1, note)
+		}
+		summary += "\n"
+	}
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(summary)},
 	}, nil
 }
 
@@ -1682,4 +1929,42 @@ func getSchemaAnalysisResource(ctx context.Context, uri string) (*mcp.ReadResour
 			},
 		},
 	}, nil
+}
+
+// buildEnvWithExtraPath constructs an environment slice where PATH is extended so
+// that helper binaries (pg_dump, pg_restore, psql) are discoverable even when
+// MCP is started by a GUI process that inherits a minimal PATH.
+//
+// Precedence order (left-to-right):
+//  1. VOYAGER_EXTRA_PATH env var supplied by the user.
+//  2. Hard-coded common locations.
+//  3. Original PATH from the parent process.
+//
+// We always append the original PATH last so that the original ordering is
+// preserved and duplicates earlier in the list do not shadow the user's
+// existing tools.
+func buildEnvWithExtraPath() []string {
+	basePath := os.Getenv("PATH")
+
+	// User-supplied override (may contain multiple ':'-separated dirs)
+	extra := os.Getenv("VOYAGER_EXTRA_PATH")
+
+	defaults := []string{
+		"/opt/homebrew/bin",                // Homebrew (Apple Silicon)
+		"/usr/local/opt/postgresql@16/bin", // Brew keg for pg16 utilities
+		"/usr/local/bin",                   // Common fallback
+	}
+
+	var parts []string
+	if extra != "" {
+		parts = append(parts, extra)
+	}
+	parts = append(parts, defaults...)
+	parts = append(parts, basePath)
+
+	finalPath := strings.Join(parts, ":")
+
+	env := os.Environ()
+	env = append(env, "PATH="+finalPath)
+	return env
 }

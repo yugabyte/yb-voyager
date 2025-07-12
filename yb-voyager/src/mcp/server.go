@@ -129,6 +129,23 @@ func (s *Server) registerTools() {
 		),
 		getMetaDBStats,
 	)
+
+	// Report summarization tools
+	s.server.AddTool(
+		mcp.NewTool("summarize_assessment_report",
+			mcp.WithDescription("Get a structured summary and analysis of the YB Voyager migration assessment report"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing the assessment report")),
+		),
+		summarizeAssessmentReportTool,
+	)
+
+	s.server.AddTool(
+		mcp.NewTool("summarize_schema_analysis",
+			mcp.WithDescription("Get a structured summary and analysis of the YB Voyager schema analysis report"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing the schema analysis report")),
+		),
+		summarizeSchemaAnalysisTool,
+	)
 }
 
 // registerResources registers all MCP resources
