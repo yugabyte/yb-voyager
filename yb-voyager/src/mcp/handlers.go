@@ -1610,7 +1610,8 @@ func extractExportDirFromURI(uri string) string {
 		path := strings.TrimPrefix(uri, "voyager://")
 		parts := strings.Split(path, "/")
 		if len(parts) > 1 {
-			return parts[1]
+			// Join all parts after the resource type to get the full export directory path
+			return strings.Join(parts[1:], "/")
 		}
 	}
 
