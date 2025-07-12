@@ -150,6 +150,40 @@ func (s *Server) registerResources() {
 		},
 	)
 
+	// Assessment report resource template
+	s.server.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			"voyager://assessment-report/{export_dir}",
+			"Assessment Report",
+			mcp.WithTemplateDescription("Migration assessment report with complexity analysis, issues, and recommendations"),
+			mcp.WithTemplateMIMEType("application/json"),
+		),
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getAssessmentReportResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
+	)
+
+	// Schema analysis report resource template
+	s.server.AddResourceTemplate(
+		mcp.NewResourceTemplate(
+			"voyager://schema-analysis-report/{export_dir}",
+			"Schema Analysis Report",
+			mcp.WithTemplateDescription("Detailed schema analysis report with compatibility issues and object summaries"),
+			mcp.WithTemplateMIMEType("application/json"),
+		),
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getSchemaAnalysisReportResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
+	)
+
 	// Logs resource template
 	s.server.AddResourceTemplate(
 		mcp.NewResourceTemplate(
@@ -167,16 +201,16 @@ func (s *Server) registerResources() {
 		},
 	)
 
-	// Schema analysis resource template
+	// Schema files resource template (for exported schema files)
 	s.server.AddResourceTemplate(
 		mcp.NewResourceTemplate(
-			"voyager://schema-analysis/{export_dir}",
-			"Schema Analysis",
-			mcp.WithTemplateDescription("Schema analysis and assessment results"),
+			"voyager://schema-files/{export_dir}",
+			"Schema Files",
+			mcp.WithTemplateDescription("Exported schema files and structure information"),
 			mcp.WithTemplateMIMEType("application/json"),
 		),
 		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-			result, err := getSchemaAnalysisResource(ctx, req.Params.URI)
+			result, err := getSchemaFilesResource(ctx, req.Params.URI)
 			if err != nil {
 				return nil, err
 			}
