@@ -2,10 +2,6 @@ package mcp
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
@@ -43,127 +39,196 @@ func (s *Server) Run() error {
 
 // registerTools registers all MCP tools
 func (s *Server) registerTools() {
-	// Tool 1: Execute yb-voyager commands
-	s.server.AddTool(mcp.NewTool("execute_voyager_command",
-		mcp.WithDescription("Execute yb-voyager commands with arguments"),
-		mcp.WithString("command", mcp.Required(), mcp.Description("The yb-voyager command to execute (e.g., 'export schema', 'import data')")),
-		mcp.WithString("export_dir", mcp.Description("Export directory path (required for most commands)")),
-		mcp.WithString("args", mcp.Description("Additional command arguments as JSON array")),
-	), s.handleExecuteVoyagerCommand)
+	// Export directory management tools
+	s.server.AddTool(
+		mcp.NewTool("create_export_directory",
+			mcp.WithDescription("Create an export directory for YB Voyager migration"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Path to the export directory to create")),
+		),
+		createExportDirectory,
+	)
 
-	// Tool 2: Query migration status
-	s.server.AddTool(mcp.NewTool("query_migration_status",
-		mcp.WithDescription("Query current migration status from metaDB"),
-		mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing metaDB")),
-	), s.handleQueryMigrationStatus)
+	s.server.AddTool(
+		mcp.NewTool("get_export_directory_info",
+			mcp.WithDescription("Get information about an export directory"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Path to the export directory to analyze")),
+		),
+		getExportDirectoryInfo,
+	)
 
-	// Tool 3: Get metaDB statistics
-	s.server.AddTool(mcp.NewTool("get_metadb_stats",
-		mcp.WithDescription("Get statistics from metaDB including table counts, data sizes, etc."),
-		mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing metaDB")),
-	), s.handleGetMetaDBStats)
+	// Config file management tools
+	s.server.AddTool(
+		mcp.NewTool("create_config_file",
+			mcp.WithDescription("Create a YB Voyager configuration file from template"),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path where the config file should be created")),
+			mcp.WithString("template_type", mcp.Description("Template type (live-migration, offline-migration, etc.)")),
+			mcp.WithString("export_dir", mcp.Description("Export directory path")),
+			mcp.WithString("source_db_type", mcp.Description("Source database type (postgresql, oracle)")),
+			mcp.WithString("source_db_host", mcp.Description("Source database host")),
+			mcp.WithString("source_db_name", mcp.Description("Source database name")),
+			mcp.WithString("source_db_user", mcp.Description("Source database user")),
+		),
+		createConfigFile,
+	)
+
+	s.server.AddTool(
+		mcp.NewTool("validate_config_file",
+			mcp.WithDescription("Validate a YB Voyager configuration file"),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file to validate")),
+		),
+		validateConfigFile,
+	)
+
+	s.server.AddTool(
+		mcp.NewTool("generate_config_content",
+			mcp.WithDescription("Generate YB Voyager configuration file content without writing to disk (useful when file system permissions are restricted)"),
+			mcp.WithString("template_type", mcp.Description("Template type (live-migration, offline-migration, etc.)")),
+			mcp.WithString("export_dir", mcp.Description("Export directory path")),
+			mcp.WithString("source_db_type", mcp.Description("Source database type (postgresql, oracle)")),
+			mcp.WithString("source_db_host", mcp.Description("Source database host")),
+			mcp.WithString("source_db_name", mcp.Description("Source database name")),
+			mcp.WithString("source_db_user", mcp.Description("Source database user")),
+		),
+		generateConfigContent,
+	)
+
+	// Command execution tools
+	s.server.AddTool(
+		mcp.NewTool("execute_voyager_with_config",
+			mcp.WithDescription("Execute YB Voyager commands using a configuration file"),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export-schema')")),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the configuration file")),
+			mcp.WithString("additional_args", mcp.Description("Additional command-line arguments")),
+		),
+		executeVoyagerWithConfig,
+	)
+
+	s.server.AddTool(
+		mcp.NewTool("execute_voyager_command",
+			mcp.WithDescription("Execute YB Voyager commands with individual parameters (legacy method)"),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute")),
+			mcp.WithString("export_dir", mcp.Description("Export directory path")),
+			mcp.WithString("args", mcp.Description("Additional command arguments")),
+		),
+		executeVoyagerCommand,
+	)
+
+	// Migration status and metadata tools
+	s.server.AddTool(
+		mcp.NewTool("query_migration_status",
+			mcp.WithDescription("Query the current migration status from metaDB"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory containing the metaDB")),
+		),
+		queryMigrationStatus,
+	)
+
+	s.server.AddTool(
+		mcp.NewTool("get_metadb_stats",
+			mcp.WithDescription("Get statistics and metadata from the migration database"),
+			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory containing the metaDB")),
+		),
+		getMetaDBStats,
+	)
 }
 
 // registerResources registers all MCP resources
 func (s *Server) registerResources() {
-	// Resource 1: Migration status
+	// Migration status resource
 	s.server.AddResource(
-		mcp.NewResource("voyager://migration-status", "Current migration status and progress"),
-		s.handleMigrationStatusResource,
+		mcp.Resource{
+			URI:         "voyager://migration-status",
+			Name:        "Migration Status",
+			Description: "Current migration status and progress information",
+			MIMEType:    "application/json",
+		},
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getMigrationStatusResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
 	)
 
-	// Resource 2: Recent logs
+	// Logs resource template
 	s.server.AddResourceTemplate(
-		mcp.NewResourceTemplate("voyager://logs/{export_dir}/recent", "Recent migration logs"),
-		s.handleLogsResource,
+		mcp.NewResourceTemplate(
+			"voyager://logs/{export_dir}/recent",
+			"Recent Migration Logs",
+			mcp.WithTemplateDescription("Recent log files from the migration process"),
+			mcp.WithTemplateMIMEType("application/json"),
+		),
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getLogsResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
 	)
 
-	// Resource 3: Schema analysis
+	// Schema analysis resource template
 	s.server.AddResourceTemplate(
-		mcp.NewResourceTemplate("voyager://schema-analysis/{export_dir}", "Schema analysis results and compatibility report"),
-		s.handleSchemaAnalysisResource,
+		mcp.NewResourceTemplate(
+			"voyager://schema-analysis/{export_dir}",
+			"Schema Analysis",
+			mcp.WithTemplateDescription("Schema analysis and assessment results"),
+			mcp.WithTemplateMIMEType("application/json"),
+		),
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getSchemaAnalysisResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
+	)
+
+	// Config templates resource: exposes available config template files to the LLM
+	s.server.AddResource(
+		mcp.Resource{
+			URI:         "voyager://config-templates",
+			Name:        "Configuration Templates",
+			Description: "Available YB Voyager configuration templates. This resource provides the LLM with access to the template files used for generating configuration files.",
+			MIMEType:    "application/json",
+		},
+		func(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
+			result, err := getConfigTemplatesResource(ctx, req.Params.URI)
+			if err != nil {
+				return nil, err
+			}
+			return result.Contents, nil
+		},
 	)
 }
 
 // registerPrompts registers all MCP prompts
 func (s *Server) registerPrompts() {
-	// Prompt 1: Troubleshoot migration
+	// Troubleshooting prompt
 	s.server.AddPrompt(
 		mcp.NewPrompt("troubleshoot_migration",
-			mcp.WithPromptDescription("Help troubleshoot migration issues"),
-			mcp.WithArgument("export_dir", mcp.ArgumentDescription("Export directory path"), mcp.RequiredArgument()),
-			mcp.WithArgument("error_context", mcp.ArgumentDescription("Error message or context")),
+			mcp.WithPromptDescription("Get troubleshooting guidance for YB Voyager migration issues"),
+			mcp.WithArgument("export_dir", mcp.RequiredArgument(), mcp.ArgumentDescription("Export directory path for the migration")),
 		),
-		s.handleTroubleshootPrompt,
+		troubleshootMigrationPrompt,
 	)
 
-	// Prompt 2: Optimize performance
+	// Performance optimization prompt
 	s.server.AddPrompt(
 		mcp.NewPrompt("optimize_performance",
-			mcp.WithPromptDescription("Provide performance optimization suggestions"),
-			mcp.WithArgument("export_dir", mcp.ArgumentDescription("Export directory path"), mcp.RequiredArgument()),
-			mcp.WithArgument("migration_phase", mcp.ArgumentDescription("Current migration phase (export/import/cutover)")),
+			mcp.WithPromptDescription("Get performance optimization recommendations for YB Voyager migration"),
+			mcp.WithArgument("export_dir", mcp.RequiredArgument(), mcp.ArgumentDescription("Export directory path for the migration")),
 		),
-		s.handleOptimizePrompt,
+		optimizePerformancePrompt,
 	)
-}
 
-// Tool handlers
-func (s *Server) handleExecuteVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return executeVoyagerCommand(ctx, req)
-}
-
-func (s *Server) handleQueryMigrationStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return queryMigrationStatus(ctx, req)
-}
-
-func (s *Server) handleGetMetaDBStats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	return getMetaDBStats(ctx, req)
-}
-
-// Resource handlers
-func (s *Server) handleMigrationStatusResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	return readMigrationStatusResource(ctx, req)
-}
-
-func (s *Server) handleLogsResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	return readLogsResource(ctx, req)
-}
-
-func (s *Server) handleSchemaAnalysisResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	return readSchemaAnalysisResource(ctx, req)
-}
-
-// Prompt handlers
-func (s *Server) handleTroubleshootPrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-	return getTroubleshootPrompt(ctx, req)
-}
-
-func (s *Server) handleOptimizePrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-	return getOptimizePrompt(ctx, req)
-}
-
-// Helper function to convert interface{} to JSON string
-func toJSONString(v interface{}) string {
-	b, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		return fmt.Sprintf("Error marshaling to JSON: %v", err)
-	}
-	return string(b)
-}
-
-// Helper function to read file contents
-func readFileContents(filepath string) (string, error) {
-	file, err := os.Open(filepath)
-	if err != nil {
-		return "", fmt.Errorf("failed to open file %s: %w", filepath, err)
-	}
-	defer file.Close()
-
-	content, err := io.ReadAll(file)
-	if err != nil {
-		return "", fmt.Errorf("failed to read file %s: %w", filepath, err)
-	}
-
-	return string(content), nil
+	// Config generation prompt
+	s.server.AddPrompt(
+		mcp.NewPrompt("generate_config",
+			mcp.WithPromptDescription("Get help generating YB Voyager configuration files"),
+			mcp.WithArgument("migration_type", mcp.ArgumentDescription("Type of migration (live-migration, offline-migration, etc.)")),
+			mcp.WithArgument("source_type", mcp.ArgumentDescription("Source database type (postgresql, oracle)")),
+		),
+		configGenerationPrompt,
+	)
 }

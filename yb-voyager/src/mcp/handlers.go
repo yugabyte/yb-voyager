@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -12,11 +13,296 @@ import (
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"gopkg.in/yaml.v2"
 )
+
+// ConfigFile represents a yb-voyager configuration file structure
+type ConfigFile struct {
+	ExportDir string `yaml:"export-dir"`
+	LogLevel  string `yaml:"log-level"`
+	Source    struct {
+		DBType     string `yaml:"db-type"`
+		DBHost     string `yaml:"db-host"`
+		DBPort     int    `yaml:"db-port"`
+		DBName     string `yaml:"db-name"`
+		DBSchema   string `yaml:"db-schema"`
+		DBUser     string `yaml:"db-user"`
+		DBPassword string `yaml:"db-password"`
+	} `yaml:"source"`
+	Target struct {
+		DBHost     string `yaml:"db-host"`
+		DBPort     int    `yaml:"db-port"`
+		DBName     string `yaml:"db-name"`
+		DBUser     string `yaml:"db-user"`
+		DBPassword string `yaml:"db-password"`
+	} `yaml:"target"`
+	AssessMigration struct {
+		TargetDBVersion string `yaml:"target-db-version"`
+	} `yaml:"assess-migration"`
+	ExportSchema struct {
+		ObjectTypeList string `yaml:"object-type-list"`
+	} `yaml:"export-schema"`
+	ExportData struct {
+		ParallelJobs int `yaml:"parallel-jobs"`
+	} `yaml:"export-data"`
+	ImportData struct {
+		ParallelJobs int `yaml:"parallel-jobs"`
+	} `yaml:"import-data"`
+}
+
+// ExportDirInfo represents information about an export directory
+type ExportDirInfo struct {
+	Path          string   `json:"path"`
+	Exists        bool     `json:"exists"`
+	IsInitialized bool     `json:"is_initialized"`
+	HasMetaDB     bool     `json:"has_metadb"`
+	Size          int64    `json:"size_bytes"`
+	Contents      []string `json:"contents"`
+}
 
 // Tool handlers
 
-// executeVoyagerCommand executes yb-voyager commands as a subprocess
+// createExportDirectory creates an export directory if it doesn't exist
+func createExportDirectory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	exportDir, err := req.RequireString("export_dir")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
+	}
+
+	// Convert to absolute path
+	absPath, err := filepath.Abs(exportDir)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get absolute path: %v", err)), nil
+	}
+
+	// Check if directory already exists
+	if utils.FileOrFolderExists(absPath) {
+		info := getExportDirInfo(absPath)
+		result := map[string]interface{}{
+			"status": "already_exists",
+			"path":   absPath,
+			"info":   info,
+		}
+		jsonResult, _ := json.MarshalIndent(result, "", "  ")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+		}, nil
+	}
+
+	// Create directory
+	err = os.MkdirAll(absPath, 0755)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to create directory: %v", err)), nil
+	}
+
+	info := getExportDirInfo(absPath)
+	result := map[string]interface{}{
+		"status": "created",
+		"path":   absPath,
+		"info":   info,
+	}
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// getExportDirectoryInfo returns information about an export directory
+func getExportDirectoryInfo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	exportDir, err := req.RequireString("export_dir")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
+	}
+
+	absPath, err := filepath.Abs(exportDir)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get absolute path: %v", err)), nil
+	}
+
+	info := getExportDirInfo(absPath)
+	jsonResult, _ := json.MarshalIndent(info, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// createConfigFile creates a yb-voyager configuration file from parameters
+func createConfigFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	templateType := req.GetString("template_type", "live-migration")
+	exportDir := req.GetString("export_dir", "")
+
+	// Check directory permissions before attempting to write
+	configDir := filepath.Dir(configPath)
+	if err := checkDirectoryWritable(configDir); err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Cannot write to directory %s: %v\n\nSuggestion: Use a directory like ~/yb-voyager-workspace/ or ask the user to create the config file manually.", configDir, err)), nil
+	}
+
+	// Load template
+	templatePath := filepath.Join("config-templates", templateType+".yaml")
+	templateContent, err := ioutil.ReadFile(templatePath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to read template %s: %v", templateType, err)), nil
+	}
+
+	// Replace placeholders with actual values if provided
+	content := string(templateContent)
+	if exportDir != "" {
+		content = strings.ReplaceAll(content, "<export-dir-path>", exportDir)
+	}
+
+	// Apply other parameters from request
+	if sourceDBType := req.GetString("source_db_type", ""); sourceDBType != "" {
+		content = strings.ReplaceAll(content, "db-type: postgresql", "db-type: "+sourceDBType)
+	}
+	if sourceDBHost := req.GetString("source_db_host", ""); sourceDBHost != "" {
+		content = strings.ReplaceAll(content, "db-host: localhost", "db-host: "+sourceDBHost)
+	}
+	if sourceDBName := req.GetString("source_db_name", ""); sourceDBName != "" {
+		content = strings.ReplaceAll(content, "db-name: test_db", "db-name: "+sourceDBName)
+	}
+	if sourceDBUser := req.GetString("source_db_user", ""); sourceDBUser != "" {
+		content = strings.ReplaceAll(content, "db-user: test_user", "db-user: "+sourceDBUser)
+	}
+
+	// Write config file
+	err = ioutil.WriteFile(configPath, []byte(content), 0644)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to write config file: %v\n\nSuggestion: Try using a directory like ~/yb-voyager-workspace/ or ask the user to create the file manually.", err)), nil
+	}
+
+	result := map[string]interface{}{
+		"status":        "created",
+		"config_path":   configPath,
+		"template_type": templateType,
+		"export_dir":    exportDir,
+	}
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// executeVoyagerWithConfig executes yb-voyager commands using a config file
+func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	command, err := req.RequireString("command")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'command': %v", err)), nil
+	}
+
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	// Validate config file exists
+	if !utils.FileOrFolderExists(configPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Config file does not exist: %s", configPath)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Build the command arguments
+	cmdArgs := []string{command, "--config-file", configPath}
+
+	// Add additional arguments if provided
+	if additionalArgs != "" {
+		args := strings.Fields(additionalArgs)
+		cmdArgs = append(cmdArgs, args...)
+	}
+
+	// Execute the command
+	cmd := exec.CommandContext(ctx, "yb-voyager", cmdArgs...)
+	cmd.Dir = filepath.Dir(configPath) // Set working directory to config file directory
+
+	output, err := cmd.CombinedOutput()
+
+	result := map[string]interface{}{
+		"command":     "yb-voyager " + strings.Join(cmdArgs, " "),
+		"config_path": configPath,
+		"output":      string(output),
+		"success":     err == nil,
+	}
+
+	if err != nil {
+		result["error"] = err.Error()
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	textContent := mcp.NewTextContent(string(jsonResult))
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{textContent},
+		IsError: err != nil,
+	}, nil
+}
+
+// validateConfigFile validates a yb-voyager configuration file
+func validateConfigFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	// Check if file exists
+	if !utils.FileOrFolderExists(configPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Config file does not exist: %s", configPath)), nil
+	}
+
+	// Read and parse config file
+	content, err := ioutil.ReadFile(configPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to read config file: %v", err)), nil
+	}
+
+	var config ConfigFile
+	err = yaml.Unmarshal(content, &config)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse YAML config: %v", err)), nil
+	}
+
+	// Validate required fields
+	issues := []string{}
+
+	if config.ExportDir == "" {
+		issues = append(issues, "export-dir is required")
+	} else if !utils.FileOrFolderExists(config.ExportDir) {
+		issues = append(issues, fmt.Sprintf("export-dir does not exist: %s", config.ExportDir))
+	}
+
+	if config.Source.DBType == "" {
+		issues = append(issues, "source.db-type is required")
+	} else if config.Source.DBType != "postgresql" && config.Source.DBType != "oracle" {
+		issues = append(issues, "source.db-type must be 'postgresql' or 'oracle'")
+	}
+
+	if config.Source.DBHost == "" {
+		issues = append(issues, "source.db-host is required")
+	}
+
+	if config.Source.DBName == "" {
+		issues = append(issues, "source.db-name is required")
+	}
+
+	result := map[string]interface{}{
+		"config_path": configPath,
+		"valid":       len(issues) == 0,
+		"issues":      issues,
+		"config":      config,
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// executeVoyagerCommand executes yb-voyager commands as a subprocess (legacy method)
 func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	command, err := req.RequireString("command")
 	if err != nil {
@@ -34,13 +320,9 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		cmdArgs = append(cmdArgs, "--export-dir", exportDir)
 	}
 
-	// Parse additional arguments if provided
+	// Add additional arguments if provided
 	if args != "" {
-		var additionalArgs []string
-		if err := json.Unmarshal([]byte(args), &additionalArgs); err != nil {
-			// If not JSON, treat as space-separated string
-			additionalArgs = strings.Fields(args)
-		}
+		additionalArgs := strings.Fields(args)
 		cmdArgs = append(cmdArgs, additionalArgs...)
 	}
 
@@ -48,18 +330,26 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	cmd := exec.CommandContext(ctx, "yb-voyager", cmdArgs...)
 	output, err := cmd.CombinedOutput()
 
-	if err != nil {
-		textContent := mcp.NewTextContent(fmt.Sprintf("Command failed: %v\nOutput: %s", err, string(output)))
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{textContent},
-			IsError: true,
-		}, nil
+	result := map[string]interface{}{
+		"command": "yb-voyager " + strings.Join(cmdArgs, " "),
+		"output":  string(output),
+		"success": err == nil,
 	}
 
-	return mcp.NewToolResultText(string(output)), nil
+	if err != nil {
+		result["error"] = err.Error()
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	textContent := mcp.NewTextContent(string(jsonResult))
+
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{textContent},
+		IsError: err != nil,
+	}, nil
 }
 
-// queryMigrationStatus queries the current migration status from metaDB
+// queryMigrationStatus queries the migration status from metaDB
 func queryMigrationStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")
 	if err != nil {
@@ -78,16 +368,19 @@ func queryMigrationStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.Ca
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to get migration status: %v", err)), nil
 	}
 
-	// Convert to JSON for response
-	statusJSON, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal status: %v", err)), nil
+	result := map[string]interface{}{
+		"export_dir": exportDir,
+		"status":     status,
+		"timestamp":  time.Now().Format(time.RFC3339),
 	}
 
-	return mcp.NewToolResultText(string(statusJSON)), nil
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
 }
 
-// getMetaDBStats gets statistics from metaDB
+// getMetaDBStats retrieves statistics from the metaDB
 func getMetaDBStats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")
 	if err != nil {
@@ -100,251 +393,468 @@ func getMetaDBStats(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallTool
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to initialize metaDB: %v", err)), nil
 	}
 
-	// Collect various statistics
-	stats := make(map[string]interface{})
-
-	// Get total exported events (using empty string as runId to get all)
-	if totalEvents, totalEventsRun, err := metaDB.GetTotalExportedEvents(""); err == nil {
-		stats["total_exported_events"] = totalEvents
-		stats["total_exported_events_current_run"] = totalEventsRun
+	// Get various statistics
+	stats := map[string]interface{}{
+		"export_dir": exportDir,
+		"timestamp":  time.Now().Format(time.RFC3339),
 	}
 
-	// Get exported events stats for table (example with empty schema/table)
-	if eventStats, err := metaDB.GetExportedEventsStatsForTable("", ""); err == nil {
-		stats["event_stats_sample"] = eventStats
+	// Try to get different stats (some may not be available depending on migration phase)
+	if migrationStatus, err := metaDB.GetMigrationStatusRecord(); err == nil {
+		stats["migration_status"] = migrationStatus
 	}
 
-	// Convert to JSON for response
-	statsJSON, err := json.MarshalIndent(stats, "", "  ")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to marshal stats: %v", err)), nil
-	}
-
-	return mcp.NewToolResultText(string(statsJSON)), nil
+	jsonResult, _ := json.MarshalIndent(stats, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
 }
 
 // Resource handlers
 
-// readMigrationStatusResource reads migration status as a resource
-func readMigrationStatusResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	// This is a static resource, so we can use any export directory from the request
-	// In a real implementation, you might want to make this configurable
-	exportDir := "/tmp" // Default fallback
-
-	// Try to extract export_dir from URI parameters if available
-	if req.Params.URI == "voyager://migration-status" {
-		// For now, use a default or get from environment
-		if envDir := os.Getenv("VOYAGER_EXPORT_DIR"); envDir != "" {
-			exportDir = envDir
-		}
+// getMigrationStatusResource returns migration status as a resource
+func getMigrationStatusResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	// Extract export_dir from URI if provided
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
 	}
 
 	metaDB, err := metadb.NewMetaDB(exportDir)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize metaDB: %w", err)
+		return nil, fmt.Errorf("failed to initialize metaDB: %v", err)
 	}
 
 	status, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get migration status: %w", err)
+		return nil, fmt.Errorf("failed to get migration status: %v", err)
 	}
 
-	statusJSON, err := json.MarshalIndent(status, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal status: %w", err)
+	result := map[string]interface{}{
+		"export_dir": exportDir,
+		"status":     status,
+		"timestamp":  time.Now().Format(time.RFC3339),
 	}
 
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{
-			URI:      req.Params.URI,
-			MIMEType: "application/json",
-			Text:     string(statusJSON),
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
 		},
 	}, nil
 }
 
-// readLogsResource reads recent migration logs
-func readLogsResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	// Extract export_dir from URI like "voyager://logs/{export_dir}/recent"
-	uri := req.Params.URI
-	parts := strings.Split(uri, "/")
-	if len(parts) < 4 {
-		return nil, fmt.Errorf("invalid logs URI format: %s", uri)
+// getLogsResource returns recent logs as a resource
+func getLogsResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
 	}
 
-	exportDir := parts[3] // Extract {export_dir} from URI
-
-	// Look for log files in the export directory
-	logFiles := []string{
-		filepath.Join(exportDir, "logs", "yb-voyager.log"),
-		filepath.Join(exportDir, "yb-voyager.log"),
-		"yb-voyager.log",
+	logDir := filepath.Join(exportDir, "logs")
+	if !utils.FileOrFolderExists(logDir) {
+		return &mcp.ReadResourceResult{
+			Contents: []mcp.ResourceContents{
+				mcp.TextResourceContents{
+					URI:      uri,
+					MIMEType: "text/plain",
+					Text:     "No logs directory found",
+				},
+			},
+		}, nil
 	}
 
-	var logContent strings.Builder
-	logContent.WriteString("Recent YB Voyager Logs:\n\n")
+	// Get recent log files
+	files, err := ioutil.ReadDir(logDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read logs directory: %v", err)
+	}
 
-	for _, logFile := range logFiles {
-		if content, err := readFileContents(logFile); err == nil {
-			logContent.WriteString(fmt.Sprintf("=== %s ===\n", logFile))
-			// Get last 50 lines for "recent" logs
-			lines := strings.Split(content, "\n")
-			start := len(lines) - 50
-			if start < 0 {
-				start = 0
+	var recentLogs []string
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".log") {
+			recentLogs = append(recentLogs, file.Name())
+		}
+	}
+
+	result := map[string]interface{}{
+		"export_dir":  exportDir,
+		"logs_dir":    logDir,
+		"recent_logs": recentLogs,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
+		},
+	}, nil
+}
+
+// getSchemaAnalysisResource returns schema analysis as a resource
+func getSchemaAnalysisResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	exportDir := extractExportDirFromURI(uri)
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir not found in URI")
+	}
+
+	// Check for schema analysis files
+	schemaDir := filepath.Join(exportDir, "schema")
+	assessmentDir := filepath.Join(exportDir, "assessment")
+
+	result := map[string]interface{}{
+		"export_dir": exportDir,
+		"timestamp":  time.Now().Format(time.RFC3339),
+	}
+
+	if utils.FileOrFolderExists(schemaDir) {
+		files, _ := ioutil.ReadDir(schemaDir)
+		var schemaFiles []string
+		for _, file := range files {
+			if !file.IsDir() {
+				schemaFiles = append(schemaFiles, file.Name())
 			}
-			logContent.WriteString(strings.Join(lines[start:], "\n"))
-			logContent.WriteString("\n\n")
-			break // Use first available log file
 		}
+		result["schema_files"] = schemaFiles
 	}
 
-	if logContent.Len() == 0 {
-		logContent.WriteString("No log files found in the specified export directory.")
+	if utils.FileOrFolderExists(assessmentDir) {
+		files, _ := ioutil.ReadDir(assessmentDir)
+		var assessmentFiles []string
+		for _, file := range files {
+			if !file.IsDir() {
+				assessmentFiles = append(assessmentFiles, file.Name())
+			}
+		}
+		result["assessment_files"] = assessmentFiles
 	}
 
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{
-			URI:      req.Params.URI,
-			MIMEType: "text/plain",
-			Text:     logContent.String(),
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
 		},
 	}, nil
 }
 
-// readSchemaAnalysisResource reads schema analysis results
-func readSchemaAnalysisResource(ctx context.Context, req mcp.ReadResourceRequest) ([]mcp.ResourceContents, error) {
-	// Extract export_dir from URI like "voyager://schema-analysis/{export_dir}"
-	uri := req.Params.URI
-	parts := strings.Split(uri, "/")
-	if len(parts) < 3 {
-		return nil, fmt.Errorf("invalid schema analysis URI format: %s", uri)
+// getConfigTemplatesResource returns available config templates
+func getConfigTemplatesResource(ctx context.Context, uri string) (*mcp.ReadResourceResult, error) {
+	templatesDir := "config-templates"
+
+	if !utils.FileOrFolderExists(templatesDir) {
+		return nil, fmt.Errorf("config templates directory not found")
 	}
 
-	exportDir := parts[2] // Extract {export_dir} from URI
-
-	// Look for schema analysis files
-	analysisFiles := []string{
-		filepath.Join(exportDir, "assessment", "assessment.json"),
-		filepath.Join(exportDir, "schema", "schema.sql"),
-		filepath.Join(exportDir, "reports", "report.json"),
+	files, err := ioutil.ReadDir(templatesDir)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read templates directory: %v", err)
 	}
 
-	analysis := make(map[string]interface{})
-	analysis["timestamp"] = time.Now().UTC().Format(time.RFC3339)
-	analysis["export_dir"] = exportDir
-
-	for _, file := range analysisFiles {
-		if content, err := readFileContents(file); err == nil {
-			filename := filepath.Base(file)
-			analysis[filename] = content
+	var templates []map[string]interface{}
+	for _, file := range files {
+		if !file.IsDir() && strings.HasSuffix(file.Name(), ".yaml") {
+			templateName := strings.TrimSuffix(file.Name(), ".yaml")
+			templates = append(templates, map[string]interface{}{
+				"name":     templateName,
+				"filename": file.Name(),
+				"size":     file.Size(),
+				"modified": file.ModTime().Format(time.RFC3339),
+			})
 		}
 	}
 
-	if len(analysis) == 2 { // Only timestamp and export_dir
-		analysis["error"] = "No schema analysis files found"
+	result := map[string]interface{}{
+		"templates_dir": templatesDir,
+		"templates":     templates,
+		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	analysisJSON, err := json.MarshalIndent(analysis, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal analysis: %w", err)
-	}
-
-	return []mcp.ResourceContents{
-		mcp.TextResourceContents{
-			URI:      req.Params.URI,
-			MIMEType: "application/json",
-			Text:     string(analysisJSON),
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.ReadResourceResult{
+		Contents: []mcp.ResourceContents{
+			mcp.TextResourceContents{
+				URI:      uri,
+				MIMEType: "application/json",
+				Text:     string(jsonData),
+			},
 		},
 	}, nil
 }
 
 // Prompt handlers
 
-// getTroubleshootPrompt provides troubleshooting assistance
-func getTroubleshootPrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+// troubleshootMigrationPrompt provides troubleshooting guidance
+func troubleshootMigrationPrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	exportDir := req.Params.Arguments["export_dir"]
-	errorContext := req.Params.Arguments["error_context"]
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir argument is required")
+	}
 
-	var promptText strings.Builder
-	promptText.WriteString("I need help troubleshooting a YB Voyager migration issue.\n\n")
-
-	if exportDir != "" {
-		promptText.WriteString(fmt.Sprintf("Export Directory: %s\n", exportDir))
-
-		// Try to get current migration status
-		metaDB, err := metadb.NewMetaDB(exportDir)
-		if err == nil {
-			if status, err := metaDB.GetMigrationStatusRecord(); err == nil {
-				statusJSON, _ := json.MarshalIndent(status, "", "  ")
-				promptText.WriteString(fmt.Sprintf("Current Migration Status:\n```json\n%s\n```\n\n", statusJSON))
-			}
+	// Get current migration status
+	var statusInfo string
+	if metaDB, err := metadb.NewMetaDB(exportDir); err == nil {
+		if status, err := metaDB.GetMigrationStatusRecord(); err == nil {
+			statusData, _ := json.MarshalIndent(status, "", "  ")
+			statusInfo = string(statusData)
 		}
 	}
 
-	if errorContext != "" {
-		promptText.WriteString(fmt.Sprintf("Error Context: %s\n\n", errorContext))
-	}
+	prompt := fmt.Sprintf(`You are troubleshooting a YB Voyager migration. Here's the current status:
 
-	promptText.WriteString("Please analyze the migration status and error context to provide specific troubleshooting steps and recommendations.")
+Export Directory: %s
+Current Status: %s
 
-	return mcp.NewGetPromptResult(
-		"YB Voyager Migration Troubleshooting",
-		[]mcp.PromptMessage{
-			mcp.NewPromptMessage(
-				mcp.RoleUser,
-				mcp.NewTextContent(promptText.String()),
-			),
+Please analyze the migration status and provide specific troubleshooting steps for any issues found.
+Consider common migration problems like:
+- Schema compatibility issues
+- Data type mismatches
+- Connection problems
+- Performance bottlenecks
+- Incomplete migrations
+
+Provide actionable recommendations with specific yb-voyager commands to resolve issues.`, exportDir, statusInfo)
+
+	return &mcp.GetPromptResult{
+		Description: "Troubleshoot YB Voyager migration issues",
+		Messages: []mcp.PromptMessage{
+			{
+				Role: mcp.RoleUser,
+				Content: mcp.TextContent{
+					Type: "text",
+					Text: prompt,
+				},
+			},
 		},
-	), nil
+	}, nil
 }
 
-// getOptimizePrompt provides performance optimization suggestions
-func getOptimizePrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+// optimizePerformancePrompt provides performance optimization guidance
+func optimizePerformancePrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
 	exportDir := req.Params.Arguments["export_dir"]
-	migrationPhase := req.Params.Arguments["migration_phase"]
+	if exportDir == "" {
+		return nil, fmt.Errorf("export_dir argument is required")
+	}
 
-	var promptText strings.Builder
-	promptText.WriteString("I need suggestions for optimizing YB Voyager migration performance.\n\n")
+	// Get migration stats
+	var statsInfo string
+	if metaDB, err := metadb.NewMetaDB(exportDir); err == nil {
+		stats := map[string]interface{}{
+			"export_dir": exportDir,
+			"timestamp":  time.Now().Format(time.RFC3339),
+		}
 
-	if exportDir != "" {
-		promptText.WriteString(fmt.Sprintf("Export Directory: %s\n", exportDir))
+		if migrationStatus, err := metaDB.GetMigrationStatusRecord(); err == nil {
+			stats["migration_status"] = migrationStatus
+		}
 
-		// Try to get migration statistics
-		metaDB, err := metadb.NewMetaDB(exportDir)
-		if err == nil {
-			stats := make(map[string]interface{})
+		statsData, _ := json.MarshalIndent(stats, "", "  ")
+		statsInfo = string(statsData)
+	}
 
-			if totalEvents, totalEventsRun, err := metaDB.GetTotalExportedEvents(""); err == nil {
-				stats["total_exported_events"] = totalEvents
-				stats["total_exported_events_current_run"] = totalEventsRun
-			}
+	prompt := fmt.Sprintf(`You are optimizing the performance of a YB Voyager migration. Here are the current statistics:
 
-			if len(stats) > 0 {
-				statsJSON, _ := json.MarshalIndent(stats, "", "  ")
-				promptText.WriteString(fmt.Sprintf("Migration Statistics:\n```json\n%s\n```\n\n", statsJSON))
-			}
+Export Directory: %s
+Migration Statistics: %s
+
+Please provide specific performance optimization recommendations including:
+- Parallel job configuration
+- Batch size tuning
+- Resource allocation
+- Network optimization
+- Database-specific optimizations
+
+Suggest specific yb-voyager command modifications and configuration changes to improve migration performance.`, exportDir, statsInfo)
+
+	return &mcp.GetPromptResult{
+		Description: "Optimize YB Voyager migration performance",
+		Messages: []mcp.PromptMessage{
+			{
+				Role: mcp.RoleUser,
+				Content: mcp.TextContent{
+					Type: "text",
+					Text: prompt,
+				},
+			},
+		},
+	}, nil
+}
+
+// configGenerationPrompt helps generate config files
+func configGenerationPrompt(ctx context.Context, req mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
+	migrationType := req.Params.Arguments["migration_type"]
+	if migrationType == "" {
+		migrationType = "live-migration"
+	}
+
+	sourceType := req.Params.Arguments["source_type"]
+	if sourceType == "" {
+		sourceType = "postgresql"
+	}
+
+	prompt := fmt.Sprintf(`You are helping to generate a YB Voyager configuration file for a %s migration from %s to YugabyteDB.
+
+Available templates:
+- live-migration: For live migrations with CDC
+- live-migration-with-fall-back: Live migration with fallback capability
+- live-migration-with-fall-forward: Live migration with fall-forward capability
+- offline-migration: For offline migrations
+- bulk-data-load: For bulk data loading scenarios
+
+Please help the user create a configuration file by:
+1. Asking for the required connection parameters (source and target database details)
+2. Suggesting appropriate migration settings based on their use case
+3. Providing the create_config_file tool call with the collected parameters
+
+Key parameters to collect:
+- export_dir: Where to store migration artifacts
+- source database: host, port, database name, user, password
+- target database: host, port, database name, user, password
+- migration-specific settings: parallel jobs, batch sizes, etc.
+
+Use the create_config_file tool to generate the configuration file once you have the necessary information.`, migrationType, sourceType)
+
+	return &mcp.GetPromptResult{
+		Description: "Generate YB Voyager configuration file",
+		Messages: []mcp.PromptMessage{
+			{
+				Role: mcp.RoleUser,
+				Content: mcp.TextContent{
+					Type: "text",
+					Text: prompt,
+				},
+			},
+		},
+	}, nil
+}
+
+// Helper functions
+
+// getExportDirInfo returns detailed information about an export directory
+func getExportDirInfo(exportDir string) ExportDirInfo {
+	info := ExportDirInfo{
+		Path:   exportDir,
+		Exists: utils.FileOrFolderExists(exportDir),
+	}
+
+	if !info.Exists {
+		return info
+	}
+
+	// Check if initialized (has metainfo directory)
+	metaInfoDir := filepath.Join(exportDir, "metainfo")
+	info.IsInitialized = utils.FileOrFolderExists(metaInfoDir)
+
+	// Check if has metaDB
+	metaDBPath := filepath.Join(exportDir, "metainfo", "meta.db")
+	info.HasMetaDB = utils.FileOrFolderExists(metaDBPath)
+
+	// Get directory size and contents
+	if files, err := ioutil.ReadDir(exportDir); err == nil {
+		for _, file := range files {
+			info.Contents = append(info.Contents, file.Name())
+			info.Size += file.Size()
 		}
 	}
 
-	if migrationPhase != "" {
-		promptText.WriteString(fmt.Sprintf("Current Migration Phase: %s\n\n", migrationPhase))
+	return info
+}
+
+// extractExportDirFromURI extracts export directory from voyager:// URI
+func extractExportDirFromURI(uri string) string {
+	// Expected format: voyager://resource-type/export-dir/...
+	// or voyager://resource-type?export_dir=path
+
+	if strings.Contains(uri, "?export_dir=") {
+		parts := strings.Split(uri, "?export_dir=")
+		if len(parts) > 1 {
+			return parts[1]
+		}
 	}
 
-	promptText.WriteString("Based on the migration statistics and current phase, please provide specific performance optimization recommendations including:\n")
-	promptText.WriteString("1. Parallelism settings\n")
-	promptText.WriteString("2. Batch size optimizations\n")
-	promptText.WriteString("3. Resource allocation suggestions\n")
-	promptText.WriteString("4. Network and I/O optimizations\n")
-	promptText.WriteString("5. Database-specific tuning recommendations")
+	// Try to extract from path
+	if strings.HasPrefix(uri, "voyager://") {
+		path := strings.TrimPrefix(uri, "voyager://")
+		parts := strings.Split(path, "/")
+		if len(parts) > 1 {
+			return parts[1]
+		}
+	}
 
-	return mcp.NewGetPromptResult(
-		"YB Voyager Performance Optimization",
-		[]mcp.PromptMessage{
-			mcp.NewPromptMessage(
-				mcp.RoleUser,
-				mcp.NewTextContent(promptText.String()),
-			),
-		},
-	), nil
+	return ""
+}
+
+// checkDirectoryWritable checks if a directory is writable
+func checkDirectoryWritable(dir string) error {
+	// Check if directory exists
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return fmt.Errorf("directory does not exist")
+	}
+
+	// Try to create a temporary file to test write permissions
+	tempFile := filepath.Join(dir, ".mcp_write_test")
+	file, err := os.Create(tempFile)
+	if err != nil {
+		return fmt.Errorf("no write permission")
+	}
+	file.Close()
+	os.Remove(tempFile)
+	return nil
+}
+
+// generateConfigContent generates config file content without writing to disk
+func generateConfigContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	templateType := req.GetString("template_type", "live-migration")
+	exportDir := req.GetString("export_dir", "")
+
+	// Load template
+	templatePath := filepath.Join("config-templates", templateType+".yaml")
+	templateContent, err := ioutil.ReadFile(templatePath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to read template %s: %v", templateType, err)), nil
+	}
+
+	// Replace placeholders with actual values if provided
+	content := string(templateContent)
+	if exportDir != "" {
+		content = strings.ReplaceAll(content, "<export-dir-path>", exportDir)
+	}
+
+	// Apply other parameters from request
+	if sourceDBType := req.GetString("source_db_type", ""); sourceDBType != "" {
+		content = strings.ReplaceAll(content, "db-type: postgresql", "db-type: "+sourceDBType)
+	}
+	if sourceDBHost := req.GetString("source_db_host", ""); sourceDBHost != "" {
+		content = strings.ReplaceAll(content, "db-host: localhost", "db-host: "+sourceDBHost)
+	}
+	if sourceDBName := req.GetString("source_db_name", ""); sourceDBName != "" {
+		content = strings.ReplaceAll(content, "db-name: test_db", "db-name: "+sourceDBName)
+	}
+	if sourceDBUser := req.GetString("source_db_user", ""); sourceDBUser != "" {
+		content = strings.ReplaceAll(content, "db-user: test_user", "db-user: "+sourceDBUser)
+	}
+
+	result := map[string]interface{}{
+		"template_type": templateType,
+		"export_dir":    exportDir,
+		"content":       content,
+		"instructions":  "Copy this content to a file with .yaml extension, then use the execute_voyager_with_config tool to run commands.",
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
 }
