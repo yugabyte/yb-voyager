@@ -241,6 +241,7 @@ macos_main() {
 	create_config_templates_dir
 	create_pg_dump_args_file
 	create_gather_assessment_metadata_dir
+exit 1 
 	brew install wget
 	brew install sqlite
 	install_golang darwin
