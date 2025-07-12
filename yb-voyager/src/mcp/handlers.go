@@ -15,6 +15,8 @@ import (
 	"regexp"
 	"strconv"
 
+	log "github.com/sirupsen/logrus"
+
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -1939,10 +1941,6 @@ func getSchemaAnalysisResource(ctx context.Context, uri string) (*mcp.ReadResour
 //  1. VOYAGER_EXTRA_PATH env var supplied by the user.
 //  2. Hard-coded common locations.
 //  3. Original PATH from the parent process.
-//
-// We always append the original PATH last so that the original ordering is
-// preserved and duplicates earlier in the list do not shadow the user's
-// existing tools.
 func buildEnvWithExtraPath() []string {
 	basePath := os.Getenv("PATH")
 
@@ -1950,9 +1948,10 @@ func buildEnvWithExtraPath() []string {
 	extra := os.Getenv("VOYAGER_EXTRA_PATH")
 
 	defaults := []string{
-		"/opt/homebrew/bin",                // Homebrew (Apple Silicon)
-		"/usr/local/opt/postgresql@16/bin", // Brew keg for pg16 utilities
-		"/usr/local/bin",                   // Common fallback
+		"/opt/homebrew/bin",                   // Homebrew (Apple Silicon)
+		"/opt/homebrew/opt/postgresql@16/bin", // Brew keg for pg16 utilities (Apple Silicon)
+		"/usr/local/opt/postgresql@16/bin",    // Brew keg for pg16 utilities (Intel)
+		"/usr/local/bin",                      // Common fallback
 	}
 
 	var parts []string
@@ -1964,7 +1963,19 @@ func buildEnvWithExtraPath() []string {
 
 	finalPath := strings.Join(parts, ":")
 
-	env := os.Environ()
-	env = append(env, "PATH="+finalPath)
-	return env
+	// For debugging: find the log file at ~/Library/Logs/Claude/mcp-server-yb-voyager.log
+	log.Infof("Original PATH from MCP server environment: %s", basePath)
+	log.Infof("Constructed PATH for yb-voyager command: %s", finalPath)
+
+	var newEnv []string
+	// Copy original environment, but replace PATH.
+	for _, e := range os.Environ() {
+		if strings.HasPrefix(e, "PATH=") {
+			continue
+		}
+		newEnv = append(newEnv, e)
+	}
+	newEnv = append(newEnv, "PATH="+finalPath)
+
+	return newEnv
 }
