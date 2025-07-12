@@ -216,8 +216,9 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 		cmdArgs = append(cmdArgs, args...)
 	}
 
-	// Execute the command
-	cmd := exec.CommandContext(ctx, "yb-voyager", cmdArgs...)
+	// Execute the command using full path to yb-voyager
+	voyagerPath := findYbVoyagerPath()
+	cmd := exec.CommandContext(ctx, voyagerPath, cmdArgs...)
 	cmd.Dir = filepath.Dir(configPath) // Set working directory to config file directory
 
 	output, err := cmd.CombinedOutput()
@@ -326,8 +327,9 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		cmdArgs = append(cmdArgs, additionalArgs...)
 	}
 
-	// Execute the command
-	cmd := exec.CommandContext(ctx, "yb-voyager", cmdArgs...)
+	// Execute the command using full path to yb-voyager
+	voyagerPath := findYbVoyagerPath()
+	cmd := exec.CommandContext(ctx, voyagerPath, cmdArgs...)
 	output, err := cmd.CombinedOutput()
 
 	result := map[string]interface{}{
@@ -794,6 +796,30 @@ func extractExportDirFromURI(uri string) string {
 	}
 
 	return ""
+}
+
+// findYbVoyagerPath finds the path to yb-voyager executable
+func findYbVoyagerPath() string {
+	// First try to find in PATH
+	if path, err := exec.LookPath("yb-voyager"); err == nil {
+		return path
+	}
+
+	// Fallback to common locations
+	commonPaths := []string{
+		"/Users/sanyamsinghal/go/bin/yb-voyager",
+		"/usr/local/bin/yb-voyager",
+		"/usr/bin/yb-voyager",
+	}
+
+	for _, path := range commonPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
+	// If not found, return default and let it fail with proper error
+	return "yb-voyager"
 }
 
 // checkDirectoryWritable checks if a directory is writable
