@@ -565,6 +565,121 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}, nil
 }
 
+// executeVoyagerCommandSmart intelligently executes YB Voyager commands
+// It automatically chooses between config-file and individual parameter methods
+func executeVoyagerCommandSmart(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	command, err := req.RequireString("command")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'command': %v", err)), nil
+	}
+
+	configPath := req.GetString("config_path", "")
+	exportDir := req.GetString("export_dir", "")
+	additionalArgs := req.GetString("additional_args", "")
+
+	var methodUsed string
+	var result *mcp.CallToolResult
+
+	// CASE 1: Both config_path and export_dir provided
+	if configPath != "" && exportDir != "" {
+		// Prioritize config_path but validate it exists
+		if utils.FileOrFolderExists(configPath) {
+			// Use config file method
+			configReq := mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name: "execute_voyager_with_config",
+					Arguments: map[string]interface{}{
+						"command":         command,
+						"config_path":     configPath,
+						"additional_args": additionalArgs,
+					},
+				},
+			}
+			result, err = executeVoyagerWithConfig(ctx, configReq)
+			methodUsed = "config_file"
+		} else {
+			// Config file doesn't exist, fall back to export_dir method
+			legacyReq := mcp.CallToolRequest{
+				Params: mcp.CallToolParams{
+					Name: "execute_voyager_command",
+					Arguments: map[string]interface{}{
+						"command":    command,
+						"export_dir": exportDir,
+						"args":       additionalArgs,
+					},
+				},
+			}
+			result, err = executeVoyagerCommand(ctx, legacyReq)
+			methodUsed = "export_dir_fallback"
+		}
+	} else if configPath != "" {
+		// CASE 2: Only config_path provided
+		configReq := mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "execute_voyager_with_config",
+				Arguments: map[string]interface{}{
+					"command":         command,
+					"config_path":     configPath,
+					"additional_args": additionalArgs,
+				},
+			},
+		}
+		result, err = executeVoyagerWithConfig(ctx, configReq)
+		methodUsed = "config_file"
+	} else if exportDir != "" {
+		// CASE 3: Only export_dir provided
+		legacyReq := mcp.CallToolRequest{
+			Params: mcp.CallToolParams{
+				Name: "execute_voyager_command",
+				Arguments: map[string]interface{}{
+					"command":    command,
+					"export_dir": exportDir,
+					"args":       additionalArgs,
+				},
+			},
+		}
+		result, err = executeVoyagerCommand(ctx, legacyReq)
+		methodUsed = "export_dir"
+	} else {
+		// CASE 4: Neither provided
+		return mcp.NewToolResultError("Either 'config_path' or 'export_dir' must be provided. Config file method is preferred."), nil
+	}
+
+	if err != nil {
+		return result, err
+	}
+
+	// Enhance the result with method information and guidance
+	if result != nil && !result.IsError && len(result.Content) > 0 {
+		// Parse the existing JSON response to add method information
+		content := result.Content[0]
+		if textContent, ok := content.(mcp.TextContent); ok {
+			var responseData map[string]interface{}
+			if json.Unmarshal([]byte(textContent.Text), &responseData) == nil {
+				// Add method information to the execution section
+				if execution, ok := responseData["execution"].(map[string]interface{}); ok {
+					execution["method_used"] = methodUsed
+					switch methodUsed {
+					case "config_file":
+						execution["recommendation"] = "✅ Used preferred config file method"
+					case "export_dir":
+						execution["recommendation"] = "💡 Consider using config file method for better consistency"
+					case "export_dir_fallback":
+						execution["recommendation"] = "⚠️ Config file not found, fell back to export_dir method"
+					}
+				}
+
+				// Re-encode the enhanced response
+				if enhancedJSON, err := json.MarshalIndent(responseData, "", "  "); err == nil {
+					result.Content[0] = mcp.NewTextContent(string(enhancedJSON))
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
 // queryMigrationStatus queries the migration status from metaDB
 func queryMigrationStatus(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")

@@ -92,10 +92,21 @@ func (s *Server) registerTools() {
 		generateConfigContent,
 	)
 
-	// Command execution tools
+	// Command execution tools - 3-tiered approach for optimal LLM experience
+	s.server.AddTool(
+		mcp.NewTool("execute_voyager_command",
+			mcp.WithDescription("**RECOMMENDED** Execute YB Voyager commands intelligently. This tool automatically determines the best execution method (config file vs individual parameters) based on available information. Provide either config_path (preferred) or export_dir. If both are provided, config_path takes priority. Use this as your primary tool for running YB Voyager commands."),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
+			mcp.WithString("config_path", mcp.Description("Path to configuration file (preferred method)")),
+			mcp.WithString("export_dir", mcp.Description("Export directory path (used if config_path not provided)")),
+			mcp.WithString("additional_args", mcp.Description("Additional command-line arguments")),
+		),
+		executeVoyagerCommandSmart,
+	)
+
 	s.server.AddTool(
 		mcp.NewTool("execute_voyager_with_config",
-			mcp.WithDescription("Execute YB Voyager commands using a configuration file"),
+			mcp.WithDescription("Execute YB Voyager commands using a configuration file. This is the preferred method when you have a config file available and want explicit config-file execution."),
 			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
 			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the configuration file")),
 			mcp.WithString("additional_args", mcp.Description("Additional command-line arguments")),
@@ -104,8 +115,8 @@ func (s *Server) registerTools() {
 	)
 
 	s.server.AddTool(
-		mcp.NewTool("execute_voyager_command",
-			mcp.WithDescription("Execute YB Voyager commands with individual parameters (legacy method)"),
+		mcp.NewTool("execute_voyager_legacy",
+			mcp.WithDescription("**LEGACY** Execute YB Voyager commands with individual parameters. Only use this if config files are not available or specifically requested. The smart execute_voyager_command tool is preferred."),
 			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
 			mcp.WithString("export_dir", mcp.Description("Export directory path")),
 			mcp.WithString("args", mcp.Description("Additional command arguments")),
