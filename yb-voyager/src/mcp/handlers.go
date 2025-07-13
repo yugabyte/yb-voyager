@@ -12,9 +12,6 @@ import (
 	"syscall"
 	"time"
 
-	"regexp"
-	"strconv"
-
 	log "github.com/sirupsen/logrus"
 
 	"github.com/mark3labs/mcp-go/mcp"
@@ -363,11 +360,10 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startTime)
 
-	// Parse and analyze the output
+	// Create standardized response
 	rawOutput := string(output)
-	summary, structuredData := parseVoyagerOutput(command, rawOutput, err)
+	summary, status, _ := createCommandResponse(command, rawOutput, err)
 
-	// Create enhanced response
 	result := map[string]interface{}{
 		"execution": map[string]interface{}{
 			"command":     "yb-voyager " + strings.Join(cmdArgs, " "),
@@ -376,9 +372,9 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 			"duration":    formatDuration(duration),
 			"timestamp":   time.Now().Format(time.RFC3339),
 		},
-		"summary":         summary,
-		"structured_data": structuredData,
-		"raw_output":      rawOutput,
+		"summary":    summary,
+		"status":     status,
+		"raw_output": rawOutput,
 	}
 
 	if err != nil {
@@ -386,33 +382,10 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 		result["execution"].(map[string]interface{})["exit_code"] = getExitCode(err)
 	}
 
-	// Create rich markdown content for display
-	var markdownContent strings.Builder
-	markdownContent.WriteString("# YB Voyager Command Execution\n\n")
-	markdownContent.WriteString("## Summary\n")
-	markdownContent.WriteString(summary + "\n\n")
-	markdownContent.WriteString("## Command Details\n")
-	markdownContent.WriteString(fmt.Sprintf("- **Command**: %s\n", "yb-voyager "+strings.Join(cmdArgs, " ")))
-	markdownContent.WriteString(fmt.Sprintf("- **Duration**: %s\n", formatDuration(duration)))
-
-	status := "✅ Success"
-	if err != nil {
-		status = "❌ Failed"
-	}
-	markdownContent.WriteString(fmt.Sprintf("- **Status**: %s\n", status))
-	markdownContent.WriteString(fmt.Sprintf("- **Timestamp**: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
-
-	markdownContent.WriteString("## Raw Output\n```\n")
-	markdownContent.WriteString(rawOutput)
-	markdownContent.WriteString("\n```\n\n")
-
-	markdownContent.WriteString("## Structured Data\n```json\n")
-	jsonData, _ := json.MarshalIndent(structuredData, "", "  ")
-	markdownContent.WriteString(string(jsonData))
-	markdownContent.WriteString("\n```\n")
-
+	// Return clean JSON response
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(markdownContent.String())},
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonData))},
 		IsError: err != nil,
 	}, nil
 }
@@ -512,11 +485,10 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	output, err := cmd.CombinedOutput()
 	duration := time.Since(startTime)
 
-	// Parse and analyze the output
+	// Create standardized response
 	rawOutput := string(output)
-	summary, structuredData := parseVoyagerOutput(command, rawOutput, err)
+	summary, status, _ := createCommandResponse(command, rawOutput, err)
 
-	// Create enhanced response
 	result := map[string]interface{}{
 		"execution": map[string]interface{}{
 			"command":   "yb-voyager " + strings.Join(cmdArgs, " "),
@@ -524,9 +496,9 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 			"duration":  formatDuration(duration),
 			"timestamp": time.Now().Format(time.RFC3339),
 		},
-		"summary":         summary,
-		"structured_data": structuredData,
-		"raw_output":      rawOutput,
+		"summary":    summary,
+		"status":     status,
+		"raw_output": rawOutput,
 	}
 
 	if err != nil {
@@ -534,33 +506,10 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 		result["execution"].(map[string]interface{})["exit_code"] = getExitCode(err)
 	}
 
-	// Create rich markdown content for display
-	var markdownContent strings.Builder
-	markdownContent.WriteString("# YB Voyager Command Execution\n\n")
-	markdownContent.WriteString("## Summary\n")
-	markdownContent.WriteString(summary + "\n\n")
-	markdownContent.WriteString("## Command Details\n")
-	markdownContent.WriteString(fmt.Sprintf("- **Command**: %s\n", "yb-voyager "+strings.Join(cmdArgs, " ")))
-	markdownContent.WriteString(fmt.Sprintf("- **Duration**: %s\n", formatDuration(duration)))
-
-	status := "✅ Success"
-	if err != nil {
-		status = "❌ Failed"
-	}
-	markdownContent.WriteString(fmt.Sprintf("- **Status**: %s\n", status))
-	markdownContent.WriteString(fmt.Sprintf("- **Timestamp**: %s\n\n", time.Now().Format("2006-01-02 15:04:05")))
-
-	markdownContent.WriteString("## Raw Output\n```\n")
-	markdownContent.WriteString(rawOutput)
-	markdownContent.WriteString("\n```\n\n")
-
-	markdownContent.WriteString("## Structured Data\n```json\n")
-	jsonData, _ := json.MarshalIndent(structuredData, "", "  ")
-	markdownContent.WriteString(string(jsonData))
-	markdownContent.WriteString("\n```\n")
-
+	// Return clean JSON response
+	jsonData, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(markdownContent.String())},
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonData))},
 		IsError: err != nil,
 	}, nil
 }
@@ -1827,180 +1776,30 @@ func generateConfigContent(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 	}, nil
 }
 
-// Enhanced output parsing and formatting functions
+// Helper functions for command execution
 
-// parseVoyagerOutput analyzes yb-voyager command output and extracts structured information
-func parseVoyagerOutput(command, rawOutput string, execErr error) (summary string, structuredData map[string]interface{}) {
-	structuredData = make(map[string]interface{})
-
-	// Parse command to handle hierarchical commands
-	commandParts := strings.Fields(command)
-
-	// Determine command type based on the command parts
-	if len(commandParts) == 1 {
-		// Single command like "assess-migration"
-		switch commandParts[0] {
-		case "assess-migration":
-			return parseAssessmentOutput(rawOutput, execErr)
-		case "analyze-schema":
-			return parseGenericOutput(rawOutput, execErr)
-		default:
-			return parseGenericOutput(rawOutput, execErr)
-		}
-	} else if len(commandParts) >= 2 {
-		// Hierarchical commands like "export schema", "export data", "import schema", "import data"
-		mainCommand := commandParts[0]
-
-		switch mainCommand {
-		case "export":
-			return parseExportOutput(rawOutput, execErr)
-		case "import":
-			return parseImportOutput(rawOutput, execErr)
-		default:
-			return parseGenericOutput(rawOutput, execErr)
-		}
-	}
-
-	return parseGenericOutput(rawOutput, execErr)
-}
-
-// parseAssessmentOutput parses assess-migration command output
-func parseAssessmentOutput(output string, execErr error) (string, map[string]interface{}) {
-	data := make(map[string]interface{})
+// createCommandResponse creates a standardized response for YB Voyager command execution
+func createCommandResponse(command string, rawOutput string, execErr error) (string, string, map[string]interface{}) {
+	status := "completed"
+	summary := "Command completed successfully"
 
 	if execErr != nil {
-		summary := fmt.Sprintf("❌ Assessment failed: %v", execErr)
-		data["status"] = "failed"
-		data["error"] = execErr.Error()
-		return summary, data
+		status = "failed"
+		summary = fmt.Sprintf("Command failed: %v", execErr)
 	}
 
-	// Extract key information from assessment output
-	lines := strings.Split(output, "\n")
-	var totalTables, totalIndexes, totalConstraints int
-	var issues []string
-	var missingDeps []string
-
-	// Detect 'Missing dependencies' block
-	parsingDeps := false
-	for _, line := range lines {
-		trim := strings.TrimSpace(line)
-		lower := strings.ToLower(trim)
-
-		if strings.HasPrefix(lower, "missing dependencies") {
-			parsingDeps = true
-			continue
-		}
-		if parsingDeps {
-			// blank line or end stops parsing deps
-			if trim == "" {
-				parsingDeps = false
-				continue
-			}
-			missingDeps = append(missingDeps, trim)
-			continue
-		}
-
-		// Parse table count
-		if matched, _ := regexp.MatchString(`(\d+)\s+tables`, trim); matched {
-			re := regexp.MustCompile(`(\d+)\s+tables`)
-			if matches := re.FindStringSubmatch(trim); len(matches) > 1 {
-				totalTables, _ = strconv.Atoi(matches[1])
-			}
-		}
-		// Parse index count
-		if matched, _ := regexp.MatchString(`(\d+)\s+indexes`, trim); matched {
-			re := regexp.MustCompile(`(\d+)\s+indexes`)
-			if matches := re.FindStringSubmatch(trim); len(matches) > 1 {
-				totalIndexes, _ = strconv.Atoi(matches[1])
-			}
-		}
-		if strings.Contains(lower, "issue") || strings.Contains(lower, "warning") {
-			issues = append(issues, trim)
-		}
+	data := map[string]interface{}{
+		"command":    command,
+		"status":     status,
+		"raw_output": rawOutput,
 	}
-
-	data["tables_count"] = totalTables
-	data["indexes_count"] = totalIndexes
-	data["constraints_count"] = totalConstraints
-	data["issues"] = issues
-	if len(missingDeps) > 0 {
-		data["missing_dependencies"] = missingDeps
-		data["status"] = "failed"
-		summary := "❌ Assessment failed due to missing dependencies:\n- " + strings.Join(missingDeps, "\n- ")
-		return summary, data
-	}
-
-	data["status"] = "completed"
-	summary := fmt.Sprintf("✅ Assessment completed successfully\n📊 Found %d tables, %d indexes", totalTables, totalIndexes)
-	if len(issues) > 0 {
-		summary += fmt.Sprintf("\n⚠️  %d issues found", len(issues))
-	}
-	return summary, data
-}
-
-// parseExportOutput parses export command output
-func parseExportOutput(output string, execErr error) (string, map[string]interface{}) {
-	data := make(map[string]interface{})
 
 	if execErr != nil {
-		summary := fmt.Sprintf("❌ Export failed: %v", execErr)
-		data["status"] = "failed"
 		data["error"] = execErr.Error()
-		return summary, data
+		data["exit_code"] = getExitCode(execErr)
 	}
 
-	// Look for completion indicators
-	var summary string
-	if strings.Contains(output, "export completed") || strings.Contains(output, "successfully") {
-		data["status"] = "completed"
-		summary = "✅ Export completed successfully"
-	} else {
-		data["status"] = "in_progress"
-		summary = "🔄 Export in progress..."
-	}
-
-	return summary, data
-}
-
-// parseImportOutput parses import command output
-func parseImportOutput(output string, execErr error) (string, map[string]interface{}) {
-	data := make(map[string]interface{})
-
-	if execErr != nil {
-		summary := fmt.Sprintf("❌ Import failed: %v", execErr)
-		data["status"] = "failed"
-		data["error"] = execErr.Error()
-		return summary, data
-	}
-
-	var summary string
-	if strings.Contains(output, "import completed") || strings.Contains(output, "successfully") {
-		data["status"] = "completed"
-		summary = "✅ Import completed successfully"
-	} else {
-		data["status"] = "in_progress"
-		summary = "🔄 Import in progress..."
-	}
-
-	return summary, data
-}
-
-// parseGenericOutput parses generic command output
-func parseGenericOutput(output string, execErr error) (string, map[string]interface{}) {
-	data := make(map[string]interface{})
-
-	if execErr != nil {
-		summary := fmt.Sprintf("❌ Command failed: %v", execErr)
-		data["status"] = "failed"
-		data["error"] = execErr.Error()
-		return summary, data
-	}
-
-	data["status"] = "completed"
-	summary := "✅ Command completed successfully"
-
-	return summary, data
+	return summary, status, data
 }
 
 // getExitCode extracts exit code from error
