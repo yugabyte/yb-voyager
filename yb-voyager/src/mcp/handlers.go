@@ -1387,8 +1387,8 @@ Use the create_config_file tool to generate the configuration file once you have
 	}, nil
 }
 
-// summarizeAssessmentReportTool provides structured assessment report analysis as a tool
-func summarizeAssessmentReportTool(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// getAssessmentReport returns the complete assessment report as structured JSON
+func getAssessmentReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
@@ -1408,116 +1408,22 @@ func summarizeAssessmentReportTool(ctx context.Context, req mcp.CallToolRequest)
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse assessment report: %v", err)), nil
 	}
 
-	// Generate structured summary using the actual struct fields
-	summary := "# 📊 YB Voyager Assessment Report Summary\n\n"
-
-	// Migration Overview
-	summary += "## 📊 MIGRATION OVERVIEW\n"
-	summary += fmt.Sprintf("- **Voyager Version**: %s\n", assessmentReport.VoyagerVersion)
-	summary += fmt.Sprintf("- **Migration Complexity**: %s\n", assessmentReport.MigrationComplexity)
-	if assessmentReport.MigrationComplexityExplanation != "" {
-		summary += fmt.Sprintf("- **Complexity Explanation**: %s\n", assessmentReport.MigrationComplexityExplanation)
-	}
-	if assessmentReport.TargetDBVersion != nil {
-		summary += fmt.Sprintf("- **Target DB Version**: %s\n", assessmentReport.TargetDBVersion.String())
-	}
-	summary += fmt.Sprintf("- **Assessment Date**: %s\n\n", time.Now().Format("2006-01-02"))
-
-	// Issues Analysis
-	summary += "## ⚠️ ISSUES ANALYSIS\n"
-	summary += fmt.Sprintf("- **Total Issues Found**: %d\n", len(assessmentReport.Issues))
-
-	// Categorize issues by impact
-	impactCounts := make(map[string]int)
-	categoryCounts := make(map[string]int)
-	for _, issue := range assessmentReport.Issues {
-		impactCounts[issue.Impact]++
-		categoryCounts[issue.Category]++
+	// Return the complete structured report as JSON
+	result := map[string]interface{}{
+		"export_dir":  exportDir,
+		"report_path": jsonReportPath,
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"report":      assessmentReport,
 	}
 
-	for impact, count := range impactCounts {
-		summary += fmt.Sprintf("- **%s Issues**: %d\n", impact, count)
-	}
-	summary += "\n"
-
-	// Sizing Recommendations
-	summary += "## 🎯 SIZING RECOMMENDATIONS\n"
-	if assessmentReport.Sizing != nil {
-		clusterRec := assessmentReport.GetClusterSizingRecommendation()
-		if clusterRec != "" {
-			summary += fmt.Sprintf("- **Cluster Sizing**: %s\n", clusterRec)
-		}
-
-		shardedTables, err := assessmentReport.GetShardedTablesRecommendation()
-		if err == nil && len(shardedTables) > 0 {
-			summary += fmt.Sprintf("- **Sharded Tables**: %d tables recommended for sharding\n", len(shardedTables))
-		}
-
-		colocatedTables, err := assessmentReport.GetColocatedTablesRecommendation()
-		if err == nil && len(colocatedTables) > 0 {
-			summary += fmt.Sprintf("- **Colocated Tables**: %d tables recommended for colocation\n", len(colocatedTables))
-		}
-	}
-	summary += "\n"
-
-	// Schema Summary
-	summary += "## 🏗️ SCHEMA SUMMARY\n"
-	summary += fmt.Sprintf("- **Database Name**: %s\n", assessmentReport.SchemaSummary.DBName)
-	summary += fmt.Sprintf("- **Database Version**: %s\n", assessmentReport.SchemaSummary.DBVersion)
-	if len(assessmentReport.SchemaSummary.SchemaNames) > 0 {
-		summary += fmt.Sprintf("- **Schema Names**: %s\n", strings.Join(assessmentReport.SchemaSummary.SchemaNames, ", "))
-	}
-
-	for _, obj := range assessmentReport.SchemaSummary.DBObjects {
-		summary += fmt.Sprintf("- **%s**: %d objects\n", obj.ObjectType, obj.TotalCount)
-	}
-	summary += "\n"
-
-	// Performance Stats
-	summary += "## 📈 DATABASE STATISTICS\n"
-	if totalRows := assessmentReport.GetTotalTableRowCount(); totalRows > 0 {
-		summary += fmt.Sprintf("- **Total Table Rows**: %d\n", totalRows)
-	}
-	if totalSize := assessmentReport.GetTotalTableSize(); totalSize > 0 {
-		summary += fmt.Sprintf("- **Total Table Size**: %s\n", utils.HumanReadableByteCount(totalSize))
-	}
-	if indexSize := assessmentReport.GetTotalIndexSize(); indexSize > 0 {
-		summary += fmt.Sprintf("- **Total Index Size**: %s\n", utils.HumanReadableByteCount(indexSize))
-	}
-	summary += "\n"
-
-	// Issues by Category
-	if len(categoryCounts) > 0 {
-		summary += "## 📋 ISSUES BY CATEGORY\n"
-		for category, count := range categoryCounts {
-			summary += fmt.Sprintf("- **%s**: %d issues\n", utils.SnakeCaseToTitleCase(category), count)
-		}
-		summary += "\n"
-	}
-
-	// Recommendations
-	summary += "## 💡 KEY RECOMMENDATIONS\n"
-	summary += "1. **Address Critical Issues**: Focus on Level-1 issues first as they may block migration\n"
-	summary += "2. **Review Sizing**: Implement recommended sharding and colocation strategies\n"
-	summary += "3. **Plan Testing**: Thoroughly test migrated objects, especially those with compatibility issues\n"
-	summary += "4. **Performance Tuning**: Monitor and optimize based on the sizing recommendations\n\n"
-
-	// Add notes if available
-	if len(assessmentReport.Notes) > 0 {
-		summary += "## 📝 NOTES\n"
-		for i, note := range assessmentReport.Notes {
-			summary += fmt.Sprintf("%d. %s\n", i+1, note)
-		}
-		summary += "\n"
-	}
-
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(summary)},
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil
 }
 
-// summarizeSchemaAnalysisTool provides structured schema analysis report summary as a tool
-func summarizeSchemaAnalysisTool(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+// getSchemaAnalysisReport returns the complete schema analysis report as structured JSON
+func getSchemaAnalysisReport(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
@@ -1537,98 +1443,17 @@ func summarizeSchemaAnalysisTool(ctx context.Context, req mcp.CallToolRequest) (
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse schema analysis report: %v", err)), nil
 	}
 
-	// Generate structured summary using the actual struct fields
-	summary := "# 📊 YB Voyager Schema Analysis Report Summary\n\n"
-
-	// Schema Overview
-	summary += "## 📊 SCHEMA OVERVIEW\n"
-	summary += fmt.Sprintf("- **Voyager Version**: %s\n", schemaReport.VoyagerVersion)
-	summary += fmt.Sprintf("- **Database Name**: %s\n", schemaReport.SchemaSummary.DBName)
-	summary += fmt.Sprintf("- **Database Version**: %s\n", schemaReport.SchemaSummary.DBVersion)
-	if schemaReport.TargetDBVersion != nil {
-		summary += fmt.Sprintf("- **Target DB Version**: %s\n", schemaReport.TargetDBVersion.String())
-	}
-	if len(schemaReport.SchemaSummary.SchemaNames) > 0 {
-		summary += fmt.Sprintf("- **Schema Names**: %s\n", strings.Join(schemaReport.SchemaSummary.SchemaNames, ", "))
-	}
-	summary += fmt.Sprintf("- **Analysis Date**: %s\n\n", time.Now().Format("2006-01-02"))
-
-	// Database Objects Summary
-	summary += "## 🏗️ DATABASE OBJECTS SUMMARY\n"
-	totalObjects := 0
-	totalInvalidObjects := 0
-	for _, obj := range schemaReport.SchemaSummary.DBObjects {
-		totalObjects += obj.TotalCount
-		totalInvalidObjects += obj.InvalidCount
-		summary += fmt.Sprintf("- **%s**: %d total (%d valid, %d invalid)\n",
-			obj.ObjectType, obj.TotalCount, obj.TotalCount-obj.InvalidCount, obj.InvalidCount)
-	}
-	summary += fmt.Sprintf("- **Total Objects**: %d\n", totalObjects)
-	summary += fmt.Sprintf("- **Total Valid Objects**: %d\n", totalObjects-totalInvalidObjects)
-	summary += fmt.Sprintf("- **Total Invalid Objects**: %d\n\n", totalInvalidObjects)
-
-	// Compatibility Issues
-	summary += "## ⚠️ COMPATIBILITY ISSUES\n"
-	summary += fmt.Sprintf("- **Total Issues Found**: %d\n", len(schemaReport.Issues))
-
-	// Categorize issues by impact and type
-	impactCounts := make(map[string]int)
-	typeCounts := make(map[string]int)
-	objectTypeCounts := make(map[string]int)
-
-	for _, issue := range schemaReport.Issues {
-		impactCounts[issue.Impact]++
-		typeCounts[issue.IssueType]++
-		objectTypeCounts[issue.ObjectType]++
+	// Return the complete structured report as JSON
+	result := map[string]interface{}{
+		"export_dir":  exportDir,
+		"report_path": jsonReportPath,
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"report":      schemaReport,
 	}
 
-	for impact, count := range impactCounts {
-		summary += fmt.Sprintf("- **%s Issues**: %d\n", impact, count)
-	}
-
-	if len(typeCounts) > 0 {
-		summary += "\n### Issues by Type:\n"
-		for issueType, count := range typeCounts {
-			summary += fmt.Sprintf("- **%s**: %d\n", utils.SnakeCaseToTitleCase(issueType), count)
-		}
-	}
-
-	if len(objectTypeCounts) > 0 {
-		summary += "\n### Issues by Object Type:\n"
-		for objType, count := range objectTypeCounts {
-			summary += fmt.Sprintf("- **%s**: %d\n", objType, count)
-		}
-	}
-	summary += "\n"
-
-	// Migration Readiness
-	summary += "## 📋 MIGRATION READINESS ASSESSMENT\n"
-	summary += fmt.Sprintf("- **Ready for Migration**: %d objects\n", totalObjects-totalInvalidObjects)
-	summary += fmt.Sprintf("- **Require Modifications**: %d objects\n", totalInvalidObjects)
-	if totalObjects > 0 {
-		readyPercentage := float64(totalObjects-totalInvalidObjects) / float64(totalObjects) * 100
-		summary += fmt.Sprintf("- **Readiness Score**: %.1f%%\n", readyPercentage)
-	}
-	summary += "\n"
-
-	// Key Recommendations
-	summary += "## 💡 KEY RECOMMENDATIONS\n"
-	summary += "1. **Address Critical Issues**: Focus on Level-1 schema issues first\n"
-	summary += "2. **Review Invalid Objects**: Examine objects marked as invalid for compatibility\n"
-	summary += "3. **Plan Schema Changes**: Prepare modifications for unsupported features\n"
-	summary += "4. **Test Thoroughly**: Validate schema changes in a test environment\n\n"
-
-	// Add notes if available
-	if len(schemaReport.SchemaSummary.Notes) > 0 {
-		summary += "## 📝 NOTES\n"
-		for i, note := range schemaReport.SchemaSummary.Notes {
-			summary += fmt.Sprintf("%d. %s\n", i+1, note)
-		}
-		summary += "\n"
-	}
-
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(summary)},
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil
 }
 

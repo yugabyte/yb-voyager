@@ -160,21 +160,21 @@ The tool automatically normalizes command variations and chooses the best execut
 		getMetaDBStats,
 	)
 
-	// Report summarization tools
+	// Complete report access tools
 	s.server.AddTool(
-		mcp.NewTool("summarize_assessment_report",
-			mcp.WithDescription("Get a structured summary and analysis of the YB Voyager migration assessment report"),
+		mcp.NewTool("get_assessment_report",
+			mcp.WithDescription("Get the complete YB Voyager migration assessment report as structured JSON. This includes all issues, sizing recommendations, schema summary, and performance statistics."),
 			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing the assessment report")),
 		),
-		summarizeAssessmentReportTool,
+		getAssessmentReport,
 	)
 
 	s.server.AddTool(
-		mcp.NewTool("summarize_schema_analysis",
-			mcp.WithDescription("Get a structured summary and analysis of the YB Voyager schema analysis report"),
+		mcp.NewTool("get_schema_analysis_report",
+			mcp.WithDescription("Get the complete YB Voyager schema analysis report as structured JSON. This includes all compatibility issues, object summaries, and migration readiness information."),
 			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Export directory path containing the schema analysis report")),
 		),
-		summarizeSchemaAnalysisTool,
+		getSchemaAnalysisReport,
 	)
 }
 
