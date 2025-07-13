@@ -95,8 +95,27 @@ func (s *Server) registerTools() {
 	// Command execution tools - 3-tiered approach for optimal LLM experience
 	s.server.AddTool(
 		mcp.NewTool("execute_voyager_command",
-			mcp.WithDescription("**RECOMMENDED** Execute YB Voyager commands intelligently. This tool automatically determines the best execution method (config file vs individual parameters) based on available information. Provide either config_path (preferred) or export_dir. If both are provided, config_path takes priority. Use this as your primary tool for running YB Voyager commands."),
-			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute (e.g., 'assess-migration', 'export schema', 'export data', 'import schema', 'import data')")),
+			mcp.WithDescription(`**RECOMMENDED** Execute YB Voyager commands with smart normalization and automatic parameter routing.
+
+VALID COMMANDS (accepts variations):
+✅ assess-migration     - Analyze source database compatibility
+✅ export schema        - Export database schema (also: export-schema, schema export)
+✅ export data          - Export table data (also: export-data, data export)
+✅ analyze-schema       - Analyze exported schema for issues
+✅ import schema        - Import schema to target (also: import-schema, schema import)
+✅ import data          - Import data to target (also: import-data, data import)
+✅ get data-migration-report - Check migration status (also: status, migration status)
+✅ end migration        - Complete migration (also: end-migration, finish migration)
+✅ version              - Show version info
+
+EXAMPLES:
+• "export schema" → Exports database schema
+• "export-data" → Normalized to "export data"
+• "data import" → Normalized to "import data"
+• "status" → Normalized to "get data-migration-report"
+
+The tool automatically normalizes command variations and chooses the best execution method.`),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command to execute. Accepts variations like 'export-schema', 'data export', etc.")),
 			mcp.WithString("config_path", mcp.Description("Path to configuration file (preferred method)")),
 			mcp.WithString("export_dir", mcp.Description("Export directory path (used if config_path not provided)")),
 			mcp.WithString("additional_args", mcp.Description("Additional command-line arguments")),
