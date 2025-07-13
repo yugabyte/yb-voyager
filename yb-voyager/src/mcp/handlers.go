@@ -568,10 +568,13 @@ func executeVoyagerCommand(ctx context.Context, req mcp.CallToolRequest) (*mcp.C
 // executeVoyagerCommandSmart intelligently executes YB Voyager commands
 // It automatically chooses between config-file and individual parameter methods
 func executeVoyagerCommandSmart(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	command, err := req.RequireString("command")
+	rawCommand, err := req.RequireString("command")
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'command': %v", err)), nil
 	}
+
+	// Normalize the command to handle common variations
+	command := normalizeVoyagerCommand(rawCommand)
 
 	configPath := req.GetString("config_path", "")
 	exportDir := req.GetString("export_dir", "")
@@ -659,6 +662,10 @@ func executeVoyagerCommandSmart(ctx context.Context, req mcp.CallToolRequest) (*
 				// Add method information to the execution section
 				if execution, ok := responseData["execution"].(map[string]interface{}); ok {
 					execution["method_used"] = methodUsed
+					execution["command_executed"] = command
+					if rawCommand != command {
+						execution["command_normalized"] = fmt.Sprintf("'%s' → '%s'", rawCommand, command)
+					}
 					switch methodUsed {
 					case "config_file":
 						execution["recommendation"] = "✅ Used preferred config file method"
@@ -2118,4 +2125,61 @@ func buildEnvWithExtraPath() []string {
 	newEnv = append(newEnv, "PATH="+finalPath)
 
 	return newEnv
+}
+
+// normalizeVoyagerCommand maps common command variations to correct YB Voyager commands
+func normalizeVoyagerCommand(input string) string {
+	// Normalize input: lowercase, trim, replace separators with spaces
+	normalized := strings.ToLower(strings.TrimSpace(input))
+	normalized = strings.ReplaceAll(normalized, "_", " ")
+	normalized = strings.ReplaceAll(normalized, "-", " ")
+
+	// Command mapping for common variations
+	commandMap := map[string]string{
+		// Export commands
+		"export schema": "export schema",
+		"exportschema":  "export schema",
+		"schema export": "export schema",
+		"export data":   "export data",
+		"exportdata":    "export data",
+		"data export":   "export data",
+
+		// Import commands
+		"import schema": "import schema",
+		"importschema":  "import schema",
+		"schema import": "import schema",
+		"import data":   "import data",
+		"importdata":    "import data",
+		"data import":   "import data",
+
+		// Assessment commands
+		"assess migration": "assess-migration",
+		"assessmigration":  "assess-migration",
+		"assessment":       "assess-migration",
+
+		// Analysis commands
+		"analyze schema":  "analyze-schema",
+		"analyseschema":   "analyze-schema",
+		"schema analysis": "analyze-schema",
+
+		// Status commands
+		"get status":       "get data-migration-report",
+		"migration status": "get data-migration-report",
+		"status":           "get data-migration-report",
+
+		// End commands
+		"end migration":    "end migration",
+		"endmigration":     "end migration",
+		"finish migration": "end migration",
+
+		// Version
+		"version":     "version",
+		"get version": "version",
+	}
+
+	// Return mapped command or original if no mapping found
+	if mapped, exists := commandMap[normalized]; exists {
+		return mapped
+	}
+	return input // Return original if no mapping found
 }
