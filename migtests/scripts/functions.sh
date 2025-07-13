@@ -496,6 +496,7 @@ import_data_file() {
     --disable-pb true
     --send-diagnostics=false
 	--skip-replication-checks true
+    --on-primary-key-conflict ignore
     "
 
     # Check if RUN_WITHOUT_ADAPTIVE_PARALLELISM is true
