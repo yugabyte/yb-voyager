@@ -426,6 +426,7 @@ import_data() {
         --send-diagnostics=false
         --max-retries 1
         --skip-replication-checks true
+        --on-primary-key-conflict ignore
         --yes
     "
 
