@@ -64,13 +64,11 @@ const (
 	PG_QUERY_CREATE_SEQ_STMT_NODE = "pg_query.CreateSeqStmt"
 	PG_QUERY_ALTER_SEQ_STMT_NODE  = "pg_query.AlterSeqStmt"
 
-	PG_QUERY_CREATE_TYPE_STMT_NODE      = "pg_query.CreateTypeStmt"
-	PG_QUERY_ALTER_TYPE_STMT_NODE       = "pg_query.AlterTypeStmt"
-	PG_QUERY_CREATE_DOMAIN_STMT_NODE    = "pg_query.CreateDomainStmt"
-	PG_QUERY_ALTER_DOMAIN_STMT_NODE     = "pg_query.AlterDomainStmt"
-	PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE = "pg_query.CreateEnumStmt"
-	PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE = "pg_query.AlterEnumStmt"
-
+	PG_QUERY_CREATE_DOMAIN_STMT_NODE         = "pg_query.CreateDomainStmt"
+	PG_QUERY_ALTER_DOMAIN_STMT_NODE          = "pg_query.AlterDomainStmt"
+	PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE      = "pg_query.CreateEnumStmt"
+	PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE       = "pg_query.AlterEnumStmt"
+	PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE = "pg_query.CompositeTypeStmt"
 
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE          = "pg_query.Alias"

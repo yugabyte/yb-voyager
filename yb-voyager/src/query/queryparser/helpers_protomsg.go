@@ -581,6 +581,31 @@ func ProtoAsCreateEnumStmtNode(msg protoreflect.Message) (*pg_query.CreateEnumSt
 	return createEnumStmtNode, true
 }
 
+func ProtoAsAlterEnumStmtNode(msg protoreflect.Message) (*pg_query.AlterEnumStmt, bool) {
+	alterEnumStmtNode, ok := msg.Interface().(*pg_query.AlterEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterEnumStmtNode, true
+}
+
+func ProtoAsCompositeTypeStmtNode(msg protoreflect.Message) (*pg_query.CompositeTypeStmt, bool) {
+	compositeTypeStmtNode, ok := msg.Interface().(*pg_query.CompositeTypeStmt)
+	if !ok {
+		return nil, false
+	}
+	return compositeTypeStmtNode, true
+}
+
+func ProtoAsCreateDomainStmtNode(msg protoreflect.Message) (*pg_query.CreateDomainStmt, bool) {
+	createDomainStmtNode, ok := msg.Interface().(*pg_query.CreateDomainStmt)
+	if !ok {
+		return nil, false
+	}
+	return createDomainStmtNode, true
+}
+
 func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
 	rangeVarNode, ok := msg.Interface().(*pg_query.RangeVar)
 	if !ok {

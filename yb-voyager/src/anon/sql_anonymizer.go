@@ -87,6 +87,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling user defined type object nodes: %w", err)
 	}
 
+	err = a.handleDomainObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling domain object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -164,7 +169,7 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
 		}
-		err = a.anonymizeColumnRef(cr.Fields)
+		err = a.anonymizeColumnRefNode(cr.Fields)
 		if err != nil {
 			return fmt.Errorf("error anonymizing column ref: %w", err)
 		}
@@ -810,7 +815,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 			}
 			if list := def.GetArg().GetList(); list != nil {
 				itemNodes := list.Items
-				err = a.anonymizeColumnRef(itemNodes)
+				err = a.anonymizeColumnRefNode(itemNodes)
 				if err != nil {
 					return fmt.Errorf("anon alter sequence owned by: %w", err)
 				}
@@ -893,13 +898,9 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 	return nil
 }
 
-// this has processors for TYPE(user defined types), ENUM, and DOMAIN
+// this has processors for TYPE(user defined types i.e. COMPOSITE), ENUM, and DOMAIN
 func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Message) (err error) {
 	switch queryparser.GetMsgFullName(msg) {
-	case queryparser.PG_QUERY_CREATE_TYPE_STMT_NODE:
-
-	case queryparser.PG_QUERY_ALTER_TYPE_STMT_NODE:
-
 	/*
 		SQL:		CREATE TYPE db.schema1.status AS ENUM ('new','proc','done');
 		ParseTree:	stmt:{create_enum_stmt:{type_name:{string:{sval:"db"}} type_name:{string:{sval:"schema1"}} type_name:{string:{sval:"status"}}
@@ -927,15 +928,124 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 			}
 		}
 
+	/*
+		SQL:		ALTER TYPE status ADD VALUE 'archived';
+		ParseTree:	stmt:{alter_enum_stmt:{type_name:{string:{sval:"status"}} new_val:"archived" new_val_is_after:true}} stmt_len:3
+	*/
 	case queryparser.PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE:
+		ae, ok := queryparser.ProtoAsAlterEnumStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterEnumStmt, got %T", msg.Interface())
+		}
 
-	case queryparser.PG_QUERY_CREATE_DOMAIN_STMT_NODE:
+		// Anonymize the type name (fully qualified: database.schema.typename)
+		err = a.anonymizeStringNodes(ae.GetTypeName(), TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon alter enum type: %w", err)
+		}
 
-	case queryparser.PG_QUERY_ALTER_DOMAIN_STMT_NODE:
+		// Anonymize the new value
+		if ae.NewVal != "" {
+			ae.NewVal, err = a.registry.GetHash(ENUM_KIND_PREFIX, ae.NewVal)
+			if err != nil {
+				return err
+			}
+		}
+
+	/*
+		SQL: 		CREATE TYPE mycomposit AS (a int, b text);
+		ParseTree:	stmt:{composite_type_stmt:{typevar:{relname:"mycomposit" ...} coldeflist:{column_def:{colname:"a" type_name:{names:{string:{sval:"pg_catalog"}}
+					names:{string:{sval:"int4"}} typemod:-1 location:29} is_local:true location:27}}
+					coldeflist:{column_def:{colname:"b" type_name:{names:{string:{sval:"text"}} ... } }}}}
+	*/
+	case queryparser.PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE:
+		ct, ok := queryparser.ProtoAsCompositeTypeStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateTypeStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the type name present as RangeVar node
+		err = a.anonymizeRangeVarNode(ct.Typevar, TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon composite type: %w", err)
+		}
+
+		// Anonymize the column names in columndeflist in column_def node
+		// Already covered by ColumnDef processor
+	/*
+		SQL: 		ALTER TYPE db1.schema1.mycomposit RENAME TO db1.schema2.mycomposit2;
+	*/
+	case queryparser.PG_QUERY_RENAME_STMT_NODE:
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok || rs.RenameType != pg_query.ObjectType_OBJECT_TYPE {
+			return nil
+		}
+
+		if rs.RenameType != pg_query.ObjectType_OBJECT_TYPE {
+			return nil
+		}
+
+		if rs.Object != nil && rs.Object.GetList() != nil {
+			items := rs.Object.GetList().Items
+			err = a.anonymizeStringNodes(items, TYPE_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon composite type rename: %w", err)
+			}
+		}
+
+		if rs.Newname != "" {
+			rs.Newname, err = a.registry.GetHash(TYPE_KIND_PREFIX, rs.Newname)
+			if err != nil {
+				return fmt.Errorf("anon composite type rename: %w", err)
+			}
+		}
 
 	// generic drop statement node for TYPE, ENUM, DOMAIN
 	case queryparser.PG_QUERY_DROP_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok || ds.RemoveType != pg_query.ObjectType_OBJECT_TYPE {
+			return nil
+		}
+		err = a.anonymizeStringNodes(ds.Objects, TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon drop type: %w", err)
+		}
+	}
+	return nil
+}
 
+func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+
+	/*
+		SQL:		CREATE DOMAIN us_postal AS text CHECK (VALUE ~ '^[0-9]{5}$');
+		ParseTree:	stmt:{create_domain_stmt:{domainname:{string:{sval:"us_postal"}}  type_name:{names:{string:{sval:"text"}}  typemod:-1  location:27}
+					constraints:{constraint:{contype:CONSTR_CHECK  location:32  raw_expr:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"~"}}
+					 lexpr:{column_ref:{fields:{string:{sval:"value"}}  location:39}}  rexpr:{a_const:{sval:{sval:"^[0-9]{5}$"}  }} }}  }}}}  stmt_len:60
+	*/
+	case queryparser.PG_QUERY_CREATE_DOMAIN_STMT_NODE:
+		cd, ok := queryparser.ProtoAsCreateDomainStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateDomainStmt, got %T", msg.Interface())
+		}
+		// Anonymize the domain name
+		err = a.anonymizeStringNodes(cd.Domainname, DOMAIN_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon create domain: %w", err)
+		}
+	case queryparser.PG_QUERY_RENAME_STMT_NODE:
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok || rs.RenameType != pg_query.ObjectType_OBJECT_DOMAIN {
+			return nil
+		}
+		err = a.anonymizeStringNodes(rs.Object.GetList().Items, DOMAIN_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon domain rename: %w", err)
+		}
+		rs.Newname, err = a.registry.GetHash(DOMAIN_KIND_PREFIX, rs.Newname)
+		if err != nil {
+			return fmt.Errorf("anon domain rename: %w", err)
+		}
 	}
 	return nil
 }
@@ -948,8 +1058,7 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 // Pass the PREFIX for the *last* element (obj).
 // The helper will automatically use DATABASE_KIND_PREFIX and SCHEMA_KIND_PREFIX
 // for the first and second element when present.
-func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node,
-	finalPrefix string) error {
+func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix string) error {
 
 	// pick the actual *pg_query.String values
 	var strs []*pg_query.String
@@ -986,9 +1095,9 @@ func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node,
 	return nil
 }
 
-// anonymizeColumnRef rewrites the String parts of a ColumnRef
+// anonymizeColumnRefNode rewrites the String parts of a ColumnRef
 // The slice may have 1–4 parts but the *last* one is always a column.
-func (a *SqlAnonymizer) anonymizeColumnRef(strNodes []*pg_query.Node) error {
+func (a *SqlAnonymizer) anonymizeColumnRefNode(strNodes []*pg_query.Node) error {
 	n := len(strNodes)
 	if n == 0 {
 		return nil
@@ -1004,4 +1113,25 @@ func (a *SqlAnonymizer) anonymizeColumnRef(strNodes []*pg_query.Node) error {
 
 	// 2. The right-most item – always a column
 	return a.anonymizeStringNodes(strNodes[n-1:], COLUMN_KIND_PREFIX)
+}
+
+// sample rangevar node: typevar:{catalogname:"db"  schemaname:"schema1"  relname:"mycomposit"  relpersistence:"p"  location:12}
+func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix string) (err error) {
+	if rv.Catalogname != "" {
+		rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
+		if err != nil {
+			return err
+		}
+	}
+	if rv.Schemaname != "" {
+		rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
+		if err != nil {
+			return err
+		}
+	}
+	rv.Relname, err = a.registry.GetHash(finalPrefix, rv.Relname)
+	if err != nil {
+		return err
+	}
+	return nil
 }

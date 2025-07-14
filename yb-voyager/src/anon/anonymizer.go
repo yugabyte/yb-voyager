@@ -14,6 +14,7 @@ const (
 	CONSTRAINT_KIND_PREFIX = "constraint_"
 	ALIAS_KIND_PREFIX      = "alias_"
 	TYPE_KIND_PREFIX       = "type_"
+	DOMAIN_KIND_PREFIX     = "domain_"
 	ROLE_KIND_PREFIX       = "role_"
 	CONST_KIND_PREFIX      = "const_"
 	COLLATION_KIND_PREFIX  = "collation_"
