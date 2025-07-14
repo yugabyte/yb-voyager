@@ -572,6 +572,15 @@ func ProtoAsDefineStmtNode(msg protoreflect.Message) (*pg_query.DefineStmt, bool
 	return defineStmtNode, true
 }
 
+func ProtoAsCreateEnumStmtNode(msg protoreflect.Message) (*pg_query.CreateEnumStmt, bool) {
+	createEnumStmtNode, ok := msg.Interface().(*pg_query.CreateEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createEnumStmtNode, true
+}
+
 func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
 	rangeVarNode, ok := msg.Interface().(*pg_query.RangeVar)
 	if !ok {
@@ -586,6 +595,14 @@ func ProtoAsColumnDef(msg protoreflect.Message) (*pg_query.ColumnDef, bool) {
 		return nil, false
 	}
 	return columnDefNode, true
+}
+
+func ProtoAsColumnRefNode(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
+	columnRefNode, ok := msg.Interface().(*pg_query.ColumnRef)
+	if !ok {
+		return nil, false
+	}
+	return columnRefNode, true
 }
 
 func ProtoAsColumnRef(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {

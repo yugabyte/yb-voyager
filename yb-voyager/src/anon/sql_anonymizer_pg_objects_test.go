@@ -29,6 +29,14 @@ var enabled = map[string]bool{
 	"SEQUENCE-RENAME":        true,
 	"SEQUENCE-SET-SCHEMA":    true,
 	"SEQUENCE-DROP":          true,
+	"TYPE-CREATE-ENUM":       true,
+	// "TYPE-ADD-VALUE":         true,
+	// "TYPE-CREATE-COMPOSITE":  true,
+	// "TYPE-CREATE-BASE":       true,
+	// "TYPE-CREATE-RANGE":      true,
+	// "TYPE-RENAME":            true,
+	// "DOMAIN-CREATE":          true,
+	// "DOMAIN-RENAME":          true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -106,9 +114,9 @@ func TestPostgresDDLVariants(t *testing.T) {
 			[]string{"sales", "ord_id_seq"},
 			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
 		{"SEQUENCE-OWNEDBY",
-			`ALTER SEQUENCE sales.ord_id_seq OWNED BY sales.orders.id;`,
-			[]string{"sales", "ord_id_seq", "orders", "id"},
-			[]string{SEQUENCE_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+			`ALTER SEQUENCE sales.ord_id_seq OWNED BY dbname.sales.orders.id;`,
+			[]string{"dbname", "sales", "ord_id_seq", "orders", "id"},
+			[]string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
 		{"SEQUENCE-RENAME",
 			`ALTER SEQUENCE sales.ord_id_seq RENAME TO ord_id_seq2;`,
 			[]string{"sales", "ord_id_seq", "ord_id_seq2"},
@@ -124,13 +132,13 @@ func TestPostgresDDLVariants(t *testing.T) {
 
 		// ─── TYPE / ENUM ───────────────────────────────────────
 		{"TYPE-CREATE-ENUM",
-			`CREATE TYPE status AS ENUM ('new','proc','done');`,
-			[]string{"status", "new", "proc", "done"},
-			[]string{TYPE_KIND_PREFIX, ENUM_LABEL_PREFIX}},
+			`CREATE TYPE postgres.schema1.status AS ENUM ('new','proc','done');`,
+			[]string{"postgres", "schema1", "status", "new", "proc", "done"},
+			[]string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TYPE_KIND_PREFIX, ENUM_KIND_PREFIX}},
 		{"TYPE-ADD-VALUE",
 			`ALTER TYPE status ADD VALUE 'archived';`,
 			[]string{"status", "archived"},
-			[]string{TYPE_KIND_PREFIX, ENUM_LABEL_PREFIX}},
+			[]string{TYPE_KIND_PREFIX, ENUM_KIND_PREFIX}},
 		// ─── TYPE (composite, base, range) ─────────────────────
 		{"TYPE-CREATE-COMPOSITE",
 			`CREATE TYPE mycomposit AS (a int, b text);`,

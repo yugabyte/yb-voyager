@@ -5,7 +5,6 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
-	log "github.com/sirupsen/logrus"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
@@ -83,6 +82,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling sequence object nodes: %w", err)
 	}
 
+	err = a.handleUserDefinedTypeObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling user defined type object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -145,11 +149,24 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 
 	/*
 		ColumnRef node is for column names in SELECT, WHERE, etc.
+		SQL: 		SELECT * from sales.orders;
+		ParseTree:	{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+					from_clause:{range_var:{schemaname:"sales"  relname:"orders" }}  }}
+
+		Other example:	SELECT *, mydb.sales.users.password FROM mydb.sales.users;
+		ParseTree:		stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
+						target_list:{res_target:{val:{ column_ref:
+						{fields:{string:{sval:"mydb"}}  fields:{string:{sval:"sales"}}  fields:{string:{sval:"users"}}  fields:{string:{sval:"password"}}  }}  }}
+						from_clause:{range_var:{catalogname:"mydb"  schemaname:"sales"  relname:"users"  inh:true  relpersistence:"p"  location:41}}  }}
 	*/
 	case queryparser.PG_QUERY_COLUMNREF_NODE:
-		err = a.columnRefNodeProcessor(msg)
+		cr, ok := queryparser.ProtoAsColumnRefNode(msg)
+		if !ok {
+			return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
+		}
+		err = a.anonymizeColumnRef(cr.Fields)
 		if err != nil {
-			return fmt.Errorf("error processing ColumnRef node: %w", err)
+			return fmt.Errorf("error anonymizing column ref: %w", err)
 		}
 
 	/*
@@ -428,115 +445,6 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (e
 		}
 	}
 
-	return nil
-}
-
-/*
-SQL:		SELECT sales.orders.column1 FROM sales.orders WHERE column2 = 'value';
-ParseTree:	stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:
-
-		{fields:{string:{sval:"sales"}}
-		fields:{string:{sval:"orders"}}
-		fields:{string:{sval:"column1"}} }} }}
-	from_clause:{range_var:{schemaname:"sales" relname:"orders" ...}}
-	where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"="}} lexpr:{column_ref:{fields:{string:{sval:"column2"}} }} rexpr:{a_const:{sval:{sval:"value"} }} }} ...}}
-*/
-func (a *SqlAnonymizer) columnRefNodeProcessor(msg protoreflect.Message) (err error) {
-	/*
-		ColumnRef node is for column names in SELECT, WHERE, etc.
-		SQL:		SELECT column1 FROM sales.orders WHERE column2 = 'value';
-
-	*/
-	cr, ok := queryparser.ProtoAsColumnRef(msg)
-	if !ok {
-		return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
-	}
-
-	log.Infof("processing ColumnRef node: %s\n", cr.String())
-	log.Infof("total number of fields in ColumnRef node: %d\n", len(cr.Fields))
-
-	// Fully qualified column name syntax: DB.Schema.Table.Column
-	// so we need to anonymize each part of the column reference node as per its kind
-
-	/*
-		Note: need to operate on string fields only in ColumnRef
-		SQL: 		SELECT * from sales.orders;
-		ParseTree:	{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
-					from_clause:{range_var:{schemaname:"sales"  relname:"orders" }}  }}
-
-		Other example:	SELECT *, mydb.sales.users.password FROM mydb.sales.users;
-		ParseTree:		stmt:{select_stmt:{target_list:{res_target:{val:{column_ref:{fields:{a_star:{}}  location:7}}  location:7}}
-						target_list:{res_target:{val:{ column_ref:
-						{fields:{string:{sval:"mydb"}}  fields:{string:{sval:"sales"}}  fields:{string:{sval:"users"}}  fields:{string:{sval:"password"}}  }}  }}
-						from_clause:{range_var:{catalogname:"mydb"  schemaname:"sales"  relname:"users"  inh:true  relpersistence:"p"  location:41}}  }}
-	*/
-	var strFields []*pg_query.String
-	for _, field := range cr.Fields {
-		if field.GetString_() != nil {
-			strFields = append(strFields, field.GetString_())
-		}
-	}
-
-	switch len(strFields) {
-	case 1: // col
-		str := strFields[0]
-		str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=1, column field: %w", err)
-		}
-	case 2: // tbl/alias . col
-		// corner case not handled: it can be a table name or table alias
-		tbl := strFields[0]
-		col := strFields[1]
-		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=2, table field: %w", err)
-		}
-		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=2, column field: %w", err)
-		}
-	case 3: // schema . table . col
-		sch := strFields[0]
-		tbl := strFields[1]
-		col := strFields[2]
-		sch.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, sch.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=3, schema field: %w", err)
-		}
-		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=3, table field: %w", err)
-		}
-		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=3, column field: %w", err)
-		}
-	case 4: // db . schema . table . col
-		db := strFields[0]
-		sch := strFields[1]
-		tbl := strFields[2]
-		col := strFields[3]
-		db.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, db.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=4, database field: %w", err)
-		}
-		sch.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, sch.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=4, schema field: %w", err)
-		}
-		tbl.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, tbl.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=4, table field: %w", err)
-		}
-		col.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, col.Sval)
-		if err != nil {
-			return fmt.Errorf("anon ColumnRef, fieldLen=4, column field: %w", err)
-		}
-
-	default: // zero fields
-		return nil
-	}
 	return nil
 }
 
@@ -910,6 +818,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 				return err
 			}
 		}
+
 		// handle OWNED BY clause
 		for _, opt := range as.Options {
 			def := opt.GetDefElem()
@@ -917,21 +826,10 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 				continue
 			}
 			if list := def.GetArg().GetList(); list != nil {
-				items := list.Items
-				for i, itm := range items {
-					if str := itm.GetString_(); str != nil && str.Sval != "" {
-						switch {
-						case i == len(items)-1: // column
-							str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
-						case i == len(items)-2: // table
-							str.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, str.Sval)
-						case i == len(items)-3: // schema
-							str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
-						}
-						if err != nil {
-							return err
-						}
-					}
+				itemNodes := list.Items
+				err = a.anonymizeColumnRef(itemNodes)
+				if err != nil {
+					return fmt.Errorf("anon alter sequence owned by: %w", err)
 				}
 			}
 		}
@@ -1007,4 +905,117 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		}
 	}
 	return nil
+}
+
+// this has processors for TYPE(user defined types), ENUM, and DOMAIN
+func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	case queryparser.PG_QUERY_CREATE_TYPE_STMT_NODE:
+
+	case queryparser.PG_QUERY_ALTER_TYPE_STMT_NODE:
+
+	/*
+		SQL:		CREATE TYPE db.schema1.status AS ENUM ('new','proc','done');
+		ParseTree:	stmt:{create_enum_stmt:{type_name:{string:{sval:"db"}} type_name:{string:{sval:"schema1"}} type_name:{string:{sval:"status"}}
+					vals:{string:{sval:"new"}} vals:{string:{sval:"proc"}} vals:{string:{sval:"done"}}}}
+	*/
+	case queryparser.PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE:
+		ces, ok := queryparser.ProtoAsCreateEnumStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateEnumStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the type name (fully qualified: database.schema.typename)
+		err = a.anonymizeStringNodes(ces.GetTypeName(), TYPE_KIND_PREFIX) // object type for enum is TYPE
+		if err != nil {
+			return fmt.Errorf("anon enum typename: %w", err)
+		}
+
+		// anonymize the enum values
+		for _, val := range ces.Vals {
+			if str := val.GetString_(); str != nil && str.Sval != "" {
+				str.Sval, err = a.registry.GetHash(ENUM_KIND_PREFIX, str.Sval)
+				if err != nil {
+					return err
+				}
+			}
+		}
+
+	case queryparser.PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE:
+
+	case queryparser.PG_QUERY_CREATE_DOMAIN_STMT_NODE:
+
+	case queryparser.PG_QUERY_ALTER_DOMAIN_STMT_NODE:
+
+	// generic drop statement node for TYPE, ENUM, DOMAIN
+	case queryparser.PG_QUERY_DROP_STMT_NODE:
+
+	}
+	return nil
+}
+
+// anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
+// value is expected to be *pg_query.String and replaces every Sval
+// with the deterministic token from the IdentifierHashRegistry.
+//
+// parts may be 1-3 items: [obj] | [schema,obj] | [db,schema,obj].
+// Pass the PREFIX for the *last* element (obj).
+// The helper will automatically use DATABASE_KIND_PREFIX and SCHEMA_KIND_PREFIX
+// for the first and second element when present.
+func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node,
+	finalPrefix string) error {
+
+	// pick the actual *pg_query.String values
+	var strs []*pg_query.String
+	for _, n := range nodes {
+		if s := n.GetString_(); s != nil && s.Sval != "" {
+			strs = append(strs, s)
+		}
+	}
+	if len(strs) == 0 {
+		return nil // nothing to do
+	}
+
+	// build prefix slice based on number of parts
+	var prefixes []string
+	switch len(strs) {
+	case 1:
+		prefixes = []string{finalPrefix} // [obj]
+	case 2:
+		prefixes = []string{SCHEMA_KIND_PREFIX, finalPrefix} // [schema,obj]
+	case 3:
+		prefixes = []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, finalPrefix} // [db,schema,obj]
+	default:
+		return fmt.Errorf("qualified name with %d parts not supported", len(strs))
+	}
+
+	// apply prefixes to each string based on the index
+	for i, s := range strs {
+		tok, err := a.registry.GetHash(prefixes[i], s.Sval)
+		if err != nil {
+			return err
+		}
+		s.Sval = tok
+	}
+	return nil
+}
+
+// anonymizeColumnRef rewrites the String parts of a ColumnRef
+// The slice may have 1–4 parts but the *last* one is always a column.
+func (a *SqlAnonymizer) anonymizeColumnRef(strNodes []*pg_query.Node) error {
+	n := len(strNodes)
+	if n == 0 {
+		return nil
+	}
+
+	// 1. Everything *left* of the column (0,1 or 2 items)
+	if n > 1 {
+		// left part could be [tbl] or [sch,tbl] or [db,sch,tbl]
+		if err := a.anonymizeStringNodes(strNodes[:n-1], TABLE_KIND_PREFIX); err != nil {
+			return err
+		}
+	}
+
+	// 2. The right-most item – always a column
+	return a.anonymizeStringNodes(strNodes[n-1:], COLUMN_KIND_PREFIX)
 }
