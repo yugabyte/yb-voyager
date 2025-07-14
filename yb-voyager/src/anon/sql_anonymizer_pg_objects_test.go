@@ -37,6 +37,7 @@ var enabled = map[string]bool{
 	"TYPE-RENAME":   true,
 	"DOMAIN-CREATE": true,
 	"DOMAIN-RENAME": true,
+	"DOMAIN-DROP":   true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -168,6 +169,10 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER DOMAIN us_postal RENAME TO us_zip;`,
 			[]string{"us_postal", "us_zip"},
 			[]string{DOMAIN_KIND_PREFIX}},
+		{"DOMAIN-DROP",
+			`DROP DOMAIN IF EXISTS us_postal CASCADE;`,
+			[]string{"us_postal"},
+			[]string{DOMAIN_KIND_PREFIX}},
 
 		// ─── TABLE ─────────────────────────────────────────────
 		{"TABLE-CREATE",
@@ -260,23 +265,22 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER COLLATION ... RENAME TO <new>             | RenameStmtNode               | [x]
 //                       | DROP COLLATION ...                              | DropStmtNode                 | [x]
 //
-//  EXTENSION            | CREATE EXTENSION IF NOT EXISTS <name>           | CreateExtensionStmtNode      | [ ]
-//                       | ALTER EXTENSION <name> SET SCHEMA <schema>      | AlterExtensionStmtNode       | [ ]
-//                       | DROP EXTENSION <name>                           | DropStmtNode                 | [ ]
+//  EXTENSION            | CREATE EXTENSION IF NOT EXISTS <name>           | CreateExtensionStmtNode      | [x]
+//                       | ALTER EXTENSION <name> SET SCHEMA <schema>      | AlterExtensionStmtNode       | [x]
+//                       | DROP EXTENSION <name>                           | DropStmtNode                 | [x]
 //
 //  TYPE (ENUM)          | CREATE TYPE <name> AS ENUM (...)                | CreateEnumStmtNode           | [x]
-//                       | ALTER TYPE <name> ADD VALUE <val>               | AlterEnumStmtNode            | [x]
-//                       | ALTER TYPE <name> RENAME TO <new>               | RenameStmtNode               | [ ]
-//                       | DROP TYPE <name>                                | DropStmtNode                 | [ ]
+//                       | ALTER TYPE <name> RENAME TO <new>               | RenameStmtNode               | [x]
+//                       | DROP TYPE <name>                                | DropStmtNode                 | [x]
 //
-//  DOMAIN               | CREATE DOMAIN <name> AS <base> ...              | CreateDomainStmtNode         | [ ]
-//                       | ALTER DOMAIN <name> RENAME TO <new>             | RenameStmtNode               | [ ]
-//                       | DROP DOMAIN <name>                              | DropStmtNode                 | [ ]
+//  DOMAIN               | CREATE DOMAIN <name> AS <base> ...              | CreateDomainStmtNode         | [x]
+//                       | ALTER DOMAIN <name> RENAME TO <new>             | RenameStmtNode               | [x]
+//                       | DROP DOMAIN <name>                              | DropStmtNode                 | [x]
 //
-//  SEQUENCE             | CREATE SEQUENCE <schema>.<name>                 | CreateSeqStmtNode            | [ ]
-//                       | ALTER SEQUENCE <schema>.<name> OWNED BY ...     | AlterSeqStmtNode             | [ ]
-//                       | ALTER SEQUENCE RENAME TO <new>                  | RenameStmtNode               | [ ]
-//                       | DROP SEQUENCE <schema>.<name>                   | DropStmtNode                 | [ ]
+//  SEQUENCE             | CREATE SEQUENCE <schema>.<name>                 | CreateSeqStmtNode            | [x]
+//                       | ALTER SEQUENCE <schema>.<name> OWNED BY ...     | AlterSeqStmtNode             | [x]
+//                       | ALTER SEQUENCE RENAME TO <new>                  | RenameStmtNode               | [x]
+//                       | DROP SEQUENCE <schema>.<name>                   | DropStmtNode                 | [x]
 //
 //  TABLE                | CREATE TABLE <schema>.<name> (...)              | CreateStmtNode               | [ ]
 //                       | ALTER TABLE <name> ADD COLUMN ...               | AlterTableStmtNode           | [ ]

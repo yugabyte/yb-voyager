@@ -1046,6 +1046,30 @@ func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err e
 		if err != nil {
 			return fmt.Errorf("anon domain rename: %w", err)
 		}
+
+	/*
+		SQL:		DROP DOMAIN IF EXISTS us_zip CASCADE;
+		ParseTree:	stmt:{drop_stmt:{objects:{type_name:{names:{string:{sval:"us_zip"}}  ...}}  remove_type:OBJECT_DOMAIN  behavior:DROP_CASCADE  missing_ok:true}}
+	*/
+	case queryparser.PG_QUERY_DROP_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok || ds.RemoveType != pg_query.ObjectType_OBJECT_DOMAIN {
+			return nil
+		}
+
+		// anonymize the domain name
+		// get the typename node here from msg
+		if len(ds.Objects) > 0 && ds.Objects[0] != nil {
+			tn := ds.Objects[0].GetTypeName()
+			if tn == nil {
+				return nil
+			}
+			err = a.anonymizeStringNodes(tn.Names, DOMAIN_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon domain drop: %w", err)
+			}
+		}
+
 	}
 	return nil
 }
