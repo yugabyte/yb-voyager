@@ -3,7 +3,16 @@ package anon
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"regexp"
+	"strings"
 	"sync"
+
+	log "github.com/sirupsen/logrus"
+)
+
+const (
+	// HASH_LENGTH defines the number of hex characters in the anonymized hash portion
+	HASH_LENGTH = 16
 )
 
 type IdentifierHasher interface {
@@ -47,6 +56,11 @@ func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string
 		return "", nil // No identifier to anonymize
 	}
 
+	if IsAnonymized(identifier) {
+		log.Infof("identifier %s is already anonymized", identifier)
+		return identifier, nil
+	}
+
 	// combining 'kind' for uniqueness wrt the namespace (table, schema, database)
 	// for eg: users as tablename(unqualified) and users as columnname
 	key := kind + identifier
@@ -61,7 +75,7 @@ func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string
 	h := sha256.New() // generates 32-byte hash
 	h.Write([]byte(kind + r.salt + identifier))
 	sum := h.Sum(nil)
-	token := kind + hex.EncodeToString(sum)[:16] // 16 hex chars == 8 bytes
+	token := kind + hex.EncodeToString(sum)[:HASH_LENGTH] // 16 hex chars == 8 bytes
 
 	/*
 		Note: For SHA-256, collision probablity mathematically is (N^2)/(2M)
@@ -79,4 +93,31 @@ func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string
 	r.identifierHashMap[key] = token
 	r.mu.Unlock()
 	return token, nil
+}
+
+// IsAnonymized checks if an identifier has already been anonymized
+// An anonymized identifier has the format: <prefix><HASH_LENGTH_hex_chars>
+// where prefix is one of the *_KIND_PREFIX constants defined in this package
+func IsAnonymized(identifier string) bool {
+	if identifier == "" {
+		return false
+	}
+
+	// Use the centralized AllKindPrefixes slice
+	for _, prefix := range AllKindPrefixes {
+		if strings.HasPrefix(identifier, prefix) {
+			remaining := identifier[len(prefix):]
+			if len(remaining) == HASH_LENGTH && isHexString(remaining) {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// isHexString checks if a string contains only hexadecimal characters
+func isHexString(s string) bool {
+	hexPattern := regexp.MustCompile(`^[0-9a-fA-F]+$`)
+	return hexPattern.MatchString(s)
 }

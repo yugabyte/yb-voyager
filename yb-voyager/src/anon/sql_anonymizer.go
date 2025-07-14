@@ -109,9 +109,19 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			}
 		}
 
-		// TODO(REVISIT): the relname is not always a TABLE, it could be a SEQUENCE, VIEW, MVIEW etc
-		// so this anonymization can happen twice in above processor
-		// or happen with wrong prefix
+		// ISSUE: RangeVar.relname is not always a TABLE - it could be a SEQUENCE, VIEW, MATERIALIZED VIEW, etc.
+		// This creates two problems:
+		// 1. The same identifier might be anonymized twice by different processors
+		// 2. An identifier might be anonymized with the wrong prefix (e.g., table_ instead of seq_)
+		//
+		// IDEAL SOLUTION: Process each identifier exactly once across all processors
+		// However, this would require complex coordination logic and isn't worth the implementation effort.
+		//
+		// CURRENT SOLUTION: Check if an identifier is already anonymized before processing
+		// This allows processors to be written independently without worrying about double-anonymization.
+		// Implemented in identifier_hash_registry.go GetHash() method
+		//
+		// IMPORTANT: Fallback/catchall processors like this one should run last to avoid conflicts.
 		rv.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return fmt.Errorf("anon table: %w", err)
@@ -870,6 +880,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 				return err
 			}
 		}
+
 		rv.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return err

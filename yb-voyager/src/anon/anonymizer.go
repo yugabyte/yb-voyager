@@ -16,9 +16,31 @@ const (
 	TYPE_KIND_PREFIX       = "type_"
 	ROLE_KIND_PREFIX       = "role_"
 	CONST_KIND_PREFIX      = "const_"
-	COLLATION_KIND_PREFIX = "collation_"
+	COLLATION_KIND_PREFIX  = "collation_"
 	DEFAULT_KIND_PREFIX    = "anon_" // fallback for any other identifiers
 )
+
+// AllKindPrefixes - single source of truth for all prefixes possible in anonymization
+// NOTE: When adding a new prefix constant above, add it here too
+var AllKindPrefixes = []string{
+	DATABASE_KIND_PREFIX,
+	SCHEMA_KIND_PREFIX,
+	SEQUENCE_KIND_PREFIX,
+	TABLE_KIND_PREFIX,
+	ENUM_LABEL_PREFIX,
+	COLUMN_KIND_PREFIX,
+	FUNCTION_KIND_PREFIX,
+	TRIGGER_KIND_PREFIX,
+	PROCEDURE_KIND_PREFIX,
+	INDEX_KIND_PREFIX,
+	CONSTRAINT_KIND_PREFIX,
+	ALIAS_KIND_PREFIX,
+	TYPE_KIND_PREFIX,
+	ROLE_KIND_PREFIX,
+	CONST_KIND_PREFIX,
+	COLLATION_KIND_PREFIX,
+	DEFAULT_KIND_PREFIX,
+}
 
 // interface to be implemented by any new anonymizer
 type Anonymizer interface {
