@@ -545,6 +545,24 @@ func ProtoAsAlterObjectSchemaStmtNode(msg protoreflect.Message) (*pg_query.Alter
 	return alterObjectSchemaStmtNode, true
 }
 
+func ProtoAsCreateSeqStmtNode(msg protoreflect.Message) (*pg_query.CreateSeqStmt, bool) {
+	createSeqStmtNode, ok := msg.Interface().(*pg_query.CreateSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createSeqStmtNode, true
+}
+
+func ProtoAsAlterSeqStmtNode(msg protoreflect.Message) (*pg_query.AlterSeqStmt, bool) {
+	alterSeqStmtNode, ok := msg.Interface().(*pg_query.AlterSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterSeqStmtNode, true
+}
+
 func ProtoAsDefineStmtNode(msg protoreflect.Message) (*pg_query.DefineStmt, bool) {
 	defineStmtNode, ok := msg.Interface().(*pg_query.DefineStmt)
 	if !ok {

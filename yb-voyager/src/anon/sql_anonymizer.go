@@ -78,12 +78,20 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling extension object nodes: %w", err)
 	}
 
+	err = a.handleSequenceObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling sequence object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
 			SQL:		SELECT * FROM sales.orders;
 			ParseTree:
 	*/
+	// TODO(REVISIT): the relname is not always a TABLE, it could be a SEQUENCE, VIEW, MVIEW etc
+	// so this anonymization can happen twice in above processor
+	// or happen with wrong prefix
 	case queryparser.PG_QUERY_RANGEVAR_NODE:
 		rv, ok := queryparser.ProtoAsRangeVarNode(msg)
 		if !ok {
@@ -832,6 +840,159 @@ func (a *SqlAnonymizer) handleExtensionObjectNodes(msg protoreflect.Message) (er
 		// for eg: ALTER EXTENSION hstore ADD FUNCTION populate_record(anyelement, hstore);
 		// but this is too much of a corner case and not sure if pg_dump will generate such statements
 
+	}
+	return nil
+}
+
+func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+
+	// CREATE SEQUENCE
+	case queryparser.PG_QUERY_CREATE_SEQ_STMT_NODE:
+		cs, ok := queryparser.ProtoAsCreateSeqStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateSeqStmt, got %T", msg.Interface())
+		}
+		rv := cs.Sequence
+		if rv == nil {
+			return nil
+		}
+		if rv.Catalogname != "" {
+			rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
+			if err != nil {
+				return err
+			}
+		}
+		if rv.Schemaname != "" {
+			rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
+			if err != nil {
+				return err
+			}
+		}
+		rv.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, rv.Relname)
+		if err != nil {
+			return err
+		}
+
+	// ALTER SEQUENCE  (incl. OWNED BY)
+	case queryparser.PG_QUERY_ALTER_SEQ_STMT_NODE:
+		as, ok := queryparser.ProtoAsAlterSeqStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterSeqStmt, got %T", msg.Interface())
+		}
+		if seq := as.Sequence; seq != nil {
+			if seq.Catalogname != "" {
+				seq.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, seq.Catalogname)
+				if err != nil {
+					return err
+				}
+			}
+			if seq.Schemaname != "" {
+				seq.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, seq.Schemaname)
+				if err != nil {
+					return err
+				}
+			}
+			seq.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, seq.Relname)
+			if err != nil {
+				return err
+			}
+		}
+		// handle OWNED BY clause
+		for _, opt := range as.Options {
+			def := opt.GetDefElem()
+			if def == nil || def.Defname != "owned_by" {
+				continue
+			}
+			if list := def.GetArg().GetList(); list != nil {
+				items := list.Items
+				for i, itm := range items {
+					if str := itm.GetString_(); str != nil && str.Sval != "" {
+						switch {
+						case i == len(items)-1: // column
+							str.Sval, err = a.registry.GetHash(COLUMN_KIND_PREFIX, str.Sval)
+						case i == len(items)-2: // table
+							str.Sval, err = a.registry.GetHash(TABLE_KIND_PREFIX, str.Sval)
+						case i == len(items)-3: // schema
+							str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+						}
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
+
+	// RENAME SEQUENCE
+	case queryparser.PG_QUERY_RENAME_STMT_NODE:
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok || rs.RenameType != pg_query.ObjectType_OBJECT_SEQUENCE {
+			return nil
+		}
+		rv := rs.Relation
+		if rv != nil {
+			if rv.Schemaname != "" {
+				rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
+				if err != nil {
+					return err
+				}
+			}
+			rv.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, rv.Relname)
+			if err != nil {
+				return err
+			}
+		}
+		if rs.Newname != "" {
+			rs.Newname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, rs.Newname)
+			if err != nil {
+				return err
+			}
+		}
+
+	// ALTER SEQUENCE … SET SCHEMA
+	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
+		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
+		if !ok || aos.ObjectType != pg_query.ObjectType_OBJECT_SEQUENCE {
+			return nil
+		}
+		if aos.Relation != nil && aos.Relation.Relname != "" {
+			aos.Relation.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, aos.Relation.Relname)
+			if err != nil {
+				return err
+			}
+		}
+		if aos.Newschema != "" {
+			aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
+			if err != nil {
+				return err
+			}
+		}
+
+	// DROP SEQUENCE
+	case queryparser.PG_QUERY_DROP_STMT_NODE:
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok || ds.RemoveType != pg_query.ObjectType_OBJECT_SEQUENCE {
+			return nil
+		}
+		for _, obj := range ds.Objects {
+			if list := obj.GetList(); list != nil {
+				items := list.Items
+				for i, itm := range items {
+					if str := itm.GetString_(); str != nil && str.Sval != "" {
+						switch {
+						case i == len(items)-1:
+							str.Sval, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, str.Sval)
+						case i == len(items)-2:
+							str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+						}
+						if err != nil {
+							return err
+						}
+					}
+				}
+			}
+		}
 	}
 	return nil
 }

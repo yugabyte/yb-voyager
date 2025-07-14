@@ -24,6 +24,11 @@ var enabled = map[string]bool{
 	"COLLATION-DROP":         true,
 	"EXTENSION-CREATE":       true,
 	"EXTENSION-ALTER-SCHEMA": true,
+	"SEQUENCE-CREATE":        true,
+	"SEQUENCE-OWNEDBY":       true,
+	"SEQUENCE-RENAME":        true,
+	"SEQUENCE-SET-SCHEMA":    true,
+	"SEQUENCE-DROP":          true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -104,6 +109,18 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER SEQUENCE sales.ord_id_seq OWNED BY sales.orders.id;`,
 			[]string{"sales", "ord_id_seq", "orders", "id"},
 			[]string{SEQUENCE_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"SEQUENCE-RENAME",
+			`ALTER SEQUENCE sales.ord_id_seq RENAME TO ord_id_seq2;`,
+			[]string{"sales", "ord_id_seq", "ord_id_seq2"},
+			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+		{"SEQUENCE-SET-SCHEMA",
+			`ALTER SEQUENCE sales.ord_id_seq SET SCHEMA archive;`,
+			[]string{"sales", "ord_id_seq", "archive"},
+			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
+		{"SEQUENCE-DROP",
+			`DROP SEQUENCE IF EXISTS sales.ord_id_seq CASCADE;`,
+			[]string{"sales", "ord_id_seq"},
+			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX}},
 
 		// ─── TYPE / ENUM ───────────────────────────────────────
 		{"TYPE-CREATE-ENUM",
@@ -114,6 +131,23 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER TYPE status ADD VALUE 'archived';`,
 			[]string{"status", "archived"},
 			[]string{TYPE_KIND_PREFIX, ENUM_LABEL_PREFIX}},
+		// ─── TYPE (composite, base, range) ─────────────────────
+		{"TYPE-CREATE-COMPOSITE",
+			`CREATE TYPE mycomposit AS (a int, b text);`,
+			[]string{"mycomposit", "a", "b"},
+			[]string{TYPE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"TYPE-CREATE-BASE",
+			`CREATE TYPE mybase (input = mybase_in, output = mybase_out);`,
+			[]string{"mybase", "mybase_in", "mybase_out"},
+			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"TYPE-CREATE-RANGE",
+			`CREATE TYPE myrange AS RANGE (subtype = int4);`,
+			[]string{"myrange", "int4"},
+			[]string{TYPE_KIND_PREFIX, TYPE_KIND_PREFIX}},
+		{"TYPE-RENAME",
+			`ALTER TYPE mycomposit RENAME TO mycomposit2;`,
+			[]string{"mycomposit", "mycomposit2"},
+			[]string{TYPE_KIND_PREFIX}},
 
 		// ─── DOMAIN ────────────────────────────────────────────
 		{"DOMAIN-CREATE",

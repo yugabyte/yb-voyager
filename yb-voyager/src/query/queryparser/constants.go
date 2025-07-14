@@ -61,6 +61,9 @@ const (
 	PG_QUERY_CREATE_EXTENSION_STMT         = "pg_query.CreateExtensionStmt"
 	PG_QUERY_CREATE_FOREIGN_TABLE_STMT     = "pg_query.CreateForeignTableStmt"
 
+	PG_QUERY_CREATE_SEQ_STMT_NODE = "pg_query.CreateSeqStmt"
+	PG_QUERY_ALTER_SEQ_STMT_NODE  = "pg_query.AlterSeqStmt"
+
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE          = "pg_query.Alias"
 	PG_QUERY_TYPENAME_NODE       = "pg_query.TypeName"
