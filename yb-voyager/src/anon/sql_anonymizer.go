@@ -89,9 +89,6 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			SQL:		SELECT * FROM sales.orders;
 			ParseTree:
 	*/
-	// TODO(REVISIT): the relname is not always a TABLE, it could be a SEQUENCE, VIEW, MVIEW etc
-	// so this anonymization can happen twice in above processor
-	// or happen with wrong prefix
 	case queryparser.PG_QUERY_RANGEVAR_NODE:
 		rv, ok := queryparser.ProtoAsRangeVarNode(msg)
 		if !ok {
@@ -111,6 +108,10 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 				return fmt.Errorf("anon schema: %w", err)
 			}
 		}
+
+		// TODO(REVISIT): the relname is not always a TABLE, it could be a SEQUENCE, VIEW, MVIEW etc
+		// so this anonymization can happen twice in above processor
+		// or happen with wrong prefix
 		rv.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, rv.Relname)
 		if err != nil {
 			return fmt.Errorf("anon table: %w", err)
