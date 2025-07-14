@@ -23,9 +23,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-const (
-	
-)
+const ()
 
 // function type for processing nodes during traversal
 type NodeProcessor func(msg protoreflect.Message) error

@@ -443,6 +443,12 @@ import-data-to-target:
   ### Default - 20000
   # batch-size: 20000  
 
+  ### Action to take on primary key conflict during data import.
+  ### Accepted values:
+  ###   ERROR   : fail on any PK conflict (default)
+  ###   IGNORE  : skip rows where the primary key already exists and continue importing remaining data
+  # on-primary-key-conflict: ERROR
+
   ### Truncate tables on target YugabyteDB before importing data. 
   ### Only applicable along with --start-clean true
   ### Accepted values (true, false, yes, no, 1, 0)

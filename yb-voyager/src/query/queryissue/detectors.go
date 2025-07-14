@@ -521,18 +521,18 @@ func NewUniqueNullsNotDistinctDetector(query string) *UniqueNullsNotDistinctDete
 // Detect checks if a unique constraint is defined which has nulls not distinct
 func (d *UniqueNullsNotDistinctDetector) Detect(msg protoreflect.Message) error {
 	if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_INDEX_STMT_NODE {
-		indexStmt, err := queryparser.ProtoAsIndexStmt(msg)
-		if err != nil {
-			return err
+		indexStmt, ok := queryparser.ProtoAsIndexStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexStmt node, got %T", msg.Interface())
 		}
 
 		if indexStmt.Unique && indexStmt.NullsNotDistinct {
 			d.detected = true
 		}
 	} else if queryparser.GetMsgFullName(msg) == queryparser.PG_QUERY_CONSTRAINT_NODE {
-		constraintNode, err := queryparser.ProtoAsTableConstraint(msg)
-		if err != nil {
-			return err
+		constraintNode, ok := queryparser.ProtoAsTableConstraintNode(msg)
+		if !ok {
+			return fmt.Errorf("expected TableConstraint node, got %T", msg.Interface())
 		}
 
 		if constraintNode.Contype == queryparser.UNIQUE_CONSTR_TYPE && constraintNode.NullsNotDistinct {
@@ -596,9 +596,9 @@ func (n *NonDecimalIntegerLiteralDetector) Detect(msg protoreflect.Message) erro
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_ACONST_NODE {
 		return nil
 	}
-	aConstNode, err := queryparser.ProtoAsAConstNode(msg)
-	if err != nil {
-		return err
+	aConstNode, ok := queryparser.ProtoAsAConstNode(msg)
+	if !ok {
+		return fmt.Errorf("expected A_Const node, got %T", msg.Interface())
 	}
 	/*
 		Caveats can't report this issue for cases like -

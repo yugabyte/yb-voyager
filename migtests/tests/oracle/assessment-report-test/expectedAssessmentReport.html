@@ -10,6 +10,8 @@
             padding: 0;
             background-color: #f4f4f4;
             color: #333;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
         }
 
         .wrapper {
@@ -43,6 +45,8 @@
             white-space: normal;
             box-sizing: border-box;
             margin: 0;
+            word-break: break-word;
+            overflow-wrap: break-word;
         }
 
         th {
@@ -67,6 +71,18 @@
             overflow-y: scroll;
             border: 1px solid #ccc; /* a visual separator from the body */
             padding: 10px;
+            scrollbar-width: thin; /* Firefox */
+            -ms-overflow-style: auto; /* IE 10+ */
+        }
+
+        .scrollable-div::-webkit-scrollbar {
+            width: 8px;
+            background: #f2f2f2;
+        }
+
+        .scrollable-div::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
         }
 
         .no-wrap-list li {
@@ -94,15 +110,16 @@
             margin-bottom: 15px;
         }
 
-        pre {
-            width: 100%; /* Ensure the pre/code content takes full width of the container */
-            word-wrap: break-word; /* Break long lines into multiple lines */
-            overflow-wrap: break-word; /* Same as word-wrap but for newer browsers */
-            white-space: pre-wrap; /* Preserve whitespace and allow wrapping */
-            word-break: break-all; /* Prevents long words from overflowing */
-            margin: 0; /* Remove default margins */
-            padding: 5px; /* Remove default padding */
-            font-family: monospace; /* Optional: ensure a monospaced font */
+        pre, code {
+            width: 100%;          /* Ensure content takes full width of container */
+            margin: 0;            /* Remove default margins */
+            padding: 8px;         /* Add consistent padding around code blocks */
+            background: none;     /* Remove any background styling */
+            border: none;         /* Remove any borders */
+            white-space: pre-wrap;      /* CSS3: wrap as needed, preserve whitespace */
+            word-break: break-word;     /* Break long words if needed */
+            overflow-wrap: break-word;  /* Same as above, for newer browsers */
+            box-sizing: border-box;     /* Include padding in element's total width */
         }
 
         /* Highlight Table Styles */
@@ -232,8 +249,26 @@
         }
     </style>
     <script>
+
+        const ISSUES_JS_INFO_IF_PERF_TABLE = {
+            false: {                      // other assessment issues
+                count: 17,
+                details: 'details-',
+                arrow:   'arrow-',
+                expand:  'expandAllButton',
+                collapse:'collapseAllButton'
+            },
+            true: {                       // performance optimisations
+                count: 0,
+                details: 'details-perf-',
+                arrow:   'arrow-perf-',
+                expand:  'expandAllButton-perf',
+                collapse:'collapseAllButton-perf'
+            }
+        };
+
         // Toggle Details Functionality
-        function toggleDetails(detailsRowId, arrowId) {
+        function toggleDetails(detailsRowId, arrowId, isPerf) {
             const row = document.getElementById(detailsRowId);
             const arrow = document.getElementById(arrowId);
             if (row.classList.contains('show')) {
@@ -243,46 +278,48 @@
                 row.classList.add('show');
                 arrow.innerHTML = "&#x25BC;"; // Down arrow (&#x25BC;) for expanded
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Expand All Issues
-        function expandAllIssues() {
+        function expandAllIssues(isPerf) {
             // Suppose each details row has an ID pattern "details-i" and an arrow with ID "arrow-i"
-            const totalIssues = 17;
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+               
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (!row.classList.contains('show')) {
                     row.classList.add('show');
-                    arrow.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
+                    arrowId.innerHTML = "&#x25BC;"; // Down triangle (&#9660;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Collapse All Issues
-        function collapseAllIssues() {
-            const totalIssues = 17;
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
-                const arrow = document.getElementById('arrow-' + i);
+        function collapseAllIssues(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]              
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                
+                const row = document.getElementById(issuesJsInfo.details + i);
+                const arrowId = document.getElementById(issuesJsInfo.arrow + i);
                 if (row.classList.contains('show')) {
                     row.classList.remove('show');
-                    arrow.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
+                    arrowId.innerHTML = "&#x25B6;"; // Right triangle (&#x25B6;)
                 }
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
         // Update Button Visibility Based on Row States
-        function updateButtonVisibility() {
-            const totalIssues = 17;
+        function updateButtonVisibility(isPerf) {
+            let issuesJsInfo = ISSUES_JS_INFO_IF_PERF_TABLE[isPerf]                      
             let someExpanded = false;
             let someCollapsed = false;
 
-            for (let i = 0; i < totalIssues; i++) {
-                const row = document.getElementById('details-' + i);
+            for (let i = 0; i < issuesJsInfo.count; i++) {
+                const row = document.getElementById(issuesJsInfo.details + i);
                 if (row.classList.contains('show')) {
                     someExpanded = true;
                 } else {
@@ -291,8 +328,8 @@
                 if (someExpanded && someCollapsed) break;
             }
 
-            const expandButton = document.getElementById('expandAllButton');
-            const collapseButton = document.getElementById('collapseAllButton');
+            const expandButton = document.getElementById(issuesJsInfo.expand);
+            const collapseButton = document.getElementById(issuesJsInfo.collapse);
             expandButton.style.display = someCollapsed ? 'inline-block' : 'none';
             collapseButton.style.display = someExpanded ? 'inline-block' : 'none';
         }
@@ -304,7 +341,7 @@
             impact: 'asc'
         };
 
-        function sortTableBy(field) {
+        function sortTableBy(field, isPerf) {
             // Grab the table element
             const table = document.querySelector(".table-highlight");
 
@@ -328,15 +365,20 @@
             issuePairs.forEach(pair => table.appendChild(pair));
 
             // Update the sort indicator in the table header
-            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}')"] .sort-indicator`);
+            const sortIndicator = table.querySelector(`th[onclick="sortTableBy('${field}', isPerf)"] .sort-indicator`);
             if (sortIndicator) {
                 sortIndicator.innerHTML = newDirection === 'asc' ? '&#8593;' : '&#8595;'; // &#8593; is up arrow, &#8595; is down arrow
             }
-            updateButtonVisibility();
+            updateButtonVisibility(isPerf);
         }
 
+        function updateButtonVisibilities() {
+            updateButtonVisibility(false);
+            updateButtonVisibility(true);
+        }
         // Initialize Button Visibility on Page Load
-        window.onload = updateButtonVisibility;
+        window.onload = updateButtonVisibilities;
+
     </script>
 </head>
 <body>
@@ -355,7 +397,7 @@
             <p><strong>Database Version:</strong> Oracle Database 19c Enterprise Edition Release 19.0.0.0.0 - Production</p>
         
 
-        <p><strong>Target YB Version:</strong> 2024.2.2.2</p>
+        <p><strong>Target YB Version:</strong> 2024.2.3.1</p>
 
         
             <p><strong>Migration Complexity:</strong> MEDIUM</p>
@@ -845,58 +887,90 @@
 
         
 
-        <h2>Assessment Issues</h2>
         
+  
+  
+
+  
+
+  
+
+  
+  
+
+
+  
+
+        
+            <h2>Assessment Issues</h2>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total Issues:</strong> 17</p>
+                    <p><strong>Total issues:</strong> 17</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
                 <div class="buttons" id="controlButtons">
-                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues()">Expand All</button>
-                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues()">Collapse All</button>
+                    <button class="rounded-button" id=expandAllButton onclick="expandAllIssues(false)">Expand All</button>
+                    <button class="rounded-button" id=collapseAllButton onclick="collapseAllIssues(false)">Collapse All</button>
                 </div>
             </div>
             <table class="table-highlight">
                 <!-- Summary Row Header for the issue -->
                 <colgroup>
-                    <col style="width: 20%;"> <!-- Category + arrow -->
+                    
+                    
+                        <col style="width: 20%;"> <!-- Category + arrow -->
+                        
+                    
                     <col style="width: 20%;"> <!-- Issue Name -->
                     <col style="width: 50%;"> <!-- Object/SQL Preview -->
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
                 <thead>
                     <tr style="background-color: #f2f2f2;">
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category')">
+                       
+                            <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', false)">
                             Category <span class="sort-indicator">&#8597;</span>
-                        </th>
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name')">
+                            </th>
+                       
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', false)">
                             Issue <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
-                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact')">
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', false)">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
                     </tr>
                 </thead>
                 
+                
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Compound Trigger"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0')">
+                        <tr class="summary-row" onclick="toggleDetails('details-0', 'arrow-0', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-0">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-0">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Compound Trigger
                                 </div>
                             </td>
-                            <td class="centered-cell">Compound Trigger</td>
                             <td class="centered-cell">
                                 
                                     trg_simple_insert
@@ -945,14 +1019,13 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">CREATE TRIGGER trg_simple_insert
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TRIGGER trg_simple_insert
 	COMPOUND INSERT ON simple_table FOR EACH ROW
 	EXECUTE PROCEDURE trigger_fct_trg_simple_insert();</pre>
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
-                                                
 
                                                 <!-- Only show if there is a supported version -->
                                                 
@@ -962,11 +1035,13 @@
                                                     <td>
                                                         
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="white-space: pre-wrap; word-break: normal; overflow-wrap: break-word; margin: 0; padding: 8px;">COMPOUND TRIGGER is not supported in YugabyteDB.</pre>
+                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">COMPOUND TRIGGER is not supported in YugabyteDB.</pre>
+                                                                
                                                             </div>
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -975,21 +1050,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Indexes"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1')">
+                        <tr class="summary-row" onclick="toggleDetails('details-1', 'arrow-1', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-1">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-1">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Indexes
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Indexes</td>
                             <td class="centered-cell">
                                 
                                     Index Name: TEXT_INDEX, Index Type=DOMAIN INDEX
@@ -1042,7 +1128,6 @@
                                                         
                                                     </td>
                                                 </tr>
-                                               
 
                                                 <!-- Only show if there is a supported version -->
                                                 
@@ -1056,6 +1141,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1064,21 +1150,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Indexes"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2')">
+                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-2">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-2">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Indexes
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Indexes</td>
                             <td class="centered-cell">
                                 
                                     Index Name: IDX_EMP_DEPT_CLUSTER, Index Type=CLUSTER INDEX
@@ -1144,6 +1241,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1152,21 +1250,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Indexes"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3')">
+                        <tr class="summary-row" onclick="toggleDetails('details-3', 'arrow-3', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-3">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-3">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Indexes
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Indexes</td>
                             <td class="centered-cell">
                                 
                                     Index Name: REV_INDEX, Index Type=NORMAL/REV INDEX
@@ -1232,6 +1341,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1240,21 +1350,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Indexes"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4')">
+                        <tr class="summary-row" onclick="toggleDetails('details-4', 'arrow-4', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-4">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-4">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Indexes
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Indexes</td>
                             <td class="centered-cell">
                                 
                                     Index Name: FUNC_REV_INDEX, Index Type=FUNCTION-BASED NORMAL/REV INDEX
@@ -1320,6 +1441,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1328,21 +1450,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Indexes"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5')">
+                        <tr class="summary-row" onclick="toggleDetails('details-5', 'arrow-5', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-5">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-5">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Indexes
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Indexes</td>
                             <td class="centered-cell">
                                 
                                     Index Name: PK_IOT_TABLE, Index Type=IOT - TOP INDEX
@@ -1408,6 +1541,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1416,21 +1550,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Inherited Types"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6')">
+                        <tr class="summary-row" onclick="toggleDetails('details-6', 'arrow-6', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-6">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-6">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Inherited Types
                                 </div>
                             </td>
-                            <td class="centered-cell">Inherited Types</td>
                             <td class="centered-cell">
                                 
                                     SIMPLE_CAR_TYPE
@@ -1496,6 +1641,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1504,21 +1650,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Virtual Columns"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7')">
+                        <tr class="summary-row" onclick="toggleDetails('details-7', 'arrow-7', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-7">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-7">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Virtual Columns
                                 </div>
                             </td>
-                            <td class="centered-cell">Virtual Columns</td>
                             <td class="centered-cell">
                                 
                                     XML_TABLE.DATA
@@ -1584,6 +1741,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1592,21 +1750,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Virtual Columns"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8')">
+                        <tr class="summary-row" onclick="toggleDetails('details-8', 'arrow-8', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-8">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-8">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Virtual Columns
                                 </div>
                             </td>
-                            <td class="centered-cell">Virtual Columns</td>
                             <td class="centered-cell">
                                 
                                     GENERATED_COLUMN_TABLE.TOTAL_PRICE
@@ -1659,7 +1828,6 @@
                                                         
                                                     </td>
                                                 </tr>
-                                               
 
                                                 <!-- Only show if there is a supported version -->
                                                 
@@ -1673,94 +1841,7 @@
                                                         
                                                     </td>
                                                 </tr>
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_features"
-                        data-name="Unsupported Partitioning Methods"
-                        data-impact="-">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9')">
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-9">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
-                                </div>
-                            </td>
-                            <td class="centered-cell">Unsupported Partitioning Methods</td>
-                            <td class="centered-cell">
-                                
-                                    Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">-</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-9" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Category Description</th>
-                                                        <td>
-                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Features of the source database that are not supported on the target YugabyteDB.
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>TABLE</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                        <!-- display N/A if Sql Statement not present -->
-                                                            N/A
-                                                        
-                                                    </td>
-                                                </tr>
                                                
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        
-                                                    </td>
-                                                </tr>
                                             </tbody>
                                         </table>
                                     </div>
@@ -1769,21 +1850,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_features"
                         data-name="Unsupported Partitioning Methods"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10')">
+                        <tr class="summary-row" onclick="toggleDetails('details-9', 'arrow-9', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-9">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-10">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Features</span>
+                                    
+                                    Unsupported Partitioning Methods
                                 </div>
                             </td>
-                            <td class="centered-cell">Unsupported Partitioning Methods</td>
                             <td class="centered-cell">
                                 
                                     Table Name: SALES, Partition Method: SYSTEM PARTITION
@@ -1793,7 +1885,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-10" class="details-row">
+                        <tr id="details-9" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -1849,6 +1941,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1857,21 +1950,132 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
+                    <tbody class="issue-summary-detail-pair"
+                        data-category="unsupported_features"
+                        data-name="Unsupported Partitioning Methods"
+                        data-impact="-">
+                        
+                        <!-- Summary Row -->
+                        <tr class="summary-row" onclick="toggleDetails('details-10', 'arrow-10', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-10">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Features</span>
+                                    </div>
+                                </td>
+                            
+                            <td class="centered-cell">
+                                <div class="category-cell-flex">
+                                    
+                                    Unsupported Partitioning Methods
+                                </div>
+                            </td>
+                            <td class="centered-cell">
+                                
+                                    Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION
+                                
+                            </td>
+                            <td class="centered-cell" style="text-align: center;">-</td>
+                        </tr>
+
+                        <!-- Hidden Details of the Row -->
+                        <tr id="details-10" class="details-row">
+                            <td colspan="4">
+                                <div class="details-content-wrapper">
+                                    <div class="details-content">
+                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
+                                            <colgroup>
+                                                <col style="width: 25%;">
+                                                <col style="width: 75%;">
+                                            </colgroup>
+                                            <tbody>
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Category Description</th>
+                                                        <td>
+                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
+                                                                Features of the source database that are not supported on the target YugabyteDB.
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                
+
+                                                <!-- Only show if ObjectType is present -->
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Type</th>
+                                                        <td>TABLE</td>
+                                                    </tr>
+                                                
+                                                
+                                                    <tr>
+                                                        <th class="centered-cell">Object Name</th>
+                                                        <td>Table Name: EMPLOYEES2, Partition Method: REFERENCE PARTITION</td>
+                                                    </tr>
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">SQL Statement</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if Sql Statement not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+
+                                                <!-- Only show if there is a supported version -->
+                                                
+                                                
+                                                <tr>
+                                                    <th class="centered-cell">Description</th>
+                                                    <td>
+                                                        
+                                                        <!-- display N/A if description not present -->
+                                                            N/A
+                                                        
+                                                    </td>
+                                                </tr>
+                                               
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    </tbody>
+                
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
                         data-name="XMLTYPE"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11')">
+                        <tr class="summary-row" onclick="toggleDetails('details-11', 'arrow-11', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-11">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-11">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    XMLTYPE
                                 </div>
                             </td>
-                            <td class="centered-cell">XMLTYPE</td>
                             <td class="centered-cell">
                                 
                                     TEST_SCHEMA.XML_TABLE.DATA
@@ -1925,19 +2129,19 @@
                                                     </td>
                                                 </tr>
 
-
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                    
+                                                        
                                                         <!-- display N/A if description not present -->
                                                             N/A
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -1946,24 +2150,35 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-name="CLOB"
+                        data-name="BLOB"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12')">
+                        <tr class="summary-row" onclick="toggleDetails('details-12', 'arrow-12', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-12">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-12">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    BLOB
                                 </div>
                             </td>
-                            <td class="centered-cell">CLOB</td>
                             <td class="centered-cell">
                                 
-                                    TEST_SCHEMA.TEXT_TABLE.TEXT_DATA
+                                    TEST_SCHEMA.BLOB_TABLE.DATA
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">-</td>
@@ -2001,7 +2216,7 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>TEST_SCHEMA.TEXT_TABLE.TEXT_DATA</td>
+                                                        <td>TEST_SCHEMA.BLOB_TABLE.DATA</td>
                                                     </tr>
                                                 
                                                 <tr>
@@ -2013,7 +2228,6 @@
                                                         
                                                     </td>
                                                 </tr>
-                                               
 
                                                 <!-- Only show if there is a supported version -->
                                                 
@@ -2027,6 +2241,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2035,21 +2250,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
                         data-name="BFILE"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13')">
+                        <tr class="summary-row" onclick="toggleDetails('details-13', 'arrow-13', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-13">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-13">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    BFILE
                                 </div>
                             </td>
-                            <td class="centered-cell">BFILE</td>
                             <td class="centered-cell">
                                 
                                     TEST_SCHEMA.BFILE_TABLE.DATA
@@ -2103,19 +2329,19 @@
                                                     </td>
                                                 </tr>
 
-
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
                                                 <tr>
                                                     <th class="centered-cell">Description</th>
                                                     <td>
-                                                    
+                                                        
                                                         <!-- display N/A if description not present -->
                                                             N/A
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2124,21 +2350,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
                         data-name="CLOB"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14')">
+                        <tr class="summary-row" onclick="toggleDetails('details-14', 'arrow-14', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-14">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-14">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    CLOB
                                 </div>
                             </td>
-                            <td class="centered-cell">CLOB</td>
                             <td class="centered-cell">
                                 
                                     TEST_SCHEMA.CLOB_TABLE.DATA
@@ -2204,6 +2441,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2212,24 +2450,35 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
-                        data-name="BLOB"
+                        data-name="CLOB"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15')">
+                        <tr class="summary-row" onclick="toggleDetails('details-15', 'arrow-15', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-15">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-15">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    CLOB
                                 </div>
                             </td>
-                            <td class="centered-cell">BLOB</td>
                             <td class="centered-cell">
                                 
-                                    TEST_SCHEMA.BLOB_TABLE.DATA
+                                    TEST_SCHEMA.TEXT_TABLE.TEXT_DATA
                                 
                             </td>
                             <td class="centered-cell" style="text-align: center;">-</td>
@@ -2267,7 +2516,7 @@
                                                 
                                                     <tr>
                                                         <th class="centered-cell">Object Name</th>
-                                                        <td>TEST_SCHEMA.BLOB_TABLE.DATA</td>
+                                                        <td>TEST_SCHEMA.TEXT_TABLE.TEXT_DATA</td>
                                                     </tr>
                                                 
                                                 <tr>
@@ -2279,6 +2528,7 @@
                                                         
                                                     </td>
                                                 </tr>
+
                                                 <!-- Only show if there is a supported version -->
                                                 
                                                 
@@ -2291,6 +2541,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2299,21 +2550,32 @@
                         </tr>
                     </tbody>
                 
+                    
+                    
+                    
                     <tbody class="issue-summary-detail-pair"
                         data-category="unsupported_datatypes"
                         data-name="NCLOB"
                         data-impact="-">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16')">
+                        <tr class="summary-row" onclick="toggleDetails('details-16', 'arrow-16', false)">
+                            
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="arrow-16">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    </div>
+                                </td>
+                            
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-16">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">Unsupported Datatypes</span>
+                                    
+                                    NCLOB
                                 </div>
                             </td>
-                            <td class="centered-cell">NCLOB</td>
                             <td class="centered-cell">
                                 
                                     TEST_SCHEMA.NCLOB_TABLE.DATA
@@ -2379,6 +2641,7 @@
                                                         
                                                     </td>
                                                 </tr>
+                                               
                                             </tbody>
                                         </table>
                                     </div>
@@ -2388,14 +2651,11 @@
                     </tbody>
                 
             </table>
-        
-
-        
             <hr>
             <div>
                 <h4>Notes</h4>
                 <ul id="notes-list">
-                        <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li>
+                        <li>Some features listed in this report may be supported under a preview flag in the specified target-db-version of YugabyteDB. Please refer to the official <a class="highlight-link" target="_blank" href="https://docs.yugabyte.com/preview/releases/ybdb-releases/">release notes</a> for detailed information and usage guidelines.</li> 
                         <li>If there are any tables that receive disproportionately high load, ensure that they are NOT colocated to avoid the colocated tablet becoming a hotspot.
 For additional considerations related to colocated tables, refer to the documentation at: https://docs.yugabyte.com/preview/explore/colocation/#limitations-and-considerations</li>
                     

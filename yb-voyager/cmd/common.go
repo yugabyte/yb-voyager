@@ -45,6 +45,7 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/term"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/anon"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
@@ -62,8 +63,13 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 )
 
+const (
+	ANONYMISATION_SALT_SIZE = 16 // Size of salt in bytes, can be adjusted as needed
+)
+
 var (
 	metaDB                 *metadb.MetaDB
+	anonymizer             *anon.VoyagerAnonymizer
 	PARENT_COMMAND_USAGE   = "Parent command. Refer to the sub-commands for usage help."
 	startTime              time.Time
 	targetDbVersionStrFlag string
@@ -497,7 +503,60 @@ func initMetaDB(migrationExportDir string) *metadb.MetaDB {
 		utils.ErrExit("could not init migration status record: %w", err)
 	}
 
+	// TODO: initialising anonymizer should be a top-level function call, like in root.go
+	// but right now, initMetaDB is called from multiple places(from CreateMigrationProjectIfNotExists and root.go in some case)
+	// so just keeping it here until we refactor and cleanup the code.
+	err = initAnonymizer(metaDBInstance)
+	if err != nil {
+		utils.ErrExit("could not initialize anonymizer: %v", err)
+	}
+
 	return metaDBInstance
+}
+
+func initAnonymizer(metaDBInstance *metadb.MetaDB) error {
+	// generate salt and initialise the anonymiser
+	salt, err := loadOrGenerateAnonymisationSalt(metaDBInstance)
+	if err != nil {
+		utils.ErrExit("could not load or generate anonymisation salt: %v", err)
+	}
+
+	anonymizer, err = anon.NewVoyagerAnonymizer(salt)
+	if err != nil {
+		return fmt.Errorf("could not create anonymizer: %w", err)
+	} else if anonymizer == nil {
+		return errors.New("anonymizer is nil, this should not happen")
+	}
+	return nil
+}
+
+func loadOrGenerateAnonymisationSalt(metaDB *metadb.MetaDB) (string, error) {
+	msr, err := metaDB.GetMigrationStatusRecord()
+	if err != nil {
+		return "", fmt.Errorf("error getting migration status record: %w", err)
+	}
+
+	var salt string
+	if msr != nil && msr.AnonymizerSalt != "" {
+		salt = msr.AnonymizerSalt
+	} else {
+		salt, err = utils.GenerateAnonymisationSalt(ANONYMISATION_SALT_SIZE)
+		if err != nil {
+			return "", fmt.Errorf("error generating salt: %w", err)
+		}
+
+		// Store the generated salt in the migration status record
+		err = metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
+			if record == nil { // should not happen, but just in case
+				record = &metadb.MigrationStatusRecord{}
+			}
+			record.AnonymizerSalt = salt
+		})
+		if err != nil {
+			return "", fmt.Errorf("error updating migration status record with salt: %w", err)
+		}
+	}
+	return salt, nil
 }
 
 func detectVersionCompatibility(msrVoyagerVersionString string, migrationExportDir string) {
@@ -1027,34 +1086,42 @@ func getImportedSnapshotRowsMap(dbType string) (*utils.StructMap[sqlname.NameTup
 			snapshotDataFileDescriptor = datafile.OpenDescriptor(exportDir)
 		}
 	}
-
 	snapshotRowsMap := utils.NewStructMap[sqlname.NameTuple, RowCountPair]()
-	dataFilePathNtMap := map[string]sqlname.NameTuple{}
+	nameTupleTodataFilesMap := utils.NewStructMap[sqlname.NameTuple, []string]()
 	if snapshotDataFileDescriptor != nil {
 		for _, fileEntry := range snapshotDataFileDescriptor.DataFileList {
 			nt, err := namereg.NameReg.LookupTableName(fileEntry.TableName)
 			if err != nil {
 				return nil, fmt.Errorf("lookup table name from data file descriptor %s : %v", fileEntry.TableName, err)
 			}
-			dataFilePathNtMap[fileEntry.FilePath] = nt
+			list, ok := nameTupleTodataFilesMap.Get(nt)
+			if !ok {
+				list = []string{}
+			}
+			list = append(list, fileEntry.FilePath)
+			nameTupleTodataFilesMap.Put(nt, list)
 		}
 	}
 
-	for dataFilePath, nt := range dataFilePathNtMap {
-		importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
+	err := nameTupleTodataFilesMap.IterKV(func(nt sqlname.NameTuple, dataFilePaths []string) (bool, error) {
+		for _, dataFilePath := range dataFilePaths {
+			importedRowCount, err := state.GetImportedRowCount(dataFilePath, nt)
+			if err != nil {
+				return false, fmt.Errorf("could not fetch imported row count for table %q: %w", nt, err)
+			}
+			erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
+			if err != nil {
+				return false, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
+			}
+			existingRowCountPair, _ := snapshotRowsMap.Get(nt)
+			existingRowCountPair.Imported += importedRowCount
+			existingRowCountPair.Errored += erroredRowCount
+			snapshotRowsMap.Put(nt, existingRowCountPair)
 		}
-		erroredRowCount, err := state.GetErroredRowCount(dataFilePath, nt)
-		if err != nil {
-			return nil, fmt.Errorf("could not fetch errored row count for table %q: %w", nt, err)
-		}
-		existingRowCountPair, _ := snapshotRowsMap.Get(nt)
-		updatedRowCountPair := RowCountPair{
-			Imported: existingRowCountPair.Imported + importedRowCount,
-			Errored:  existingRowCountPair.Errored + erroredRowCount,
-		}
-		snapshotRowsMap.Put(nt, updatedRowCountPair)
+		return true, nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("error getting row count of tables: %v", err)
 	}
 	return snapshotRowsMap, nil
 }
@@ -1553,7 +1620,7 @@ func PackAndSendCallhomePayloadOnExit() {
 	case exportDataFromTargetCmd.CommandPath():
 		packAndSendExportDataFromTargetPayload(status, exitErr)
 	case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-		packAndSendImportDataPayload(status, exitErr)
+		packAndSendImportDataToTargetPayload(status, exitErr)
 	case importDataToSourceCmd.CommandPath():
 		packAndSendImportDataToSourcePayload(status, exitErr)
 	case importDataToSourceReplicaCmd.CommandPath():
@@ -1627,7 +1694,7 @@ func sendCallhomePayloadAtIntervals() {
 		case exportDataFromTargetCmd.CommandPath():
 			packAndSendExportDataFromTargetPayload(INPROGRESS, nil)
 		case importDataCmd.CommandPath(), importDataToTargetCmd.CommandPath():
-			packAndSendImportDataPayload(INPROGRESS, nil)
+			packAndSendImportDataToTargetPayload(INPROGRESS, nil)
 		case importDataToSourceCmd.CommandPath():
 			packAndSendImportDataToSourcePayload(INPROGRESS, nil)
 		case importDataToSourceReplicaCmd.CommandPath():

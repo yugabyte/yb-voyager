@@ -129,7 +129,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
                 // Check if the process with this PID is running
                 if (ProcessHandle.of(pidLong).isPresent()) {
                     // Process is running, error out
-                    String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir.", lockFile.getAbsolutePath(), pid);
+                    String msg = String.format("Lock file %s already exists and process with PID %s is running. Another process may be running for this dataDir. Terminate the process on the pid %s and re-run the command", lockFile.getAbsolutePath(), pid, pid);
                     LOGGER.error(msg);
                     throw new IllegalStateException(msg);
                 } else {
@@ -208,7 +208,7 @@ public class YbExporterConsumer extends BaseChangeConsumer {
             case "io.debezium.connector.mysql.MySqlConnector":
                 sourceType = "mysql";
                 break;
-            case "io.debezium.connector.yugabytedb.YugabyteDBConnector":
+            case "io.debezium.connector.yugabytedb.YugabyteDBgRPCConnector":
                 sourceType = "yb";
                 break;
             case "io.debezium.connector.postgresql.YugabyteDBConnector":

@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.2.3",
 	"MigrationComplexity": "LOW",
-	"MigrationComplexityExplanation": "Found 14 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
+	"MigrationComplexityExplanation": "Found 16 Level 1 issue(s) and 0 Level 2 issue(s), resulting in LOW migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_perf_optimizations",
@@ -20,15 +20,21 @@
 			},
 			{
 				"ObjectType": "TABLE",
-				"TotalCount": 9,
+				"TotalCount": 10,
 				"InvalidCount": 0,
-				"ObjectNames": "public.\"Test_caseSensitive\", public.t, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
+				"ObjectNames": "public.tbl, public.\"Test_caseSensitive\", public.t, public.test_low_card, public.test_most_freq, public.test_multi_col_idx, public.users, test.t, test.t_low_most, test.test_mostcomm_status"
 			},
 			{
 				"ObjectType": "INDEX",
-				"TotalCount": 21,
-				"InvalidCount": 11,
-				"ObjectNames": "idx ON public.test_low_card, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
+				"TotalCount": 22,
+				"InvalidCount": 12,
+				"ObjectNames": "idx ON public.test_low_card, idx_muli_col_key_first_col ON public.test_multi_col_idx, idx_muli_col_key_first_col1 ON public.test_multi_col_idx, idx_name ON public.users, idx_name1 ON public.users, idx_test_case_sensitive ON public.\"Test_caseSensitive\", idx_test_multi_id ON public.test_multi_col_idx, idx_test_multi_id1 ON public.test_multi_col_idx, idx_test_multi_id1_id2 ON public.test_multi_col_idx, idx_test_multi_id2 ON public.test_multi_col_idx, idx_test_multi_val ON public.test_multi_col_idx, idx_try ON public.tbl, idxtt ON public.t, idxtt1 ON public.t, indx ON public.test_most_freq, indx1 ON public.test_most_freq, indx34 ON public.test_most_freq, idx ON test.t, idx2 ON test.t, idx_normal ON test.test_mostcomm_status, idx_partial_high ON test.test_mostcomm_status, idx_try ON test.t_low_most"
+			},
+			{
+				"ObjectType": "FUNCTION",
+				"TotalCount": 1,
+				"InvalidCount": 1,
+				"ObjectNames": "public.test_perf_plpgsql"
 			}
 		]
 	},
@@ -41,7 +47,8 @@
 				"test.test_mostcomm_status",
 				"test.t",
 				"public.t",
-				"public.users"
+				"public.users",
+				"public.tbl"
 			],
 			"ColocatedReasoning": "Recommended instance type with 4 vCPU and 16 GiB memory could fit 13 objects (6 tables/materialized views and 7 explicit/implicit indexes) with 1.25 MB size and throughput requirement of 0 reads/sec and 0 writes/sec as colocated. Rest 12 objects (2 tables/materialized views and 10 explicit/implicit indexes) with 13.05 MB size and throughput requirement of 0 reads/sec and 0 writes/sec need to be migrated as range partitioned tables. Non leaf partition tables/indexes and unsupported tables/indexes were not considered.",
 			"ShardedTables": [
@@ -117,6 +124,23 @@
 			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
 			"Impact": "LEVEL_1",
 			"ObjectType": "INDEX",
+			"ObjectName": "idx_try ON public.tbl",
+			"SqlStatement": "CREATE INDEX idx_try ON public.tbl USING btree (id);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"Cardinality": 2,
+				"ColumnName": "id"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
+			"Name": "Index on low-cardinality column",
+			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "INDEX",
 			"ObjectName": "indx ON public.test_most_freq",
 			"SqlStatement": "CREATE INDEX indx ON public.test_most_freq USING btree (status) WHERE (status \u003c\u003e 'active'::text);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
@@ -124,6 +148,23 @@
 			"Details": {
 				"Cardinality": 2,
 				"ColumnName": "status"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "INDEX_ON_LOW_CARDINALITY_COLUMN",
+			"Name": "Index on low-cardinality column",
+			"Description": "In distributed databases, index design should ensure even data distribution across multiple nodes. Indexes built on low-cardinality columns (e.g., boolean, days of the week) are not optimal, as they may lead to bad data distribution among tablets. This index is built on a low-cardinality column.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "FUNCTION",
+			"ObjectName": "public.test_perf_plpgsql",
+			"SqlStatement": "CREATE INDEX idx_try1 on public.tbl(id);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#index-on-low-cardinality-column",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"Cardinality": 2,
+				"ColumnName": "id"
 			}
 		},
 		{
@@ -441,6 +482,30 @@
 			"IsIndex": true,
 			"ObjectType": "index",
 			"ParentTableName": "public.test_low_card",
+			"SizeInBytes": 16384
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "tbl",
+			"RowCount": 2000,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": false,
+			"ObjectType": "table",
+			"ParentTableName": null,
+			"SizeInBytes": 40960
+		},
+		{
+			"SchemaName": "public",
+			"ObjectName": "idx_try",
+			"RowCount": null,
+			"ColumnCount": 1,
+			"ReadsPerSecond": 0,
+			"WritesPerSecond": 0,
+			"IsIndex": true,
+			"ObjectType": "index",
+			"ParentTableName": "public.tbl",
 			"SizeInBytes": 16384
 		},
 		{

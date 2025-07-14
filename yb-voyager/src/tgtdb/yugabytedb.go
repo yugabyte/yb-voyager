@@ -50,6 +50,16 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	CPU_USAGE_USER_METRIC                  = "cpu_usage_user"
+	CPU_USAGE_SYSTEM_METRIC                = "cpu_usage_system"
+	TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC = "tserver_root_memory_consumption"
+	TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC  = "tserver_root_memory_soft_limit"
+	MEMORY_FREE_METRIC                     = "memory_free"
+	MEMORY_TOTAL_METRIC                    = "memory_total"
+	MEMORY_AVAILABLE_METRIC                = "memory_available"
+)
+
 type TargetYugabyteDB struct {
 	sync.Mutex
 	*AttributeNameRegistry
@@ -143,8 +153,8 @@ func (yb *TargetYugabyteDB) Finalize() {
 }
 
 func (yb *TargetYugabyteDB) reconnect() error {
-	yb.Mutex.Lock()
-	defer yb.Mutex.Unlock()
+	yb.Lock()
+	defer yb.Unlock()
 
 	var err error
 	yb.disconnect()
@@ -212,8 +222,8 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	}
 
 	yb.EnsureConnected()
-	yb.Mutex.Lock()
-	defer yb.Mutex.Unlock()
+	yb.Lock()
+	defer yb.Unlock()
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
@@ -294,6 +304,24 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
 	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
 	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
+}
+
+func (yb *TargetYugabyteDB) checkIfPrimaryKeyViolationError(err error, pkConstraintNames []string) bool {
+	if err == nil {
+		return false
+	}
+	// Check if the error is a primary key violation error.
+	for _, pkConstraintName := range pkConstraintNames {
+		pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, pkConstraintName)
+		if strings.Contains(err.Error(), pkViolationErr) {
+			log.Infof("matched primary key violation error for constraint %q\nexpectedErr=%s, actualErr=%s\n",
+				pkConstraintName, pkViolationErr, err.Error())
+			return true
+		}
+	}
+
+	log.Infof("not a primary key violation error, expected one of the following: %v, actualErr=%s", pkConstraintNames, err.Error())
+	return false
 }
 
 func (yb *TargetYugabyteDB) GetAllSchemaNamesRaw() ([]string, error) {
@@ -472,24 +500,56 @@ func (yb *TargetYugabyteDB) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 
 // GetPrimaryKeyConstraintName returns the name of the primary key constraint for the given table.
 // If the table does not have a primary key, it returns an empty string and no error
-func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
+// If the table is partitioned, it returns the list of primary key constraint names for all partitions
+//
+//	If multi level partitioning, need to return all the primary key constraint names for all levels(recursively)
+func (yb *TargetYugabyteDB) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	recursiveCTEQuery := fmt.Sprintf(`
+WITH RECURSIVE all_parts AS (
+  -- 1) Seed: include the parent table's OID
+  SELECT oid AS tbl_oid
+    FROM pg_class
+   WHERE oid = '%s'::regclass
 
-	var constraintName string
-	err := yb.QueryRow(query).Scan(&constraintName)
+  UNION ALL
+
+  -- 2) Recursion: find each table's immediate partitions
+  SELECT inh.inhrelid
+    FROM pg_inherits inh
+    JOIN all_parts ap ON inh.inhparent = ap.tbl_oid
+)
+-- 3) Pull every primary-key constraint on the parent or any partition
+SELECT
+  c.conname AS constraint_name
+FROM pg_constraint c
+JOIN all_parts ap
+  ON ap.tbl_oid = c.conrelid   -- only constraints on our collected tables
+WHERE c.contype = 'p';          -- filter for PRIMARY KEY only`, table.ForOutput()) // use the fully qualified table name
+
+	log.Infof("Querying for primary key constraint names for table %s: %s", table.ForMinOutput(), recursiveCTEQuery)
+	var constraintNames []string
+	rows, err := yb.Query(recursiveCTEQuery)
 	if err != nil {
 		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
+			return nil, nil // No primary key constraint found
 		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
+		return nil, fmt.Errorf("query PK constraint name for table %s: %w", table.ForMinOutput(), err)
 	}
-	return constraintName, nil
+	defer rows.Close()
+
+	for rows.Next() {
+		var cn string
+		if err := rows.Scan(&cn); err != nil {
+			return nil, fmt.Errorf("scan PK constraint name for table %s: %w", table.ForMinOutput(), err)
+		}
+		constraintNames = append(constraintNames, cn)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("error iterating over PK constraint names for table %s: %w", table.ForMinOutput(), err)
+	}
+
+	log.Infof("found %d primary key constraint(s) for table %s: %v", len(constraintNames), table.ForMinOutput(), constraintNames)
+	return constraintNames, nil
 }
 
 func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -532,10 +592,11 @@ ImportBatch function handles variety of cases for importing a batch into Yugabyt
 3. Fast Path Recovery Mode - Importing a batch using COPY command without transaction but conflict handling.
 */
 func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
-	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+	exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 
 	var rowsAffected int64
 	var err error
+	var isPartialBatchIngestionPossibleOnError bool
 	copyFn := func(conn *pgx.Conn) (bool, error) {
 		if args.ShouldUseFastPath() {
 			if !isRecoveryCandidate {
@@ -543,6 +604,15 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 			} else {
 				rowsAffected, err = yb.importBatchFastRecover(conn, batch, args)
 			}
+			// if we get an error in the fast path (either COPY w/o txn or recovery path where we run one COPY per row),
+			// it is likely that there was partial ingestion of the batch.
+			// This is not necessarily always the case. For instance, if there is an error while reading the file,
+			// (i.e. before even executing COPY), the entire batch was not ingested, so it's not really a case of partial ingeetion.
+			// However, if it's a resumption case (i.e. batch is retried after a stop-start), then, even if it fails while reading the file,
+			// it is likely that the batch was partially ingested in the previous attempt, so it is indeed a case of partial ingestion.
+			// Since this is hard to determine, we always assume that if there is an error in the fast path,
+			// it is likely that the batch was partially ingested.
+			isPartialBatchIngestionPossibleOnError = lo.Ternary(err != nil, true, false)
 		} else {
 			// Normal mode, don't require handling recovery separately as it is transactional hence no partial ingestion
 			rowsAffected, err = yb.importBatch(conn, batch, args)
@@ -550,7 +620,7 @@ func (yb *TargetYugabyteDB) ImportBatch(batch Batch, args *ImportBatchArgs,
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = yb.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, isPartialBatchIngestionPossibleOnError
 }
 
 func (yb *TargetYugabyteDB) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {
@@ -603,9 +673,7 @@ func (yb *TargetYugabyteDB) importBatchFast(conn *pgx.Conn, batch Batch, args *I
 		Lets say the importBatchFastRecover fails with some trasient DB error. In that case,
 		caller(fileTaskImporter.importBatch() function) takes care of retrying with importBatchFastRecover
 	*/
-	pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-	if err != nil && strings.Contains(err.Error(), pkViolationErr) {
-		log.Debugf("importBatchFast: expectedErr=%s, actualErr=%s\n", pkViolationErr, err.Error())
+	if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 		log.Infof("falling back to importBatchFastRecover for batch %q: %s", batch.GetFilePath(), err.Error())
 		return yb.importBatchFastRecover(conn, batch, args)
 	}
@@ -738,8 +806,7 @@ func (yb *TargetYugabyteDB) importBatchFastRecover(conn *pgx.Conn, batch Batch, 
 		res, err := conn.PgConn().CopyFrom(context.Background(), singleLineReader, copyCommand)
 		if err != nil {
 			// Ignore err if its VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH only
-			pkViolationErr := fmt.Sprintf(VIOLATES_UNIQUE_CONSTRAINT_ERROR_RETRYABLE_FAST_PATH, args.PKConstraintName)
-			if strings.Contains(err.Error(), pkViolationErr) {
+			if yb.checkIfPrimaryKeyViolationError(err, args.PKConstraintNames) {
 				// logging lineNum might not be useful as batches are truncated later on
 				log.Debugf("ignoring error %s for line=%q in batch %q", err.Error(), line, batch.GetFilePath())
 				rowsIgnored++ // increment before continuing to next line
@@ -1593,6 +1660,11 @@ func (yb *TargetYugabyteDB) GetClusterMetrics() (map[string]NodeMetrics, error) 
 	result := make(map[string]NodeMetrics)
 
 	query := "select uuid, metrics, status, error from yb_servers_metrics();"
+
+	// since the query is run on a single common connection shared across all queries to be executed on target.
+	// GetClusterMetrics() function itself in being used at multiple places: Monitoring, Adaptive Parallelism, and callhome
+	yb.Lock()
+	defer yb.Unlock()
 	rows, err := yb.Query(query)
 	if err != nil {
 		return result, fmt.Errorf("querying yb_servers_metrics(): %w", err)
@@ -1695,11 +1767,95 @@ func (yb *TargetYugabyteDB) ClearMigrationState(migrationUUID uuid.UUID, exportD
 	return nil
 }
 
+// ================================ NodeMetrics =================================
+
 type NodeMetrics struct {
 	UUID    string
 	Metrics map[string]string
 	Status  string
 	Error   string
+}
+
+// CPUPercent returns (user + system) CPU usage as a percent (0–100).
+func (n *NodeMetrics) GetCPUPercent() (float64, error) {
+	userStr, ok1 := n.Metrics[CPU_USAGE_USER_METRIC]
+	sysStr, ok2 := n.Metrics[CPU_USAGE_SYSTEM_METRIC]
+	if !ok1 || !ok2 {
+		return -1, fmt.Errorf("node %s: missing cpu_usage_user or cpu_usage_system", n.UUID)
+	}
+
+	user, err := strconv.ParseFloat(userStr, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse cpu_usage_user: %w", n.UUID, err)
+	}
+	sys, err := strconv.ParseFloat(sysStr, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse cpu_usage_system: %w", n.UUID, err)
+	}
+
+	return (user + sys) * 100, nil
+}
+
+// MemPercent returns memory consumption as a percent of the soft limit (0–100).
+func (n *NodeMetrics) GetMemPercent() (float64, error) {
+	usedStr, ok1 := n.Metrics[TSERVER_ROOT_MEMORY_CONSUMPTION_METRIC]
+	softStr, ok2 := n.Metrics[TSERVER_ROOT_MEMORY_SOFT_LIMIT_METRIC]
+	if !ok1 || !ok2 {
+		return -1, fmt.Errorf("node %s: missing tserver_root_memory_consumption or tserver_root_memory_soft_limit", n.UUID)
+	}
+
+	used, err := strconv.ParseFloat(usedStr, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_consumption: %w", n.UUID, err)
+	}
+	soft, err := strconv.ParseFloat(softStr, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_soft_limit: %w", n.UUID, err)
+	}
+	if soft == 0 {
+		return -1, fmt.Errorf("node %s: soft memory limit is zero", n.UUID)
+	}
+
+	return (used / soft) * 100, nil
+}
+
+func (n *NodeMetrics) GetMemoryFree() (int64, error) {
+	memoryFreeStr, ok := n.Metrics[MEMORY_FREE_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_free", n.UUID)
+	}
+
+	memoryFree, err := strconv.ParseInt(memoryFreeStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_free: %w", n.UUID, err)
+	}
+	return memoryFree, nil
+}
+
+func (n *NodeMetrics) GetMemoryAvailable() (int64, error) {
+	memoryAvailableStr, ok := n.Metrics[MEMORY_AVAILABLE_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_available", n.UUID)
+	}
+
+	memoryAvailable, err := strconv.ParseInt(memoryAvailableStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_available: %w", n.UUID, err)
+	}
+	return memoryAvailable, nil
+}
+
+func (n *NodeMetrics) GetMemoryTotal() (int64, error) {
+	memoryTotalStr, ok := n.Metrics[MEMORY_TOTAL_METRIC]
+	if !ok {
+		return -1, fmt.Errorf("node %s: missing memory_total", n.UUID)
+	}
+
+	memoryTotal, err := strconv.ParseInt(memoryTotalStr, 10, 64)
+	if err != nil {
+		return -1, fmt.Errorf("node %s: parse memory_total: %w", n.UUID, err)
+	}
+	return memoryTotal, nil
 }
 
 // =============================== Guardrails =================================

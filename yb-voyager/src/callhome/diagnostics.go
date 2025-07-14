@@ -26,6 +26,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgconn"
@@ -107,8 +108,9 @@ Version History
 1.1: Added a new field as ControlPlaneType
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 1.3: Added field Details in AssessmentIssueCallhome struct
+1.4: Added SqlStatement field in AssessmentIssueCallhome struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.3"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.4"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
@@ -133,10 +135,11 @@ type AssessmentIssueCallhome struct {
 	Name                string                 `json:"name"`
 	Impact              string                 `json:"impact"`
 	ObjectType          string                 `json:"object_type"`
+	SqlStatement        string                 `json:"sql_statement,omitempty"`
 	Details             map[string]interface{} `json:"details,omitempty"`
 }
 
-func NewAsssesmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
+func NewAssessmentIssueCallhome(category string, categoryDesc string, issueType string, issueName string, issueImpact string, objectType string, details map[string]interface{}) AssessmentIssueCallhome {
 	return AssessmentIssueCallhome{
 		Category:            category,
 		CategoryDescription: categoryDesc,
@@ -240,20 +243,22 @@ type ImportSchemaPhasePayload struct {
 /*
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
+1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.0"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ImportDataPhasePayload struct {
-	PayloadVersion              string `json:"payload_version"`
-	BatchSize                   int64  `json:"batch_size"`
-	ParallelJobs                int64  `json:"parallel_jobs"`
-	TotalRows                   int64  `json:"total_rows_imported"`
-	LargestTableRows            int64  `json:"largest_table_rows_imported"`
-	OnPrimaryKeyConflictAction  string `json:"on_primary_key_conflict_action"`
-	EnableYBAdaptiveParallelism bool   `json:"enable_yb_adaptive_parallelism"`
-	AdaptiveParallelismMax      int64  `json:"adaptive_parallelism_max"`
-	ErrorPolicySnapshot         string `json:"error_policy_snapshot"`
-	StartClean                  bool   `json:"start_clean"`
+	PayloadVersion              string           `json:"payload_version"`
+	BatchSize                   int64            `json:"batch_size"`
+	ParallelJobs                int64            `json:"parallel_jobs"`
+	TotalRows                   int64            `json:"total_rows_imported"`
+	LargestTableRows            int64            `json:"largest_table_rows_imported"`
+	OnPrimaryKeyConflictAction  string           `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool             `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64            `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string           `json:"error_policy_snapshot"`
+	StartClean                  bool             `json:"start_clean"`
+	YBClusterMetrics            YBClusterMetrics `json:"yb_cluster_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
 	Phase               string `json:"phase,omitempty"`
 	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
@@ -262,6 +267,25 @@ type ImportDataPhasePayload struct {
 	EnableUpsert        bool   `json:"enable_upsert"`
 	Error               string `json:"error"`
 	ControlPlaneType    string `json:"control_plane_type"`
+}
+
+type YBClusterMetrics struct {
+	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
+	AvgCpuPct float64      `json:"avg_cpu_pct"` // mean of node CPU% across all nodes
+	MaxCpuPct float64      `json:"max_cpu_pct"` // max of node CPU% across all nodes
+	Nodes     []NodeMetric `json:"nodes"`       // one entry per node
+}
+
+// per-node snapshot
+type NodeMetric struct {
+	UUID                   string  `json:"uuid"`
+	TotalCPUPct            float64 `json:"total_cpu_pct"`              // (user+system)*100
+	TserverMemSoftLimitPct float64 `json:"tserver_mem_soft_limit_pct"` // tserver root memory soft limit % (consumption/soft-limit)*100
+	MemoryFree             int64   `json:"memory_free"`                // free memory in bytes
+	MemoryAvailable        int64   `json:"memory_available"`           // available memory in bytes
+	MemoryTotal            int64   `json:"memory_total"`               // total memory in bytes
+	Status                 string  `json:"status"`                     // "OK", "ERROR"
+	Error                  string  `json:"error"`                      // error message if status is not OK
 }
 
 type ImportDataFilePhasePayload struct {

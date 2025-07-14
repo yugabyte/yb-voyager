@@ -100,6 +100,15 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 	return nil
 }
 
+func validateImportDataFlags() error {
+	err := validateOnPrimaryKeyConflictFlag()
+	if err != nil {
+		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
+	}
+
+	return nil
+}
+
 func registerCommonImportFlags(cmd *cobra.Command) {
 	BoolVar(cmd.Flags(), &tconf.ContinueOnError, "continue-on-error", false,
 		"Ignore errors and continue with the import")
@@ -402,14 +411,11 @@ func registerFlagsForTarget(cmd *cobra.Command) {
 		"Skips the monitoring of the disk usage on the target YugabyteDB cluster. "+
 			"By default, voyager will keep monitoring the disk usage on the nodes to keep the cluster stable.")
 
-	// TODO: restrict changing of flag value after import data has started
-	// TODO: Detailed description of the flag
 	cmd.Flags().StringVar(&tconf.OnPrimaryKeyConflictAction, "on-primary-key-conflict", "ERROR",
 		`Action to take on primary key conflict during data import.
 Supported values:
 ERROR(default): Import in this mode fails if any primary key conflict is encountered, assuming such conflicts are unexpected.
-IGNORE		: Skips rows with existing primary keys and uses fast-path import for better performance with colocated tables.`)
-	cmd.Flags().MarkHidden("on-primary-key-conflict") // Hide until QA is complete
+IGNORE		: Skip rows where the primary key already exists and continue importing remaining data.`)
 
 	cmd.Flags().MarkHidden("skip-disk-usage-health-checks")
 	cmd.Flags().MarkHidden("skip-node-health-checks")
@@ -525,5 +531,8 @@ func validateOnPrimaryKeyConflictFlag() error {
 		return fmt.Errorf("--enable-upsert=true can only be used with --on-primary-key-conflict=ERROR")
 	}
 
+	if tconf.OnPrimaryKeyConflictAction == constants.PRIMARY_KEY_CONFLICT_ACTION_IGNORE {
+		utils.PrintAndLog("Note: --on-primary-key-conflict is set as 'IGNORE'. Rows with existing primary keys will be skipped during import.")
+	}
 	return nil
 }

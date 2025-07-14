@@ -31,7 +31,7 @@ target:
   ### Name of the database on the target YugabyteDB server on which import needs to be done                                    
   db-name: yugabyte 
 
-  ### Target schema name in YugabyteDB (Note: works only for source as Oracle and MySQL, in case of PostgreSQL you can ALTER schema name post import)                                    
+  ### Target schema name in YugabyteDB                       
   # db-schema: public      
 
   ### Username with which to connect to the target YugabyteDB server                                    
@@ -157,6 +157,12 @@ import-data-file:
   ### Size of batches in the number of rows generated for ingestion during import. 
   ### Default - 20000
   # batch-size: 20000
+
+  ### Action to take on primary key conflict during data import.
+  ### Accepted values:
+  ###   ERROR   : fail on any PK conflict (default)
+  ###   IGNORE  : skip rows where the primary key already exists and continue importing remaining data
+  # on-primary-key-conflict: ERROR
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.

@@ -364,6 +364,100 @@ CREATE TABLE test_schema.test_data (
 	}
 }
 
+func TestImportData_FastPath_OnPrimaryKeyConflictAsIgnore_PartitionedTableAlreadyHasData(t *testing.T) {
+	ctx := context.Background()
+
+	// Create a temporary export directory.
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+
+	// Start Postgres container.
+	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
+	if err := postgresContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start Postgres container: %v", err)
+	}
+
+	// Start YugabyteDB container.
+	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
+	if err := yugabytedbContainer.Start(ctx); err != nil {
+		utils.ErrExit("Failed to start YugabyteDB container: %v", err)
+	}
+
+	createSchemaSQL := `CREATE SCHEMA IF NOT EXISTS test_schema;`
+	dropSchemaSQL := `DROP SCHEMA IF EXISTS test_schema CASCADE;`
+	createTableSQL := `
+CREATE TABLE test_schema.emp (
+	emp_id   INT,
+	emp_name TEXT,
+	dep_code INT,
+	PRIMARY KEY (emp_id)
+) PARTITION BY HASH (emp_id);
+
+CREATE TABLE test_schema.emp_0 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 0);
+CREATE TABLE test_schema.emp_1 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 1);
+CREATE TABLE test_schema.emp_2 PARTITION OF test_schema.emp FOR VALUES WITH (MODULUS 3, REMAINDER 2);
+`
+
+	// insert 100 rows in the table
+	var pgInsertStatements, ybInsertStatements []string
+	for i := 0; i < 100; i++ {
+		empID := i + 1
+		depCode := i % 5
+		insertStatement := fmt.Sprintf(
+			`INSERT INTO test_schema.emp (emp_id, emp_name, dep_code) VALUES (%d, 'name_%d', %d);`,
+			empID, i, depCode,
+		)
+
+		if (i % 2) == 0 {
+			ybInsertStatements = append(ybInsertStatements, insertStatement)
+		}
+		pgInsertStatements = append(pgInsertStatements, insertStatement)
+	}
+
+	// prepare Postgres with full data
+	postgresContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	postgresContainer.ExecuteSqls(pgInsertStatements...)
+	defer postgresContainer.ExecuteSqls(dropSchemaSQL)
+
+	// pre-load half the data into Yugabyte to cause PK conflicts
+	yugabytedbContainer.ExecuteSqls(createSchemaSQL, createTableSQL)
+	yugabytedbContainer.ExecuteSqls(ybInsertStatements...)
+	defer yugabytedbContainer.ExecuteSqls(dropSchemaSQL)
+
+	// Export data from Postgres.
+	exportRunner := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
+		"--export-dir", exportDir,
+		"--source-db-schema", "test_schema",
+		"--disable-pb", "true",
+		"--yes",
+	}, nil, false)
+	err := exportRunner.Run()
+	testutils.FatalIfError(t, err, "Export command failed")
+
+	// Import into Yugabyte with IGNORE on PK conflict.
+	importRunner := testutils.NewVoyagerCommandRunner(yugabytedbContainer, "import data", []string{
+		"--export-dir", exportDir,
+		"--disable-pb", "true",
+		"--on-primary-key-conflict", "IGNORE",
+		"--yes",
+	}, nil, false)
+	err = importRunner.Run()
+	testutils.FatalIfError(t, err, "Import command failed")
+
+	// Connect to both Postgres and YugabyteDB.
+	pgConn, err := postgresContainer.GetConnection()
+	testutils.FatalIfError(t, err, "connecting to Postgres")
+
+	ybConn, err := yugabytedbContainer.GetConnection()
+	testutils.FatalIfError(t, err, "Error connecting to YugabyteDB")
+
+	// Compare the full table data between Postgres and YugabyteDB.
+	// We assume the table "emp" has a primary key "emp_id" so we order by it.
+	if err := testutils.CompareTableData(ctx, pgConn, ybConn, "test_schema.emp", "emp_id"); err != nil {
+		t.Errorf("Table data mismatch between Postgres and YugabyteDB: %v", err)
+	}
+}
+
 // This test uses Fast Path import with --on-primary-key-conflict=IGNORE
 // Focuses on testing the import of all data types via import batch recovery mode(INSERT ON CONFLICT DO NOTHING statements)
 func TestImportData_FastPath_OnPrimaryKeyConflictsAsIgnore_AllDatatypesTest(t *testing.T) {
@@ -1055,15 +1149,15 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// Start Postgres container.
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	if err := postgresContainer.Start(ctx); err != nil {
 		t.Fatalf("Failed to start Postgres container: %v", err)
 	}
-
+	
 	setupYugabyteTestDb(t)
 
 	// Create table in the default public schema in Postgres and YugabyteDB.
@@ -1083,7 +1177,7 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Export data from Postgres.
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
 		"--yes",
@@ -1092,14 +1186,12 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Import data into YugabyteDB.
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--yes",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import Data command failed")
 
-	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
@@ -1122,13 +1214,13 @@ func TestExportAndImportDataSnapshotReport(t *testing.T) {
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -1157,8 +1249,8 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	ctx := context.Background()
 
 	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
+	exportDir = testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
 
 	// create backupDIr
 	backupDir := testutils.CreateBackupDir(t)
@@ -1195,7 +1287,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Export data from Postgres.
 	err := testutils.NewVoyagerCommandRunner(postgresContainer, "export data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--source-db-schema", "public",
 		"--disable-pb", "true",
 		"--yes",
@@ -1204,7 +1296,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Import data into YugabyteDB with --error-policy stash-and-continue.
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--disable-pb", "true",
 		"--error-policy-snapshot", "stash-and-continue",
 		"--batch-size", "10",
@@ -1213,12 +1305,11 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	testutils.FatalIfError(t, err, "Import command failed")
 
 	// Verify snapshot report.
-	exportDir = tempExportDir
 	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
 	if !ok {
 		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
 	}
-	err = InitNameRegistry(tempExportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
+	err = InitNameRegistry(exportDir, TARGET_DB_IMPORTER_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
 	testutils.FatalIfError(t, err, "Failed to initialize name registry")
 	snapshotRowsMap, err := getImportedSnapshotRowsMap("target")
 	if err != nil {
@@ -1236,13 +1327,13 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 
 	// Verify import data status command output
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--output-format", "json",
 	}, nil, false).Run()
 	testutils.FatalIfError(t, err, "Import data status command failed")
 
 	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
+	reportPath := filepath.Join(exportDir, "reports", "import-data-status-report.json")
 	assert.FileExists(t, reportPath, "Import data status report file should exist")
 
 	reportData, err := os.ReadFile(reportPath)
@@ -1268,7 +1359,7 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
 	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
 	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
-		"--export-dir", tempExportDir,
+		"--export-dir", exportDir,
 		"--backup-data-files", "true",
 		"--backup-dir", backupDir,
 		"--backup-log-files", "true",
@@ -1281,257 +1372,9 @@ func TestExportAndImportDataSnapshotReport_ErrorPolicyStashAndContinue(t *testin
 	// Verify that the backup directory contains the expected error files.
 	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
 	tableDir := fmt.Sprintf("table::%s", "test_data")
-	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(tempExportDir, "data", "test_data_data.sql")))
+	fileDir := fmt.Sprintf("file::test_data_data.sql:%s", importdata.ComputePathHash(filepath.Join(exportDir, "data", "test_data_data.sql")))
 	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
 	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.92.E")
-	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
-
-	// Verify the content of the error file
-	testutils.AssertFileContains(t, errorFilePath, "duplicate key value violates unique constraint")
-}
-
-// TestImportDataFileReport verifies the snapshot report after importing data using the import-data-file command.
-func TestImportDataFileReport(t *testing.T) {
-	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
-
-	// Start YugabyteDB container.
-	setupYugabyteTestDb(t)
-
-	// Create table in the default public schema in YugabyteDB.
-	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
-	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
-	t.Cleanup(func() {
-		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
-	})
-
-	// Generate a CSV file with test data.
-	dataFilePath := filepath.Join("/tmp", "test_data.csv")
-	f, err := os.Create(dataFilePath)
-	if err != nil {
-		t.Fatalf("Failed to create data file: %v", err)
-	}
-	defer os.Remove(dataFilePath)
-	defer f.Close()
-
-	w := csv.NewWriter(f)
-
-	// Write header and rows to the CSV file.
-	w.Write([]string{"id", "name"})
-	for i := 1; i <= 100; i++ {
-		w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
-	}
-	w.Flush()
-
-	// Import data from the CSV file into YugabyteDB.
-	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
-		"--disable-pb", "true",
-		"--batch-size", "10",
-		"--target-db-schema", "public",
-		"--data-dir", filepath.Dir(dataFilePath),
-		"--file-table-map", "test_data.csv:public.test_data",
-		"--format", "CSV",
-		"--has-header", "true",
-		"--yes",
-	}
-
-	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
-	testutils.FatalIfError(t, err, "Import command failed")
-
-	// Verify snapshot report.
-	exportDir = tempExportDir
-	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
-	}
-	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
-	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
-	dataFileDescriptor, err = prepareDummyDescriptor(state)
-	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
-
-	// Ensure the snapshotRowsMap contains the expected data.
-	tblName := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
-	}
-	rowCountPair, _ := snapshotRowsMap.Get(tblName)
-	assert.Equal(t, int64(100), rowCountPair.Imported, "Imported row count mismatch")
-	assert.Equal(t, int64(0), rowCountPair.Errored, "Errored row count mismatch")
-
-	// Verify import data status command output
-	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
-		"--output-format", "json",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "Import data status command failed")
-
-	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
-	assert.FileExists(t, reportPath, "Import data status report file should exist")
-
-	reportData, err := os.ReadFile(reportPath)
-	if err != nil {
-		t.Fatalf("Failed to read import data status report file: %v", err)
-	}
-	var statusReport []*tableMigStatusOutputRow
-	err = json.Unmarshal(reportData, &statusReport)
-	testutils.FatalIfError(t, err, "Failed to unmarshal import data status report JSON")
-	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
-
-	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
-		FileName:           "test_data.csv",
-		ImportedCount:      1092,
-		ErroredCount:       0,
-		TotalCount:         1092,
-		Status:             "DONE",
-		PercentageComplete: 100,
-	}, statusReport[0], "Status report row mismatch")
-}
-
-func TestImportDataFileReport_ErrorPolicyStashAndContinue(t *testing.T) {
-	// Create a temporary export directory.
-	tempExportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(tempExportDir)
-
-	// create backupDIr
-	backupDir := testutils.CreateBackupDir(t)
-
-	// Start YugabyteDB container.
-	setupYugabyteTestDb(t)
-
-	// Create table in the default public schema in YugabyteDB.
-	createTableSQL := `CREATE TABLE public.test_data (id INTEGER PRIMARY KEY, name TEXT);`
-	testYugabyteDBTarget.TestContainer.ExecuteSqls(createTableSQL)
-	t.Cleanup(func() {
-		testYugabyteDBTarget.TestContainer.ExecuteSqls("DROP TABLE IF EXISTS public.test_data;")
-	})
-
-	// Generate a CSV file with test data.
-	dataFilePath := filepath.Join("/tmp", "test_data.csv")
-	f, err := os.Create(dataFilePath)
-	if err != nil {
-		t.Fatalf("Failed to create data file: %v", err)
-	}
-	defer os.Remove(dataFilePath)
-	defer f.Close()
-
-	w := csv.NewWriter(f)
-
-	// Write header and rows to the CSV file.
-	w.Write([]string{"id", "name"})
-	for i := 1; i <= 100; i++ {
-		w.Write([]string{fmt.Sprintf("%d", i), fmt.Sprintf("name_%d", i)})
-	}
-	w.Flush()
-
-	// Insert conflicting rows into YugabyteDB to simulate errors.
-	for i := 1; i <= 10; i++ {
-		stmt := fmt.Sprintf("INSERT INTO public.test_data (id, name) VALUES (%d, 'conflict_name_%d');", i, i)
-		testYugabyteDBTarget.TestContainer.ExecuteSqls(stmt)
-	}
-
-	// Import data from the CSV file into YugabyteDB with --error-policy stash-and-continue.
-	importDataFileCmdArgs := []string{
-		"--export-dir", tempExportDir,
-		"--disable-pb", "true",
-		"--batch-size", "10",
-		"--target-db-schema", "public",
-		"--data-dir", filepath.Dir(dataFilePath),
-		"--file-table-map", "test_data.csv:public.test_data",
-		"--format", "CSV",
-		"--has-header", "true",
-		"--error-policy", "stash-and-continue",
-		"--yes",
-	}
-
-	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data file", importDataFileCmdArgs, nil, false).Run()
-	testutils.FatalIfError(t, err, "Import data file command failed")
-
-	// Verify snapshot report.
-	exportDir = tempExportDir
-	yb, ok := testYugabyteDBTarget.TargetDB.(*tgtdb.TargetYugabyteDB)
-	if !ok {
-		t.Fatalf("TargetDB is not of type TargetYugabyteDB")
-	}
-	err = InitNameRegistry(exportDir, IMPORT_FILE_ROLE, nil, nil, &testYugabyteDBTarget.Tconf, yb, false)
-	testutils.FatalIfError(t, err, "Failed to initialize name registry")
-	metaDB = initMetaDB(exportDir)
-	state := NewImportDataState(exportDir)
-	dataFileDescriptor, err = prepareDummyDescriptor(state)
-	testutils.FatalIfError(t, err, "Failed to prepare dummy descriptor")
-
-	snapshotRowsMap, err := getImportedSnapshotRowsMap("target-file")
-	if err != nil {
-		t.Fatalf("Failed to get imported snapshot rows map: %v", err)
-	}
-	// Ensure the snapshotRowsMap contains the expected data.
-	tblName := sqlname.NameTuple{
-		SourceName:  sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
-		CurrentName: sqlname.NewObjectNameWithQualifiedName(POSTGRESQL, "public", "public.test_data"),
-	}
-	rowCountPair, _ := snapshotRowsMap.Get(tblName)
-	assert.Equal(t, int64(90), rowCountPair.Imported, "Imported row count mismatch")
-	assert.Equal(t, int64(10), rowCountPair.Errored, "Errored row count mismatch")
-
-	// Verify import data status command output
-	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "import data status", []string{
-		"--export-dir", tempExportDir,
-		"--output-format", "json",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "Import data status command failed")
-
-	// Verify the report file content
-	reportPath := filepath.Join(tempExportDir, "reports", "import-data-status-report.json")
-	assert.FileExists(t, reportPath, "Import data status report file should exist")
-
-	reportData, err := os.ReadFile(reportPath)
-	if err != nil {
-		t.Fatalf("Failed to read import data status report file: %v", err)
-	}
-	var statusReport []*tableMigStatusOutputRow
-	err = json.Unmarshal(reportData, &statusReport)
-	testutils.FatalIfError(t, err, "Failed to unmarshal import data status report JSON")
-	assert.Equal(t, 1, len(statusReport), "Report should contain exactly one entry")
-
-	assert.Equal(t, &tableMigStatusOutputRow{
-		TableName:          `public."test_data"`,
-		FileName:           "test_data.csv",
-		ImportedCount:      992,
-		ErroredCount:       100,
-		TotalCount:         1092,
-		Status:             "DONE_WITH_ERRORS",
-		PercentageComplete: 100,
-	}, statusReport[0], "Status report row mismatch")
-
-	// Run end-migration to ensure that the errored files are backed up properly
-	os.Setenv("SOURCE_DB_PASSWORD", "postgres")
-	os.Setenv("TARGET_DB_PASSWORD", "yugabyte")
-	err = testutils.NewVoyagerCommandRunner(testYugabyteDBTarget.TestContainer, "end migration", []string{
-		"--export-dir", tempExportDir,
-		"--backup-data-files", "true",
-		"--backup-dir", backupDir,
-		"--backup-log-files", "true",
-		"--backup-schema-files", "false",
-		"--save-migration-reports", "false",
-		"--yes",
-	}, nil, false).Run()
-	testutils.FatalIfError(t, err, "End migration command failed")
-
-	// Verify that the backup directory contains the expected error files.
-	// error file is expected to be under dir table::test_data/file::test_data_data.sql:1960b25c and of the name ingestion-error.batch::1.10.10.92.E
-	tableDir := fmt.Sprintf("table::%s", "test_data")
-	fileDir := fmt.Sprintf("file::%s:%s", filepath.Base(dataFilePath), importdata.ComputePathHash(dataFilePath))
-	tableFileErrorsDir := filepath.Join(backupDir, "data", "errors", tableDir, fileDir)
-	errorFilePath := filepath.Join(tableFileErrorsDir, "ingestion-error.batch::1.10.10.100.E")
 	assert.FileExistsf(t, errorFilePath, "Expected error file %s to exist", errorFilePath)
 
 	// Verify the content of the error file

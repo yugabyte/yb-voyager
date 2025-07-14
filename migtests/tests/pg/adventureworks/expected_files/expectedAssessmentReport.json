@@ -1468,6 +1468,101 @@
 			"SqlStatement": "",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#data-ingestion-on-xml-data-type-is-not-supported",
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "FOREIGN_KEY_DATATYPE_MISMATCH",
+			"Name": "Foreign key datatype mismatch",
+			"Description": "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type 'int2', while the referenced column is of type 'int4'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "humanresources.employeedepartmenthistory",
+			"SqlStatement": "ALTER TABLE ONLY humanresources.employeedepartmenthistory\n    ADD CONSTRAINT \"FK_EmployeeDepartmentHistory_Department_DepartmentID\" FOREIGN KEY (departmentid) REFERENCES humanresources.department(departmentid);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "humanresources.employeedepartmenthistory.departmentid",
+				"ColumnType": "int2",
+				"ReferencedColumnName": "humanresources.department.departmentid",
+				"ReferencedColumnType": "int4"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "FOREIGN_KEY_DATATYPE_MISMATCH",
+			"Name": "Foreign key datatype mismatch",
+			"Description": "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type 'int2', while the referenced column is of type 'int4'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "humanresources.employeedepartmenthistory",
+			"SqlStatement": "ALTER TABLE ONLY humanresources.employeedepartmenthistory\n    ADD CONSTRAINT \"FK_EmployeeDepartmentHistory_Shift_ShiftID\" FOREIGN KEY (shiftid) REFERENCES humanresources.shift(shiftid);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "humanresources.employeedepartmenthistory.shiftid",
+				"ColumnType": "int2",
+				"ReferencedColumnName": "humanresources.shift.shiftid",
+				"ReferencedColumnType": "int4"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "FOREIGN_KEY_DATATYPE_MISMATCH",
+			"Name": "Foreign key datatype mismatch",
+			"Description": "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type 'int2', while the referenced column is of type 'int4'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "production.productinventory",
+			"SqlStatement": "ALTER TABLE ONLY production.productinventory\n    ADD CONSTRAINT \"FK_ProductInventory_Location_LocationID\" FOREIGN KEY (locationid) REFERENCES production.location(locationid);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "production.productinventory.locationid",
+				"ColumnType": "int2",
+				"ReferencedColumnName": "production.location.locationid",
+				"ReferencedColumnType": "int4"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "FOREIGN_KEY_DATATYPE_MISMATCH",
+			"Name": "Foreign key datatype mismatch",
+			"Description": "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type 'int2', while the referenced column is of type 'int4'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "production.workorderrouting",
+			"SqlStatement": "ALTER TABLE ONLY production.workorderrouting\n    ADD CONSTRAINT \"FK_WorkOrderRouting_Location_LocationID\" FOREIGN KEY (locationid) REFERENCES production.location(locationid);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "production.workorderrouting.locationid",
+				"ColumnType": "int2",
+				"ReferencedColumnName": "production.location.locationid",
+				"ReferencedColumnType": "int4"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "FOREIGN_KEY_DATATYPE_MISMATCH",
+			"Name": "Foreign key datatype mismatch",
+			"Description": "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type 'int2', while the referenced column is of type 'int4'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "production.workorder",
+			"SqlStatement": "ALTER TABLE ONLY production.workorder\n    ADD CONSTRAINT \"FK_WorkOrder_ScrapReason_ScrapReasonID\" FOREIGN KEY (scrapreasonid) REFERENCES production.scrapreason(scrapreasonid);",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#foreign-key-datatype-mismatch",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ColumnName": "production.workorder.scrapreasonid",
+				"ColumnType": "int2",
+				"ReferencedColumnName": "production.scrapreason.scrapreasonid",
+				"ReferencedColumnType": "int4"
+			}
 		}
 	],
 	"TableIndexStats": [

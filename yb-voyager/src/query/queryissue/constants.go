@@ -21,7 +21,9 @@ const (
 	REFERENCED_TYPE_DECLARATION              = "REFERENCED_TYPE_DECLARATION"
 	STORED_GENERATED_COLUMNS                 = "STORED_GENERATED_COLUMNS"
 	UNLOGGED_TABLES                          = "UNLOGGED_TABLES"
-	UNSUPPORTED_INDEX_METHOD                 = "UNSUPPORTED_INDEX_METHOD"
+	UNSUPPORTED_GIST_INDEX_METHOD            = "UNSUPPORTED_GIST_INDEX_METHOD"
+	UNSUPPORTED_BRIN_INDEX_METHOD            = "UNSUPPORTED_BRIN_INDEX_METHOD"
+	UNSUPPORTED_SPGIST_INDEX_METHOD          = "UNSUPPORTED_SPGIST_INDEX_METHOD"
 	STORAGE_PARAMETERS                       = "STORAGE_PARAMETERS"
 	ALTER_TABLE_SET_COLUMN_ATTRIBUTE         = "ALTER_TABLE_SET_COLUMN_ATTRIBUTE"
 	ALTER_TABLE_CLUSTER_ON                   = "ALTER_TABLE_CLUSTER_ON"
@@ -202,7 +204,9 @@ const (
 	INDEX_ON_ARRAY_DATATYPE_ISSUE_NAME         = "Index on column with array datatype"
 	INDEX_ON_USER_DEFINED_DATATYPE_ISSUE_NAME  = "Index on column with user defined datatype"
 
-	UNSUPPORTED_INDEX_METHOD_ISSUE_NAME = "Index with access method"
+	UNSUPPORTED_GIST_INDEX_METHOD_ISSUE_NAME   = "Index with GIST access method"
+	UNSUPPORTED_BRIN_INDEX_METHOD_ISSUE_NAME   = "Index with BRIN access method"
+	UNSUPPORTED_SPGIST_INDEX_METHOD_ISSUE_NAME = "Index with SPGIST access method"
 
 	PK_UK_ON_CITEXT_DATATYPE_ISSUE_NAME        = "Primary/Unique key on column with citext datatype"
 	PK_UK_ON_TSVECTOR_DATATYPE_ISSUE_NAME      = "Primary/Unique key on column with tsvector datatype"
@@ -461,6 +465,10 @@ Note: If the table is created as colocated, this hotspot concern can safely be i
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION               = `In distributed databases, index design should ensure even data distribution across nodes. Indexes on columns with highly skewed value distributions (e.g., a value appearing in atleast 60% of rows) can cause performance issues in distributed systems due to uneven data placement and lead to Hotspots.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_SINGLE_COLUMN = `This index is built on column having a value occuring in large number of rows.`
 	MOST_FREQUENT_VALUE_INDEX_DESCRIPTION_MULTI_COLUMN  = `The first column of this index has value occuring in large number of rows.`
+
+	FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME  = "Foreign key datatype mismatch"
+	FOREIGN_KEY_DATATYPE_MISMATCH             = "FOREIGN_KEY_DATATYPE_MISMATCH"
+	FOREIGN_KEY_DATATYPE_MISMATCH_DESCRIPTION = "Foreign key constraint has a datatype mismatch with the referenced column. The foreign key column is of type '%s', while the referenced column is of type '%s'. This can cause performance issues due to implicit casting during foreign key checks. To resolve this, modify the type of one to be the same as the other."
 )
 
 // Object types

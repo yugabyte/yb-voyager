@@ -388,7 +388,16 @@ func exportData() bool {
 				utils.ErrExit("error checking if replication slot is active: %v", err)
 			}
 			if isActive {
-				utils.ErrExit("Replication slot '%s' is active. Check and terminate if there is any internal voyager process running.", msr.PGPublicationName)
+				errorMsg := fmt.Sprintf("Replication slot '%s' is active", msr.PGReplicationSlotName)
+				pid, err := dbzm.GetPIDOfDebeziumOnExportDir(exportDir, exporterRole)
+				if err == nil {
+					// we have the PID of the process running debezium export
+					// so we can suggest the user to terminate it
+					errorMsg = fmt.Sprintf("%s. Terminate the process on the pid %s, and re-run the command.", errorMsg, pid)
+				} else {
+					log.Errorf("error getting debezium PID: %v", err)
+				}
+				utils.ErrExit(color.RedString("\n%s", errorMsg))
 			}
 
 			// Setting up sequence values for debezium to start tracking from..

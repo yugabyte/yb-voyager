@@ -175,6 +175,68 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	);`
 	stmt26 = `ALTER TABLE public.products ADD CONSTRAINT unique_product_name UNIQUE NULLS NOT DISTINCT (product_name);`
 	stmt27 = `CREATE UNIQUE INDEX unique_email_idx ON users (email) NULLS NOT DISTINCT;`
+
+	// Foreign Key Datatype Mismatch Cases
+	// Case 1: BIGINT → INTEGER (Simple mismatch)
+	stmt28 = `CREATE TABLE users (id INTEGER PRIMARY KEY);`
+	stmt29 = `CREATE TABLE orders (order_id SERIAL PRIMARY KEY, user_id BIGINT, FOREIGN KEY (user_id) REFERENCES users(id));`
+
+	// Case 2: UUID → TEXT mismatch
+	stmt30 = `CREATE TABLE payments (payment_id UUID PRIMARY KEY);`
+	stmt31 = `CREATE TABLE invoices (invoice_id SERIAL PRIMARY KEY, payment_id TEXT);`
+	stmt32 = `ALTER TABLE invoices ADD CONSTRAINT fk_payment_id FOREIGN KEY (payment_id) REFERENCES payments(payment_id);`
+
+	// Case 3: Composite FK with partial mismatch (CHAR vs VARCHAR, INT vs TEXT)
+	stmt33 = `CREATE TABLE shipments (shipment_id INTEGER, shipment_code CHAR(5), country_code INTEGER, PRIMARY KEY (shipment_id, shipment_code, country_code));`
+	stmt34 = `CREATE TABLE delivery_tracking (tracking_id SERIAL PRIMARY KEY, shipment_id INTEGER, shipment_code VARCHAR(10), country_code TEXT);`
+	stmt35 = `ALTER TABLE delivery_tracking ADD CONSTRAINT fk_shipment_ref FOREIGN KEY (shipment_id, shipment_code, country_code) REFERENCES shipments (shipment_id, shipment_code, country_code);`
+
+	// Case 4: VARCHAR(10) → VARCHAR(5) mismatch
+	stmt36 = `CREATE TABLE customers2 (customer_code VARCHAR(5) PRIMARY KEY);`
+	stmt37 = `CREATE TABLE orders2 (order_id SERIAL PRIMARY KEY, customer_code VARCHAR(10));`
+	stmt38 = `ALTER TABLE orders2 ADD CONSTRAINT fk_customer_code FOREIGN KEY (customer_code) REFERENCES customers2(customer_code);`
+
+	// Case 5: NUMERIC(10,2) → NUMERIC(8,2) mismatch
+	stmt39 = `CREATE TABLE products2 (product_id SERIAL PRIMARY KEY, price NUMERIC(10,2));`
+	stmt40 = `CREATE TABLE orders3 (order_id SERIAL PRIMARY KEY, product_price NUMERIC(8,2));`
+	stmt41 = `ALTER TABLE orders3 ADD CONSTRAINT fk_price FOREIGN KEY (product_price) REFERENCES products2(price);`
+
+	// Case 6: Case sensitive tables and columns, INTERGER → BIGINT mismatch
+	stmt42 = `CREATE TABLE "Accounts" ("UserID" INTEGER PRIMARY KEY);`
+	stmt43 = `CREATE TABLE "Sessions" ("SessionID" SERIAL PRIMARY KEY, "UserID" BIGINT);`
+	stmt44 = `ALTER TABLE "Sessions" ADD CONSTRAINT fk_userid FOREIGN KEY ("UserID") REFERENCES "Accounts"("UserID");`
+
+	// Case 7: Partitioned table (single level), BIGINT → INTEGER mismatch
+	stmt45 = `CREATE TABLE customers_root (id INTEGER PRIMARY KEY);`
+	stmt46 = `CREATE TABLE orders_partitioned (
+		order_id SERIAL,
+		customer_id BIGINT
+	) PARTITION BY RANGE (order_id);`
+	stmt47 = `CREATE TABLE orders_p1 PARTITION OF orders_partitioned FOR VALUES FROM (1) TO (10000);`
+	stmt48 = `ALTER TABLE orders_partitioned ADD CONSTRAINT fk_customer_id FOREIGN KEY (customer_id) REFERENCES customers_root(id);`
+
+	// Case 8: Multi-level partitioned table, BIGINT → INTEGER mismatch
+	stmt49 = `CREATE TABLE products_root (id INTEGER PRIMARY KEY);`
+	stmt50 = `CREATE TABLE sales (
+		sale_id INT,
+		product_id BIGINT
+	) PARTITION BY RANGE (sale_id);`
+	stmt51 = `CREATE TABLE sales_q1 PARTITION OF sales FOR VALUES FROM (1) TO (1000) PARTITION BY RANGE (sale_id);`
+	stmt52 = `CREATE TABLE sales_q1_jan PARTITION OF sales_q1 FOR VALUES FROM (1) TO (250);`
+	stmt53 = `ALTER TABLE sales ADD CONSTRAINT fk_product_id FOREIGN KEY (product_id) REFERENCES products_root(id);`
+
+	// Case 9: Inherited table (multi-level), BIGINT → INTEGER mismatch
+	stmt54 = `CREATE TABLE base_items (item_id INTEGER PRIMARY KEY);`
+	stmt55 = `CREATE TABLE derived_items_1 (extra_info TEXT) INHERITS (base_items);`
+	stmt56 = `CREATE TABLE derived_items_2 (notes TEXT, item_id BIGINT) INHERITS (derived_items_1);`
+	stmt57 = `ALTER TABLE derived_items_2 ADD CONSTRAINT fk_item_id FOREIGN KEY (item_id) REFERENCES base_items(item_id);`
+
+	// Case 10: Cross-schema foreign key with BIGINT → INTEGER mismatch
+	stmt58 = `CREATE SCHEMA schema1;`
+	stmt59 = `CREATE SCHEMA schema2;`
+	stmt60 = `CREATE TABLE schema2.departments (dept_id INTEGER PRIMARY KEY);`
+	stmt61 = `CREATE TABLE schema1.employees (emp_id SERIAL PRIMARY KEY, dept_id BIGINT);`
+	stmt62 = `ALTER TABLE schema1.employees ADD CONSTRAINT fk_dept FOREIGN KEY (dept_id) REFERENCES schema2.departments(dept_id);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -202,7 +264,7 @@ func TestAllIssues(t *testing.T) {
 			NewPercentTypeSyntaxIssue("FUNCTION", "process_order", "orders.id%TYPE"),
 			NewStorageParameterIssue("TABLE", "public.example", "ALTER TABLE ONLY public.example ADD CONSTRAINT example_email_key UNIQUE (email) WITH (fillfactor=70);"),
 			NewMultiColumnGinIndexIssue("INDEX", "idx_example ON example_table", "CREATE INDEX idx_example ON example_table USING gin(name, name1);"),
-			NewUnsupportedIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);", "gist"),
+			NewUnsupportedGistIndexMethodIssue("INDEX", "idx_example ON schema1.example_table", "CREATE INDEX idx_example ON schema1.example_table USING gist(name);"),
 			NewAdvisoryLocksIssue("DML_QUERY", "", "SELECT pg_advisory_unlock(orderid);"),
 		},
 		stmt3: []QueryIssue{
@@ -248,6 +310,9 @@ func TestAllIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -264,7 +329,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -319,11 +384,45 @@ func TestDDLIssues(t *testing.T) {
 		stmt27: []QueryIssue{
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
+		stmt29: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "int8", "int4"),
+		},
+		stmt32: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
+		},
+		stmt35: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "bpchar(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "int4"),
+		},
+		stmt38: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
+		},
+		stmt41: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
+		},
+		stmt44: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "int8", "int4"),
+		},
+		stmt48: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "int8", "int4"),
+		},
+		stmt53: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "int8", "int4"),
+		},
+		stmt57: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "int8", "int4"),
+		},
+		stmt62: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "int8", "int4"),
+		},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -789,6 +888,10 @@ FROM test_jsonb1;`,
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	// Finalize column metadata after processing all DDLs
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -1029,6 +1132,9 @@ REFERENCES schema1.abc (id);
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.NoError(t, err, "Error parsing required ddl: %s", stmt)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -1485,6 +1591,9 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)
 		assert.Nil(t, err)
 	}
+
+	parserIssueDetector.FinalizeColumnMetadata()
+
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
 		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)

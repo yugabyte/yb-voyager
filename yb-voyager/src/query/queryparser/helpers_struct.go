@@ -135,6 +135,42 @@ func getSchemaAndObjectName(nameList []*pg_query.Node) (string, string) {
 	return schemaName, objName
 }
 
+/*
+extractTypeMods extracts type modifier values (typmods) from a slice of pg_query AST nodes.
+
+Typmods represent additional information about a column's datatype — such as length for VARCHAR
+or precision and scale for NUMERIC.
+
+Examples:
+  - VARCHAR(10) has typmods: [10]
+  - NUMERIC(8, 2) has typmods: [8, 2]
+
+This function iterates over the typmod nodes, looks for A_Const integer constants, and returns
+the list of extracted integer values as a slice.
+
+Input AST (for NUMERIC(8,2)):
+
+	[ a_const: { ival: { ival: 8 } }, a_const: { ival: { ival: 2 } } ]
+
+Output:
+
+	[]int32{8, 2}
+*/
+func extractTypeMods(typmods []*pg_query.Node) []int32 {
+	result := make([]int32, 0, len(typmods))
+	for _, node := range typmods {
+		if aconst := node.GetAConst(); aconst != nil {
+			switch val := aconst.Val.(type) {
+			case *pg_query.A_Const_Ival:
+				if val.Ival != nil {
+					result = append(result, val.Ival.Ival)
+				}
+			}
+		}
+	}
+	return result
+}
+
 func getCreateTableAsStmtNode(parseTree *pg_query.ParseResult) (*pg_query.Node_CreateTableAsStmt, bool) {
 	node, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateTableAsStmt)
 	return node, ok
@@ -367,6 +403,19 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	return deparsedStmts, nil
 }
 
+func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {
+	if parseTree == nil || len(parseTree.Stmts) == 0 {
+		return "", fmt.Errorf("parse tree is empty or invalid")
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseTree)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing parse tree: %w", err)
+	}
+
+	return deparsedStmt, nil
+}
+
 func getAConstValue(node *pg_query.Node) string {
 
 	if node == nil {
@@ -408,9 +457,9 @@ func TraverseAndFindColumnName(node *pg_query.Node) string {
 	switch {
 	case node.GetTypeCast() != nil:
 		/*
-		WHERE ((status)::text <> 'active'::text)
-		- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
-		  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"} 
+			WHERE ((status)::text <> 'active'::text)
+			- where_clause:{a_expr:{kind:AEXPR_OP name:{string:{sval:"<>"}} lexpr:{type_cast:{arg:{column_ref:{fields:{string:{sval:"status"}} location:167}}
+			  type_name:{names:{string:{sval:"text"}} typemod:-1 location:176} location:174}} rexpr:{type_cast:{arg:{a_const:{sval:{sval:"active"}
 		*/
 		return TraverseAndFindColumnName(node.GetTypeCast().Arg)
 		//add more cases if possible for columnRef TODO:

@@ -516,59 +516,104 @@
             </p>
         {{ end }}
 
-        {{ $allIssuesWithoutPerfOptimzations := filterOutPerformanceOptimizationIssues .Issues }}
-        <h2>Assessment Issues</h2>
-        {{ if $allIssuesWithoutPerfOptimzations }}
+        {{ template "issuesTable" (dict "onlyPerf" false "Issues" .Issues) }}
+        
+        {{ template "issuesTable" (dict "onlyPerf" true "Issues" .Issues) }}
+        
+{{ define "issuesTable" }}
+  {{ $heading := "Assessment Issues" }}
+  {{ $issues := filterOutPerformanceOptimizationIssues .Issues }}
+  {{ $totalCountKeyWord := "Total issues" }}
+  {{ $issueKeyword := "Issue" }}
+  {{ $expandButton := "expandAllButton" }}
+  {{ $collapseButton := "collapseAllButton" }}
+
+  {{ if .onlyPerf }}
+    {{ $heading = "Performance Optimzations" }}
+    {{ $issues = getPerformanceOptimizationIssues .Issues }}
+    {{ $totalCountKeyWord = "Total optimizations" }}
+    {{ $issueKeyword = "Optimization" }}
+    {{ $expandButton = "expandAllButton-perf" }}
+    {{ $collapseButton = "collapseAllButton-perf" }}
+  {{ end }}
+
+        {{ if $issues }}
+            <h2>{{ $heading }}</h2>
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total Issues:</strong> {{ len $allIssuesWithoutPerfOptimzations }}</p>
+                    <p><strong>{{ $totalCountKeyWord }}:</strong> {{ len $issues }}</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
                 <div class="buttons" id="controlButtons">
-                    <button class="rounded-button" id="expandAllButton" onclick="expandAllIssues(false)">Expand All</button>
-                    <button class="rounded-button" id="collapseAllButton" onclick="collapseAllIssues(false)">Collapse All</button>
+                    <button class="rounded-button" id={{ $expandButton}} onclick="expandAllIssues({{ .onlyPerf }})">Expand All</button>
+                    <button class="rounded-button" id={{ $collapseButton}} onclick="collapseAllIssues({{ .onlyPerf }})">Collapse All</button>
                 </div>
             </div>
             <table class="table-highlight">
                 <!-- Summary Row Header for the issue -->
                 <colgroup>
-                    <col style="width: 20%;"> <!-- Category + arrow -->
-                    <col style="width: 20%;"> <!-- Issue Name -->
+                    {{ $issueWidth := "40%" }}
+                    {{ if not .onlyPerf }}
+                        <col style="width: 20%;"> <!-- Category + arrow -->
+                        {{ $issueWidth = "20%" }}
+                    {{ end }}
+                    <col style="width: {{ $issueWidth }};"> <!-- Issue Name -->
                     <col style="width: 50%;"> <!-- Object/SQL Preview -->
                     <col style="width: 10%;"> <!-- Impact -->
                 </colgroup>
                 <thead>
                     <tr style="background-color: #f2f2f2;">
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', false)">
+                       {{ if not .onlyPerf }}
+                            <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('category', {{ .onlyPerf }})">
                             Category <span class="sort-indicator">&#8597;</span>
-                        </th>
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', false)">
-                            Issue <span class="sort-indicator">&#8597;</span>
+                            </th>
+                       {{ end }}
+                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', {{ .onlyPerf }})">
+                            {{ $issueKeyword }} <span class="sort-indicator">&#8597;</span>
                         </th>
                         <th class="centered-cell">Object/SQL Preview</th>
-                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact',false)">
+                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', {{ .onlyPerf }})">
                             Impact <span class="sort-indicator">&#8597;</span>
                         </th>
                     </tr>
                 </thead>
-                {{ range $idx, $issue := $allIssuesWithoutPerfOptimzations }}
+                {{ $onlyPerf := .onlyPerf }}
+                {{ range $idx, $issue := $issues }}
+                    {{ $detailsId := "details" }}
+                    {{ $arrowId := "arrow"}}
+                    {{ if $onlyPerf }} 
+                        {{ $detailsId = "details-perf" }}
+                        {{ $arrowId = "arrow-perf"}}
+                    {{ end }}
                     <tbody class="issue-summary-detail-pair"
                         data-category="{{ $issue.Category }}"
                         data-name="{{ $issue.Name }}"
                         data-impact="{{ $issue.Impact }}">
+                        
                         <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-{{ $idx }}', 'arrow-{{ $idx }}', false)">
+                        <tr class="summary-row" onclick="toggleDetails('{{ $detailsId }}-{{ $idx }}', '{{ $arrowId }}-{{ $idx }}', {{ $onlyPerf }})">
+                            {{ if not $onlyPerf }}
+                                <td class="centered-cell">
+                                    <div class="category-cell-flex">
+                                        <div class="arrow-container">
+                                            <span id="{{ $arrowId}}-{{ $idx }}">&#9654;</span>
+                                        </div>
+                                        <span style="word-break: break-word;">{{ snakeCaseToTitleCase $issue.Category }}</span>
+                                    </div>
+                                </td>
+                            {{ end }}
                             <td class="centered-cell">
                                 <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-{{ $idx }}">&#9654;</span>
-                                    </div>
-                                    <span style="word-break: break-word;">{{ snakeCaseToTitleCase $issue.Category }}</span>
+                                    {{ if $onlyPerf }}
+                                        <div class="arrow-container">
+                                            <span id="{{ $arrowId}}-{{ $idx }}">&#9654;</span>
+                                        </div>
+                                    {{ end }}
+                                    {{ $issue.Name }}
                                 </div>
                             </td>
-                            <td class="centered-cell">{{ $issue.Name }}</td>
                             <td class="centered-cell">
                                 {{ if $issue.ObjectName }}
                                     {{ $issue.ObjectName }}
@@ -580,7 +625,7 @@
                         </tr>
 
                         <!-- Hidden Details of the Row -->
-                        <tr id="details-{{ $idx }}" class="details-row">
+                        <tr id="{{ $detailsId }}-{{ $idx }}" class="details-row">
                             <td colspan="4">
                                 <div class="details-content-wrapper">
                                     <div class="details-content">
@@ -590,7 +635,7 @@
                                                 <col style="width: 75%;">
                                             </colgroup>
                                             <tbody>
-                                                {{ if $issue.CategoryDescription }}
+                                                {{ if and $issue.CategoryDescription (not $onlyPerf) }}
                                                     <tr>
                                                         <th class="centered-cell">Category Description</th>
                                                         <td>
@@ -641,9 +686,9 @@
                                                     <td>
                                                         {{ if $issue.Description }}
                                                             <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
+                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
                                                                 {{ if $issue.DocsLink }}
-                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
+                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
                                                                 {{ end }}
                                                             </div>
                                                         {{ else }}
@@ -658,7 +703,7 @@
                                                         <td>
                                                             <ul>
                                                             {{ range $key, $value := $issue.Details }}
-                                                                <li>{{ camelCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
+                                                                <li><pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ camelCaseToTitleCase $key }}: {{ $value }}</pre></li>
                                                             {{ end }}
                                                             </ul>
                                                         </td>
@@ -673,156 +718,15 @@
                     </tbody>
                 {{ end }}
             </table>
-        {{ else }}
+
+        {{ else if not .onlyPerf }} 
             <p>No issues were found in the assessment.</p>
         {{ end }}
+   
 
-        {{ $performanceOptimizationIssues := getPerformanceOptimizationIssues .Issues }}
+ 
+{{ end }}
 
-        {{ if ne (len $performanceOptimizationIssues) 0 }}
-
-            <h2>Performance optimizations</h2>
-            <p>Recommendations to source schema or queries to optimize performance on YugabyteDB.</p>
-            <div class="assessment-issues-header">
-                <!-- Left area: text about total issues -->
-                <div>
-                    <p><strong>Total optimizations:</strong> {{ len $performanceOptimizationIssues }}</p>
-                    <p>Below is a detailed breakdown of each optmization.</p>
-                </div>
-                <!-- Right area: buttons -->
-                <div class="buttons" id="controlButtons">
-                    <button class="rounded-button" id="expandAllButton-perf" onclick="expandAllIssues(true)">Expand All</button>
-                    <button class="rounded-button" id="collapseAllButton-perf" onclick="collapseAllIssues(true)">Collapse All</button>
-                </div>
-            </div>
-            <table class="table-highlight">
-                <!-- Summary Row Header for the issue -->
-                <colgroup>
-                    <col style="width: 40%;"> <!-- Issue Name -->
-                    <col style="width: 50%;"> <!-- Object/SQL Preview -->
-                    <col style="width: 10%;"> <!-- Impact -->
-                </colgroup>
-                <thead>
-                    <tr style="background-color: #f2f2f2;">
-                        <th class="centered-cell" style="cursor: pointer;" onclick="sortTableBy('name', true)">
-                            Optimization <span class="sort-indicator">&#8597;</span>
-                        </th>
-                        <th class="centered-cell">Object/SQL Preview</th>
-                        <th class="centered-cell" style="cursor: pointer; text-align: center;" onclick="sortTableBy('impact', true)">
-                            Impact <span class="sort-indicator">&#8597;</span>
-                        </th>
-                    </tr>
-                </thead>
-                {{ range $idx, $issue := $performanceOptimizationIssues }}
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="{{ $issue.Category }}"
-                        data-name="{{ $issue.Name }}"
-                        data-impact="{{ $issue.Impact }}">
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-perf-{{ $idx }}', 'arrow-perf-{{ $idx }}', true)">
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    <div class="arrow-container">
-                                        <span id="arrow-perf-{{ $idx }}">&#9654;</span>
-                                    </div>
-                                    {{ $issue.Name }}
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                {{ if $issue.ObjectName }}
-                                    {{ $issue.ObjectName }}
-                                {{ else }}
-                                    {{ getSqlPreview $issue.SqlStatement }}
-                                {{ end }}
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">{{ snakeCaseToTitleCase $issue.Impact }}</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-perf-{{ $idx }}" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-
-                                                <!-- Only show if ObjectType is present -->
-                                                {{ if $issue.ObjectType }}
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>{{ $issue.ObjectType }}</td>
-                                                    </tr>
-                                                {{ end }}
-                                                {{ if $issue.ObjectName }}
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>{{ $issue.ObjectName }}</td>
-                                                    </tr>
-                                                {{ end }}
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        {{ if $issue.SqlStatement }}
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.SqlStatement }}</pre>
-                                                            </div>
-                                                        {{ else }}
-                                                        <!-- display N/A if Sql Statement not present -->
-                                                            N/A
-                                                        {{ end }}
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                {{ $verStr := getSupportedVersionString $issue.MinimumVersionsFixedIn }}
-                                                {{ if $verStr }}
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>{{ $verStr }}</td>
-                                                    </tr>
-                                                {{ end }}
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        {{ if $issue.Description }}
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">{{ $issue.Description }}</pre>
-                                                                {{ if $issue.DocsLink }}
-                                                                    <pre style="font-size: 0.95em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="{{ $issue.DocsLink }}" target="_blank" title="{{ $issue.DocsLink }}">docs</a> for more details.</pre>
-                                                                {{ end }}
-                                                            </div>
-                                                        {{ else }}
-                                                        <!-- display N/A if description not present -->
-                                                            N/A
-                                                        {{ end }}
-                                                    </td>
-                                                </tr>
-                                               {{ if $issue.Details }}
-                                                    <tr>
-                                                        <th class="centered-cell">More Information</th>
-                                                        <td>
-                                                            <ul>
-                                                            {{ range $key, $value := $issue.Details }}
-                                                                <li>{{ camelCaseToTitleCase $key }}: <code>{{ $value }}</code></li>
-                                                            {{ end }}
-                                                            </ul>
-                                                        </td>
-                                                    </tr>
-                                               {{ end }}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
-                {{ end }}
-            </table>
-        {{ end }}
 
         {{ if .Notes }}
             <hr>

@@ -360,27 +360,9 @@ func (pg *TargetPostgreSQL) GetPrimaryKeyColumns(table sqlname.NameTuple) ([]str
 	return primaryKeyColumns, nil
 }
 
-// Implementing this for completion but not used in Oracle fall-forward/fall-back
-// This info is only used in fast path import of batches(Target YugabyteDB)
-func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintName(table sqlname.NameTuple) (string, error) {
-	schemaName, tableName := table.ForCatalogQuery()
-	query := fmt.Sprintf(`
-		SELECT constraint_name
-		FROM information_schema.table_constraints
-		WHERE table_schema = '%s'
-			AND table_name = '%s'
-			AND constraint_type = 'PRIMARY KEY';`, schemaName, tableName)
-
-	var constraintName string
-	err := pg.QueryRow(query).Scan(&constraintName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return "", nil // No primary key constraint found
-		}
-		return "", fmt.Errorf("query PK constraint name for %s.%s: %w", schemaName, tableName, err)
-	}
-
-	return constraintName, nil
+// No need to implement GetPrimaryKeyColumns for Postgres fall-forward/fall-back as fast path is not valid there
+func (pg *TargetPostgreSQL) GetPrimaryKeyConstraintNames(table sqlname.NameTuple) ([]string, error) {
+	return nil, nil
 }
 
 func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqlname.NameTuple {
@@ -416,7 +398,7 @@ func (pg *TargetPostgreSQL) TruncateTables(tables []sqlname.NameTuple) error {
 	return nil
 }
 
-func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error) {
+func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, exportDir string, tableSchema map[string]map[string]string, isRecoveryCandidate bool) (int64, error, bool) {
 	var rowsAffected int64
 	var err error
 	copyFn := func(conn *pgx.Conn) (bool, error) {
@@ -424,7 +406,7 @@ func (pg *TargetPostgreSQL) ImportBatch(batch Batch, args *ImportBatchArgs, expo
 		return false, err // Retries are now implemented in the caller.
 	}
 	err = pg.connPool.WithConn(copyFn)
-	return rowsAffected, err
+	return rowsAffected, err, false
 }
 
 func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *ImportBatchArgs) (rowsAffected int64, err error) {

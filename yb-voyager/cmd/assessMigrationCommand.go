@@ -121,6 +121,7 @@ var assessMigrationCmd = &cobra.Command{
 }
 
 func packAndSendAssessMigrationPayload(status string, errMsg error) {
+	var err error
 	if !shouldSendCallhome() {
 		return
 	}
@@ -141,15 +142,37 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	if assessmentReport.TableIndexStats != nil {
 		for _, stat := range *assessmentReport.TableIndexStats {
 			newStat := callhome.ObjectSizingStats{
-				//redacting schema and object name
-				ObjectName:      constants.OBFUSCATE_STRING,
 				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
 				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
 				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
 			}
+
+			// Anonymizing schema and object names
+			sname, err := anonymizer.AnonymizeSchemaName(stat.SchemaName)
+			if err != nil {
+				log.Warnf("failed to anonymize schema name %s: %v", stat.SchemaName, err)
+				newStat.SchemaName = constants.OBFUSCATE_STRING
+			} else {
+				newStat.SchemaName = sname
+			}
+
 			if stat.IsIndex {
+				iName, err := anonymizer.AnonymizeIndexName(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize index name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = iName
+				}
 				indexSizingStats = append(indexSizingStats, newStat)
 			} else {
+				tName, err := anonymizer.AnonymizeTableName(stat.ObjectName)
+				if err != nil {
+					log.Warnf("failed to anonymize table name %s: %v", stat.ObjectName, err)
+					newStat.ObjectName = constants.OBFUSCATE_STRING
+				} else {
+					newStat.ObjectName = tName
+				}
 				tableSizingStats = append(tableSizingStats, newStat)
 			}
 		}
@@ -163,18 +186,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		}),
 	}
 
-	var obfuscatedIssues []callhome.AssessmentIssueCallhome
-	for _, issue := range assessmentReport.Issues {
-		obfuscatedIssue := callhome.NewAsssesmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
-
-		// special handling for extensions issue: adding extname to issue.Name
-		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
-			obfuscatedIssue.Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
-		}
-
-		// appending the issue after obfuscating sensitive information
-		obfuscatedIssues = append(obfuscatedIssues, obfuscatedIssue)
-	}
+	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
@@ -199,7 +211,7 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 		MigrationComplexity:            assessmentReport.MigrationComplexity,
 		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
 		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         obfuscatedIssues,
+		Issues:                         anonymizedIssues,
 		Error:                          callhome.SanitizeErrorMsg(errMsg),
 		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
 		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
@@ -209,10 +221,49 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err := callhome.SendPayload(&payload)
+	err = callhome.SendPayload(&payload)
 	if err == nil && (status == COMPLETE || status == ERROR) {
 		callHomeErrorOrCompletePayloadSent = true
 	}
+}
+
+func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
+	/*
+		Case to skip for sql statement anonymization:
+			1. if issue type is unsupported query construct or unsupported plpgsql object
+			2. if object type is view or materialized view
+			3. if sql statement is empty
+	*/
+	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
+		skipCategories := []string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY}
+		skipObjects := []string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}
+
+		return slices.Contains(skipCategories, issue.Category) ||
+			slices.Contains(skipObjects, issue.ObjectType) ||
+			issue.SqlStatement == ""
+	}
+
+	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
+	for i, issue := range assessmentIssues {
+		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
+
+		// special handling for extensions issue: adding extname to issue.Name
+		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
+			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
+		}
+
+		if shouldSkipAnonymization(issue) {
+			continue
+		}
+
+		var err error
+		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
+		if err != nil {
+			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+		}
+	}
+
+	return anonymizedIssues
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
@@ -300,7 +351,10 @@ func assessMigration() (err error) {
 	// setting schemaDir to use later on - gather assessment metadata, segregating into schema files per object etc..
 	schemaDir = filepath.Join(assessmentMetadataDir, "schema")
 
-	checkStartCleanForAssessMigration(assessmentMetadataDirFlag != "")
+	err = handleStartCleanIfNeededForAssessMigration(assessmentMetadataDirFlag != "")
+	if err != nil {
+		return fmt.Errorf("failed to handle start clean for assess migration: %w", err)
+	}
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
 	assessmentDir := filepath.Join(exportDir, "assessment")
@@ -593,32 +647,38 @@ func runAssessment() error {
 	return nil
 }
 
-func checkStartCleanForAssessMigration(metadataDirPassedByUser bool) {
+func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) error {
 	assessmentDir := filepath.Join(exportDir, "assessment")
 	reportsFilePattern := filepath.Join(assessmentDir, "reports", fmt.Sprintf("%s.*", ASSESSMENT_FILE_NAME))
 	metadataFilesPattern := filepath.Join(assessmentMetadataDir, "*.csv")
 	schemaFilesPattern := filepath.Join(assessmentMetadataDir, "schema", "*", "*.sql")
 	dbsFilePattern := filepath.Join(assessmentDir, "dbs", "*.db")
 
-	assessmentAlreadyDone := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
+	assessmentFilesExists := utils.FileOrFolderExistsWithGlobPattern(reportsFilePattern) || utils.FileOrFolderExistsWithGlobPattern(dbsFilePattern)
 	if !metadataDirPassedByUser {
-		assessmentAlreadyDone = assessmentAlreadyDone || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
+		assessmentFilesExists = assessmentFilesExists || utils.FileOrFolderExistsWithGlobPattern(metadataFilesPattern) ||
 			utils.FileOrFolderExistsWithGlobPattern(schemaFilesPattern)
 	}
 
-	if assessmentAlreadyDone {
-		if startClean {
-			utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
-			utils.CleanDir(filepath.Join(assessmentDir, "reports"))
-			utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
-			err := ClearMigrationAssessmentDone()
-			if err != nil {
-				utils.ErrExit("failed to clear migration assessment completed flag in msr during start clean: %v", err)
-			}
-		} else {
-			utils.ErrExit("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
-		}
+	isAssessmentDone, err := IsMigrationAssessmentDoneDirectly(metaDB)
+	if err != nil {
+		return fmt.Errorf("failed to check if migration assessment is done: %w", err)
 	}
+
+	needCleanupOfLeftoverFiles := assessmentFilesExists && !isAssessmentDone
+	if bool(startClean) || needCleanupOfLeftoverFiles {
+		utils.CleanDir(filepath.Join(assessmentDir, "metadata"))
+		utils.CleanDir(filepath.Join(assessmentDir, "reports"))
+		utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
+		err := ClearMigrationAssessmentDone()
+		if err != nil {
+			return fmt.Errorf("failed to clear migration assessment done in MSR: %w", err)
+		}
+	} else if assessmentFilesExists { // if not startClean but assessment files already exist
+		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+	}
+
+	return nil
 }
 
 func gatherAssessmentMetadata() (err error) {
@@ -1174,6 +1234,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.NULL_VALUE_INDEXES_ISSUE_NAME, "", queryissue.NULL_VALUE_INDEXES, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME, "", queryissue.FOREIGN_KEY_DATATYPE_MISMATCH, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0
@@ -1817,6 +1878,66 @@ func generateAssessmentReportJson(reportDir string) error {
 	return nil
 }
 
+/*
+	   Template: issuesTable
+
+		Description:
+		------------
+		This Go template partial renders a dynamic table for displaying assessment issues or performance optimizations in a migration assessment report. The table adapts its headings, columns, and button controls based on the context (general issues vs. performance optimizations), as determined by the `.onlyPerf` flag.
+
+		Features:
+		---------
+		- Dynamically sets headings, keywords, and button IDs based on the type of issues being displayed.
+		- Provides "Expand All" and "Collapse All" buttons for toggling the visibility of detailed issue information.
+		- Supports sorting by category, name, and impact via clickable table headers.
+		- For each issue/optimization:
+			- Displays a summary row with key information (category, name, object/SQL preview, impact).
+			- Allows expanding to show detailed information, including category description, object type/name, SQL statement, supported versions, description, documentation link, and additional details.
+		- Handles cases where no issues are found, displaying an appropriate message.
+		- Utilizes helper functions such as `filterOutPerformanceOptimizationIssues`, `getPerformanceOptimizationIssues`, `snakeCaseToTitleCase`, `camelCaseToTitleCase`, and `getSupportedVersionString` for data formatting and filtering.
+
+		Usage:
+		------
+		- Include this template in a parent template using `{{ template "issuesTable" . }}`.
+		- Expects the following data structure in the context:
+			- .Issues: List of issue objects with fields like Category, Name, Impact, ObjectType, ObjectName, SqlStatement, Description, DocsLink, Details, MinimumVersionsFixedIn, CategoryDescription.
+			- .onlyPerf: Boolean flag indicating whether to show performance optimizations or general issues.
+
+			Differences Between the Two Tables Rendered by issuesTable
+			----------------------------------------------------------
+
+			The `issuesTable` template is used twice in the report: once for general assessment issues and once for performance optimizations. The differences between the two tables are as follows:
+
+			1. Heading and Labels:
+			- The heading is "Assessment Issues" for general issues and "Performance Optimizations" for performance-related issues.
+			- The count label is "Total issues" for general issues and "Total optimizations" for performance optimizations.
+			- The keyword in the table header is "Issue" or "Optimization" accordingly.
+
+			2. Data Source:
+			- For general issues, the table uses `filterOutPerformanceOptimizationIssues .Issues` to exclude performance optimizations.
+			- For performance optimizations, the table uses `getPerformanceOptimizationIssues .Issues` to include only those.
+
+			3. Table Columns:
+			- The general issues table includes a "Category" column (with an expand/collapse arrow).
+			- The performance optimizations table omits the "Category" column and places the expand/collapse arrow in the "Optimization" column.
+
+			4. Button IDs:
+			- The "Expand All" and "Collapse All" buttons have different IDs for each table to allow independent control.
+
+			5. Details Display:
+			- The details rows for general issues may include a "Category Description" field, which is omitted for performance optimizations.
+
+			6. Empty State:
+			- If there are no general issues, a message "No issues were found in the assessment." is shown.
+			- If there are no performance optimizations, no message is shown (the table is simply omitted).
+
+			7. Sorting:
+			- Sorting by "Category" is only available in the Assessment issues table only i.e. not onlyPerf case.
+			- Sorting by "Issue" / "Optimization" is available in both the tables
+			- Sorting by "Impact" is available in both tables.
+
+			These differences are controlled by the `.onlyPerf` flag passed to the template and are reflected in both the Go template logic and the rendered HTML structure.
+*/
 func generateAssessmentReportHtml(reportDir string) error {
 	htmlReportFilePath := filepath.Join(reportDir, fmt.Sprintf("%s%s", ASSESSMENT_FILE_NAME, HTML_EXTENSION))
 	log.Infof("writing assessment report to file: %s", htmlReportFilePath)
@@ -1845,7 +1966,9 @@ func generateAssessmentReportHtml(reportDir string) error {
 		"getSqlPreview":                          utils.GetSqlStmtToPrint,
 		"filterOutPerformanceOptimizationIssues": filterOutPerformanceOptimizationIssues,
 		"getPerformanceOptimizationIssues":       getPerformanceOptimizationIssues,
+		"dict":                                   dict,
 	}
+
 	tmpl := template.Must(template.New("report").Funcs(funcMap).Parse(string(bytesTemplate)))
 
 	log.Infof("execute template for assessment report...")
@@ -1870,6 +1993,21 @@ func generateAssessmentReportHtml(reportDir string) error {
 
 	utils.PrintAndLog("generated HTML assessment report at: %s", htmlReportFilePath)
 	return nil
+}
+
+func dict(values ...interface{}) map[string]interface{} {
+	if len(values)%2 != 0 {
+		panic("invalid dict call: uneven key-value pairs")
+	}
+	m := make(map[string]interface{}, len(values)/2)
+	for i := 0; i < len(values); i += 2 {
+		key, ok := values[i].(string)
+		if !ok {
+			panic("dict keys must be strings")
+		}
+		m[key] = values[i+1]
+	}
+	return m
 }
 
 func filterOutPerformanceOptimizationIssues(issues []AssessmentIssue) []AssessmentIssue {
