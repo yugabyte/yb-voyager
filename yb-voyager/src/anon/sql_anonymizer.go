@@ -496,6 +496,7 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 		}
 
 	// ─── SCHEMA: ALTER(OWNER) ────────────────────────────────────────────
+	// SQL: ALTER SCHEMA sales_new OWNER TO sales_owner;
 	case queryparser.PG_QUERY_ALTER_OWNER_STMT_NODE:
 		ao, ok := queryparser.ProtoAsAlterOwnerStmtNode(msg)
 		if !ok {
@@ -540,6 +541,8 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 			}
 		}
 
+	// ─── SCHEMA: GRANT ────────────────────────────────────────────
+	// SQL: GRANT USAGE ON SCHEMA sales TO sales_user;
 	case queryparser.PG_QUERY_GRANT_STMT_NODE:
 		gs, ok := queryparser.ProtoAsGrantStmtNode(msg)
 		if !ok {
@@ -640,30 +643,9 @@ func (a *SqlAnonymizer) handleCollationObjectNodes(msg protoreflect.Message) (er
 			// rs.Object is a list of string nodes
 			// but for RENAME statement it will have only 1 item(i.e. old name)
 			items := rs.Object.GetList().Items
-			for i, item := range items {
-				if str := item.GetString_(); str != nil && str.Sval != "" {
-					switch {
-					case len(items) == 3 && i == 0:
-						// first element is database
-						str.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
-						if err != nil {
-							return fmt.Errorf("anon collation rename db: %w", err)
-						}
-
-					case (len(items) == 3 || len(items) == 2) && i == len(items)-2:
-						// second‐to‐last element is schema
-						str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
-						if err != nil {
-							return fmt.Errorf("anon collation rename schema: %w", err)
-						}
-
-					case i == len(items)-1: // last element is the collation name
-						str.Sval, err = a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
-						if err != nil {
-							return fmt.Errorf("anon collation rename name: %w", err)
-						}
-					}
-				}
+			err = a.anonymizeStringNodes(items, COLLATION_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon collation rename: %w", err)
 			}
 		}
 
@@ -766,7 +748,7 @@ func (a *SqlAnonymizer) handleExtensionObjectNodes(msg protoreflect.Message) (er
 func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err error) {
 	switch queryparser.GetMsgFullName(msg) {
 
-	// CREATE SEQUENCE
+	// SQL: CREATE SEQUENCE sales.ord_id_seq;
 	case queryparser.PG_QUERY_CREATE_SEQ_STMT_NODE:
 		cs, ok := queryparser.ProtoAsCreateSeqStmtNode(msg)
 		if !ok {
@@ -795,6 +777,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		}
 
 	// ALTER SEQUENCE  (incl. OWNED BY)
+	// SQL: ALTER SEQUENCE sales.ord_id_seq OWNED BY sales.orders.id;
 	case queryparser.PG_QUERY_ALTER_SEQ_STMT_NODE:
 		as, ok := queryparser.ProtoAsAlterSeqStmtNode(msg)
 		if !ok {
@@ -835,6 +818,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		}
 
 	// RENAME SEQUENCE
+	// SQL: ALTER SEQUENCE sales.ord_id_seq RENAME TO ord_id_seq2;
 	case queryparser.PG_QUERY_RENAME_STMT_NODE:
 		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
 		if !ok || rs.RenameType != pg_query.ObjectType_OBJECT_SEQUENCE {
@@ -861,6 +845,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		}
 
 	// ALTER SEQUENCE … SET SCHEMA
+	// SQL: ALTER SEQUENCE sales.ord_id_seq SET SCHEMA archive;
 	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
 		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
 		if !ok || aos.ObjectType != pg_query.ObjectType_OBJECT_SEQUENCE {
@@ -880,6 +865,7 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		}
 
 	// DROP SEQUENCE
+	// SQL: DROP SEQUENCE sales.ord_id_seq;
 	case queryparser.PG_QUERY_DROP_STMT_NODE:
 		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
 		if !ok || ds.RemoveType != pg_query.ObjectType_OBJECT_SEQUENCE {
