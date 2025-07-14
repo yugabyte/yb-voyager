@@ -1180,16 +1180,16 @@ func analyzeSchema() {
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 
 	if analyzeSchemaReportFormat != "" {
-		err = generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
+		err = generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat, true)
 		if err != nil {
 			utils.ErrExit("failed to generate analyze schema report: %s", err)
 		}
 	} else {
-		err = generateAnalyzeSchemaReport(msr, HTML)
+		err = generateAnalyzeSchemaReport(msr, HTML, true)
 		if err != nil {
 			utils.ErrExit("failed to generate analyze schema report: %s", err)
 		}
-		err = generateAnalyzeSchemaReport(msr, JSON)
+		err = generateAnalyzeSchemaReport(msr, JSON, true)
 		if err != nil {
 			utils.ErrExit("failed to generate analyze schema report: %s", err)
 		}
@@ -1201,7 +1201,7 @@ func analyzeSchema() {
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
-func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string) (err error) {
+func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string, printReportPath bool) (err error) {
 	var finalReport string
 	switch reportFormat {
 	case "html":
@@ -1212,7 +1212,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			return  fmt.Errorf("failed to apply template for html schema analysis report: %v", err)
+			return fmt.Errorf("failed to apply template for html schema analysis report: %v", err)
 		}
 		// restorting the value in struct for generating other format reports
 		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
@@ -1258,7 +1258,9 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 	if err != nil {
 		return fmt.Errorf("failed to write report to: %q: %s", reportPath, err)
 	}
-	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	if printReportPath {
+		fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	}
 	return nil
 }
 

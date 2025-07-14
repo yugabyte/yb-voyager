@@ -18,6 +18,9 @@ package errs
 
 import (
 	"fmt"
+	"strings"
+
+	"github.com/fatih/color"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
@@ -73,5 +76,29 @@ func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err 
 		flow:              flow,
 		step:              step,
 		dbSpecificContext: dbSpecificContext,
+	}
+}
+
+type ExecuteDDLError struct {
+	ddl         string
+	ddlFilePath string
+	err         error
+	Suggestions []string
+}
+
+func (e ExecuteDDLError) Error() string {
+	return fmt.Sprintf("execute DDL: %q from file: %s: %s\n\n%s\n ", e.ddl, e.ddlFilePath, e.err.Error(), color.YellowString(strings.Join(e.Suggestions, "\n")))
+}
+
+func (e ExecuteDDLError) Unwrap() error {
+	return e.err
+}
+
+func NewExecuteDDLError(ddl, ddlFilePath string, err error, suggestions []string) ExecuteDDLError {
+	return ExecuteDDLError{
+		ddl:         ddl,
+		ddlFilePath: ddlFilePath,
+		err:         err,
+		Suggestions: suggestions,
 	}
 }

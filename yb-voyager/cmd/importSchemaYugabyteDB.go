@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
@@ -53,45 +54,40 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 		}
 		err := executeSqlFile(importObjectFilePath, importObjectType, skipFn)
 		if err != nil {
-			reportErr := generateAnalyzeReport()
-			if reportErr != nil {
-				log.Errorf("Error generating analyze report: %v", reportErr)
-			}
 			return err
 		}
 	}
 	return nil
 }
 
-func generateAnalyzeReport() error {
+func generateAnalyzeReport() (string, error) {
 	//check if schema is already analyzed
 	if schemaIsAnalyzed() {
-		return nil
+		return "", nil
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("get migration status record: %w", err)
+		return "", fmt.Errorf("get migration status record: %w", err)
 	}
 	//11.2-YB-2024.2.1.0-b10
 	splits := strings.Split(importTargetDBVersion, "-")
 	if len(splits) < 4 {
-		return fmt.Errorf("invalid target db version %q", importTargetDBVersion)
+		return "", fmt.Errorf("invalid target db version %q", importTargetDBVersion)
 	}
 	targetDBVersionStr := splits[2]
 	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
 	if err != nil {
-		return fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
+		return "", fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
 	}
-	fmt.Printf("\n")
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
-	err = generateAnalyzeSchemaReport(msr, HTML)
+	err = generateAnalyzeSchemaReport(msr, HTML, false)
 	if err != nil {
-		return fmt.Errorf("generate analyze schema report: %w", err)
+		return "", fmt.Errorf("generate analyze schema report: %w", err)
 	}
-
-	color.Yellow("Review the schema analysis report for any issues or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import.\n\n")
-	return nil
+	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
+	reportPath := filepath.Join(exportDir, "reports", reportFile)
+	return fmt.Sprintf("Review the schema analysis report (%s) for any incompatibilities or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import.", reportPath), nil
 }
 
 func isNotValidConstraint(stmt string) (bool, error) {
@@ -265,7 +261,9 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), sqlInfo.fileName)
 				finalFailedSqlStmts = append(finalFailedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				return fmt.Errorf("%w\n%s", err, color.YellowString(CONTINUE_ON_ERROR_IGNORE_EXIST_MSG))
+				// return fmt.Errorf("%w\n%s", err, color.YellowString(CONTINUE_ON_ERROR_IGNORE_EXIST_MSG))
+				return errs.NewExecuteDDLError(sqlInfo.formattedStmt, sqlInfo.fileName, err,
+					[]string{CONTINUE_ON_ERROR_IGNORE_EXIST_MSG})
 			}
 		}
 		return nil

@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -167,7 +169,13 @@ func importSchema() error {
 		installOrafceIfRequired(conn)
 	}
 
+	analysisReportMsg, reportErr := generateAnalyzeReport()
+	if reportErr != nil {
+		log.Errorf("Error generating analyze report: %v", reportErr)
+	}
 	var objectList []string
+	var execDDLError errs.ExecuteDDLError
+
 	// Pre data load.
 	// This list also has defined the order to create object type in target YugabyteDB.
 	// if post snapshot import, no objects should be imported.
@@ -200,9 +208,16 @@ func importSchema() error {
 			return false
 		}
 		skipFn := isSkipStatement
+
 		err = importSchemaInternal(exportDir, objectList, skipFn)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for various objects: %s", err) // object list is the static list of object types
+			if errors.As(err, &execDDLError) {
+				//Add the analysis report message to the error suggestion first in the order and then append the existing suggestions
+				// to the error suggestions.
+				execDDLError.Suggestions = append([]string{analysisReportMsg}, execDDLError.Suggestions...)
+				return execDDLError
+			}
+			return fmt.Errorf("failed to import schema for various objects: %w", err)
 		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
@@ -212,25 +227,36 @@ func importSchema() error {
 		if slices.Contains(objectList, "SEQUENCE") {
 			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 			if err != nil {
-				return fmt.Errorf("failed to import schema for SEQUENCEs: %s", err)
+				if errors.As(err, &execDDLError) {
+					execDDLError.Suggestions = append([]string{analysisReportMsg}, execDDLError.Suggestions...)
+					return execDDLError
+				}
+				return fmt.Errorf("failed to import schema for SEQUENCEs: %w", err)
 			}
 		}
 		if slices.Contains(objectList, "TABLE") {
 			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 			if err != nil {
+				if errors.As(err, &execDDLError) {
+					execDDLError.Suggestions = append([]string{analysisReportMsg}, execDDLError.Suggestions...)
+					return execDDLError
+				}
 				return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 			}
 		}
 
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
-
-		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+		dumpStatements(analysisReportMsg, finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
+			if errors.As(err, &execDDLError) {
+				execDDLError.Suggestions = append([]string{analysisReportMsg}, execDDLError.Suggestions...)
+				return execDDLError
+			}
 			return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 		}
 		if flagRefreshMViews {
@@ -319,7 +345,7 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	return isColocated
 }
 
-func dumpStatements(stmts []string, filePath string) {
+func dumpStatements(analysisReportMsg string, stmts []string, filePath string) {
 	if len(stmts) == 0 {
 		if flagPostSnapshotImport {
 			// nothing
@@ -354,11 +380,9 @@ func dumpStatements(stmts []string, filePath string) {
 	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
 	color.Red(msg)
 	log.Info(msg)
-	//if there is failed sql statements, generate analyze report
-	reportErr := generateAnalyzeReport()
-	if reportErr != nil {
-		log.Errorf("Error generating analyze report: %v", reportErr)
-	}
+
+	//if there is failed sql statements, print analyze report
+	color.Yellow("\n%s", analysisReportMsg)
 }
 
 // installs Orafce extension in target YugabyteDB.
