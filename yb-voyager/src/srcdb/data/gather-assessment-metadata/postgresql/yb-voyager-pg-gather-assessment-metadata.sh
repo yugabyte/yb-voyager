@@ -209,7 +209,8 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
             read -r user_input
             if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
                 echo "You can run ANALYZE manually on the affected schemas before retrying."
-                exit 1
+                echo "Aborting..."
+                exit 2 # error code for gracefullly error out the assess command 
             fi
         fi
     fi
