@@ -261,7 +261,6 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), sqlInfo.fileName)
 				finalFailedSqlStmts = append(finalFailedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				// return fmt.Errorf("%w\n%s", err, color.YellowString(CONTINUE_ON_ERROR_IGNORE_EXIST_MSG))
 				return errs.NewExecuteDDLError(sqlInfo.formattedStmt, sqlInfo.fileName, err,
 					[]string{CONTINUE_ON_ERROR_IGNORE_EXIST_MSG})
 			}
