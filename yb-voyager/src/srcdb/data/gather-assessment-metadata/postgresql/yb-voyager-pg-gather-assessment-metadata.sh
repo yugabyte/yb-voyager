@@ -193,7 +193,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
     SELECT 1 
     FROM pg_stat_all_tables pgst2 
     WHERE pgst2.schemaname = pgst1.schemaname 
-      AND pgst2.last_analyze IS NOT NULL
+      AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
   );")
 
     if [[ -n "$null_analyze_schemas" ]]; then
