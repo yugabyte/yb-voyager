@@ -763,22 +763,9 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		if rv == nil {
 			return nil
 		}
-		if rv.Catalogname != "" {
-			rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
-			if err != nil {
-				return err
-			}
-		}
-		if rv.Schemaname != "" {
-			rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
-			if err != nil {
-				return err
-			}
-		}
-
-		rv.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, rv.Relname)
+		err = a.anonymizeRangeVarNode(rv, SEQUENCE_KIND_PREFIX)
 		if err != nil {
-			return err
+			return fmt.Errorf("anon create sequence: %w", err)
 		}
 
 	// ALTER SEQUENCE  (incl. OWNED BY)
@@ -788,23 +775,9 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 		if !ok {
 			return fmt.Errorf("expected AlterSeqStmt, got %T", msg.Interface())
 		}
-		if seq := as.Sequence; seq != nil {
-			if seq.Catalogname != "" {
-				seq.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, seq.Catalogname)
-				if err != nil {
-					return err
-				}
-			}
-			if seq.Schemaname != "" {
-				seq.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, seq.Schemaname)
-				if err != nil {
-					return err
-				}
-			}
-			seq.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, seq.Relname)
-			if err != nil {
-				return err
-			}
+		err = a.anonymizeRangeVarNode(as.Sequence, SEQUENCE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon alter sequence: %w", err)
 		}
 
 		// handle OWNED BY clause
@@ -1141,6 +1114,9 @@ func (a *SqlAnonymizer) anonymizeColumnRefNode(strNodes []*pg_query.Node) error 
 
 // sample rangevar node: typevar:{catalogname:"db"  schemaname:"schema1"  relname:"mycomposit"  relpersistence:"p"  location:12}
 func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix string) (err error) {
+	if rv == nil {
+		return nil
+	}
 	if rv.Catalogname != "" {
 		rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
 		if err != nil {
