@@ -41,14 +41,6 @@ func (s *Server) Run() error {
 func (s *Server) registerTools() {
 	// Export directory management tools
 	s.server.AddTool(
-		mcp.NewTool("create_export_directory",
-			mcp.WithDescription("Create an export directory for YB Voyager migration"),
-			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Path to the export directory to create")),
-		),
-		createExportDirectory,
-	)
-
-	s.server.AddTool(
 		mcp.NewTool("get_export_directory_info",
 			mcp.WithDescription("Get information about an export directory"),
 			mcp.WithString("export_dir", mcp.Required(), mcp.Description("Path to the export directory to analyze")),
@@ -57,28 +49,6 @@ func (s *Server) registerTools() {
 	)
 
 	// Config file management tools
-	s.server.AddTool(
-		mcp.NewTool("create_config_file",
-			mcp.WithDescription("Create a YB Voyager configuration file from template"),
-			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path where the config file should be created")),
-			mcp.WithString("template_type", mcp.Description("Template type (live-migration, offline-migration, etc.)")),
-			mcp.WithString("export_dir", mcp.Description("Export directory path")),
-			mcp.WithString("source_db_type", mcp.Description("Source database type (postgresql, oracle)")),
-			mcp.WithString("source_db_host", mcp.Description("Source database host")),
-			mcp.WithString("source_db_name", mcp.Description("Source database name")),
-			mcp.WithString("source_db_user", mcp.Description("Source database user")),
-		),
-		createConfigFile,
-	)
-
-	s.server.AddTool(
-		mcp.NewTool("validate_config_file",
-			mcp.WithDescription("Validate a YB Voyager configuration file"),
-			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file to validate")),
-		),
-		validateConfigFile,
-	)
-
 	s.server.AddTool(
 		mcp.NewTool("generate_config_content",
 			mcp.WithDescription("Generate YB Voyager configuration file content without writing to disk (useful when file system permissions are restricted)"),
