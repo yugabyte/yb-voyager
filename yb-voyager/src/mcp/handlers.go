@@ -20,42 +20,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/jsonfile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
-	"gopkg.in/yaml.v2"
 )
-
-// ConfigFile represents a YB Voyager configuration file structure
-type ConfigFile struct {
-	ExportDir string `yaml:"export-dir"`
-	LogLevel  string `yaml:"log-level"`
-	Source    struct {
-		DBType     string `yaml:"db-type"`
-		DBHost     string `yaml:"db-host"`
-		DBPort     int    `yaml:"db-port"`
-		DBName     string `yaml:"db-name"`
-		DBSchema   string `yaml:"db-schema"`
-		DBUser     string `yaml:"db-user"`
-		DBPassword string `yaml:"db-password"`
-	} `yaml:"source"`
-	Target struct {
-		DBHost     string `yaml:"db-host"`
-		DBPort     int    `yaml:"db-port"`
-		DBName     string `yaml:"db-name"`
-		DBUser     string `yaml:"db-user"`
-		DBPassword string `yaml:"db-password"`
-	} `yaml:"target"`
-	AssessMigration struct {
-		TargetDBVersion string `yaml:"target-db-version"`
-	} `yaml:"assess-migration"`
-	ExportSchema struct {
-		ObjectTypeList string `yaml:"object-type-list"`
-	} `yaml:"export-schema"`
-	ExportData struct {
-		ParallelJobs int `yaml:"parallel-jobs"`
-	} `yaml:"export-data"`
-	ImportData struct {
-		ParallelJobs int `yaml:"parallel-jobs"`
-	} `yaml:"import-data"`
-}
 
 // ExportDirInfo represents information about an export directory
 type ExportDirInfo struct {
@@ -194,51 +159,6 @@ func (ar *AssessmentReport) GetTotalIndexSize() int64 {
 
 // Tool handlers
 
-// createExportDirectory creates an export directory if it doesn't exist
-func createExportDirectory(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	exportDir, err := req.RequireString("export_dir")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'export_dir': %v", err)), nil
-	}
-
-	// Convert to absolute path
-	absPath, err := filepath.Abs(exportDir)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to get absolute path: %v", err)), nil
-	}
-
-	// Check if directory already exists
-	if utils.FileOrFolderExists(absPath) {
-		info := getExportDirInfo(absPath)
-		result := map[string]interface{}{
-			"status": "already_exists",
-			"path":   absPath,
-			"info":   info,
-		}
-		jsonResult, _ := json.MarshalIndent(result, "", "  ")
-		return &mcp.CallToolResult{
-			Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
-		}, nil
-	}
-
-	// Create directory
-	err = os.MkdirAll(absPath, 0755)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to create directory: %v", err)), nil
-	}
-
-	info := getExportDirInfo(absPath)
-	result := map[string]interface{}{
-		"status": "created",
-		"path":   absPath,
-		"info":   info,
-	}
-	jsonResult, _ := json.MarshalIndent(result, "", "  ")
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
-	}, nil
-}
-
 // getExportDirectoryInfo returns information about an export directory
 func getExportDirectoryInfo(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	exportDir, err := req.RequireString("export_dir")
@@ -253,67 +173,6 @@ func getExportDirectoryInfo(ctx context.Context, req mcp.CallToolRequest) (*mcp.
 
 	info := getExportDirInfo(absPath)
 	jsonResult, _ := json.MarshalIndent(info, "", "  ")
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
-	}, nil
-}
-
-// createConfigFile creates a yb-voyager configuration file from parameters
-func createConfigFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	configPath, err := req.RequireString("config_path")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
-	}
-
-	templateType := req.GetString("template_type", "live-migration")
-	exportDir := req.GetString("export_dir", "")
-
-	// Check directory permissions before attempting to write
-	configDir := filepath.Dir(configPath)
-	if err := checkDirectoryWritable(configDir); err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Cannot write to directory %s: %v\n\nSuggestion: Use a directory like ~/yb-voyager-workspace/ or ask the user to create the config file manually.", configDir, err)), nil
-	}
-
-	// Load template
-	templatePath := filepath.Join("config-templates", templateType+".yaml")
-	templateContent, err := ioutil.ReadFile(templatePath)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to read template %s: %v", templateType, err)), nil
-	}
-
-	// Replace placeholders with actual values if provided
-	content := string(templateContent)
-	if exportDir != "" {
-		content = strings.ReplaceAll(content, "<export-dir-path>", exportDir)
-	}
-
-	// Apply other parameters from request
-	if sourceDBType := req.GetString("source_db_type", ""); sourceDBType != "" {
-		content = strings.ReplaceAll(content, "db-type: postgresql", "db-type: "+sourceDBType)
-	}
-	if sourceDBHost := req.GetString("source_db_host", ""); sourceDBHost != "" {
-		content = strings.ReplaceAll(content, "db-host: localhost", "db-host: "+sourceDBHost)
-	}
-	if sourceDBName := req.GetString("source_db_name", ""); sourceDBName != "" {
-		content = strings.ReplaceAll(content, "db-name: test_db", "db-name: "+sourceDBName)
-	}
-	if sourceDBUser := req.GetString("source_db_user", ""); sourceDBUser != "" {
-		content = strings.ReplaceAll(content, "db-user: test_user", "db-user: "+sourceDBUser)
-	}
-
-	// Write config file
-	err = ioutil.WriteFile(configPath, []byte(content), 0644)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to write config file: %v\n\nSuggestion: Try using a directory like ~/yb-voyager-workspace/ or ask the user to create the file manually.", err)), nil
-	}
-
-	result := map[string]interface{}{
-		"status":        "created",
-		"config_path":   configPath,
-		"template_type": templateType,
-		"export_dir":    exportDir,
-	}
-	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil
@@ -387,66 +246,6 @@ func executeVoyagerWithConfig(ctx context.Context, req mcp.CallToolRequest) (*mc
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonData))},
 		IsError: err != nil,
-	}, nil
-}
-
-// validateConfigFile validates a yb-voyager configuration file
-func validateConfigFile(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-	configPath, err := req.RequireString("config_path")
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
-	}
-
-	// Check if file exists
-	if !utils.FileOrFolderExists(configPath) {
-		return mcp.NewToolResultError(fmt.Sprintf("Config file does not exist: %s", configPath)), nil
-	}
-
-	// Read and parse config file
-	content, err := ioutil.ReadFile(configPath)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to read config file: %v", err)), nil
-	}
-
-	var config ConfigFile
-	err = yaml.Unmarshal(content, &config)
-	if err != nil {
-		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse YAML config: %v", err)), nil
-	}
-
-	// Validate required fields
-	issues := []string{}
-
-	if config.ExportDir == "" {
-		issues = append(issues, "export-dir is required")
-	} else if !utils.FileOrFolderExists(config.ExportDir) {
-		issues = append(issues, fmt.Sprintf("export-dir does not exist: %s", config.ExportDir))
-	}
-
-	if config.Source.DBType == "" {
-		issues = append(issues, "source.db-type is required")
-	} else if config.Source.DBType != "postgresql" && config.Source.DBType != "oracle" {
-		issues = append(issues, "source.db-type must be 'postgresql' or 'oracle'")
-	}
-
-	if config.Source.DBHost == "" {
-		issues = append(issues, "source.db-host is required")
-	}
-
-	if config.Source.DBName == "" {
-		issues = append(issues, "source.db-name is required")
-	}
-
-	result := map[string]interface{}{
-		"config_path": configPath,
-		"valid":       len(issues) == 0,
-		"issues":      issues,
-		"config":      config,
-	}
-
-	jsonResult, _ := json.MarshalIndent(result, "", "  ")
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil
 }
 
@@ -1536,24 +1335,6 @@ func findYbVoyagerPath() string {
 
 	// If not found, return default and let it fail with proper error
 	return "yb-voyager"
-}
-
-// checkDirectoryWritable checks if a directory is writable
-func checkDirectoryWritable(dir string) error {
-	// Check if directory exists
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		return fmt.Errorf("directory does not exist")
-	}
-
-	// Try to create a temporary file to test write permissions
-	tempFile := filepath.Join(dir, ".mcp_write_test")
-	file, err := os.Create(tempFile)
-	if err != nil {
-		return fmt.Errorf("no write permission")
-	}
-	file.Close()
-	os.Remove(tempFile)
-	return nil
 }
 
 // generateConfigContent generates config file content without writing to disk
