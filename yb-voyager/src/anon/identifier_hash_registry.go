@@ -3,7 +3,6 @@ package anon
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"regexp"
 	"strings"
 	"sync"
@@ -59,7 +58,6 @@ func (r *IdentifierHashRegistry) GetHash(kind string, identifier string) (string
 
 	if IsAnonymized(identifier) {
 		log.Infof("identifier %s is already anonymized", identifier)
-		fmt.Printf("[debug] [kind: %s] identifier %s is already anonymized\n", kind, identifier)
 		return identifier, nil
 	}
 

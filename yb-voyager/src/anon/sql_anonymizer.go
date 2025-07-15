@@ -92,6 +92,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling domain object nodes: %w", err)
 	}
 
+	err = a.handleTableObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling table object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -102,20 +107,6 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		rv, ok := queryparser.ProtoAsRangeVarNode(msg)
 		if !ok {
 			return fmt.Errorf("expected RangeVar, got %T", msg.Interface())
-		}
-
-		if rv.Catalogname != "" {
-			rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
-			if err != nil {
-				return fmt.Errorf("anon catalog: %w", err)
-			}
-		}
-
-		if rv.Schemaname != "" {
-			rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
-			if err != nil {
-				return fmt.Errorf("anon schema: %w", err)
-			}
 		}
 
 		// ISSUE: RangeVar.relname is not always a TABLE - it could be a SEQUENCE, VIEW, MATERIALIZED VIEW, etc.
@@ -131,9 +122,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		// Implemented in identifier_hash_registry.go GetHash() method
 		//
 		// IMPORTANT: Fallback/catchall processors like this one should run last to avoid conflicts.
-		rv.Relname, err = a.registry.GetHash(TABLE_KIND_PREFIX, rv.Relname)
+		err = a.anonymizeRangeVarNode(rv, TABLE_KIND_PREFIX)
 		if err != nil {
-			return fmt.Errorf("anon table: %w", err)
+			return fmt.Errorf("anon rangevar: %w", err)
 		}
 
 	/*
@@ -147,9 +138,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected ColumnDef, got %T", msg.Interface())
 		}
-		cd.Colname, err = a.registry.GetHash(COLUMN_KIND_PREFIX, cd.Colname)
+		err = a.anonymizeColumnDefNode(cd)
 		if err != nil {
-			return fmt.Errorf("anon coldef: %w", err)
+			return fmt.Errorf("error anonymizing column def: %w", err)
 		}
 
 	/*
@@ -266,6 +257,21 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"public" relname:"foo" relpersistence:"p" } cmds:{alter_table_cmd:{subtype:AT_AddConstraint
 					def:{constraint:{contype:CONSTR_UNIQUE conname:"unique_1" deferrable:true location:32 keys:{string:{sval:"column1"}}
 					keys:{string:{sval:"column2"}}}} behavior:DROP_RESTRICT}} ...}}
+
+		SQL:		ALTER TABLE sales.orders ADD CONSTRAINT fk_customer FOREIGN KEY (customer_id) REFERENCES customers(id);
+		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:12}
+					cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{
+					constraint:{contype:CONSTR_FOREIGN conname:"fk_customer"
+					pktable:{relname:"customers" inh:true relpersistence:"p" location:89} fk_attrs:{string:{sval:"customer_id"}}
+					pk_attrs:{string:{sval:"id"}} fk_matchtype:"s" fk_upd_action:"a" fk_del_action:"a" initially_valid:true}} behavior:DROP_RESTRICT}}
+					objtype:OBJECT_TABLE}}
+
+		SQL:		ALTER TABLE sales.orders ADD CONSTRAINT uq_order_number UNIQUE USING INDEX idx_unique_order_num;
+		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:12}
+					cmds:{alter_table_cmd:{subtype:AT_AddConstraint def:{
+					constraint:{contype:CONSTR_UNIQUE conname:"uq_order_number"
+					indexname:"idx_unique_order_num"}} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}} stmt_len:95
+
 	*/
 	case queryparser.PG_QUERY_CONSTRAINT_NODE:
 		cons, ok := queryparser.ProtoAsTableConstraintNode(msg)
@@ -297,12 +303,26 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			}
 		}
 
+		err = a.anonymizeStringNodes(cons.PkAttrs, COLUMN_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon constraint pkattrs: %w", err)
+		}
+		err = a.anonymizeStringNodes(cons.FkAttrs, COLUMN_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon constraint fkattrs: %w", err)
+		}
+
+		cons.Indexname, err = a.registry.GetHash(INDEX_KIND_PREFIX, cons.Indexname)
+		if err != nil {
+			return fmt.Errorf("anon constraint indexname: %w", err)
+		}
+
 	/*
 		ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";
 		stmt: {alter_table_stmt:{relation:{schemaname:"humanresources" relname:"department" ...}
 			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"PK_Department_DepartmentID" behavior:...}} objtype:OBJECT_TABLE}}
 	*/
-	case queryparser.PG_QUERY_ALTER_TABLE_STMT:
+	case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
 		ats, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
 		if !ok {
 			return fmt.Errorf("expected AlterTableStmt, got %T", msg.Interface())
@@ -1047,6 +1067,451 @@ func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err e
 	return nil
 }
 
+func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	/*
+		SQL:		CREATE TABLE sales.orders (id int PRIMARY KEY, amt numeric);
+		ParseTree:	stmt:{create_stmt:{relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:13}
+					table_elts:{column_def:{colname:"id"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}  ...}  is_local:true  constraints:{constraint:{contype:CONSTR_PRIMARY  }}  }}
+					table_elts:{column_def:{colname:"amt"  type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"numeric"}} ...}  is_local:true  location:47}}  oncommit:ONCOMMIT_NOOP}}
+	*/
+	case queryparser.PG_QUERY_CREATE_STMT_NODE: //|| queryparser.PG_QUERY_CREATE_TABLE_AS_STMT || :
+		// RangeVar node in CREATE TABLE is handled by common anonymizeRangeVarNode() processor
+		// columnDef nodes in CREATE TABLE are handled by common anonymizeColumnDefNode() processor
+
+	/*
+		SQL:		ALTER TABLE sales.orders ADD COLUMN note text;
+		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:12}
+					cmds:{alter_table_cmd:{subtype:AT_AddColumn  def:{column_def:{colname:"note"  type_name:{names:{string:{sval:"text"}} }  }} }}  objtype:OBJECT_TABLE}}
+
+		SQL: 		ALTER TABLE sales.orders ALTER COLUMN amount TYPE decimal(10,2);
+		ParseTree: 	stmt:{alter_table_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:12}
+					cmds:{alter_table_cmd:{subtype:AT_AlterColumnType name:"amount" def:{column_def:{type_name:{names:{string:{sval:"pg_catalog"}}
+					names:{string:{sval:"numeric"}} typmods:{a_const:{ival:{ival:10} location:58}} typmods:{a_const:{ival:{ival:2} }} } }} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+	*/
+	case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
+		at, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterTableStmt, got %T", msg.Interface())
+		}
+		err = a.anonymizeRangeVarNode(at.Relation, TABLE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon alter table: %w", err)
+		}
+
+	case queryparser.PG_QUERY_ALTER_TABLE_CMD_NODE:
+		atc, ok := queryparser.ProtoAsAlterTableCmdNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterTableCmd, got %T", msg.Interface())
+		}
+
+		// Handle only ALTER TABLE command types that contain sensitive information
+		switch atc.Subtype {
+
+		// ─── COLUMN OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddColumn:
+			// ADD COLUMN col_name data_type
+			// Parse tree: def:{column_def:{colname:"note" type_name:{...}}}
+			if atc.Def != nil {
+				err = a.anonymizeColumnDefNode(atc.Def.GetColumnDef())
+				if err != nil {
+					return fmt.Errorf("anon alter table add column: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_AddColumnToView:
+			// ADD COLUMN col_name data_type (for views)
+			// Similar structure to AT_AddColumn
+			if atc.Def != nil {
+				err = a.anonymizeColumnDefNode(atc.Def.GetColumnDef())
+				if err != nil {
+					return fmt.Errorf("anon alter table add column to view: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DropColumn:
+			// DROP COLUMN col_name
+			// Parse tree: name:"note"
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table drop column: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_AlterColumnType:
+			// ALTER COLUMN col_name TYPE new_type
+			// Parse tree: name:"amount" def:{column_def:{type_name:{...}}}
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table alter column type: %w", err)
+				}
+			}
+			// Type information in atc.Def will be handled by TypeName processor
+
+		case pg_query.AlterTableType_AT_ColumnDefault:
+			// ALTER COLUMN col_name SET DEFAULT value
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table column default: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_CookedColumnDefault:
+			// ALTER COLUMN col_name SET DEFAULT value (internal)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table cooked column default: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DropNotNull:
+			// ALTER COLUMN col_name DROP NOT NULL
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table drop not null: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetNotNull:
+			// ALTER COLUMN col_name SET NOT NULL
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set not null: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_CheckNotNull:
+			// Check NOT NULL constraint (internal)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table check not null: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetExpression:
+			// ALTER COLUMN col_name SET EXPRESSION
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set expression: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DropExpression:
+			// ALTER COLUMN col_name DROP EXPRESSION
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table drop expression: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetStatistics:
+			// ALTER COLUMN col_name SET STATISTICS target
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set statistics: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetOptions:
+			// ALTER COLUMN col_name SET (option = value, ...)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set options: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_ResetOptions:
+			// ALTER COLUMN col_name RESET (option, ...)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table reset options: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetStorage:
+			// ALTER COLUMN col_name SET STORAGE storage_type
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set storage: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetCompression:
+			// ALTER COLUMN col_name SET COMPRESSION method
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set compression: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_AlterColumnGenericOptions:
+			// ALTER COLUMN col_name OPTIONS (...)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table alter column generic options: %w", err)
+				}
+			}
+
+		// ─── CONSTRAINT OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddConstraint:
+			// ADD CONSTRAINT constraint_name ...
+			// Parse tree: def:{constraint:{contype:... conname:"pk_orders" keys:{...}}}
+			// The constraint definition in atc.Def will be handled by CONSTRAINT_NODE processor
+
+		case pg_query.AlterTableType_AT_ReAddConstraint:
+			// Re-add constraint (internal)
+			// The constraint definition in atc.Def will be handled by CONSTRAINT_NODE processor
+
+		case pg_query.AlterTableType_AT_ReAddDomainConstraint:
+			// Re-add domain constraint (internal)
+			// The constraint definition in atc.Def will be handled by CONSTRAINT_NODE processor
+
+		case pg_query.AlterTableType_AT_AlterConstraint:
+			// ALTER CONSTRAINT constraint_name ...
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table alter constraint: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_ValidateConstraint:
+			// VALIDATE CONSTRAINT constraint_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table validate constraint: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DropConstraint:
+			// DROP CONSTRAINT constraint_name
+			// Parse tree: name:"chk_amount"
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table drop constraint: %w", err)
+				}
+			}
+
+		// ─── INDEX OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddIndex:
+			// ADD INDEX index_name ...
+			// The index definition in atc.Def will be handled by IndexStmt processor
+
+		case pg_query.AlterTableType_AT_ReAddIndex:
+			// Re-add index (internal)
+			// The index definition in atc.Def will be handled by IndexStmt processor
+
+		case pg_query.AlterTableType_AT_AddIndexConstraint:
+			// constraint definition in atc.Def will be handled by CONSTRAINT_NODE processor
+
+		case pg_query.AlterTableType_AT_ClusterOn:
+			// CLUSTER ON index_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table cluster on: %w", err)
+				}
+			}
+
+		// ─── OWNER OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_ChangeOwner:
+			// OWNER TO role_name
+			// Parse tree: newowner:{roletype:... rolename:"order_admin"}
+			// The role is in atc.Newowner, handled by RoleSpec processor
+
+		// ─── TRIGGER OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_EnableTrig:
+			// ENABLE TRIGGER trigger_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table enable trigger: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_EnableAlwaysTrig:
+			// ENABLE ALWAYS TRIGGER trigger_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table enable always trigger: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_EnableReplicaTrig:
+			// ENABLE REPLICA TRIGGER trigger_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table enable replica trigger: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DisableTrig:
+			// DISABLE TRIGGER trigger_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table disable trigger: %w", err)
+				}
+			}
+
+		// ─── RULE OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_EnableRule:
+			// ENABLE RULE rule_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name) // Using TRIGGER prefix for rules
+				if err != nil {
+					return fmt.Errorf("anon alter table enable rule: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_EnableAlwaysRule:
+			// ENABLE ALWAYS RULE rule_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name) // Using TRIGGER prefix for rules
+				if err != nil {
+					return fmt.Errorf("anon alter table enable always rule: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_EnableReplicaRule:
+			// ENABLE REPLICA RULE rule_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name) // Using TRIGGER prefix for rules
+				if err != nil {
+					return fmt.Errorf("anon alter table enable replica rule: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DisableRule:
+			// DISABLE RULE rule_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name) // Using TRIGGER prefix for rules
+				if err != nil {
+					return fmt.Errorf("anon alter table disable rule: %w", err)
+				}
+			}
+
+		// ─── IDENTITY OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddIdentity:
+			// ALTER COLUMN col_name ADD GENERATED ... AS IDENTITY
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table add identity: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetIdentity:
+			// ALTER COLUMN col_name SET GENERATED ...
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table set identity: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_DropIdentity:
+			// ALTER COLUMN col_name DROP IDENTITY
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+				if err != nil {
+					return fmt.Errorf("anon alter table drop identity: %w", err)
+				}
+			}
+
+		// ─── INHERITANCE OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddInherit:
+			// INHERIT parent_table
+			// Parent table name is in atc.Def as RangeVar, handled by RangeVar processor
+
+		case pg_query.AlterTableType_AT_DropInherit:
+			// NO INHERIT parent_table
+			// Parent table name is in atc.Def as RangeVar, handled by RangeVar processor
+
+		// ─── TYPE OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AddOf:
+			// OF type_name
+			// Type name is in atc.Def as TypeName, handled by TypeName processor
+
+		// ─── PARTITION OPERATIONS ─────────────────────────────────────────────
+		case pg_query.AlterTableType_AT_AttachPartition:
+			// ATTACH PARTITION partition_table FOR VALUES ...
+			// Partition table name is in atc.Def as PartitionCmd, which contains RangeVar
+
+		case pg_query.AlterTableType_AT_DetachPartition:
+			// DETACH PARTITION partition_table
+			// Partition table name is in atc.Def as RangeVar, handled by RangeVar processor
+
+		case pg_query.AlterTableType_AT_DetachPartitionFinalize:
+			// DETACH PARTITION partition_table FINALIZE
+			// Partition table name is in atc.Def as RangeVar, handled by RangeVar processor
+
+		// ─── REPLICA IDENTITY OPERATIONS ─────────────────────────────────────────────
+		/*
+			SQL:		ALTER TABLE sales.orders REPLICA IDENTITY USING INDEX idx_orders_pkey;
+			ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" }
+						cmds:{alter_table_cmd:{subtype:AT_ReplicaIdentity def:{replica_identity_stmt:{identity_type:"i" name:"idx_orders_pkey"}} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+		*/
+		case pg_query.AlterTableType_AT_ReplicaIdentity:
+			// REPLICA IDENTITY { DEFAULT | USING INDEX index_name | FULL | NOTHING }
+			if atc.Def != nil {
+				replicaIdentityNode := atc.Def.GetReplicaIdentityStmt()
+				if replicaIdentityNode != nil && replicaIdentityNode.Name != "" {
+					replicaIdentityNode.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, replicaIdentityNode.Name)
+					if err != nil {
+						return fmt.Errorf("anon alter table replica identity: %w", err)
+					}
+				}
+			}
+
+		case pg_query.AlterTableType_AT_SetTableSpace:
+			// SET TABLESPACE tablespace_name
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, atc.Name) // Using DEFAULT prefix for tablespaces
+				if err != nil {
+					return fmt.Errorf("anon alter table set tablespace: %w", err)
+				}
+			}
+
+		case pg_query.AlterTableType_AT_ReAddStatistics:
+			// Re-add statistics (internal)
+			if atc.Name != "" {
+				atc.Name, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, atc.Name) // Using DEFAULT prefix for statistics
+				if err != nil {
+					return fmt.Errorf("anon alter table re-add statistics: %w", err)
+				}
+			}
+
+			// All other cases that don't contain sensitive information are intentionally omitted:
+			// - AT_DropCluster, AT_SetLogged, AT_SetUnLogged, AT_DropOids
+			// - AT_EnableRowSecurity, AT_DisableRowSecurity, AT_ForceRowSecurity, AT_NoForceRowSecurity
+			// - AT_EnableTrigAll, AT_DisableTrigAll, AT_EnableTrigUser, AT_DisableTrigUser
+			// - AT_SetRelOptions, AT_ResetRelOptions, AT_ReplaceRelOptions, AT_GenericOptions
+			// - AT_DropOf, AT_ReAddComment, AT_SetAccessMethod
+		}
+	}
+	return nil
+}
+
 // anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
 // value is expected to be *pg_query.String and replaces every Sval
 // with the deterministic token from the IdentifierHashRegistry.
@@ -1056,6 +1521,9 @@ func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err e
 // The helper will automatically use DATABASE_KIND_PREFIX and SCHEMA_KIND_PREFIX
 // for the first and second element when present.
 func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix string) error {
+	if len(nodes) == 0 {
+		return nil
+	}
 
 	// pick the actual *pg_query.String values
 	var strs []*pg_query.String
@@ -1132,6 +1600,17 @@ func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix
 	rv.Relname, err = a.registry.GetHash(finalPrefix, rv.Relname)
 	if err != nil {
 		return err
+	}
+	return nil
+}
+
+func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err error) {
+	if cd == nil {
+		return nil
+	}
+	cd.Colname, err = a.registry.GetHash(COLUMN_KIND_PREFIX, cd.Colname)
+	if err != nil {
+		return fmt.Errorf("anon coldef: %w", err)
 	}
 	return nil
 }

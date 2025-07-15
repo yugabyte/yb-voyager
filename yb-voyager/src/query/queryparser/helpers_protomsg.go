@@ -482,6 +482,24 @@ func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableSt
 	return alterTableStmtNode, true
 }
 
+func ProtoAsAlterTableCmdNode(msg protoreflect.Message) (*pg_query.AlterTableCmd, bool) {
+	alterTableCmdNode, ok := msg.Interface().(*pg_query.AlterTableCmd)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableCmdNode, true
+}
+
+func ProtoAsReplicaIdentityStmtNode(msg protoreflect.Message) (*pg_query.ReplicaIdentityStmt, bool) {
+	replicaIdentityStmtNode, ok := msg.Interface().(*pg_query.ReplicaIdentityStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return replicaIdentityStmtNode, true
+}
+
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
 	node, ok := msg.Interface().(*pg_query.TransactionStmt)
 	if !ok {
@@ -668,6 +686,14 @@ func ProtoAsRoleSpecNode(msg protoreflect.Message) (*pg_query.RoleSpec, bool) {
 		return nil, false
 	}
 	return roleSpecNode, true
+}
+
+func ProtoAsCreateStmtNode(msg protoreflect.Message) (*pg_query.CreateStmt, bool) {
+	createStmtNode, ok := msg.Interface().(*pg_query.CreateStmt)
+	if !ok {
+		return nil, false
+	}
+	return createStmtNode, true
 }
 
 /*

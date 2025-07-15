@@ -1324,11 +1324,11 @@ func (n *NoOpProcessor) Process(parseTree *pg_query.ParseResult) (DDLObject, err
 func GetDDLProcessor(parseTree *pg_query.ParseResult) (DDLProcessor, error) {
 	stmtType := GetStatementType(parseTree.Stmts[0].Stmt.ProtoReflect())
 	switch stmtType {
-	case PG_QUERY_CREATE_STMT:
+	case PG_QUERY_CREATE_STMT_NODE:
 		return NewTableProcessor(), nil
 	case PG_QUERY_INDEX_STMT:
 		return NewIndexProcessor(), nil
-	case PG_QUERY_ALTER_TABLE_STMT:
+	case PG_QUERY_ALTER_TABLE_STMT_NODE:
 		return NewAlterTableProcessor(), nil
 	case PG_QUERY_POLICY_STMT:
 		return NewPolicyProcessor(), nil
