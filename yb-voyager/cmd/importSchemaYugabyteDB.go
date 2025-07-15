@@ -60,9 +60,14 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 	return nil
 }
 
-func generateAnalyzeReport() (string, error) {
+func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 	//check if schema is already analyzed
 	if schemaIsAnalyzed() {
+		path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
+		reportPath, ok := utils.FilePathForAnyFileExistsInGlobPattern(path)
+		if ok {
+			return reportPath, nil
+		}
 		return "", nil
 	}
 
@@ -71,14 +76,14 @@ func generateAnalyzeReport() (string, error) {
 		return "", fmt.Errorf("get migration status record: %w", err)
 	}
 	//11.2-YB-2024.2.1.0-b10
-	splits := strings.Split(importTargetDBVersion, "-")
+	splits := strings.Split(targetYBDBVersion, "-")
 	if len(splits) < 4 {
-		return "", fmt.Errorf("invalid target db version %q", importTargetDBVersion)
+		return "", fmt.Errorf("invalid target db version %q", targetYBDBVersion)
 	}
 	targetDBVersionStr := splits[2]
 	targetDbVersion, err = ybversion.NewYBVersion(targetDBVersionStr)
 	if err != nil {
-		return "", fmt.Errorf("parse target db version %q: %w", importTargetDBVersion, err)
+		return "", fmt.Errorf("parse target db version %q: %w", targetYBDBVersion, err)
 	}
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 	err = generateAnalyzeSchemaReport(msr, HTML, false)
@@ -87,7 +92,7 @@ func generateAnalyzeReport() (string, error) {
 	}
 	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
 	reportPath := filepath.Join(exportDir, "reports", reportFile)
-	return fmt.Sprintf("Review the schema analysis report (%s) for any incompatibilities or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import.", reportPath), nil
+	return reportPath, nil
 }
 
 func isNotValidConstraint(stmt string) (bool, error) {
@@ -261,8 +266,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 				errString := fmt.Sprintf("/*\n%s\nFile :%s\n*/\n", err.Error(), sqlInfo.fileName)
 				finalFailedSqlStmts = append(finalFailedSqlStmts, errString+sqlInfo.formattedStmt)
 			} else {
-				return errs.NewExecuteDDLError(sqlInfo.formattedStmt, sqlInfo.fileName, err,
-					[]string{CONTINUE_ON_ERROR_IGNORE_EXIST_MSG})
+				return errs.NewExecuteDDLError(sqlInfo.formattedStmt, sqlInfo.fileName, err)
 			}
 		}
 		return nil
