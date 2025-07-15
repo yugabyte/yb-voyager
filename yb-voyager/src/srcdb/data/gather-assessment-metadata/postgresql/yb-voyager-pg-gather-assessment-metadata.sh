@@ -193,7 +193,7 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
     SELECT 1 
     FROM pg_stat_all_tables pgst2 
     WHERE pgst2.schemaname = pgst1.schemaname 
-      AND pgst2.last_analyze IS NOT NULL
+      AND (pgst2.last_analyze IS NOT NULL OR pgst2.last_autoanalyze IS NOT NULL)
   );")
 
     if [[ -n "$null_analyze_schemas" ]]; then
@@ -209,7 +209,8 @@ WHERE schemaname = ANY(ARRAY[string_to_array('$schema_list', '|')])
             read -r user_input
             if [[ "$user_input" != "y" && "$user_input" != "Y" ]]; then
                 echo "You can run ANALYZE manually on the affected schemas before retrying."
-                exit 1
+                echo "Aborting..."
+                exit 2 # error code for gracefullly error out the assess command 
             fi
         fi
     fi
