@@ -180,6 +180,8 @@ func importSchema() error {
 	if reportPath != "" {
 		importSchemaErrorSuggestions = append([]string{fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath)}, importSchemaErrorSuggestions...)
 	}
+	suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
+
 	var objectList []string
 	var execDDLError errs.ExecuteDDLError
 
@@ -221,7 +223,6 @@ func importSchema() error {
 			if errors.As(err, &execDDLError) {
 				//Add the analysis report message to the error suggestion first in the order and then append the existing suggestions
 				// to the error suggestions.
-				suggestionStr := color.YellowString("\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
 				err = fmt.Errorf("%w\n %s", err, suggestionStr)
 			}
 			return fmt.Errorf("failed to import schema for various objects: %w", err)
@@ -235,7 +236,6 @@ func importSchema() error {
 			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 			if err != nil {
 				if errors.As(err, &execDDLError) {
-					suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
 					err = fmt.Errorf("%w\n %s", err, suggestionStr)
 				}
 				return fmt.Errorf("failed to import schema for SEQUENCEs: %w", err)
@@ -245,7 +245,6 @@ func importSchema() error {
 			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 			if err != nil {
 				if errors.As(err, &execDDLError) {
-					suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
 					err = fmt.Errorf("%w\n %s", err, suggestionStr)
 				}
 				return fmt.Errorf("failed to import schema for TABLEs: %s", err)
@@ -261,7 +260,6 @@ func importSchema() error {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
 			if errors.As(err, &execDDLError) {
-				suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
 				err = fmt.Errorf("%w\n %s", err, suggestionStr)
 			}
 			return fmt.Errorf("failed to import schema for TABLEs: %s", err)

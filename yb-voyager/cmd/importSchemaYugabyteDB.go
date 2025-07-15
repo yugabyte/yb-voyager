@@ -62,13 +62,10 @@ func importSchemaInternal(exportDir string, importObjectList []string,
 
 func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 	//check if schema is already analyzed
-	if schemaIsAnalyzed() {
-		path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
-		reportPath, ok := utils.FilePathForAnyFileExistsInGlobPattern(path)
-		if ok {
-			return reportPath, nil
-		}
-		return "", nil
+	path := filepath.Join(exportDir, "reports", fmt.Sprintf("%s.*", ANALYSIS_REPORT_FILE_NAME))
+	reportPath, ok := utils.FilePathForAnyFileExistsInGlobPattern(path) // basic check if report files exists then return that only
+	if ok {
+		return reportPath, nil
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -91,7 +88,7 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 		return "", fmt.Errorf("generate analyze schema report: %w", err)
 	}
 	reportFile := fmt.Sprintf("%s.%s", ANALYSIS_REPORT_FILE_NAME, HTML)
-	reportPath := filepath.Join(exportDir, "reports", reportFile)
+	reportPath = filepath.Join(exportDir, "reports", reportFile)
 	return reportPath, nil
 }
 
