@@ -129,7 +129,7 @@ func setContainerConfigDefaultsIfNotProvided(dbType string, config *ContainerCon
 
 	ybVersion := os.Getenv("YB_VERSION")
 	if ybVersion == "" {
-		ybVersion = "2024.2.3.1-b3" // default to current latest yb version for now
+		ybVersion = "2024.2.4.0-b89" // default to current latest yb version for now
 	}
 
 	pgVersion := os.Getenv("PG_VERSION")
