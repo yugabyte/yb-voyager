@@ -212,7 +212,7 @@ func FileOrFolderExistsWithGlobPattern(path string) bool {
 func FilePathForAnyFileExistsInGlobPattern(path string) (string, bool) {
 	files, err := filepath.Glob(path)
 	if err != nil {
-		ErrExit("Error while reading %q: %s", path, err)
+		return "", false
 	}
 	if len(files) > 0 {
 		return files[0], true
