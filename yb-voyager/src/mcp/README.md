@@ -77,6 +77,42 @@ Close and reopen Claude Desktop to load the new MCP server configuration.
 ### 5. Verify Connection
 In Claude Desktop, you should see an MCP icon or indicator showing that the YB Voyager server is connected.
 
+## Setup for Cursor IDE
+
+### 1. Build the MCP Server
+```bash
+# From the yb-voyager directory
+go build -o yb-voyager .
+```
+
+### 2. Configure Cursor Settings
+Open Cursor and go to Settings → Extensions → MCP Servers, or create/edit the MCP configuration file:
+
+**macOS/Linux**: `~/.cursor/mcp_servers.json`
+**Windows**: `%APPDATA%\Cursor\mcp_servers.json`
+
+Add the YB Voyager MCP server configuration:
+
+```json
+{
+  "yb-voyager": {
+    "command": "/full/path/to/yb-voyager/yb-voyager",
+    "args": ["mcp-server"],
+    "env": {
+      "PATH": "/usr/local/bin:/usr/bin:/bin"
+    }
+  }
+}
+```
+
+**Important**: Replace `/full/path/to/yb-voyager/yb-voyager` with the actual absolute path to your compiled binary.
+
+### 3. Restart Cursor
+Close and reopen Cursor to load the new MCP server configuration.
+
+### 4. Verify Connection
+In Cursor, you should see the YB Voyager MCP server listed in the MCP panel or available in the AI assistant.
+
 ## Usage Examples
 
 ### Basic Migration Workflow
