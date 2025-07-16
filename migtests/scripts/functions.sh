@@ -1026,11 +1026,11 @@ compare_sql_files() {
 	# Changes required for 2.25 in the mgi schema. We still run Jenkins tests on 2024.2
 	# Commented this for now so that we don't normalize unnecessarily. When we stich the version in Jenkins we can uncomment the below block.
 
-	# # Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
-	# sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
+	# Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
+	sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
 
-	# # Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
-	# sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
+	# Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
+	sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
 
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"
