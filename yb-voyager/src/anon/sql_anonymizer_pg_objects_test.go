@@ -692,7 +692,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [x]
 //                       | DROP POLICY <name>                              | DropStmtNode                 | [x]
 //
-//  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [ ]
+//  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [x]
 //
 //  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [ ]
 //                       | ALTER CONVERSION <name> RENAME TO <new>         | RenameStmtNode               | [ ]
