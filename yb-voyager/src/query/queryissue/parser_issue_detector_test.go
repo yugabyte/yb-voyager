@@ -258,6 +258,41 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt72 = `CREATE TABLE simple_items (id SERIAL PRIMARY KEY);`
 	stmt73 = `CREATE TABLE complex_items (id BIGSERIAL PRIMARY KEY);`
 	stmt74 = `ALTER TABLE complex_items ADD CONSTRAINT fk_simple_item FOREIGN KEY (id) REFERENCES simple_items(id);`
+
+	// Case 15: BIT(10) → BIT(8) mismatch
+	stmt75 = `CREATE TABLE bit_flags (id SERIAL PRIMARY KEY, flags BIT(10));`
+	stmt76 = `CREATE TABLE bit_logs (id SERIAL PRIMARY KEY, status_flags BIT(8));`
+	stmt77 = `ALTER TABLE bit_logs ADD CONSTRAINT fk_bit_flags FOREIGN KEY (status_flags) REFERENCES bit_flags(flags);`
+
+	// Case 16: TIMESTAMP(6) → TIMESTAMP(3) mismatch
+	stmt78 = `CREATE TABLE precise_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6));`
+	stmt79 = `CREATE TABLE event_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(3));`
+	stmt80 = `ALTER TABLE event_logs ADD CONSTRAINT fk_event_time FOREIGN KEY (log_time) REFERENCES precise_events(event_time);`
+
+	// Case 17: TIME(6) → TIME(3) mismatch
+	stmt81 = `CREATE TABLE precise_schedules (id SERIAL PRIMARY KEY, start_time TIME(6));`
+	stmt82 = `CREATE TABLE schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(3));`
+	stmt83 = `ALTER TABLE schedule_logs ADD CONSTRAINT fk_schedule_time FOREIGN KEY (log_time) REFERENCES precise_schedules(start_time);`
+
+	// Case 18: INTERVAL(6) → INTERVAL(3) mismatch
+	stmt84 = `CREATE TABLE precise_durations (id SERIAL PRIMARY KEY, duration INTERVAL(6));`
+	stmt85 = `CREATE TABLE duration_logs (id SERIAL PRIMARY KEY, log_duration INTERVAL(3));`
+	stmt86 = `ALTER TABLE duration_logs ADD CONSTRAINT fk_duration FOREIGN KEY (log_duration) REFERENCES precise_durations(duration);`
+
+	// Case 19: TIMESTAMP WITH TIME ZONE precision mismatch
+	stmt87 = `CREATE TABLE tz_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6) WITH TIME ZONE);`
+	stmt88 = `CREATE TABLE tz_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(0) WITH TIME ZONE);`
+	stmt89 = `ALTER TABLE tz_logs ADD CONSTRAINT fk_tz_event_time FOREIGN KEY (log_time) REFERENCES tz_events(event_time);`
+
+	// Case 20: TIME WITH TIME ZONE precision mismatch
+	stmt90 = `CREATE TABLE tz_schedules (id SERIAL PRIMARY KEY, start_time TIME(6) WITH TIME ZONE);`
+	stmt91 = `CREATE TABLE tz_schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(0) WITH TIME ZONE);`
+	stmt92 = `ALTER TABLE tz_schedule_logs ADD CONSTRAINT fk_tz_schedule_time FOREIGN KEY (log_time) REFERENCES tz_schedules(start_time);`
+
+	// Case 21: VARBIT(10) → VARBIT(8) mismatch
+	stmt93 = `CREATE TABLE varbit_flags (id SERIAL PRIMARY KEY, flags VARBIT(10));`
+	stmt94 = `CREATE TABLE varbit_logs (id SERIAL PRIMARY KEY, status_flags VARBIT(8));`
+	stmt95 = `ALTER TABLE varbit_logs ADD CONSTRAINT fk_varbit_flags FOREIGN KEY (status_flags) REFERENCES varbit_flags(flags);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -350,7 +385,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74, stmt75, stmt76, stmt77, stmt78, stmt79, stmt80, stmt81, stmt82, stmt83, stmt84, stmt85, stmt86, stmt87, stmt88, stmt89, stmt90, stmt91, stmt92, stmt93, stmt94, stmt95}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -447,6 +482,27 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt74: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
+		},
+		stmt77: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "bit_logs", stmt77, "bit_logs.status_flags", "bit_flags.flags", "bit(8)", "bit(10)"),
+		},
+		stmt80: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "event_logs", stmt80, "event_logs.log_time", "precise_events.event_time", "timestamp(3)", "timestamp(6)"),
+		},
+		stmt83: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schedule_logs", stmt83, "schedule_logs.log_time", "precise_schedules.start_time", "time(3)", "time(6)"),
+		},
+		stmt86: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "duration_logs", stmt86, "duration_logs.log_duration", "precise_durations.duration", "interval(3)", "interval(6)"),
+		},
+		stmt89: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "tz_logs", stmt89, "tz_logs.log_time", "tz_events.event_time", "timestamptz(0)", "timestamptz(6)"),
+		},
+		stmt92: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "tz_schedule_logs", stmt92, "tz_schedule_logs.log_time", "tz_schedules.start_time", "timetz(0)", "timetz(6)"),
+		},
+		stmt95: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "varbit_logs", stmt95, "varbit_logs.status_flags", "varbit_flags.flags", "varbit(8)", "varbit(10)"),
 		},
 	}
 	for _, stmt := range requiredDDLs {
