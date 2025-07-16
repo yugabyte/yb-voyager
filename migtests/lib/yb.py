@@ -10,52 +10,29 @@ import re
 
 def has_pg15_merge(version_string):
 	"""
-	Determine if a YugabyteDB version has the PG15 merge.
-	
-	Returns True if:
-	- Preview versions >= 2.25 (e.g., 2.25.x.x, 2.26.x.x, etc.)
-	- Stable versions >= 2025.1 (e.g., 2025.1.x.x, 2025.2.x.x, etc.)
-	
-	Args:
-		version_string (str): Full PostgreSQL version string from YugabyteDB
-		                     (e.g., "PostgreSQL 15.12-YB-2025.1.0.0-b0 on x86_64-pc-linux-gnu...")
-		                     or just the YugabyteDB version (e.g., "2.25.2.0-b359")
-	
-	Returns:
-		bool: True if version has PG15 merge, False otherwise
+	Check if YugabyteDB version has PG15 merge (preview >= 2.25 or stable >= 2025.1).
 	"""
 	if not version_string:
 		return False
 	
-	# Extract YugabyteDB version from full PostgreSQL version string
-	# Look for pattern like "PostgreSQL 15.12-YB-2025.1.0.0-b0" and extract "2025.1.0.0-b0"
-	yb_version_match = re.search(r'PostgreSQL\s+[\d.]+\-YB\-([0-9.]+(?:\-[a-zA-Z0-9]+)?)', version_string)
-	if yb_version_match:
-		yb_version = yb_version_match.group(1)
-	else:
-		# If no PostgreSQL prefix found, assume it's already just the YugabyteDB version
-		yb_version = version_string
+	# Extract YugabyteDB version from PostgreSQL version string
+	yb_version_match = re.search(r'PostgreSQL\s+[\d.]+\-YB\-([0-9.]+)', version_string)
+	if not yb_version_match:
+		return False
 	
-	# Extract version components (handle build numbers like "-b359")
+	yb_version = yb_version_match.group(1)
 	version_clean = yb_version.split('-')[0]
 	
-	# Match version pattern: A.B.C.D where A, B, C, D are numbers
-	match = re.match(r'^(\d+)\.(\d+)\.(\d+)\.(\d+)$', version_clean)
+	# Parse version components
+	match = re.match(r'^(\d+)\.(\d+)', version_clean)
 	if not match:
 		return False
 	
 	major = int(match.group(1))
 	minor = int(match.group(2))
 	
-	# Check for preview versions >= 2.25
-	if major == 2 and minor >= 25:
-		return True
-	
-	# Check for stable versions >= 2025.1
-	if major >= 2025 and minor >= 1:
-		return True
-	
-	return False
+	# Preview versions >= 2.25 or stable versions >= 2025.1
+	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
 
 
 def run_checks(checkFn, db_type="yb"):
