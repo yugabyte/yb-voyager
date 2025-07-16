@@ -18,6 +18,7 @@ const (
 	ROLE_KIND_PREFIX       = "role_"
 	VIEW_KIND_PREFIX       = "view_"
 	MVIEW_KIND_PREFIX      = "mview_"
+	POLICY_KIND_PREFIX     = "policy_"
 	CONST_KIND_PREFIX      = "const_"
 	COLLATION_KIND_PREFIX  = "collation_"
 	DEFAULT_KIND_PREFIX    = "anon_" // fallback for any other identifiers
@@ -43,6 +44,7 @@ var AllKindPrefixes = []string{
 	TYPE_KIND_PREFIX,
 	DOMAIN_KIND_PREFIX,
 	ROLE_KIND_PREFIX,
+	POLICY_KIND_PREFIX,
 	CONST_KIND_PREFIX,
 	COLLATION_KIND_PREFIX,
 	DEFAULT_KIND_PREFIX,

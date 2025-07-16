@@ -104,6 +104,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling index object nodes: %w", err)
 	}
 
+	err = a.handlePolicyObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling policy object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -962,105 +967,25 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 	return nil
 }
 
-// anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
-// value is expected to be *pg_query.String and replaces every Sval
-// with the deterministic token from the IdentifierHashRegistry.
-//
-// parts may be 1-3 items: [obj] | [schema,obj] | [db,schema,obj].
-// Pass the PREFIX for the *last* element (obj).
-// The helper will automatically use DATABASE_KIND_PREFIX and SCHEMA_KIND_PREFIX
-// for the first and second element when present.
-func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix string) error {
-	if len(nodes) == 0 {
-		return nil
-	}
-
-	// pick the actual *pg_query.String values
-	var strs []*pg_query.String
-	for _, n := range nodes {
-		if s := n.GetString_(); s != nil && s.Sval != "" {
-			strs = append(strs, s)
+func (a *SqlAnonymizer) handlePolicyObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	/*
+		SQL:		CREATE POLICY user_policy ON sales.orders FOR ALL TO authenticated_users USING (user_id = current_user_id());
+		ParseTree:	stmt:{create_policy_stmt:{policy_name:"user_policy"  table:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:29}  cmd_name:"all"  permissive:true  roles:{role_spec:{roletype:ROLESPEC_CSTRING  rolename:"authenticated_users"  location:53}}  qual:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"user_id"}}  l
+	*/
+	case queryparser.PG_QUERY_CREATE_POLICY_STMT_NODE:
+		ps, ok := queryparser.ProtoAsCreatePolicyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreatePolicyStmt, got %T", msg.Interface())
 		}
-	}
-	if len(strs) == 0 {
-		return nil // nothing to do
-	}
 
-	// build prefix slice based on number of parts
-	var prefixes []string
-	switch len(strs) {
-	case 1:
-		prefixes = []string{finalPrefix} // [obj]
-	case 2:
-		prefixes = []string{SCHEMA_KIND_PREFIX, finalPrefix} // [schema,obj]
-	case 3:
-		prefixes = []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, finalPrefix} // [db,schema,obj]
-	default:
-		return fmt.Errorf("qualified name with %d parts not supported", len(strs))
-	}
-
-	// apply prefixes to each string based on the index
-	for i, s := range strs {
-		tok, err := a.registry.GetHash(prefixes[i], s.Sval)
-		if err != nil {
-			return err
+		// Policy name is always unqualified
+		if ps.PolicyName != "" {
+			ps.PolicyName, err = a.registry.GetHash(POLICY_KIND_PREFIX, ps.PolicyName)
+			if err != nil {
+				return fmt.Errorf("anon policy name: %w", err)
+			}
 		}
-		s.Sval = tok
-	}
-	return nil
-}
-
-// anonymizeColumnRefNode rewrites the String parts of a ColumnRef
-// The slice may have 1–4 parts but the *last* one is always a column.
-func (a *SqlAnonymizer) anonymizeColumnRefNode(strNodes []*pg_query.Node) error {
-	n := len(strNodes)
-	if n == 0 {
-		return nil
-	}
-
-	// 1. Everything *left* of the column (0,1 or 2 items)
-	if n > 1 {
-		// left part could be [tbl] or [sch,tbl] or [db,sch,tbl]
-		if err := a.anonymizeStringNodes(strNodes[:n-1], TABLE_KIND_PREFIX); err != nil {
-			return err
-		}
-	}
-
-	// 2. The right-most item – always a column
-	return a.anonymizeStringNodes(strNodes[n-1:], COLUMN_KIND_PREFIX)
-}
-
-// sample rangevar node: typevar:{catalogname:"db"  schemaname:"schema1"  relname:"mycomposit"  relpersistence:"p"  location:12}
-func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix string) (err error) {
-	if rv == nil {
-		return nil
-	}
-	if rv.Catalogname != "" {
-		rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
-		if err != nil {
-			return err
-		}
-	}
-	if rv.Schemaname != "" {
-		rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
-		if err != nil {
-			return err
-		}
-	}
-	rv.Relname, err = a.registry.GetHash(finalPrefix, rv.Relname)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err error) {
-	if cd == nil {
-		return nil
-	}
-	cd.Colname, err = a.registry.GetHash(COLUMN_KIND_PREFIX, cd.Colname)
-	if err != nil {
-		return fmt.Errorf("anon coldef: %w", err)
 	}
 	return nil
 }
@@ -1238,6 +1163,111 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 	return nil
 }
 
+// ========================= Anonymization Helpers =========================
+
+// anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
+// value is expected to be *pg_query.String and replaces every Sval
+// with the deterministic token from the IdentifierHashRegistry.
+//
+// parts may be 1-3 items: [obj] | [schema,obj] | [db,schema,obj].
+// Pass the PREFIX for the *last* element (obj).
+// The helper will automatically use DATABASE_KIND_PREFIX and SCHEMA_KIND_PREFIX
+// for the first and second element when present.
+func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix string) error {
+	if len(nodes) == 0 {
+		return nil
+	}
+
+	// pick the actual *pg_query.String values
+	var strs []*pg_query.String
+	for _, n := range nodes {
+		if s := n.GetString_(); s != nil && s.Sval != "" {
+			strs = append(strs, s)
+		}
+	}
+	if len(strs) == 0 {
+		return nil // nothing to do
+	}
+
+	// build prefix slice based on number of parts
+	var prefixes []string
+	switch len(strs) {
+	case 1:
+		prefixes = []string{finalPrefix} // [obj]
+	case 2:
+		prefixes = []string{SCHEMA_KIND_PREFIX, finalPrefix} // [schema,obj]
+	case 3:
+		prefixes = []string{DATABASE_KIND_PREFIX, SCHEMA_KIND_PREFIX, finalPrefix} // [db,schema,obj]
+	default:
+		return fmt.Errorf("qualified name with %d parts not supported", len(strs))
+	}
+
+	// apply prefixes to each string based on the index
+	for i, s := range strs {
+		tok, err := a.registry.GetHash(prefixes[i], s.Sval)
+		if err != nil {
+			return err
+		}
+		s.Sval = tok
+	}
+	return nil
+}
+
+// anonymizeColumnRefNode rewrites the String parts of a ColumnRef
+// The slice may have 1–4 parts but the *last* one is always a column.
+func (a *SqlAnonymizer) anonymizeColumnRefNode(strNodes []*pg_query.Node) error {
+	n := len(strNodes)
+	if n == 0 {
+		return nil
+	}
+
+	// 1. Everything *left* of the column (0,1 or 2 items)
+	if n > 1 {
+		// left part could be [tbl] or [sch,tbl] or [db,sch,tbl]
+		if err := a.anonymizeStringNodes(strNodes[:n-1], TABLE_KIND_PREFIX); err != nil {
+			return err
+		}
+	}
+
+	// 2. The right-most item – always a column
+	return a.anonymizeStringNodes(strNodes[n-1:], COLUMN_KIND_PREFIX)
+}
+
+// sample rangevar node: typevar:{catalogname:"db"  schemaname:"schema1"  relname:"mycomposit"  relpersistence:"p"  location:12}
+func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix string) (err error) {
+	if rv == nil {
+		return nil
+	}
+	if rv.Catalogname != "" {
+		rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
+		if err != nil {
+			return err
+		}
+	}
+	if rv.Schemaname != "" {
+		rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
+		if err != nil {
+			return err
+		}
+	}
+	rv.Relname, err = a.registry.GetHash(finalPrefix, rv.Relname)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err error) {
+	if cd == nil {
+		return nil
+	}
+	cd.Colname, err = a.registry.GetHash(COLUMN_KIND_PREFIX, cd.Colname)
+	if err != nil {
+		return fmt.Errorf("anon coldef: %w", err)
+	}
+	return nil
+}
+
 // getObjectTypePrefix returns the appropriate prefix for anonymization based on the PostgreSQL object type
 func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) string {
 	switch objectType {
@@ -1271,6 +1301,8 @@ func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) stri
 		return PROCEDURE_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_COLUMN:
 		return COLUMN_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_POLICY:
+		return POLICY_KIND_PREFIX
 	default:
 		log.Printf("Unknown object type: %s", objectType.String())
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix

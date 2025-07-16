@@ -99,6 +99,12 @@ var enabled = map[string]bool{
 	"INDEX-DROP":                       true,
 	"INDEX-DROP-IF-EXISTS":             true,
 	"INDEX-DROP-CONCURRENTLY":          true,
+
+	"POLICY-CREATE":                    true,
+	"POLICY-DROP":                      true,
+	"POLICY-CREATE-WITH-ROLES":         true,
+	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
+	"POLICY-CREATE-ALL-COMMANDS":       true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -501,10 +507,23 @@ func TestPostgresDDLVariants(t *testing.T) {
 		{"POLICY-CREATE",
 			`CREATE POLICY p_sel ON sales.orders FOR SELECT USING (true);`,
 			[]string{"p_sel", "sales", "orders"},
-			[]string{CONSTRAINT_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
-		{"POLICY-RENAME",
-			`ALTER POLICY p_sel ON sales.orders RENAME TO p_sel2;`,
-			[]string{"p_sel", "p_sel2"}, []string{CONSTRAINT_KIND_PREFIX}},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
+		{"POLICY-DROP",
+			`DROP POLICY p_sel ON sales.orders;`,
+			[]string{"p_sel", "sales", "orders"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
+		{"POLICY-CREATE-WITH-ROLES",
+			`CREATE POLICY p_manager ON sales.orders FOR ALL TO manager_role USING (department = current_setting('app.department'));`,
+			[]string{"p_manager", "sales", "orders", "manager_role", "department"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, ROLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"POLICY-CREATE-COMPLEX-CONDITIONS",
+			`CREATE POLICY p_secure ON sales.orders FOR UPDATE USING (user_id = current_user) WITH CHECK (amount < 10000);`,
+			[]string{"p_secure", "sales", "orders", "user_id", "amount"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"POLICY-CREATE-ALL-COMMANDS",
+			`CREATE POLICY p_all ON sales.orders FOR ALL USING (tenant_id = current_setting('app.tenant_id'));`,
+			[]string{"p_all", "sales", "orders", "tenant_id"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, COLUMN_KIND_PREFIX}},
 
 		// ─── COMMENT ───────────────────────────────────────────
 		{"COMMENT-TABLE",

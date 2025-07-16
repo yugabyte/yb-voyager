@@ -464,6 +464,15 @@ func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, bool) 
 	return indexElemNode, true
 }
 
+func ProtoAsCreatePolicyStmtNode(msg protoreflect.Message) (*pg_query.CreatePolicyStmt, bool) {
+	createPolicyStmtNode, ok := msg.Interface().(*pg_query.CreatePolicyStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createPolicyStmtNode, true
+}
+
 func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
 	consNode, ok := msg.Interface().(*pg_query.Constraint)
 	if !ok {

@@ -118,6 +118,7 @@ const (
 	PG_QUERY_NOTIFY_STMT_NODE                = "pg_query.NotifyStmt"
 	PG_QUERY_UNLISTEN_STMT_NODE              = "pg_query.UnlistenStmt"
 	PG_QUERY_TRANSACTION_STMT_NODE           = "pg_query.TransactionStmt"
+	PG_QUERY_CREATE_POLICY_STMT_NODE         = "pg_query.CreatePolicyStmt"
 
 	PG_QUERY_VARIABLE_SET_STMT_NODE = "pg_query.VariableSetStmt"
 
