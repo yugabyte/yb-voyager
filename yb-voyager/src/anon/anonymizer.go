@@ -16,6 +16,8 @@ const (
 	TYPE_KIND_PREFIX       = "type_"
 	DOMAIN_KIND_PREFIX     = "domain_"
 	ROLE_KIND_PREFIX       = "role_"
+	VIEW_KIND_PREFIX       = "view_"
+	MVIEW_KIND_PREFIX      = "mview_"
 	CONST_KIND_PREFIX      = "const_"
 	COLLATION_KIND_PREFIX  = "collation_"
 	DEFAULT_KIND_PREFIX    = "anon_" // fallback for any other identifiers
