@@ -522,9 +522,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //  TABLE                | CREATE TABLE <schema>.<name> (...)              | CreateStmtNode               | [ ]
 //                       | ALTER TABLE <name> ADD COLUMN ...               | AlterTableStmtNode           | [ ]
 //                       | ALTER TABLE <name> RENAME TO <new>              | RenameStmtNode               | [ ]
-//                       | ALTER TABLE <name> SET TABLESPACE <ts>          | AlterTableStmtNode           | [ ]
 //                       | DROP TABLE <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [ ]
-//                       | TRUNCATE TABLE <name>                           | TruncateStmtNode             | [ ]
 //
 //  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [ ]
 //                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [ ]

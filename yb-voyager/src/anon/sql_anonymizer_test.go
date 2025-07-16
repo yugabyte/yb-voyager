@@ -172,8 +172,8 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		},
 		{
 			nodeName: "A_ArrayExpr (wrapping A_Const)",
-			sql:      `INSERT INTO t(arr) VALUES (ARRAY['abc','xyz','123']);`,
-			raw:      []string{"abc", "xyz", "123"},
+			sql:      `INSERT INTO t(arr) VALUES (ARRAY['abcdef','xyzabc','123']);`,
+			raw:      []string{"abcdef", "xyzabc", "123"},
 			prefixes: []string{CONST_KIND_PREFIX},
 		},
 		{

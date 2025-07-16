@@ -422,6 +422,17 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if err != nil {
 			return fmt.Errorf("anon drop stmt: %w", err)
 		}
+
+	// ─── GENERIC ALTER OBJECT SCHEMA STATEMENT PROCESSOR ─────────────────────────────────────────────
+	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
+		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterObjectSchemaStmt, got %T", msg.Interface())
+		}
+		err = a.handleGenericAlterObjectSchemaStmt(aos)
+		if err != nil {
+			return fmt.Errorf("anon alter object schema stmt: %w", err)
+		}
 	}
 	return nil
 }
@@ -627,27 +638,12 @@ func (a *SqlAnonymizer) handleExtensionObjectNodes(msg protoreflect.Message) (er
 		SQL: 		ALTER EXTENSION postgis SET SCHEMA archive;
 		ParseTree: 	stmt:{alter_object_schema_stmt:{object_type:OBJECT_EXTENSION object:{string:{sval:"postgis"}} newschema:"archive"}} stmt_len:42
 	*/
-	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
-		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
-		if !ok {
-			return fmt.Errorf("expected AlterObjectSchemaStmt, got %T", msg.Interface())
-		}
-		if aos.ObjectType != pg_query.ObjectType_OBJECT_EXTENSION {
-			return nil // not an extension DDL, skip
-		}
+	// Covered in handleGenericAlterObjectSchemaStmt
 
-		// anonymize the schema name
-		if aos.Newschema != "" {
-			aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
-			if err != nil {
-				return fmt.Errorf("anon alter extension schema: %w", err)
-			}
-		}
-
-		// ─── EXTENSION: ALTER (OTHER) ────────────────────────────
-		// there are other alter extension statement where you add or drop a member_object [skipping]
-		// for eg: ALTER EXTENSION hstore ADD FUNCTION populate_record(anyelement, hstore);
-		// but this is too much of a corner case and not sure if pg_dump will generate such statements
+	// ─── EXTENSION: ALTER (OTHER) ────────────────────────────
+	// there are other alter extension statement where you add or drop a member_object [skipping]
+	// for eg: ALTER EXTENSION hstore ADD FUNCTION populate_record(anyelement, hstore);
+	// but this is too much of a corner case and not sure if pg_dump will generate such statements
 
 	}
 	return nil
@@ -698,25 +694,10 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 			}
 		}
 
-	// ALTER SEQUENCE … SET SCHEMA
-	// SQL: ALTER SEQUENCE sales.ord_id_seq SET SCHEMA archive;
-	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
-		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
-		if !ok || aos.ObjectType != pg_query.ObjectType_OBJECT_SEQUENCE {
-			return nil
-		}
-		if aos.Relation != nil && aos.Relation.Relname != "" {
-			aos.Relation.Relname, err = a.registry.GetHash(SEQUENCE_KIND_PREFIX, aos.Relation.Relname)
-			if err != nil {
-				return err
-			}
-		}
-		if aos.Newschema != "" {
-			aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
-			if err != nil {
-				return err
-			}
-		}
+		// ALTER SEQUENCE … SET SCHEMA
+		// SQL: ALTER SEQUENCE sales.ord_id_seq SET SCHEMA archive;
+		// Covered in handleGenericAlterObjectSchemaStmt
+
 	}
 	return nil
 }
@@ -1206,6 +1187,72 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 
 		if err != nil {
 			return fmt.Errorf("anon drop object: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// handleGenericAlterObjectSchemaStmt processes ALTER ... SET SCHEMA statements for TABLE, EXTENSION, TYPE, and SEQUENCE object types
+func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterObjectSchemaStmt) error {
+	if aos == nil {
+		return nil
+	}
+
+	// Handle TABLE, EXTENSION, TYPE, and SEQUENCE
+	switch aos.ObjectType {
+	case pg_query.ObjectType_OBJECT_TABLE:
+		// Tables use RangeVar for their names
+		if aos.Relation != nil {
+			err := a.anonymizeRangeVarNode(aos.Relation, TABLE_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon alter table schema: %w", err)
+			}
+		}
+
+	case pg_query.ObjectType_OBJECT_SEQUENCE:
+		// Sequences use RangeVar for their names
+		if aos.Relation != nil {
+			err := a.anonymizeRangeVarNode(aos.Relation, SEQUENCE_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon alter sequence schema: %w", err)
+			}
+		}
+
+	case pg_query.ObjectType_OBJECT_EXTENSION:
+		// Extensions have simple string names in Object field
+		if aos.Object != nil && aos.Object.GetString_() != nil {
+			str := aos.Object.GetString_()
+			if str.Sval != "" {
+				var err error
+				str.Sval, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, str.Sval) // No specific prefix for extensions
+				if err != nil {
+					return fmt.Errorf("anon alter extension schema: %w", err)
+				}
+			}
+		}
+
+	case pg_query.ObjectType_OBJECT_TYPE:
+		// Types have qualified names in Object as a list
+		if aos.Object != nil && aos.Object.GetList() != nil {
+			items := aos.Object.GetList().Items
+			err := a.anonymizeStringNodes(items, TYPE_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon alter type schema: %w", err)
+			}
+		}
+
+	default:
+		// Skip other object types for now
+		return nil
+	}
+
+	// Always anonymize the new schema name
+	if aos.Newschema != "" {
+		var err error
+		aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
+		if err != nil {
+			return fmt.Errorf("anon alter object schema newschema: %w", err)
 		}
 	}
 
