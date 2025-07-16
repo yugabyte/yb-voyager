@@ -473,6 +473,15 @@ func ProtoAsCreatePolicyStmtNode(msg protoreflect.Message) (*pg_query.CreatePoli
 	return createPolicyStmtNode, true
 }
 
+func ProtoAsCommentStmtNode(msg protoreflect.Message) (*pg_query.CommentStmt, bool) {
+	commentStmtNode, ok := msg.Interface().(*pg_query.CommentStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return commentStmtNode, true
+}
+
 func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
 	consNode, ok := msg.Interface().(*pg_query.Constraint)
 	if !ok {

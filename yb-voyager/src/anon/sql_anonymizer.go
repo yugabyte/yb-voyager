@@ -109,6 +109,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling policy object nodes: %w", err)
 	}
 
+	err = a.handleCommentObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling comment object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -1160,6 +1165,82 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		}
 	}
 
+	return nil
+}
+
+func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_COMMENT_STMT_NODE {
+		return nil
+	}
+	cs, ok := queryparser.ProtoAsCommentStmtNode(msg)
+	if !ok {
+		return fmt.Errorf("expected CommentStmt, got %T", msg.Interface())
+	}
+
+	/*
+		Example of varity of cases below:
+
+		SQL:		COMMENT ON TABLE sales.orders IS 'Customer order information';
+		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_TABLE  object:{list:{items:{string:{sval:"sales"}}  items:{string:{sval:"orders"}}}}
+							comment:"Customer order information"}}
+
+		SQL:		COMMENT ON SCHEMA sales IS 'Sales department schema';
+		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_SCHEMA  object:{string:{sval:"sales"}}  comment:"Sales department schema"}}
+
+		SQL:		COMMENT ON ROLE sales_manager IS 'something';
+		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_ROLE  object:{string:{sval:"sales_manager"}}  comment:"something"}}
+	*/
+
+	// Most object types use a list of names and a prefix
+	listBased := map[pg_query.ObjectType]bool{
+		pg_query.ObjectType_OBJECT_COLUMN:        true,
+		pg_query.ObjectType_OBJECT_TABCONSTRAINT: true,
+		pg_query.ObjectType_OBJECT_SEQUENCE:      true,
+		pg_query.ObjectType_OBJECT_INDEX:         true,
+		pg_query.ObjectType_OBJECT_VIEW:          true,
+		pg_query.ObjectType_OBJECT_TABLE:         true,
+		pg_query.ObjectType_OBJECT_POLICY:        true,
+		pg_query.ObjectType_OBJECT_MATVIEW:       true,
+		pg_query.ObjectType_OBJECT_TYPE:          true,
+		pg_query.ObjectType_OBJECT_DOMAIN:        true,
+		pg_query.ObjectType_OBJECT_COLLATION:     true,
+		pg_query.ObjectType_OBJECT_TRIGGER:       true,
+	}
+
+	// Handle function/procedure (object_with_args)
+	if cs.Objtype == pg_query.ObjectType_OBJECT_FUNCTION || cs.Objtype == pg_query.ObjectType_OBJECT_PROCEDURE {
+		if objWithArgs := cs.Object.GetObjectWithArgs(); objWithArgs != nil {
+			prefix := a.getObjectTypePrefix(cs.Objtype)
+			if err := a.anonymizeStringNodes(objWithArgs.Objname, prefix); err != nil {
+				return fmt.Errorf("anon comment function/procedure: %w", err)
+			}
+		}
+	} else if listBased[cs.Objtype] && cs.Object.GetList() != nil {
+		// Handle all list-based object types
+		prefix := a.getObjectTypePrefix(cs.Objtype)
+		if err := a.anonymizeStringNodes(cs.Object.GetList().Items, prefix); err != nil {
+			return fmt.Errorf("anon comment object: %w", err)
+		}
+	} else {
+		// Handle unqualified names (e.g., SCHEMA, DATABASE, EXTENSION, ROLE)
+		prefix := a.getObjectTypePrefix(cs.Objtype)
+		if str := cs.Object.GetString_(); str != nil && str.Sval != "" {
+			var err error
+			str.Sval, err = a.registry.GetHash(prefix, str.Sval)
+			if err != nil {
+				return fmt.Errorf("anon comment object: %w", err)
+			}
+		}
+	}
+
+	// Anonymize the comment text itself (if present)
+	if cs.Comment != "" {
+		var err error
+		cs.Comment, err = a.registry.GetHash(CONST_KIND_PREFIX, cs.Comment)
+		if err != nil {
+			return fmt.Errorf("anon comment text: %w", err)
+		}
+	}
 	return nil
 }
 

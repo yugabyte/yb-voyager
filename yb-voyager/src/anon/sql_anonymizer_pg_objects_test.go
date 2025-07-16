@@ -105,6 +105,25 @@ var enabled = map[string]bool{
 	"POLICY-CREATE-WITH-ROLES":         true,
 	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
 	"POLICY-CREATE-ALL-COMMANDS":       true,
+
+	"COMMENT-TABLE":      true,
+	"COMMENT-COLUMN":     true,
+	"COMMENT-INDEX":      true,
+	"COMMENT-POLICY":     true,
+	"COMMENT-SEQUENCE":   true,
+	"COMMENT-TYPE":       true,
+	"COMMENT-DOMAIN":     true,
+	"COMMENT-EXTENSION":  true,
+	"COMMENT-SCHEMA":     true,
+	"COMMENT-FUNCTION":   true,
+	"COMMENT-PROCEDURE":  true,
+	"COMMENT-TRIGGER":    true,
+	"COMMENT-VIEW":       true,
+	"COMMENT-MVIEW":      true,
+	"COMMENT-DATABASE":   true,
+	"COMMENT-CONSTRAINT": true,
+	"COMMENT-ROLE":       true,
+	"COMMENT-COLLATION":  true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -528,12 +547,76 @@ func TestPostgresDDLVariants(t *testing.T) {
 		// ─── COMMENT ───────────────────────────────────────────
 		{"COMMENT-TABLE",
 			`COMMENT ON TABLE sales.orders IS 'order table';`,
-			[]string{"sales", "orders"},
-			[]string{TABLE_KIND_PREFIX}},
+			[]string{"sales", "orders", "order table"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
 		{"COMMENT-COLUMN",
 			`COMMENT ON COLUMN sales.orders.amount IS 'gross amount';`,
-			[]string{"sales", "orders", "amount"},
-			[]string{COLUMN_KIND_PREFIX}},
+			[]string{"sales", "orders", "amount", "gross amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-INDEX",
+			`COMMENT ON INDEX sales.idx_amt IS 'amount index';`,
+			[]string{"sales", "idx_amt", "amount index"},
+			[]string{SCHEMA_KIND_PREFIX, INDEX_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-SCHEMA",
+			`COMMENT ON SCHEMA sales IS 'Sales schema for e-commerce';`,
+			[]string{"sales", "Sales schema for e-commerce"},
+			[]string{SCHEMA_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-FUNCTION",
+			`COMMENT ON FUNCTION sales.calculate_total(integer, numeric) IS 'Calculate order total with tax';`,
+			[]string{"sales", "calculate_total", "Calculate order total with tax"},
+			[]string{SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-PROCEDURE",
+			`COMMENT ON PROCEDURE sales.process_order(integer) IS 'Process customer order';`,
+			[]string{"sales", "process_order", "Process customer order"},
+			[]string{SCHEMA_KIND_PREFIX, PROCEDURE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-TRIGGER",
+			`COMMENT ON TRIGGER audit_trigger ON sales.orders IS 'Audit trail trigger';`,
+			[]string{"audit_trigger", "sales", "orders", "Audit trail trigger"},
+			[]string{TRIGGER_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-VIEW",
+			`COMMENT ON VIEW sales.order_summary IS 'Order summary view';`,
+			[]string{"sales", "order_summary", "Order summary view"},
+			[]string{SCHEMA_KIND_PREFIX, VIEW_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-MVIEW",
+			`COMMENT ON MATERIALIZED VIEW sales.order_stats IS 'Order statistics materialized view';`,
+			[]string{"sales", "order_stats", "Order statistics materialized view"},
+			[]string{SCHEMA_KIND_PREFIX, MVIEW_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-DATABASE",
+			`COMMENT ON DATABASE sales_db IS 'Sales database';`,
+			[]string{"sales_db", "Sales database"},
+			[]string{DATABASE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-CONSTRAINT",
+			`COMMENT ON CONSTRAINT pk_orders ON sales.orders IS 'Primary key constraint';`,
+			[]string{"pk_orders", "sales", "orders", "Primary key constraint"},
+			[]string{CONSTRAINT_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-ROLE",
+			`COMMENT ON ROLE sales_user IS 'Sales department user';`,
+			[]string{"sales_user", "Sales department user"},
+			[]string{ROLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-COLLATION",
+			`COMMENT ON COLLATION sales.nocase IS 'Case-insensitive collation';`,
+			[]string{"sales", "nocase", "Case-insensitive collation"},
+			[]string{SCHEMA_KIND_PREFIX, COLLATION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-SEQUENCE",
+			`COMMENT ON SEQUENCE sales.ord_id_seq IS 'Order ID sequence';`,
+			[]string{"sales", "ord_id_seq", "Order ID sequence"},
+			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-TYPE",
+			`COMMENT ON TYPE sales.order_status IS 'Order status enum';`,
+			[]string{"sales", "order_status", "Order status enum"},
+			[]string{SCHEMA_KIND_PREFIX, TYPE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-DOMAIN",
+			`COMMENT ON DOMAIN sales.us_postal IS 'US postal code domain';`,
+			[]string{"sales", "us_postal", "US postal code domain"},
+			[]string{SCHEMA_KIND_PREFIX, DOMAIN_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-EXTENSION",
+			`COMMENT ON EXTENSION postgis IS 'PostGIS spatial extension';`,
+			[]string{"postgis", "PostGIS spatial extension"},
+			[]string{CONST_KIND_PREFIX}},
+		{"COMMENT-POLICY",
+			`COMMENT ON POLICY p_sel ON sales.orders IS 'Select policy';`,
+			[]string{"p_sel", "sales", "orders", "Select policy"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -606,11 +689,10 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [x]
 //                       | DROP INDEX <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
-//  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [ ]
-//                       | ALTER POLICY <name> RENAME TO <new>             | AlterPolicyStmtNode          | [ ]
-//                       | DROP POLICY <name>                              | DropStmtNode                 | [ ]
+//  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [x]
+//                       | DROP POLICY <name>                              | DropStmtNode                 | [x]
 //
-//  COMMENT              | COMMENT ON TABLE/COLUMN/...                     | CommentOnStmtNode            | [ ]
+//  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [ ]
 //
 //  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [ ]
 //                       | ALTER CONVERSION <name> RENAME TO <new>         | RenameStmtNode               | [ ]
