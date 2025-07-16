@@ -17,7 +17,9 @@ def has_pg15_merge(version_string):
 	- Stable versions >= 2025.1 (e.g., 2025.1.x.x, 2025.2.x.x, etc.)
 	
 	Args:
-		version_string (str): YugabyteDB version string (e.g., "2.25.2.0-b359")
+		version_string (str): Full PostgreSQL version string from YugabyteDB
+		                     (e.g., "PostgreSQL 15.12-YB-2025.1.0.0-b0 on x86_64-pc-linux-gnu...")
+		                     or just the YugabyteDB version (e.g., "2.25.2.0-b359")
 	
 	Returns:
 		bool: True if version has PG15 merge, False otherwise
@@ -25,8 +27,17 @@ def has_pg15_merge(version_string):
 	if not version_string:
 		return False
 	
+	# Extract YugabyteDB version from full PostgreSQL version string
+	# Look for pattern like "PostgreSQL 15.12-YB-2025.1.0.0-b0" and extract "2025.1.0.0-b0"
+	yb_version_match = re.search(r'PostgreSQL\s+[\d.]+\-YB\-([0-9.]+(?:\-[a-zA-Z0-9]+)?)', version_string)
+	if yb_version_match:
+		yb_version = yb_version_match.group(1)
+	else:
+		# If no PostgreSQL prefix found, assume it's already just the YugabyteDB version
+		yb_version = version_string
+	
 	# Extract version components (handle build numbers like "-b359")
-	version_clean = version_string.split('-')[0]
+	version_clean = yb_version.split('-')[0]
 	
 	# Match version pattern: A.B.C.D where A, B, C, D are numbers
 	match = re.match(r'^(\d+)\.(\d+)\.(\d+)\.(\d+)$', version_clean)
