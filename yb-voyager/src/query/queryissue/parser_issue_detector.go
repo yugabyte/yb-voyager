@@ -503,7 +503,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 
 			// Always update the full type name
-			meta.DataType = p.getFullTypeName(col.TypeName, col.TypeMods)
+			meta.DataType = utils.GetSQLTypeName(col.TypeName, col.TypeMods)
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
@@ -564,39 +564,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
-}
-
-/*
-getFullTypeName constructs the full type name including type modifiers
-for supported PostgreSQL types.
-
-Examples:
-  - VARCHAR with typmods [10] becomes "varchar(10)"
-  - NUMERIC with typmods [8,2] becomes "numeric(8,2)"
-  - Types without relevant modifiers or unsupported formats return just the base type name.
-
-Currently supported:
-  - varchar(n)
-  - bpchar(n) (PostgreSQL's internal name for char(n))
-  - numeric(p, s)
-*/
-func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) string {
-	switch typeName {
-	case "varchar", "bpchar": // varchar(n), char(n)
-		if len(typmods) == 1 {
-			return fmt.Sprintf("%s(%d)", typeName, typmods[0])
-		}
-		return typeName
-
-	case "numeric":
-		if len(typmods) == 2 {
-			return fmt.Sprintf("numeric(%d,%d)", typmods[0], typmods[1])
-		}
-		return typeName
-
-	default:
-		return typeName
-	}
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
