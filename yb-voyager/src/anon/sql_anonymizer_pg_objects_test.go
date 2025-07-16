@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -86,6 +87,18 @@ var enabled = map[string]bool{
 	"TABLE-DETACH-PARTITION":           true,
 	"TABLE-DETACH-PARTITION-FINALIZE":  true,
 	"TABLE-REPLICA-IDENTITY-INDEX":     true,
+	"INDEX-CREATE":                     true,
+	"INDEX-RENAME":                     true,
+	"INDEX-CREATE-UNIQUE":              true,
+	"INDEX-CREATE-GIN":                 true,
+	"INDEX-CREATE-EXPRESSION":          true,
+	"INDEX-CREATE-PARTIAL":             true,
+	"INDEX-CREATE-CONCURRENTLY":        true,
+	"INDEX-CREATE-IF-NOT-EXISTS":       true,
+	"INDEX-CREATE-WITH-OPTIONS":        true,
+	"INDEX-DROP":                       true,
+	"INDEX-DROP-IF-EXISTS":             true,
+	"INDEX-DROP-CONCURRENTLY":          true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -98,6 +111,7 @@ type ddlCase struct {
 }
 
 func TestPostgresDDLVariants(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
 	exportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 	az := newAnon(t, exportDir)
@@ -438,6 +452,50 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER TABLE sales.orders CLUSTER ON idx_amt;`,
 			[]string{"sales", "orders", "idx_amt"},
 			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-UNIQUE",
+			`CREATE UNIQUE INDEX idx_unique_amount ON sales.orders (amount);`,
+			[]string{"idx_unique_amount", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-GIN",
+			`CREATE INDEX idx_customer_name_gin ON sales.orders USING GIN (customer_name gin_trgm_ops);`,
+			[]string{"idx_customer_name_gin", "sales", "orders", "customer_name"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-EXPRESSION",
+			`CREATE INDEX idx_lower_customer_name ON sales.orders USING BTREE (lower(customer_name));`,
+			[]string{"idx_lower_customer_name", "sales", "orders", "customer_name"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-PARTIAL",
+			`CREATE INDEX idx_amount_gt0 ON sales.orders (amount) WHERE amount > 0;`,
+			[]string{"idx_amount_gt0", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-CONCURRENTLY",
+			`CREATE INDEX CONCURRENTLY idx_amt_concurrent ON sales.orders (amount);`,
+			[]string{"idx_amt_concurrent", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-IF-NOT-EXISTS",
+			`CREATE INDEX IF NOT EXISTS idx_amt_exists ON sales.orders (amount);`,
+			[]string{"idx_amt_exists", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-WITH-OPTIONS",
+			`CREATE INDEX idx_amt_with_options ON sales.orders (amount) WITH (fillfactor = 80);`,
+			[]string{"idx_amt_with_options", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-RENAME",
+			`ALTER INDEX sales.idx_amt RENAME TO idx_amount_new;`,
+			[]string{"sales", "idx_amt", "idx_amount_new"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP",
+			`DROP INDEX sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP-IF-EXISTS",
+			`DROP INDEX IF EXISTS sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP-CONCURRENTLY",
+			`DROP INDEX CONCURRENTLY sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
 
 		// ─── POLICY ────────────────────────────────────────────
 		{"POLICY-CREATE",
@@ -525,9 +583,9 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER TABLE <name> RENAME TO <new>              | RenameStmtNode               | [x]
 //                       | DROP TABLE <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
-//  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [ ]
-//                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [ ]
-//                       | DROP INDEX <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [ ]
+//  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [x]
+//                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [x]
+//                       | DROP INDEX <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
 //  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [ ]
 //                       | ALTER POLICY <name> RENAME TO <new>             | AlterPolicyStmtNode          | [ ]
@@ -543,6 +601,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [ ]
 //                       | DROP FOREIGN TABLE <name>                       | DropStmtNode                 | [ ]
 //
+// No sensitive data in OPERATOR objects, so skipping.
 //  OPERATOR             | CREATE OPERATOR <schema>.<name> ...             | CreateOperatorStmtNode       | [ ]
 //                       | ALTER OPERATOR <name> RENAME TO <new>           | RenameStmtNode               | [ ]
 //                       | DROP OPERATOR <schema>.<name>                   | DropStmtNode                 | [ ]

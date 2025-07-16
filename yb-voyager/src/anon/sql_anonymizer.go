@@ -99,6 +99,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling table object nodes: %w", err)
 	}
 
+	err = a.handleIndexObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling index object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -189,69 +194,6 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			rt.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, rt.Name)
 			if err != nil {
 				return fmt.Errorf("anon alias: %w", err)
-			}
-		}
-
-	/*
-		IndexStmtNode check is for anonymizing the index name
-		IndexElemNode check is for anonymizing the column names in index definition
-
-		SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
-		ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
-					index_params:{index_elem:{name:"last_name" ...}} index_params:{index_elem:{name:"first_name" ...}} index_params:{index_elem:{name:"hire_date" ...}}}}
-	*/
-	case queryparser.PG_QUERY_INDEX_STMT_NODE:
-		idx, ok := queryparser.ProtoAsIndexStmtNode(msg)
-		if !ok {
-			return fmt.Errorf("expected IndexStmt, got %T", msg.Interface())
-		}
-
-		if idx.Idxname != "" {
-			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
-			if err != nil {
-				return fmt.Errorf("anon idxname: %w", err)
-			}
-		}
-
-	case queryparser.PG_QUERY_INDEXELEM_NODE:
-		ie, ok := queryparser.ProtoAsIndexElemNode(msg)
-		if !ok {
-			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
-		}
-
-		/*
-			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
-			ParseTree:	{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
-						index_params:{index_elem:{name:"last_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-						index_params:{index_elem:{name:"first_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
-						index_params:{index_elem:{name:"hire_date" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:79
-		*/
-		// 1) Plain column index: (Name != "")
-		//    CREATE INDEX … ON tbl(col1);
-		if ie.Name != "" {
-			ie.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, ie.Name)
-			if err != nil {
-				return fmt.Errorf("anon index column name: %w", err)
-			}
-		}
-
-		/*
-			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee((last_name + first_name));
-			ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} ...
-						index_params:{index_elem:{expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"+"}} lexpr:{column_ref:{fields:{string:{sval:"last_name"}} location:47}}
-						rexpr:{column_ref:{fields:{string:{sval:"first_name"}} ...}} ...}} ...}}}}
-		*/
-		// 2) Expression index: (Expr != nil, Name == "")
-		//    CREATE INDEX … ON tbl((col1+col2));
-		// this case will be handled already by ColumnRefNode processor
-
-		// 3) Expression alias: (Indexcolname != "")
-		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
-		//	 above this sql syntax is invalid, couldn't find an example of Indexcolname but still keeping the anonymization logic here
-		if ie.Indexcolname != "" {
-			ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
-			if err != nil {
-				return fmt.Errorf("anon index column alias: %w", err)
 			}
 		}
 
@@ -947,6 +889,76 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// - AT_DropOf, AT_ReAddComment, AT_SetAccessMethod
 		}
 	}
+	return nil
+}
+
+func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	/*
+		IndexStmtNode check is for anonymizing the index name
+		IndexElemNode check is for anonymizing the column names in index definition
+
+		SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
+		ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
+					index_params:{index_elem:{name:"last_name" ...}} index_params:{index_elem:{name:"first_name" ...}} index_params:{index_elem:{name:"hire_date" ...}}}}
+	*/
+	case queryparser.PG_QUERY_INDEX_STMT_NODE:
+		idx, ok := queryparser.ProtoAsIndexStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexStmt, got %T", msg.Interface())
+		}
+
+		if idx.Idxname != "" {
+			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
+			if err != nil {
+				return fmt.Errorf("anon idxname: %w", err)
+			}
+		}
+
+	case queryparser.PG_QUERY_INDEXELEM_NODE:
+		ie, ok := queryparser.ProtoAsIndexElemNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
+		}
+
+		/*
+			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee(last_name, first_name, hire_date);
+			ParseTree:	{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} access_method:"btree"
+						index_params:{index_elem:{name:"last_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+						index_params:{index_elem:{name:"first_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
+						index_params:{index_elem:{name:"hire_date" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:79
+		*/
+		// 1) Plain column index: (Name != "")
+		//    CREATE INDEX … ON tbl(col1);
+		if ie.Name != "" {
+			ie.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, ie.Name)
+			if err != nil {
+				return fmt.Errorf("anon index column name: %w", err)
+			}
+		}
+
+		/*
+			SQL:		CREATE INDEX idx_emp_name_date ON hr.employee((last_name + first_name));
+			ParseTree:	stmt:{index_stmt:{idxname:"idx_emp_name_date" relation:{schemaname:"hr" relname:"employee" inh:true relpersistence:"p" location:34} ...
+						index_params:{index_elem:{expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"+"}} lexpr:{column_ref:{fields:{string:{sval:"last_name"}} location:47}}
+						rexpr:{column_ref:{fields:{string:{sval:"first_name"}} ...}} ...}} ...}}}}
+		*/
+		// 2) Expression index: (Expr != nil, Name == "")
+		//    CREATE INDEX … ON tbl((col1+col2));
+		// this case will be handled already by ColumnRefNode processor
+
+		// 3) Expression alias: (Indexcolname != "")
+		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
+		//	 above this sql syntax is invalid, couldn't find an example of Indexcolname but still keeping the anonymization logic here
+		if ie.Indexcolname != "" {
+			ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
+			if err != nil {
+				return fmt.Errorf("anon index column alias: %w", err)
+			}
+		}
+
+	}
+
 	return nil
 }
 
