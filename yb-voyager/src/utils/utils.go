@@ -209,6 +209,17 @@ func FileOrFolderExistsWithGlobPattern(path string) bool {
 	return len(files) > 0
 }
 
+func FilePathForAnyFileExistsInGlobPattern(path string) (string, bool) {
+	files, err := filepath.Glob(path)
+	if err != nil {
+		return "", false
+	}
+	if len(files) > 0 {
+		return files[0], true
+	}
+	return "", false
+}
+
 func CleanDir(dir string) {
 	if FileOrFolderExists(dir) {
 		files, _ := filepath.Glob(dir + "/*")
