@@ -60,7 +60,7 @@ var importSchemaCmd = &cobra.Command{
 		sourceDBType = GetSourceDBTypeFromMSR()
 		err = validateImportFlags(cmd, TARGET_DB_IMPORTER_ROLE)
 		if err != nil {
-			utils.ErrExit("Error validating import flags: %s", err.Error())
+			utils.ErrExit("Error validating import flags: %w", err)
 		}
 	},
 
@@ -102,7 +102,7 @@ func importSchema() error {
 		tdb = tgtdb.NewTargetDB(&tconf)
 		err := tdb.Init()
 		if err != nil {
-			return fmt.Errorf("Failed to initialize the target DB during import schema: %s", err)
+			return fmt.Errorf("Failed to initialize the target DB during import schema: %w", err)
 		}
 		targetDBDetails = tdb.GetCallhomeTargetDBInfo()
 		//Marking tdb as nil back to not allow others to use it as this is just dummy initialisation of tdb
@@ -116,7 +116,7 @@ func importSchema() error {
 		// Check import schema permissions
 		missingPermissions, err := getMissingImportSchemaPermissions()
 		if err != nil {
-			return fmt.Errorf("Failed to get missing import schema permissions: %s", err)
+			return fmt.Errorf("Failed to get missing import schema permissions: %w", err)
 		}
 		if len(missingPermissions) > 0 {
 			output := strings.Join(missingPermissions, "\n")
@@ -139,20 +139,20 @@ func importSchema() error {
 
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		return fmt.Errorf("failed to connect to target database: %v", err)
+		return fmt.Errorf("failed to connect to target database: %w", err)
 	}
 	defer conn.Close(context.Background())
 	var importTargetDBVersion string
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err = conn.QueryRow(context.Background(), query).Scan(&importTargetDBVersion)
 	if err != nil {
-		return fmt.Errorf("failed to get target db version: %s", err)
+		return fmt.Errorf("failed to get target db version: %w", err)
 	}
 	utils.PrintAndLog("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
-		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %s", err)
+		return fmt.Errorf("failed to check if the migration assessment is completed and applied recommendations on schema in export schema: %w", err)
 	}
 
 	if migrationAssessmentDoneAndApplied && !isYBDatabaseIsColocated(conn) && !utils.AskPrompt(fmt.Sprintf("\nWarning: Target DB '%s' is a non-colocated database, colocated tables can't be created in a non-colocated database.\n", tconf.DBName),

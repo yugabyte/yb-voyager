@@ -214,7 +214,7 @@ func executeAssessment(dbConfig AssessMigrationDBConfig) error {
 	log.Infof("executing the cmd: %s", execCmd.String())
 	err := execCmd.Run()
 	if err != nil {
-		return fmt.Errorf("error while assess migration of schema-%s: %v", dbConfig.GetSchemaIdentifier(), err)
+		return fmt.Errorf("error while assess migration of schema-%s: %w", dbConfig.GetSchemaIdentifier(), err)
 	}
 	return nil
 }

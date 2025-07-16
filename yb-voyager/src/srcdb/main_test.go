@@ -49,11 +49,11 @@ func TestMain(m *testing.M) {
 	postgresContainer := testcontainers.NewTestContainer("postgresql", nil)
 	err := postgresContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start postgres container: %v", err)
+		utils.ErrExit("Failed to start postgres container: %w", err)
 	}
 	host, port, err := postgresContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 	testPostgresSource = &TestDB{
 		TestContainer: postgresContainer,
@@ -78,11 +78,11 @@ func TestMain(m *testing.M) {
 	oracleContainer := testcontainers.NewTestContainer("oracle", nil)
 	err = oracleContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start oracle container: %v", err)
+		utils.ErrExit("Failed to start oracle container: %w", err)
 	}
 	host, port, err = oracleContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 
 	testOracleSource = &TestDB{
@@ -108,11 +108,11 @@ func TestMain(m *testing.M) {
 	mysqlContainer := testcontainers.NewTestContainer("mysql", nil)
 	err = mysqlContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start mysql container: %v", err)
+		utils.ErrExit("Failed to start mysql container: %w", err)
 	}
 	host, port, err = mysqlContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 	testMySQLSource = &TestDB{
 		TestContainer: mysqlContainer,
@@ -138,11 +138,11 @@ func TestMain(m *testing.M) {
 	yugabytedbContainer := testcontainers.NewTestContainer("yugabytedb", nil)
 	err = yugabytedbContainer.Start(ctx)
 	if err != nil {
-		utils.ErrExit("Failed to start yugabytedb container: %v", err)
+		utils.ErrExit("Failed to start yugabytedb container: %w", err)
 	}
 	host, port, err = yugabytedbContainer.GetHostPort()
 	if err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 	testYugabyteDBSource = &TestDB{
 		TestContainer: yugabytedbContainer,

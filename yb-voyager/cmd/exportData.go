@@ -102,7 +102,7 @@ func exportDataCommandPreRun(cmd *cobra.Command, args []string) {
 	setExportFlagsDefaults()
 	err := validateExportFlags(cmd, exporterRole)
 	if err != nil {
-		utils.ErrExit("failed to validate export flags: %s", err.Error())
+		utils.ErrExit("failed to validate export flags: %w", err)
 	}
 	validateExportTypeFlag()
 	markFlagsRequired(cmd)
@@ -211,19 +211,19 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the source db: %s", err)
+		utils.ErrExit("Failed to connect to the source db: %w", err)
 	}
 	defer source.DB().Disconnect()
 
 	if source.RunGuardrailsChecks {
 		err = source.DB().CheckSourceDBVersion(exportType)
 		if err != nil {
-			utils.ErrExit("Source DB version check failed: %s", err)
+			utils.ErrExit("Source DB version check failed: %w", err)
 		}
 
 		binaryCheckIssues, err := checkDependenciesForExport()
 		if err != nil {
-			utils.ErrExit("check dependencies for export: %v", err)
+			utils.ErrExit("check dependencies for export: %w", err)
 		} else if len(binaryCheckIssues) > 0 {
 			headerStmt := color.RedString("Missing dependencies for export data:")
 			utils.PrintAndLog("\n%s\n%s", headerStmt, strings.Join(binaryCheckIssues, "\n"))
@@ -239,7 +239,7 @@ func exportData() bool {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("error getting migration status record: %v", err)
+		utils.ErrExit("error getting migration status record: %w", err)
 	}
 
 	if source.DBType == YUGABYTEDB {
@@ -261,7 +261,7 @@ func exportData() bool {
 	saveExportTypeInMSR()
 	err = InitNameRegistry(exportDir, exporterRole, &source, source.DB(), nil, nil, false)
 	if err != nil {
-		utils.ErrExit("initialize name registry: %v", err)
+		utils.ErrExit("initialize name registry: %w", err)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -270,7 +270,7 @@ func exportData() bool {
 	// get initial table list
 	partitionsToRootTableMap, finalTableList, err := getInitialTableList()
 	if err != nil {
-		utils.ErrExit("error getting initial table list: %v", err)
+		utils.ErrExit("error getting initial table list: %w", err)
 	}
 
 	// Check if source DB has required permissions for export data
@@ -307,7 +307,7 @@ func exportData() bool {
 
 	msr, err = metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("get migration status record: %v", err)
+		utils.ErrExit("get migration status record: %w", err)
 	}
 
 	leafPartitions := utils.NewStructMap[sqlname.NameTuple, []string]()
@@ -318,7 +318,7 @@ func exportData() bool {
 			//Fine to lookup directly as this will root table in case of partitions
 			tuple, err := namereg.NameReg.LookupTableName(renamedTable)
 			if err != nil {
-				utils.ErrExit("lookup table name: %s: %v", renamedTable, err)
+				utils.ErrExit("lookup table name: %s: %w", renamedTable, err)
 			}
 			currPartitions, ok := leafPartitions.Get(tuple)
 			if !ok {
@@ -380,12 +380,12 @@ func exportData() bool {
 
 			msr, err := metaDB.GetMigrationStatusRecord()
 			if err != nil {
-				utils.ErrExit("get migration status record: %v", err)
+				utils.ErrExit("get migration status record: %w", err)
 			}
 
 			isActive, err := checkIfReplicationSlotIsActive(msr.PGReplicationSlotName)
 			if err != nil {
-				utils.ErrExit("error checking if replication slot is active: %v", err)
+				utils.ErrExit("error checking if replication slot is active: %w", err)
 			}
 			if isActive {
 				errorMsg := fmt.Sprintf("Replication slot '%s' is active", msr.PGReplicationSlotName)
@@ -403,7 +403,7 @@ func exportData() bool {
 			// Setting up sequence values for debezium to start tracking from..
 			sequenceValueMap, err := getPGDumpSequencesAndValues()
 			if err != nil {
-				utils.ErrExit("get pg dump sequence values: %v", err)
+				utils.ErrExit("get pg dump sequence values: %w", err)
 			}
 
 			var sequenceInitValues strings.Builder
@@ -443,25 +443,25 @@ func exportData() bool {
 			log.Infof("live migration complete, proceeding to cutover")
 			msr, err := metaDB.GetMigrationStatusRecord()
 			if err != nil {
-				utils.ErrExit("get migration status record: %v", err)
+				utils.ErrExit("get migration status record: %w", err)
 			}
 			if isTargetDBExporter(exporterRole) {
 				if msr.UseYBgRPCConnector {
 					err = ybCDCClient.DeleteStreamID()
 					if err != nil {
-						utils.ErrExit("failed to delete stream id after data export: %v", err)
+						utils.ErrExit("failed to delete stream id after data export: %w", err)
 					}
 				} else {
 					fmt.Println("Deleting YB replication slot and publication")
 					err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, source)
 					if err != nil {
-						utils.ErrExit("failed to delete replication slot and publication after data export: %v", err)
+						utils.ErrExit("failed to delete replication slot and publication after data export: %w", err)
 					}
 				}
 			}
 			if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 				if err != nil {
-					utils.ErrExit("get migration status record: %v", err)
+					utils.ErrExit("get migration status record: %w", err)
 				}
 				fmt.Println("Deleting PG replication slot and publication")
 				deletePGReplicationSlot(msr, &source)
@@ -471,7 +471,7 @@ func exportData() bool {
 			// mark cutover processed only after cleanup like deleting replication slot and yb cdc stream id
 			err = markCutoverProcessed(exporterRole)
 			if err != nil {
-				utils.ErrExit("failed to create trigger file after data export: %v", err)
+				utils.ErrExit("failed to create trigger file after data export: %w", err)
 			}
 
 			updateCallhomeExportPhase()
@@ -484,7 +484,7 @@ func exportData() bool {
 		exportPhase = dbzm.MODE_SNAPSHOT
 		err = storeTableListInMSR(finalTableList)
 		if err != nil {
-			utils.ErrExit("store table list in MSR: %v", err)
+			utils.ErrExit("store table list in MSR: %w", err)
 		}
 		err = exportDataOffline(ctx, cancel, finalTableList, tablesColumnList, "")
 		if err != nil {
@@ -505,7 +505,7 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 		// Hence it is safe to check this in YB irrespective of the version.
 		isAvailable, usedCount, maxCount, err := source.DB().CheckIfReplicationSlotsAreAvailable()
 		if err != nil {
-			utils.ErrExit("check replication slots: %v", err)
+			utils.ErrExit("check replication slots: %w", err)
 		}
 		if !isAvailable {
 			utils.PrintAndLog("\n%s Current replication slots: %d; Max allowed replication slots: %d\n", color.RedString("ERROR:"), usedCount, maxCount)
@@ -515,7 +515,7 @@ func checkExportDataPermissions(finalTableList []sqlname.NameTuple) {
 
 	missingPermissions, err := source.DB().GetMissingExportDataPermissions(exportType, finalTableList)
 	if err != nil {
-		utils.ErrExit("get missing export data permissions: %v", err)
+		utils.ErrExit("get missing export data permissions: %w", err)
 	}
 	if len(missingPermissions) > 0 {
 		color.Red("\nPermissions and configurations missing in the source database for export data:\n")
@@ -602,7 +602,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 		qualifiedCatalogName := table.AsQualifiedCatalogName()
 		rootTable, err := GetRootTableOfPartition(table)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %v", table.ForKey(), err)
+			return nil, nil, fmt.Errorf("failed to get root table of partition %s: %w", table.ForKey(), err)
 		}
 		allLeafPartitions := GetAllLeafPartitions(table)
 		prevLengthOfList := len(modifiedTableList)
@@ -689,7 +689,7 @@ func checkIfReplicationSlotIsActive(replicationSlot string) (bool, error) {
 	stmt := fmt.Sprintf("select active, active_pid from pg_replication_slots where slot_name='%s'", replicationSlot)
 	err := source.DB().QueryRow(stmt).Scan(&isActive, &activePID)
 	if err != nil {
-		return false, fmt.Errorf("error checking if replication slot is active: %v", err)
+		return false, fmt.Errorf("error checking if replication slot is active: %w", err)
 	}
 	return isActive && (activePID.String != ""), nil
 }
@@ -699,7 +699,7 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	replicationConn, err := pgDB.GetReplicationConnection()
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+		return fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
 	}
 	// need to keep the replication connection open until snapshot is complete.
 	defer func() {
@@ -713,12 +713,12 @@ func exportPGSnapshotWithPGdump(ctx context.Context, cancel context.CancelFunc, 
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
 	err = pgDB.CreatePublication(replicationConn, publicationName, finalTableList, true, leafPartitions)
 	if err != nil {
-		return fmt.Errorf("create publication: %v", err)
+		return fmt.Errorf("create publication: %w", err)
 	}
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
 	res, err := pgDB.CreateLogicalReplicationSlot(replicationConn, replicationSlotName, true)
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source PG database. "+
@@ -751,7 +751,7 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 	path := filepath.Join(exportDir, "data", "postdata.sql")
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("read file %q: %v", path, err)
+		return nil, fmt.Errorf("read file %q: %w", path, err)
 	}
 
 	lines := strings.Split(string(data), "\n")
@@ -773,12 +773,12 @@ func getPGDumpSequencesAndValues() (*utils.StructMap[sqlname.NameTuple, int64], 
 		seqNameRaw := args[0][1 : len(args[0])-1]
 		seqName, err := namereg.NameReg.LookupTableName(seqNameRaw)
 		if err != nil {
-			return nil, fmt.Errorf("lookup for sequence name %s: %v", seqNameRaw, err)
+			return nil, fmt.Errorf("lookup for sequence name %s: %w", seqNameRaw, err)
 		}
 
 		seqVal, err := strconv.ParseInt(strings.TrimSpace(args[1]), 10, 64)
 		if err != nil {
-			return nil, fmt.Errorf("parse %s to int in line - %s: %v", args[1], line, err)
+			return nil, fmt.Errorf("parse %s to int in line - %s: %w", args[1], line, err)
 		}
 
 		isCalled := strings.TrimSpace(args[2])
@@ -820,7 +820,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 		//ORACLE and MySQL no need to care about leaf partitions
 		tuple, err := namereg.NameReg.LookupTableName(qualifiedObjectStr)
 		if err != nil {
-			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %v", qualifiedObjectStr, err)
+			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", qualifiedObjectStr, err)
 		}
 		return tuple, nil
 	}
@@ -845,7 +845,7 @@ func getNameTupleFromQualifiedObject(qualifiedObjectStr string, qualifiedObjectN
 	if parent == "" {
 		tuple, err = namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", obj.SchemaName, obj.Unqualified.Unquoted))
 		if err != nil {
-			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %v", obj.Unqualified, err)
+			return sqlname.NameTuple{}, fmt.Errorf("lookup for table name failed err: %s: %w", obj.Unqualified, err)
 		}
 	}
 	return tuple, nil
@@ -858,7 +858,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 	applyFilterAndAddLeafTable := func(flagList string, flagName string) ([]sqlname.NameTuple, error) {
 		flagTableList, err := extractTableListFromString(fullTableList, flagList, flagName)
 		if err != nil {
-			return nil, fmt.Errorf("error extracting the %s list: %v", flagName, err)
+			return nil, fmt.Errorf("error extracting the %s list: %w", flagName, err)
 		}
 		_, flagTableList, err = addLeafPartitionsInTableList(flagTableList, true)
 		if err != nil {
@@ -888,7 +888,7 @@ func applyTableListFlagsOnFullListAndAddLeafPartitions(fullTableList []sqlname.N
 		//i.e. only add if its a normal, root, or leaf table.
 		_, includeTableList, err = addLeafPartitionsInTableList(includeTableList, false)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error keeping only leaf and root tables: %v", err)
+			return nil, nil, fmt.Errorf("error keeping only leaf and root tables: %w", err)
 		}
 	}
 	//return the include and exclude table list generated from the command flags  table-list (include list) / exclude-table-list in this run
@@ -904,7 +904,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	for _, t := range tableListFromDB {
 		tuple, err := getNameTupleFromQualifiedObject(t.Qualified.Quoted, nil, false)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting name tuple for the object: %s: %v", t.Qualified.Quoted, err)
+			return nil, nil, fmt.Errorf("error getting name tuple for the object: %s: %w", t.Qualified.Quoted, err)
 		}
 		nameTupleTableListFromDB = append(nameTupleTableListFromDB, tuple)
 	}
@@ -912,7 +912,7 @@ func fetchTablesNamesFromSourceAndFilterTableList() (map[string]string, []sqlnam
 	//apply table list flags filter on the nameTupleTableListFromDB
 	includeTableList, excludeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(nameTupleTableListFromDB, source.TableList, source.ExcludeTableList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %v", err)
+		return nil, nil, fmt.Errorf("error applying table list flags on full table list: %w", err)
 	}
 	tableListInFirstRun = sqlname.SetDifferenceNameTuples(includeTableList, excludeTableList)
 
@@ -979,7 +979,7 @@ func retrieveFirstRunListAndPartitionsRootMap(msr *metadb.MigrationStatusRecord)
 	for _, table := range storedTableList {
 		tuple, err := getNameTupleFromQualifiedObject(table, nil, fetchNameTupleFromNameRegDirectly)
 		if err != nil {
-			return nil, nil, fmt.Errorf("error getting name  tuple for the string oject name: %v", err)
+			return nil, nil, fmt.Errorf("error getting name  tuple for the string oject name: %w", err)
 		}
 		firstRunTableWithLeafsAndRoots = append(firstRunTableWithLeafsAndRoots, tuple)
 	}
@@ -1021,21 +1021,21 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 
 	firstRunTableWithLeafsAndRoots, partitionsToRootTableMap, err = retrieveFirstRunListAndPartitionsRootMap(msr)
 	if err != nil {
-		return nil, nil, fmt.Errorf("getting the first run table list and partition to root mapping: %v", err)
+		return nil, nil, fmt.Errorf("getting the first run table list and partition to root mapping: %w", err)
 	}
 
 	//guardrails around the table-list in case of re-run
 
 	registeredList, err := getRegisteredNameRegList()
 	if err != nil {
-		return nil, nil, fmt.Errorf("error getting name registry list: %v", err)
+		return nil, nil, fmt.Errorf("error getting name registry list: %w", err)
 	}
 
 	rootTables := make([]sqlname.NameTuple, 0)
 	for _, v := range partitionsToRootTableMap {
 		tuple, err := namereg.NameReg.LookupTableName(v)
 		if err != nil {
-			utils.ErrExit("look up failed for the table name: %s: %v", v, err)
+			utils.ErrExit("look up failed for the table name: %s: %w", v, err)
 		}
 		rootTables = append(rootTables, tuple)
 	}
@@ -1046,12 +1046,12 @@ func getInitialTableList() (map[string]string, []sqlname.NameTuple, error) {
 	// Finding all the partitions of all root tables part of migration, and report if there any new partitions added
 	rootToNewLeafTablesMap, err := detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables, registeredList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %v", err)
+		return nil, nil, fmt.Errorf("detecting new leaf tables on the partitioned tables: %w", err)
 	}
 
 	firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions, err := applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(registeredList, source.TableList, source.ExcludeTableList, rootToNewLeafTablesMap, rootTables, firstRunTableWithLeafsAndRoots)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error applying table list flags for current list: %v", err)
+		return nil, nil, fmt.Errorf("error applying table list flags for current list: %w", err)
 	}
 	//Reporting the guardrail msgs only on leaf tables to be consistent so filtering the root table from both the list
 	_, _, err = guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableWithLeafParititons, currentRunTableListWithLeafPartitions)
@@ -1075,7 +1075,7 @@ func applyTableListFlagsOnCurrentAndRemoveRootsFromBothLists(
 	//apply include/exclude flags and if a new table is passed (which is not present in name registry), then error out Unknown table
 	currentRunIncludeTableList, currentRunExlcudeTableList, err := applyTableListFlagsOnFullListAndAddLeafPartitions(registeredList, tableListViaFlag, excludeTableListViaFlag)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %v", err)
+		return nil, nil, fmt.Errorf("error in apply table list filter on registered list for the flags in current run: %w", err)
 	}
 	//Filtering the include and exclude list here using the ForKey() because we are using the LookupTableNameAndIgnoreOtherSideMappingIfNotFound for the Registered list
 	//Which will populate the NameTuple for all the tables with both sides in case available (including the partitions) and if not available then only one side.
@@ -1175,7 +1175,7 @@ func guardrailsAroundFirstRunAndCurrentRunTableList(firstRunTableListWithLeafPar
 func detectAndReportNewLeafPartitionsOnPartitionedTables(rootTables []sqlname.NameTuple, registeredList []sqlname.NameTuple) (map[string][]string, error) {
 	updatedPartitionsToRootTableMap, _, err := addLeafPartitionsInTableList(rootTables, true)
 	if err != nil {
-		return nil, fmt.Errorf("getting updated partitions to root table mapping: %s", err)
+		return nil, fmt.Errorf("getting updated partitions to root table mapping: %w", err)
 	}
 
 	rootToNewLeafTablesMap := make(map[string][]string)

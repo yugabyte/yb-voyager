@@ -726,7 +726,7 @@ func (tdb *TargetOracleDB) isTableExists(nt sqlname.NameTuple) bool {
 func (tdb *TargetOracleDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := tdb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %w", query, err)
 	}
 	defer rows.Close()
 

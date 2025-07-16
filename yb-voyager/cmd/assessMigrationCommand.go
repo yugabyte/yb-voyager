@@ -94,7 +94,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateOracleParams()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("failed to validate target db version: %v", err)
+			utils.ErrExit("failed to validate target db version: %w", err)
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
@@ -114,7 +114,7 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			utils.ErrExit("%s", err)
+			utils.ErrExit("%w", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
@@ -372,7 +372,7 @@ func assessMigration() (err error) {
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
-			return fmt.Errorf("failed to connect source db for assessing migration: %v", err)
+			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
 		// We will require source db connection for the below checks
@@ -506,7 +506,7 @@ func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, err
 
 func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 	if !metaDBIsCreated(exportDir) {
-		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
+		return false, fmt.Errorf("metaDB is not created in export directory: %w", errors.New(exportDir))
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -675,7 +675,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 			return fmt.Errorf("failed to clear migration assessment done in MSR: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
-		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
+		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: %w", errors.New(assessmentDir))
 	}
 
 	return nil
@@ -703,7 +703,7 @@ func gatherAssessmentMetadata() (err error) {
 			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
+		return fmt.Errorf("source DB Type %w is not yet supported for metadata and stats gathering", errors.New(source.DBType))
 	}
 	utils.PrintAndLog("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
@@ -721,7 +721,7 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 
 	tnsAdmin, err := getTNSAdmin(source)
 	if err != nil {
-		return fmt.Errorf("error getting tnsAdmin: %v", err)
+		return fmt.Errorf("error getting tnsAdmin: %w", err)
 	}
 	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
 		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
@@ -772,7 +772,7 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("script not found in possible paths: %v", possiblePathsForScript)
+	return "", fmt.Errorf("script not found in possible paths: %w", errors.New(strings.Join(possiblePathsForScript, ", ")))
 }
 
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
@@ -846,7 +846,7 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 func populateMetadataCSVIntoAssessmentDB() error {
 	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
+		return fmt.Errorf("error looking for csv files in directory %w: %w", errors.New(assessmentMetadataDir), err)
 	}
 
 	for _, metadataFilePath := range metadataFilesPath {
@@ -868,12 +868,12 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		rows, err := csvReader.ReadAll()
 		if err != nil {
 			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
-			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
+			return fmt.Errorf("error reading csv file %w: %w", errors.New(metadataFilePath), err)
 		}
 
 		err = assessmentDB.BulkInsert(tableName, rows)
 		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
+			return fmt.Errorf("error bulk inserting data into %w table: %w", errors.New(tableName), err)
 		}
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
@@ -926,7 +926,7 @@ func generateAssessmentReport() (err error) {
 
 	err = addAssessmentIssuesForRedundantIndex()
 	if err != nil {
-		return fmt.Errorf("error in getting redundant index issues: %v", err)
+		return fmt.Errorf("error in getting redundant index issues: %w", err)
 	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
@@ -963,7 +963,7 @@ func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 		migassessment.REDUNDANT_INDEXES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%s on assessmentDB for redundant indexes: %w", query, err)
+		return nil, fmt.Errorf("error querying-%w on assessmentDB for redundant indexes: %w", errors.New(query), err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -992,7 +992,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		migassessment.COLUMN_STATISTICS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%s on assessmentDB for column statistics: %w", query, err)
+		return nil, fmt.Errorf("error querying-%w on assessmentDB for column statistics: %w", errors.New(query), err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1022,7 +1022,7 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	//Fetching the column stats from assessment db
 	columnStats, err := fetchColumnStatisticsInfo()
 	if err != nil {
-		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
+		return fmt.Errorf("error fetching column stats from assessement db: %w", err)
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
@@ -1035,7 +1035,7 @@ func addAssessmentIssuesForRedundantIndex() error {
 	}
 	redundantIndexesInfo, err := fetchRedundantIndexInfo()
 	if err != nil {
-		return fmt.Errorf("error fetching redundant index information: %v", err)
+		return fmt.Errorf("error fetching redundant index information: %w", err)
 	}
 
 	var redundantIssues []queryissue.QueryIssue
@@ -1055,7 +1055,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	//fetching column stats from assessment db and then passing it on to the parser issue detector for detecting issues
 	err = fetchAndSetColumnStatisticsForIndexIssues()
 	if err != nil {
-		return fmt.Errorf("error parsing column statistics information: %v", err)
+		return fmt.Errorf("error parsing column statistics information: %w", err)
 	}
 
 	/*
@@ -1134,7 +1134,7 @@ func getUnsupportedFeaturesFromSchemaAnalysisReport(featureName string, issueDes
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", analyzeIssue.Name, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %w, %w", analyzeIssue.Name, minVersionsFixedIn, analyzeIssue.MinimumVersionsFixedIn)
 			}
 
 			objectInfo := ObjectInfo{
@@ -1287,7 +1287,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	query := fmt.Sprintf(`SELECT schema_name, object_name, object_type FROM %s`, migassessment.OBJECT_TYPE_MAPPING)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%s: %w", query, err)
+		return nil, fmt.Errorf("error querying-%w: %w", errors.New(query), err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1392,7 +1392,7 @@ func fetchUnsupportedPlPgSQLObjects(schemaAnalysisReport utils.SchemaReport) []U
 				minVersionsFixedInSet = true
 			}
 			if !areMinVersionsFixedInEqual(minVersionsFixedIn, issue.MinimumVersionsFixedIn) {
-				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %v, %v", issueName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
+				utils.ErrExit("Issues belonging to UnsupportedFeature %s have different minimum versions fixed in: %w, %w", issueName, minVersionsFixedIn, issue.MinimumVersionsFixedIn)
 			}
 
 			objects = append(objects, ObjectInfo{
@@ -1508,7 +1508,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error querying-%s on assessmentDB: %w", query, err)
+		return nil, nil, nil, fmt.Errorf("error querying-%w on assessmentDB: %w", errors.New(query), err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1572,7 +1572,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 			/*
 				TODO test this for Oracle case if there is any special handling required
 				For Live mgiration with FF or FB, It is meant to be for the datatypes that are going to be in YB after migration
-				so it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information
+				So it makes sense to use the analyzeSchema `compositeTypes` or `enumTypes` and check from there but some information
 				we are still using from Source which might need a better way in case of Oracle as for PG it doesn't really makes a difference in
 				source or analyzeSchema's results.
 			*/
@@ -1754,7 +1754,7 @@ func addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration 
 				qualifiedColName := fmt.Sprintf("%s.%s.%s", colInfo.SchemaName, colInfo.TableName, colInfo.ColumnName)
 				columns = append(columns, ObjectInfo{ObjectName: fmt.Sprintf("%s (%s)", qualifiedColName, colInfo.DataType)})
 
-				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geometry
+				baseTypeName := colInfo.GetBaseTypeNameFromDatatype() // baseType of the db e.g. for xml[] -> xml / public.geometry -> geomtetry
 
 				// We obtain the queryissue from the Report function. This queryissue is first converted to AnalyzeIssue and then to AssessmentIssue using pre existing function
 				// Coneverting queryissue directly to AssessmentIssue would have lead to the creation of a new function which would have required a lot of cases to be handled and led to code duplication

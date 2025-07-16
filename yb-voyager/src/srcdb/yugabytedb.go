@@ -159,7 +159,7 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 	FROM information_schema.schemata where schema_name IN (%s);`, querySchemaList)
 	rows, err := yb.db.Query(chkSchemaExistsQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %v\n", chkSchemaExistsQuery, err)
+		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
 	}
 	var listOfSchemaPresent []string
 	var tableSchemaName string
@@ -167,7 +167,7 @@ func (yb *YugabyteDB) checkSchemasExists() []string {
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
 		}
 		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
 	}
@@ -245,7 +245,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying YB database for table names: %q: %v\n", query, err)
+		utils.ErrExit("error in querying YB database for table names: %q: %w\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -260,7 +260,7 @@ func (yb *YugabyteDB) GetAllTableNames() []*sqlname.SourceName {
 	for rows.Next() {
 		err = rows.Scan(&tableSchema, &tableName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for table names: %w\n", err)
 		}
 		tableName = fmt.Sprintf("\"%s\"", tableName)
 		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
@@ -361,7 +361,7 @@ func (yb *YugabyteDB) getExportedColumnsListForTable(exportDir, tableName string
 		return false // stop reading file
 	})
 	if err != nil {
-		utils.ErrExit("error in reading toc file: %v\n", err)
+		utils.ErrExit("error in reading toc file: %w\n", err)
 	}
 	log.Infof("columns list for table %s: %v", tableName, columnsList)
 	return columnsList
@@ -388,7 +388,7 @@ func (yb *YugabyteDB) GetAllSequences() []string {
 	for rows.Next() {
 		err = rows.Scan(&sequenceName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for sequence names: %w", err)
 		}
 		sequenceNames = append(sequenceNames, sequenceName)
 	}
@@ -401,7 +401,7 @@ func (yb *YugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -414,12 +414,12 @@ func (yb *YugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	for rows.Next() {
 		err = rows.Scan(&sequenceName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for sequence names: %v", err)
+			utils.ErrExit("error in scanning query rows for sequence names: %w", err)
 		}
 		sequenceNames = append(sequenceNames, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %w", rows.Err())
 	}
 	return sequenceNames, nil
 }
@@ -462,7 +462,7 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 						);`, schemaName, schemaName, schemaName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for enum types: %q: %v\n", query, err)
+		utils.ErrExit("error in querying source database for enum types: %q: %w\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -475,7 +475,7 @@ func (yb *YugabyteDB) getAllUserDefinedTypesInSchema(schemaName string) []string
 		var enumType string
 		err = rows.Scan(&enumType)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for enum types: %v\n", err)
+			utils.ErrExit("error in scanning query rows for enum types: %w\n", err)
 		}
 		enumTypes = append(enumTypes, enumType)
 	}
@@ -489,7 +489,7 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 						AND data_type = 'ARRAY';`, schemaName, tableName)
 	rows, err := yb.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for array types: %q: %v\n", query, err)
+		utils.ErrExit("error in querying source database for array types: %q: %w\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -502,7 +502,7 @@ func (yb *YugabyteDB) getTypesOfAllArraysInATable(schemaName, tableName string) 
 		var udtType string
 		err = rows.Scan(&udtType)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for array types: %v\n", err)
+			utils.ErrExit("error in scanning query rows for array types: %w\n", err)
 		}
 		tableColumnUdtTypes = append(tableColumnUdtTypes, udtType)
 	}
@@ -569,7 +569,7 @@ func (yb *YugabyteDB) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 			if err == sql.ErrNoRows {
 				empty = true
 			} else {
-				utils.ErrExit("error in querying table: %v: %v", tableName, err)
+				utils.ErrExit("error in querying table: %w: %w", tableName, err)
 			}
 		}
 		if !empty {

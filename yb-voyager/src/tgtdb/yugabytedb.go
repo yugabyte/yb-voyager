@@ -564,7 +564,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %w", table, err)
 		}
 		result = append(result, table)
 	}
@@ -1634,7 +1634,7 @@ yugabyte=# select uuid, jsonb_pretty(metrics), status, error from yb_servers_met
 	                                 |     "tserver_root_memory_limit": "11166914969",    +|        |
 	                                 |     "tserver_root_memory_soft_limit": "9491877723",+|        |
 	                                 |     "tserver_root_memory_consumption": "52346880"  +|        |
-	                                 | }                                                   |        |
+	                                 | }                                                                                                     |        |
 	d105c3a6128640f5a25cc74435e48ae3 | {                                                  +| OK     |
 	                                 |     "memory_free": "0",                            +|        |
 	                                 |     "memory_total": "17179869184",                 +|        |

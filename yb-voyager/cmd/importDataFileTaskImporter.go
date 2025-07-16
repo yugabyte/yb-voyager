@@ -66,7 +66,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
-		return nil, fmt.Errorf("creating file batch producer: %s", err)
+		return nil, fmt.Errorf("creating file batch producer: %w", err)
 	}
 	totalProgressAmount := getTotalProgressAmount(task)
 	progressReporter.ImportFileStarted(task, totalProgressAmount)
@@ -151,7 +151,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		log.Infof("Skipping empty batch: %s", spew.Sdump(batch))
 		err = batch.MarkDone()
 		if err != nil {
-			utils.ErrExit("marking empty batch as done: %q: %s", batch.FilePath, err)
+			utils.ErrExit("marking empty batch as done: %q: %w", batch.FilePath, err)
 		}
 		return
 	}
@@ -167,7 +167,7 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	if !recoveryBatch {
 		err = batch.MarkInProgress()
 		if err != nil {
-			utils.ErrExit("marking batch as pending: %d: %s", batch.Number, err)
+			utils.ErrExit("marking batch as pending: %d: %w", batch.Number, err)
 		}
 	}
 
@@ -220,12 +220,12 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 		var err2 error
 		err2 = fti.errorHandler.HandleBatchIngestionError(batch, fti.task.FilePath, err, isPartialBatchIngestionPossibleOnError)
 		if err2 != nil {
-			utils.ErrExit("handling error for batch: %q into %s: %s", batch.FilePath, batch.TableNameTup, err2)
+			utils.ErrExit("handling error for batch: %q into %s: %w", batch.FilePath, batch.TableNameTup, err2)
 		}
 	} else {
 		err = batch.MarkDone()
 		if err != nil {
-			utils.ErrExit("marking batch as done: %q: %s", batch.FilePath, err)
+			utils.ErrExit("marking batch as done: %q: %w", batch.FilePath, err)
 		}
 	}
 }
@@ -273,13 +273,13 @@ func getImportedProgressAmount(task *ImportFileTask, state *ImportDataState) int
 	if reportProgressInBytes {
 		byteCount, err := state.GetImportedByteCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported byte count for table: %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported byte count for table: %s: %w", task.TableNameTup, err)
 		}
 		return byteCount
 	} else {
 		rowCount, err := state.GetImportedRowCount(task.FilePath, task.TableNameTup)
 		if err != nil {
-			utils.ErrExit("Failed to get imported row count for table: %s: %s", task.TableNameTup, err)
+			utils.ErrExit("Failed to get imported row count for table: %s: %w", task.TableNameTup, err)
 		}
 		return rowCount
 	}
@@ -315,7 +315,7 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	columns, _ := TableToColumnNames.Get(tableNameTup)
 	columns, err := tdb.QuoteAttributeNames(tableNameTup, columns)
 	if err != nil {
-		utils.ErrExit("if required quote column names: %s", err)
+		utils.ErrExit("if required quote column names: %w", err)
 	}
 
 	/*
@@ -326,16 +326,16 @@ func getImportBatchArgsProto(tableNameTup sqlname.NameTuple, filePath string) *t
 	// TODO: Optimize this by fetching the primary key columns and constraint names in one go for all tables
 	pkColumns, err := tdb.GetPrimaryKeyColumns(tableNameTup)
 	if err != nil {
-		utils.ErrExit("getting primary key columns for table %s: %s", tableNameTup.ForMinOutput(), err)
+		utils.ErrExit("getting primary key columns for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
 	pkColumns, err = tdb.QuoteAttributeNames(tableNameTup, pkColumns)
 	if err != nil {
-		utils.ErrExit("if required quote primary key column names: %s", err)
+		utils.ErrExit("if required quote primary key column names: %w", err)
 	}
 
 	pkConstraintNames, err := tdb.GetPrimaryKeyConstraintNames(tableNameTup)
 	if err != nil {
-		utils.ErrExit("getting primary key constraint name for table %s: %s", tableNameTup.ForMinOutput(), err)
+		utils.ErrExit("getting primary key constraint name for table %s: %w", tableNameTup.ForMinOutput(), err)
 	}
 
 	// If `columns` is unset at this point, no attribute list is passed in the COPY command.

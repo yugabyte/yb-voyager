@@ -93,7 +93,7 @@ func (ora *Oracle) CheckSchemaExists() bool {
 	if err == sql.ErrNoRows {
 		return false
 	} else if err != nil {
-		utils.ErrExit("error in querying source database for schema: %q: %v\n", schemaName, err)
+		utils.ErrExit("error in querying source database for schema: %q: %w\n", schemaName, err)
 	}
 	return true
 }
@@ -161,7 +161,7 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying source database for table names: %v", err)
+		return nil, fmt.Errorf("error in querying source database for table names: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -173,7 +173,7 @@ func (ora *Oracle) GetAllTableNamesRaw(schemaName string) ([]string, error) {
 		var tableName string
 		err = rows.Scan(&tableName)
 		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for table names: %v", err)
+			return nil, fmt.Errorf("error in scanning query rows for table names: %w", err)
 		}
 		if strings.HasPrefix(tableName, "VOYAGER_LOG_MINING_FLUSH_") {
 			//Ignore this table as this is for debezium's internal use
@@ -191,7 +191,7 @@ func (ora *Oracle) GetAllTableNames() []*sqlname.SourceName {
 	var tableNames []*sqlname.SourceName
 	tableNamesRaw, err := ora.GetAllTableNamesRaw(ora.source.Schema)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %v", err)
+		utils.ErrExit("error in querying source database for table names: %w", err)
 	}
 	for _, tableName := range tableNamesRaw {
 		tableName = fmt.Sprintf(`"%s"`, tableName)
@@ -321,7 +321,7 @@ func (ora *Oracle) GetCharset() (string, error) {
 	query := "SELECT VALUE FROM NLS_DATABASE_PARAMETERS WHERE PARAMETER = 'NLS_CHARACTERSET'"
 	err := ora.db.QueryRow(query).Scan(&charset)
 	if err != nil {
-		return "", fmt.Errorf("failed to query %q for database encoding: %s", query, err)
+		return "", fmt.Errorf("failed to query %q for database encoding: %w", query, err)
 	}
 	return charset, nil
 }
@@ -345,13 +345,13 @@ func (ora *Oracle) FilterUnsupportedTables(migrationUUID uuid.UUID, tableList []
 	log.Infof("query for queue tables: %q\n", query)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		utils.ErrExit("failed to query for filtering unsupported queue tables:%q: %v", query, err)
+		utils.ErrExit("failed to query for filtering unsupported queue tables:%q: %w", query, err)
 	}
 	for rows.Next() {
 		var tableName string
 		err := rows.Scan(&tableName)
 		if err != nil {
-			utils.ErrExit("failed to scan tableName from output of query: %q: %v", query, err)
+			utils.ErrExit("failed to scan tableName from output of query: %q: %w", query, err)
 		}
 		tableName = fmt.Sprintf(`"%s"`, tableName)
 		tableSrcName := sqlname.NewSourceName(ora.source.Schema, tableName)
@@ -414,7 +414,7 @@ func (ora *Oracle) IsNestedTable(tableName sqlname.NameTuple) bool {
 	isNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isNestedTable)
 	if err != nil && err != sql.ErrNoRows {
-		utils.ErrExit("check if table is a nested table: %v: %v", tableName, err)
+		utils.ErrExit("check if table is a nested table: %w: %w", tableName, err)
 	}
 	return isNestedTable == 1
 }
@@ -427,7 +427,7 @@ func (ora *Oracle) IsParentOfNestedTable(tableName sqlname.NameTuple) bool {
 	isParentNestedTable := 0
 	err := ora.db.QueryRow(query).Scan(&isParentNestedTable)
 	if err != nil && err != sql.ErrNoRows {
-		utils.ErrExit("check if table is parent of nested table: %v: %v", tableName, err)
+		utils.ErrExit("check if table is parent of nested table: %w: %w", tableName, err)
 	}
 	return isParentNestedTable == 1
 }
@@ -440,7 +440,7 @@ func (ora *Oracle) GetTargetIdentityColumnSequenceName(sequenceName string) stri
 	if err == sql.ErrNoRows {
 		return ""
 	} else if err != nil {
-		utils.ErrExit("failed to query for finding identity sequence table and column: %q: %v", query, err)
+		utils.ErrExit("failed to query for finding identity sequence table and column: %q: %w", query, err)
 	}
 
 	return fmt.Sprintf("%s_%s_seq", tableName, columnName)
@@ -462,7 +462,7 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 		query := fmt.Sprintf("SELECT column_name FROM all_tab_identity_cols WHERE owner = '%s' AND table_name = '%s'", sname, tname)
 		rows, err := ora.db.Query(query)
 		if err != nil {
-			utils.ErrExit("failed to query for finding identity column: %q: %v", query, err)
+			utils.ErrExit("failed to query for finding identity column: %q: %w", query, err)
 		}
 		defer func() {
 			closeErr := rows.Close()
@@ -474,14 +474,14 @@ func (ora *Oracle) GetColumnToSequenceMap(tableList []sqlname.NameTuple) map[str
 			var columnName string
 			err := rows.Scan(&columnName)
 			if err != nil {
-				utils.ErrExit("failed to scan columnName from output of query: %q: %v", query, err)
+				utils.ErrExit("failed to scan columnName from output of query: %q: %w", query, err)
 			}
 			qualifiedColumnName := fmt.Sprintf("%s.%s", table.AsQualifiedCatalogName(), columnName)
 			columnToSequenceMap[qualifiedColumnName] = fmt.Sprintf("%s_%s_seq", tname, columnName)
 		}
 		err = rows.Close()
 		if err != nil {
-			utils.ErrExit("close rows for table: %s query %q: %s", table.String(), query, err)
+			utils.ErrExit("close rows for table: %s query %q: %w", table.String(), query, err)
 		}
 	}
 
@@ -496,21 +496,21 @@ func (ora *Oracle) GetAllSequencesRaw(schemaName string) ([]string, error) {
 	query := fmt.Sprintf("SELECT table_name, column_name FROM all_tab_identity_cols WHERE owner = '%s'", schemaName)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query %q for finding identity column: %v", query, err)
+		return nil, fmt.Errorf("failed to query %q for finding identity column: %w", query, err)
 	}
 	var sequences []string
 	for rows.Next() {
 		var columnName, tableName string
 		err := rows.Scan(&tableName, &columnName)
 		if err != nil {
-			return nil, fmt.Errorf("failed to scan columnName from output of query %q: %v", query, err)
+			return nil, fmt.Errorf("failed to scan columnName from output of query %q: %w", query, err)
 		}
 		// sequence name as per PG naming convention for bigserial datatype's sequence
 		sequenceName := fmt.Sprintf("%s_%s_seq", tableName, columnName)
 		sequences = append(sequences, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %s", query, rows.Err())
+		return nil, fmt.Errorf("failed to scan all rows of query %q for auto increment columns in tables: %w", query, rows.Err())
 	}
 	return sequences, nil
 }
@@ -701,7 +701,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		ora.source.Schema)
 	rows, err := ora.db.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying source database for unsupported tables: %v", err)
+		return nil, fmt.Errorf("error in querying source database for unsupported tables: %w", err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -715,7 +715,7 @@ func (ora *Oracle) GetNonPKTables() ([]string, error) {
 		var tableName string
 		err = rows.Scan(&count, &tableName)
 		if err != nil {
-			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %v", err)
+			return nil, fmt.Errorf("error in scanning query rows for unsupported tables: %w", err)
 		}
 		table := sqlname.NewSourceName(ora.source.Schema, fmt.Sprintf(`"%s"`, tableName))
 		if count == 0 {

@@ -57,12 +57,12 @@ func NewFileBatchProducer(task *ImportFileTask, state *ImportDataState, errorHan
 
 	err := state.PrepareForFileImport(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, fmt.Errorf("preparing for file import: %s", err)
+		return nil, fmt.Errorf("preparing for file import: %w", err)
 	}
 
 	pendingBatches, lastBatchNumber, lastOffset, fileFullySplit, err := state.Recover(task.FilePath, task.TableNameTup)
 	if err != nil {
-		return nil, fmt.Errorf("recovering state for table: %q: %s", task.TableNameTup, err)
+		return nil, fmt.Errorf("recovering state for table: %q: %w", task.TableNameTup, err)
 	}
 	completed := len(pendingBatches) == 0 && fileFullySplit
 
@@ -129,7 +129,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 	if p.lineFromPreviousBatch != "" {
 		err = batchWriter.WriteRecord(p.lineFromPreviousBatch)
 		if err != nil {
-			return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
+			return nil, fmt.Errorf("Write to batch %d: %w", batchNum, err)
 		}
 		p.lineFromPreviousBatch = ""
 	}
@@ -167,7 +167,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			lineBeforeConversion := line
 			line, err = valueConverter.ConvertRow(p.task.TableNameTup, columnNames, line)
 			if err != nil {
-				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %s", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
+				errMsg := fmt.Errorf("transforming line number=%d for table: %q in file %s: %w", p.numLinesTaken, p.task.TableNameTup.ForOutput(), p.task.FilePath, err)
 				if p.errorHandler.ShouldAbort() {
 					return nil, errMsg
 				}
@@ -202,7 +202,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			// Write the record to the current batch
 			err = batchWriter.WriteRecord(line)
 			if err != nil {
-				return nil, fmt.Errorf("Write to batch %d: %s", batchNum, err)
+				return nil, fmt.Errorf("Write to batch %d: %w", batchNum, err)
 			}
 
 			// TODO: fix. After writing the record, we should ideally check for
@@ -222,7 +222,7 @@ func (p *FileBatchProducer) produceNextBatch() (*Batch, error) {
 			p.dataFile.ResetBytesRead(0)
 			return batch, nil
 		} else if readLineErr != nil {
-			return nil, fmt.Errorf("read line from data file: %q: %s", p.task.FilePath, readLineErr)
+			return nil, fmt.Errorf("read line from data file: %q: %w", p.task.FilePath, readLineErr)
 		}
 	}
 	// ideally should not reach here

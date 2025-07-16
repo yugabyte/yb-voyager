@@ -360,7 +360,7 @@ func SendPayload(payload *Payload) error {
 
 	postBody, err := json.Marshal(payload)
 	if err != nil {
-		return fmt.Errorf("error while creating http request for diagnostics: %v", err)
+		return fmt.Errorf("error while creating http request for diagnostics: %w", err)
 	}
 	requestBody := bytes.NewBuffer(postBody)
 

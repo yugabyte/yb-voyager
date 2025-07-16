@@ -259,7 +259,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	WHERE nspname IN (%s);`, querySchemaList)
 	rows, err := pg.db.Query(chkSchemaExistsQuery)
 	if err != nil {
-		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %v\n", chkSchemaExistsQuery, err)
+		utils.ErrExit("error in querying source database for checking mentioned schema(s) present or not: %q: %w\n", chkSchemaExistsQuery, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -273,7 +273,7 @@ func (pg *PostgreSQL) checkSchemasExists() []string {
 	for rows.Next() {
 		err = rows.Scan(&tableSchemaName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for schema names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for schema names: %w\n", err)
 		}
 		listOfSchemaPresent = append(listOfSchemaPresent, tableSchemaName)
 	}
@@ -345,7 +345,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		utils.ErrExit("error in querying source database for table names: %q: %v\n", query, err)
+		utils.ErrExit("error in querying source database for table names: %q: %w\n", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -360,7 +360,7 @@ func (pg *PostgreSQL) GetAllTableNames() []*sqlname.SourceName {
 	for rows.Next() {
 		err = rows.Scan(&tableSchema, &tableName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for table names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for table names: %w\n", err)
 		}
 		tableName = fmt.Sprintf("\"%s\"", tableName)
 		tableNames = append(tableNames, sqlname.NewSourceName(tableSchema, tableName))
@@ -475,7 +475,7 @@ func (pg *PostgreSQL) getExportedColumnsListForTable(exportDir string, tableName
 		return false // stop reading file
 	})
 	if err != nil {
-		utils.ErrExit("error in reading toc file: %v\n", err)
+		utils.ErrExit("error in reading toc file: %w\n", err)
 	}
 	log.Infof("columns list for table %s: %v", tableName, columnsList)
 	return columnsList
@@ -562,10 +562,10 @@ func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 			query = fmt.Sprintf(`SELECT sequence_name FROM information_schema.sequences where sequence_schema = '%s';`, schemaName)
 			rows, err = pg.db.Query(query)
 			if err != nil {
-				return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+				return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %w", query, err)
 			}
 		} else {
-			return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+			return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %w", query, err)
 		}
 	}
 	defer func() {
@@ -584,7 +584,7 @@ func (pg *PostgreSQL) GetAllSequencesRaw(schemaName string) ([]string, error) {
 		sequenceNames = append(sequenceNames, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %w", rows.Err())
 	}
 	return sequenceNames, nil
 }
@@ -615,7 +615,7 @@ GROUP BY
 
 	rows, err := pg.db.Query(query)
 	if err != nil {
-		return -1, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+		return -1, fmt.Errorf("error in querying(%q) source database for sequence names: %w", query, err)
 	}
 
 	defer func() {
@@ -630,12 +630,12 @@ GROUP BY
 	for rows.Next() {
 		err = rows.Scan(&schemaName, &totalSize)
 		if err != nil {
-			return -1, fmt.Errorf("error in scanning query rows for schemas ('%s'): %v", schemaList, err)
+			return -1, fmt.Errorf("error in scanning query rows for schemas ('%s'): %w", schemaList, err)
 		}
 		totalSchemasSize += totalSize.Int64
 	}
 	if rows.Err() != nil {
-		return -1, fmt.Errorf("error in scanning query rows for schemas('%s'): %v", schemaList, rows.Err())
+		return -1, fmt.Errorf("error in scanning query rows for schemas('%s'): %w", schemaList, rows.Err())
 	}
 	log.Infof("Total size of all PG sourceDB schemas ('%s'): %d", schemaList, totalSchemasSize)
 	return totalSchemasSize, nil
@@ -656,7 +656,7 @@ func (pg *PostgreSQL) FilterEmptyTables(tableList []sqlname.NameTuple) ([]sqlnam
 			if err == sql.ErrNoRows {
 				empty = true
 			} else {
-				utils.ErrExit("error in querying table LIMIT 1: %v: %v", tableName, err)
+				utils.ErrExit("error in querying table LIMIT 1: %w: %w", tableName, err)
 			}
 		}
 		if !empty {

@@ -95,11 +95,11 @@ func generateAnalyzeReport(targetYBDBVersion string) (string, error) {
 func isNotValidConstraint(stmt string) (bool, error) {
 	parseTree, err := queryparser.Parse(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error parsing the ddl[%s]: %v", stmt, err)
+		return false, fmt.Errorf("error parsing the ddl[%s]: %w", stmt, err)
 	}
 	ddlObj, err := queryparser.ProcessDDL(parseTree)
 	if err != nil {
-		return false, fmt.Errorf("error in process DDL[%s]:%v", stmt, err)
+		return false, fmt.Errorf("error in process DDL[%s]:%w", stmt, err)
 	}
 	alter, ok := ddlObj.(*queryparser.AlterTable)
 	if !ok {
@@ -135,7 +135,7 @@ func executeSqlFile(file string, objType string, skipFn func(string, string) boo
 		// Check if the statement should be skipped
 		skip, err := shouldSkipDDL(sqlInfo.stmt, objType)
 		if err != nil {
-			return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %v", sqlInfo.stmt, err)
+			return fmt.Errorf("error checking whether to skip DDL for statement [%s]: %w", sqlInfo.stmt, err)
 		}
 		if skip {
 			log.Infof("Skipping DDL: %s", sqlInfo.stmt)
@@ -170,7 +170,7 @@ func shouldSkipDDL(stmt string, objType string) (bool, error) {
 	}
 	isNotValid, err := isNotValidConstraint(stmt)
 	if err != nil {
-		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %v", err)
+		return false, fmt.Errorf("error checking whether stmt is to add not valid constraint: %w", err)
 	}
 	skipNotValidWithoutPostImport := isNotValid && !bool(flagPostSnapshotImport)
 	skipOtherDDLsWithPostImport := (bool(flagPostSnapshotImport) && !isNotValid)
@@ -224,7 +224,7 @@ func executeSqlStmtWithRetries(conn **pgx.Conn, sqlInfo sqlInfo, objType string)
 			if err != nil {
 				(*conn).Close(context.Background())
 				*conn = nil
-				return fmt.Errorf("extract qualified index name from DDL [%v]: %v", sqlInfo.stmt, err)
+				return fmt.Errorf("extract qualified index name from DDL [%v]: %w", sqlInfo.stmt, err)
 			}
 
 			// DROP INDEX in case INVALID index got created
@@ -467,7 +467,7 @@ func newTargetConn() *pgx.Conn {
 		if err != nil {
 			utils.WaitChannel <- 1
 			<-utils.WaitChannel
-			utils.ErrExit("connect to target db: %s", err)
+			utils.ErrExit("connect to target db: %w", err)
 		}
 	}
 
@@ -505,7 +505,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	var cntSchemaName int
 
 	if err := conn.QueryRow(context.Background(), checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		utils.ErrExit("run query: %q on target %q to check schema exists: %s", checkSchemaExistsQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q to check schema exists: %w", checkSchemaExistsQuery, tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		utils.ErrExit("schema does not exist in target: %q", tconf.Schema)
 	}
@@ -513,7 +513,7 @@ func setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, tconf.Host, err)
 	}
 }
 
@@ -522,7 +522,7 @@ func setOrafceSearchPath(conn *pgx.Conn) {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err := conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		utils.ErrExit("unable to update search_path for orafce extension: %v", err)
+		utils.ErrExit("unable to update search_path for orafce extension: %w", err)
 	}
 }
 
