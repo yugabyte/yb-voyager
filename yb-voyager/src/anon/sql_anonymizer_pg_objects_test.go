@@ -519,10 +519,10 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER SEQUENCE RENAME TO <new>                  | RenameStmtNode               | [x]
 //                       | DROP SEQUENCE <schema>.<name>                   | DropStmtNode                 | [x]
 //
-//  TABLE                | CREATE TABLE <schema>.<name> (...)              | CreateStmtNode               | [ ]
-//                       | ALTER TABLE <name> ADD COLUMN ...               | AlterTableStmtNode           | [ ]
-//                       | ALTER TABLE <name> RENAME TO <new>              | RenameStmtNode               | [ ]
-//                       | DROP TABLE <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [ ]
+//  TABLE                | CREATE TABLE <schema>.<name> (...)              | CreateStmtNode               | [x]
+//                       | ALTER TABLE <name> ADD COLUMN ...               | AlterTableStmtNode           | [x]
+//                       | ALTER TABLE <name> RENAME TO <new>              | RenameStmtNode               | [x]
+//                       | DROP TABLE <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
 //  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [ ]
 //                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [ ]
