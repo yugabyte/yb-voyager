@@ -387,6 +387,7 @@ func assessMigration() (err error) {
 
 			// Check if required binaries are installed.
 			binaryCheckIssues, err := checkDependenciesForExport()
+			err = nil
 			if err != nil {
 				return fmt.Errorf("failed to check dependencies for assess migration: %w", err)
 			} else if len(binaryCheckIssues) > 0 {
@@ -506,7 +507,7 @@ func IsMigrationAssessmentDoneDirectly(metaDBInstance *metadb.MetaDB) (bool, err
 
 func IsMigrationAssessmentDoneViaExportSchema() (bool, error) {
 	if !metaDBIsCreated(exportDir) {
-		return false, fmt.Errorf("metaDB is not created in export directory: %w", errors.New(exportDir))
+		return false, fmt.Errorf("metaDB is not created in export directory: %s", exportDir)
 	}
 
 	msr, err := metaDB.GetMigrationStatusRecord()
@@ -675,7 +676,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 			return fmt.Errorf("failed to clear migration assessment done in MSR: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
-		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: %w", errors.New(assessmentDir))
+		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: %s", assessmentDir)
 	}
 
 	return nil
@@ -703,7 +704,7 @@ func gatherAssessmentMetadata() (err error) {
 			return fmt.Errorf("error gathering metadata and stats from source Oracle database: %w", err)
 		}
 	default:
-		return fmt.Errorf("source DB Type %w is not yet supported for metadata and stats gathering", errors.New(source.DBType))
+		return fmt.Errorf("source DB Type %s is not yet supported for metadata and stats gathering", source.DBType)
 	}
 	utils.PrintAndLog("gathered assessment metadata files at '%s'", assessmentMetadataDir)
 	return nil
@@ -772,7 +773,7 @@ func findGatherMetadataScriptPath(dbType string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("script not found in possible paths: %w", errors.New(strings.Join(possiblePathsForScript, ", ")))
+	return "", fmt.Errorf("script not found in possible paths: %s", strings.Join(possiblePathsForScript, ", "))
 }
 
 func runGatherAssessmentMetadataScript(scriptPath string, envVars []string, scriptArgs ...string) error {
@@ -846,7 +847,7 @@ func parseExportedSchemaFileForAssessmentIfRequired() {
 func populateMetadataCSVIntoAssessmentDB() error {
 	metadataFilesPath, err := filepath.Glob(filepath.Join(assessmentMetadataDir, "*.csv"))
 	if err != nil {
-		return fmt.Errorf("error looking for csv files in directory %w: %w", errors.New(assessmentMetadataDir), err)
+		return fmt.Errorf("error looking for csv files in directory %s: %w", assessmentMetadataDir, err)
 	}
 
 	for _, metadataFilePath := range metadataFilesPath {
@@ -868,12 +869,12 @@ func populateMetadataCSVIntoAssessmentDB() error {
 		rows, err := csvReader.ReadAll()
 		if err != nil {
 			log.Errorf("error reading csv file %s: %v", metadataFilePath, err)
-			return fmt.Errorf("error reading csv file %w: %w", errors.New(metadataFilePath), err)
+			return fmt.Errorf("error reading csv file %s: %w", metadataFilePath, err)
 		}
 
 		err = assessmentDB.BulkInsert(tableName, rows)
 		if err != nil {
-			return fmt.Errorf("error bulk inserting data into %w table: %w", errors.New(tableName), err)
+			return fmt.Errorf("error bulk inserting data into %s table: %w", tableName, err)
 		}
 		log.Infof("populated metadata from file %s into table %s", metadataFilePath, tableName)
 	}
@@ -963,7 +964,7 @@ func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
 		migassessment.REDUNDANT_INDEXES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%w on assessmentDB for redundant indexes: %w", errors.New(query), err)
+		return nil, fmt.Errorf("error querying=%s on assessmentDB for redundant indexes: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -992,7 +993,7 @@ func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
 		migassessment.COLUMN_STATISTICS)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%w on assessmentDB for column statistics: %w", errors.New(query), err)
+		return nil, fmt.Errorf("error querying=%s on assessmentDB for column statistics: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1287,7 +1288,7 @@ func fetchUnsupportedObjectTypes() ([]UnsupportedFeature, error) {
 	query := fmt.Sprintf(`SELECT schema_name, object_name, object_type FROM %s`, migassessment.OBJECT_TYPE_MAPPING)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error querying-%w: %w", errors.New(query), err)
+		return nil, fmt.Errorf("error querying=%s on assessmentDB: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
@@ -1508,7 +1509,7 @@ func fetchColumnsWithUnsupportedDataTypes() ([]utils.TableColumnsDataTypes, []ut
 		migassessment.TABLE_COLUMNS_DATA_TYPES)
 	rows, err := assessmentDB.Query(query)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("error querying-%w on assessmentDB: %w", errors.New(query), err)
+		return nil, nil, nil, fmt.Errorf("error querying=%s on assessmentDB: %w", query, err)
 	}
 	defer func() {
 		closeErr := rows.Close()
