@@ -36,7 +36,7 @@ const (
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
-	DEFAULT_MAX_CPU_THRESHOLD                      = 70
+	DEFAULT_MAX_CPU_THRESHOLD                      = 80
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
 )
