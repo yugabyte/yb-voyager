@@ -320,35 +320,6 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("anon constraint indexname: %w", err)
 		}
 
-	/*
-		ALTER TABLE humanresources.department CLUSTER ON \"PK_Department_DepartmentID\";
-		stmt: {alter_table_stmt:{relation:{schemaname:"humanresources" relname:"department" ...}
-			cmds:{alter_table_cmd:{subtype:AT_ClusterOn name:"PK_Department_DepartmentID" behavior:...}} objtype:OBJECT_TABLE}}
-	*/
-	case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
-		ats, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
-		if !ok {
-			return fmt.Errorf("expected AlterTableStmt, got %T", msg.Interface())
-		}
-
-		for _, cmd := range ats.Cmds {
-			alterTableCmdNode := cmd.GetAlterTableCmd()
-			if alterTableCmdNode == nil {
-				continue // skip if not an AlterTableCmd
-			}
-
-			if alterTableCmdNode.GetSubtype() == pg_query.AlterTableType_AT_ClusterOn {
-				// AT_ClusterOn has a name field that needs anonymization
-				name := alterTableCmdNode.GetName()
-				if name != "" {
-					alterTableCmdNode.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, name)
-					if err != nil {
-						return fmt.Errorf("anon alter table cluster on index: %w", err)
-					}
-				}
-			}
-		}
-
 	case queryparser.PG_QUERY_ALIAS_NODE:
 		alias, ok := queryparser.ProtoAsAliasNode(msg)
 		if !ok {
@@ -908,6 +879,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			}
 
 		// ─── INDEX OPERATIONS (using INDEX_KIND_PREFIX) ─────────────────────────────────────────────
+		// caveat: Here after "ON" it can be INDEX or Primary key both
+		// because PRIMARY KEY is also an INDEX, but at other places we use CONSTRAINT_KIND_PREFIX for it
+		// but here falling back to INDEX_KIND_PREFIX instead of going and determing it is index or primary key
 		case pg_query.AlterTableType_AT_ClusterOn:
 			// CLUSTER ON index_name
 			if atc.Name != "" {
