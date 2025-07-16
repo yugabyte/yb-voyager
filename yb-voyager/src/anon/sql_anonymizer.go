@@ -845,6 +845,11 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 		ParseTree: 	stmt:{alter_table_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:12}
 					cmds:{alter_table_cmd:{subtype:AT_AlterColumnType name:"amount" def:{column_def:{type_name:{names:{string:{sval:"pg_catalog"}}
 					names:{string:{sval:"numeric"}} typmods:{a_const:{ival:{ival:10} location:58}} typmods:{a_const:{ival:{ival:2} }} } }} behavior:DROP_RESTRICT}} objtype:OBJECT_TABLE}}
+
+		SQL:		ALTER TABLE sales.orders RENAME COLUMN amt TO amount;
+		ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_COLUMN  relation_type:OBJECT_TABLE  relation:{schemaname:"sales"  relname:"orders"  }
+					subname:"amt"  newname:"amount"  behavior:DROP_RESTRICT}}
+
 	*/
 	case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
 		at, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
@@ -1111,6 +1116,20 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 			}
 		}
 
+	/*
+		SQL:		ALTER TABLE sales.orders RENAME COLUMN amt TO amount;
+		ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_COLUMN  relation_type:OBJECT_TABLE  relation:{schemaname:"sales"  relname:"orders" ...}
+					subname:"amt"  newname:"amount"  behavior:DROP_RESTRICT}}
+	*/
+	case pg_query.ObjectType_OBJECT_COLUMN:
+		if rs.Subname != "" {
+			var err error
+			rs.Subname, err = a.registry.GetHash(prefix, rs.Subname)
+			if err != nil {
+				return fmt.Errorf("anon rename column old name: %w", err)
+			}
+		}
+
 	case pg_query.ObjectType_OBJECT_COLLATION, pg_query.ObjectType_OBJECT_TYPE,
 		pg_query.ObjectType_OBJECT_DOMAIN:
 		// These objects have qualified names in rs.Object as a list
@@ -1224,6 +1243,8 @@ func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) stri
 		return FUNCTION_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_PROCEDURE:
 		return PROCEDURE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_COLUMN:
+		return COLUMN_KIND_PREFIX
 	default:
 		log.Printf("Unknown object type: %s", objectType.String())
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix
