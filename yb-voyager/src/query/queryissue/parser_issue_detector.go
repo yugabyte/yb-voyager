@@ -35,6 +35,7 @@ import (
 // (e.g., JSONB, arrays), and foreign key relationships.
 type ColumnMetadata struct {
 	DataType               string
+	DataTypeMods           []int32
 	IsUnsupportedForIndex  bool
 	IsHotspotForRangeIndex bool
 	IsJsonb                bool
@@ -419,7 +420,8 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 				meta.ReferencedColumn = refCol
 
 				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
-					meta.ReferencedColumnType = refMeta.DataType
+					// Store the referenced column datatype with modifiers
+					meta.ReferencedColumnType = utils.ApplyModifiersToDatatype(refMeta.DataType, refMeta.DataTypeMods)
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
@@ -503,7 +505,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 
 			// Always update the full type name
-			meta.DataType = utils.GetSQLTypeName(col.TypeName, col.TypeMods)
+			meta.DataType = utils.GetSQLTypeName(col.TypeName)
+			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
