@@ -1177,54 +1177,58 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 		return fmt.Errorf("expected CommentStmt, got %T", msg.Interface())
 	}
 
-	/*
-		Example of varity of cases below:
-
-		SQL:		COMMENT ON TABLE sales.orders IS 'Customer order information';
-		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_TABLE  object:{list:{items:{string:{sval:"sales"}}  items:{string:{sval:"orders"}}}}
-							comment:"Customer order information"}}
-
-		SQL:		COMMENT ON SCHEMA sales IS 'Sales department schema';
-		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_SCHEMA  object:{string:{sval:"sales"}}  comment:"Sales department schema"}}
-
-		SQL:		COMMENT ON ROLE sales_manager IS 'something';
-		ParseTree:	stmt:{comment_stmt:{objtype:OBJECT_ROLE  object:{string:{sval:"sales_manager"}}  comment:"something"}}
-	*/
-
-	// Most object types use a list of names and a prefix
-	listBased := map[pg_query.ObjectType]bool{
-		pg_query.ObjectType_OBJECT_COLUMN:        true,
-		pg_query.ObjectType_OBJECT_TABCONSTRAINT: true,
-		pg_query.ObjectType_OBJECT_SEQUENCE:      true,
-		pg_query.ObjectType_OBJECT_INDEX:         true,
-		pg_query.ObjectType_OBJECT_VIEW:          true,
-		pg_query.ObjectType_OBJECT_TABLE:         true,
-		pg_query.ObjectType_OBJECT_POLICY:        true,
-		pg_query.ObjectType_OBJECT_MATVIEW:       true,
-		pg_query.ObjectType_OBJECT_TYPE:          true,
-		pg_query.ObjectType_OBJECT_DOMAIN:        true,
-		pg_query.ObjectType_OBJECT_COLLATION:     true,
-		pg_query.ObjectType_OBJECT_TRIGGER:       true,
-	}
-
-	// Handle function/procedure (object_with_args)
-	if cs.Objtype == pg_query.ObjectType_OBJECT_FUNCTION || cs.Objtype == pg_query.ObjectType_OBJECT_PROCEDURE {
+	// Handle different object types based on their parse tree structure
+	switch cs.Objtype {
+	case pg_query.ObjectType_OBJECT_FUNCTION, pg_query.ObjectType_OBJECT_PROCEDURE:
+		// Functions/procedures use ObjectWithArgs structure
 		if objWithArgs := cs.Object.GetObjectWithArgs(); objWithArgs != nil {
 			prefix := a.getObjectTypePrefix(cs.Objtype)
 			if err := a.anonymizeStringNodes(objWithArgs.Objname, prefix); err != nil {
 				return fmt.Errorf("anon comment function/procedure: %w", err)
 			}
 		}
-	} else if listBased[cs.Objtype] && cs.Object.GetList() != nil {
-		// Handle all list-based object types
-		prefix := a.getObjectTypePrefix(cs.Objtype)
-		if err := a.anonymizeStringNodes(cs.Object.GetList().Items, prefix); err != nil {
-			return fmt.Errorf("anon comment object: %w", err)
+
+	case pg_query.ObjectType_OBJECT_TYPE, pg_query.ObjectType_OBJECT_DOMAIN:
+		// TYPE and DOMAIN use TypeName structure
+		if typeName := cs.Object.GetTypeName(); typeName != nil {
+			prefix := a.getObjectTypePrefix(cs.Objtype)
+			if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+				return fmt.Errorf("anon comment typename: %w", err)
+			}
 		}
-	} else {
-		// Handle unqualified names (e.g., SCHEMA, DATABASE, EXTENSION, ROLE)
-		prefix := a.getObjectTypePrefix(cs.Objtype)
-		if str := cs.Object.GetString_(); str != nil && str.Sval != "" {
+
+	case pg_query.ObjectType_OBJECT_COLUMN:
+		// COLUMN uses column reference logic
+		if list := cs.Object.GetList(); list != nil {
+			if err := a.anonymizeColumnRefNode(list.Items); err != nil {
+				return fmt.Errorf("anon comment column: %w", err)
+			}
+		}
+
+	case pg_query.ObjectType_OBJECT_TABCONSTRAINT, pg_query.ObjectType_OBJECT_TRIGGER, pg_query.ObjectType_OBJECT_POLICY:
+		// Table-scoped objects: CONSTRAINT/TRIGGER/POLICY object_name ON schema.table
+		if list := cs.Object.GetList(); list != nil && len(list.Items) >= 3 {
+			// [object_name, schema, table]
+			objectPrefix := a.getObjectTypePrefix(cs.Objtype)
+			if err := a.anonymizeStringNodes(list.Items[:1], objectPrefix); err != nil {
+				return fmt.Errorf("anon comment %s name: %w", cs.Objtype, err)
+			}
+			if err := a.anonymizeStringNodes(list.Items[1:], TABLE_KIND_PREFIX); err != nil {
+				return fmt.Errorf("anon comment %s table: %w", cs.Objtype, err)
+			}
+		}
+
+	default:
+		// Handle all other object types
+		if list := cs.Object.GetList(); list != nil {
+			// Most objects use qualified names: [schema, object] or [db, schema, object]
+			prefix := a.getObjectTypePrefix(cs.Objtype)
+			if err := a.anonymizeStringNodes(list.Items, prefix); err != nil {
+				return fmt.Errorf("anon comment object: %w", err)
+			}
+		} else if str := cs.Object.GetString_(); str != nil && str.Sval != "" {
+			// Simple unqualified names (SCHEMA, DATABASE, EXTENSION, ROLE)
+			prefix := a.getObjectTypePrefix(cs.Objtype)
 			var err error
 			str.Sval, err = a.registry.GetHash(prefix, str.Sval)
 			if err != nil {
@@ -1384,6 +1388,8 @@ func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) stri
 		return COLUMN_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_POLICY:
 		return POLICY_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_TABCONSTRAINT:
+		return CONSTRAINT_KIND_PREFIX
 	default:
 		log.Printf("Unknown object type: %s", objectType.String())
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix
