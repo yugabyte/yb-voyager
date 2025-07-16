@@ -169,6 +169,11 @@ func (pg *PostgreSQL) Connect() error {
 	db.SetMaxOpenConns(pg.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	pg.db = db
+
+	err = pg.db.Ping()
+	if err != nil {
+		return err
+	}
 	return err
 }
 
