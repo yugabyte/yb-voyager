@@ -221,4 +221,5 @@ CREATE OPERATOR CLASS am_examples.box_ops
 ERROR: access method "gist2" does not exist (SQLSTATE 42704)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/operators/operator.sql
 */
-CREATE OPERATOR FAMILY am_examples.gist2_fam USING gist2; 
+CREATE OPERATOR FAMILY am_examples.gist2_fam USING gist2;
+
