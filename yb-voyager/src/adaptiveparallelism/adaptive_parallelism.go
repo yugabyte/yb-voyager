@@ -42,6 +42,9 @@ const (
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
 	CPU_USAGE_UNKNOWN                              = -1
+	CPU_LOAD_HIGH                                  = "HIGH"
+	CPU_LOAD_OK                                    = "OK"
+	CPU_LOAD_LOW                                   = "LOW"
 )
 
 var MAX_CPU_HARD_THRESHOLD int
@@ -131,67 +134,83 @@ func (pa *ParallelismAdapter) FetchClusterMetricsAndUpdateParallelism() error {
 
 	pa.updateCpuHistory(clusterMetrics)
 
-	cpuLoadHigh, err := pa.isCpuLoadHigh(clusterMetrics)
+	cpuLoadState, err := pa.getCpuLoadState(clusterMetrics)
 	if err != nil {
-		return fmt.Errorf("checking if cpu load is high: %w", err)
+		return fmt.Errorf("checking cpu load state: %w", err)
 	}
 	memLoadHigh, err := pa.isMemoryLoadHigh(clusterMetrics)
 	if err != nil {
 		return fmt.Errorf("checking if memory load is high: %w", err)
 	}
 
-	if cpuLoadHigh || memLoadHigh {
+	if cpuLoadState == CPU_LOAD_HIGH || memLoadHigh {
 		deltaParallelism := -1
 		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) < pa.minParallelism {
-			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
-				cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.minParallelism)
+			log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
+				cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.minParallelism)
 			return nil
 		}
 
-		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, reducing parallelism to %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
 		err = pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
-	} else {
+	} else if cpuLoadState == CPU_LOAD_LOW {
 		deltaParallelism := 1
 		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) > pa.maxParallelism {
-			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
-				cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.maxParallelism)
+			log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
+				cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.maxParallelism)
 			return nil
 		}
 
-		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, increasing parallelism to %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
 		err := pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
 		}
+	} else {
+		// CPU_LOAD_OK - maintain current parallelism
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, maintaining current parallelism %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool())
 	}
 	return nil
 }
 
-func (pa *ParallelismAdapter) isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) getCpuLoadState(clusterMetrics map[string]tgtdb.NodeMetrics) (string, error) {
 	// Check hard threshold first (immediate response)
-	hardThresholdBreached, err := pa.checkHardCpuThreshold(clusterMetrics)
+	hardThresholdBreached, err := pa.checkHardCpuBreach(clusterMetrics)
 	if err != nil {
-		return false, fmt.Errorf("checking hard cpu threshold: %w", err)
+		return "", fmt.Errorf("checking hard cpu threshold: %w", err)
 	}
 	if hardThresholdBreached {
-		return true, nil
+		return CPU_LOAD_HIGH, nil
 	}
 
 	// Check soft threshold (trend-based response)
-	softThresholdBreached, err := pa.checkSoftCpuThreshold(clusterMetrics)
+	softThresholdBreached, err := pa.checkSoftCpuBreach(clusterMetrics)
 	if err != nil {
-		return false, fmt.Errorf("checking soft cpu threshold: %w", err)
+		return "", fmt.Errorf("checking soft cpu threshold: %w", err)
+	}
+	if softThresholdBreached {
+		return CPU_LOAD_HIGH, nil
 	}
 
-	return softThresholdBreached, nil
+	// Check if CPU load is consistently low
+	cpuLoadLow, err := pa.checkCpuLoadLow(clusterMetrics)
+	if err != nil {
+		return "", fmt.Errorf("checking cpu load low: %w", err)
+	}
+	if cpuLoadLow {
+		return CPU_LOAD_LOW, nil
+	}
+
+	return CPU_LOAD_OK, nil
 }
 
-func (pa *ParallelismAdapter) checkHardCpuThreshold(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) checkHardCpuBreach(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	// get max CPU
 	// Note that right now, voyager ingests data into the target in parallel,
 	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
@@ -206,7 +225,7 @@ func (pa *ParallelismAdapter) checkHardCpuThreshold(clusterMetrics map[string]tg
 	return maxCpuUsagePct > pa.maxCpuHardThreshold, nil
 }
 
-func (pa *ParallelismAdapter) checkSoftCpuThreshold(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) checkSoftCpuBreach(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	for nodeUUID, history := range pa.cpuHistory {
 		if len(history) < pa.cpuSoftThresholdWindow {
 			// Not enough data for this node
@@ -227,6 +246,33 @@ func (pa *ParallelismAdapter) checkSoftCpuThreshold(clusterMetrics map[string]tg
 
 		if allAbove {
 			log.Infof("adaptive: node %s soft cpu threshold breached: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThreshold)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (pa *ParallelismAdapter) checkCpuLoadLow(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	for nodeUUID, history := range pa.cpuHistory {
+		if len(history) < pa.cpuSoftThresholdWindow {
+			// Not enough data for this node
+			continue
+		}
+
+		allBelow := true
+		for _, cpu := range history {
+			if cpu == CPU_USAGE_UNKNOWN {
+				allBelow = false
+				break
+			}
+			if cpu >= pa.maxCpuSoftThreshold {
+				allBelow = false
+				break
+			}
+		}
+
+		if allBelow {
+			log.Infof("adaptive: node %s cpu load consistently low: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThreshold)
 			return true, nil
 		}
 	}
