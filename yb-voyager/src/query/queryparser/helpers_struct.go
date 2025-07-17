@@ -59,6 +59,15 @@ func IsCollationObject(parseTree *pg_query.ParseResult) bool {
 	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
 }
 
+func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt) string {
+	indexName := stmt.Idxname
+	schemaName := stmt.Relation.GetSchemaname()
+	tableName := stmt.Relation.GetRelname()
+	fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
+	displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
+	return displayObjName
+}
+
 func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string) {
 	createFuncNode, isCreateFunc := getCreateFuncStmtNode(parseTree)
 	viewNode, isViewStmt := getCreateViewNode(parseTree)
@@ -401,6 +410,23 @@ func DeparseRawStmts(rawStmts []*pg_query.RawStmt) ([]string, error) {
 	}
 
 	return deparsedStmts, nil
+}
+
+func DeparseRawStmt(rawStmt *pg_query.RawStmt) (string, error) {
+	if rawStmt == nil {
+		return "", fmt.Errorf("raw statement is nil")
+	}
+
+	parseResult := &pg_query.ParseResult{
+		Stmts: []*pg_query.RawStmt{rawStmt},
+	}
+
+	deparsedStmt, err := pg_query.Deparse(parseResult)
+	if err != nil {
+		return "", fmt.Errorf("error deparsing raw statement: %w", err)
+	}
+
+	return deparsedStmt + ";", nil // adding semicolon to make it a valid SQL statement
 }
 
 func DeparseParseTree(parseTree *pg_query.ParseResult) (string, error) {

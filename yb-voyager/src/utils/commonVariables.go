@@ -184,6 +184,12 @@ func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
 	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
 }
 
+func (r *RedundantIndexesInfo) GetRedundantIndexCatalogObjectName() string {
+	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
+	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
+	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.Unquoted, tableObjectName.Qualified.Unquoted)
+}
+
 type ColumnStatistics struct {
 	DBType              string
 	SchemaName          string
