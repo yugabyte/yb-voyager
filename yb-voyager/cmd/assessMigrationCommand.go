@@ -353,7 +353,7 @@ func assessMigration() (err error) {
 
 	err = handleStartCleanIfNeededForAssessMigration(assessmentMetadataDirFlag != "")
 	if err != nil {
-		return fmt.Errorf("failed to handle start clean for assess migration: %w", err)
+		return err
 	}
 	utils.PrintAndLog("Assessing for migration to target YugabyteDB version %s\n", targetDbVersion)
 
@@ -672,7 +672,7 @@ func handleStartCleanIfNeededForAssessMigration(metadataDirPassedByUser bool) er
 		utils.CleanDir(filepath.Join(assessmentDir, "dbs"))
 		err := ClearMigrationAssessmentDone()
 		if err != nil {
-			return fmt.Errorf("failed to clear migration assessment done in MSR: %w", err)
+			return fmt.Errorf("failed to start clean for assess migration: %w", err)
 		}
 	} else if assessmentFilesExists { // if not startClean but assessment files already exist
 		return fmt.Errorf("assessment metadata or reports files already exist in the assessment directory: '%s'. Use the --start-clean flag to clear the directory before proceeding.", assessmentDir)
