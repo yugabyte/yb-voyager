@@ -41,6 +41,7 @@ const (
 	DEFAULT_CPU_SOFT_THRESHOLD_WINDOW              = 3
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
+	CPU_USAGE_UNKNOWN                              = -1
 )
 
 var MAX_CPU_HARD_THRESHOLD int
@@ -128,6 +129,8 @@ func (pa *ParallelismAdapter) FetchClusterMetricsAndUpdateParallelism() error {
 		return fmt.Errorf("getting cluster metrics: %w", err)
 	}
 
+	pa.updateCpuHistory(clusterMetrics)
+
 	cpuLoadHigh, err := pa.isCpuLoadHigh(clusterMetrics)
 	if err != nil {
 		return fmt.Errorf("checking if cpu load is high: %w", err)
@@ -204,8 +207,64 @@ func (pa *ParallelismAdapter) checkHardCpuThreshold(clusterMetrics map[string]tg
 }
 
 func (pa *ParallelismAdapter) checkSoftCpuThreshold(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
-	// TODO: Implement soft threshold logic
+	for nodeUUID, history := range pa.cpuHistory {
+		if len(history) < pa.cpuSoftThresholdWindow {
+			// Not enough data for this node
+			continue
+		}
+
+		allAbove := true
+		for _, cpu := range history {
+			if cpu == CPU_USAGE_UNKNOWN {
+				allAbove = false
+				break
+			}
+			if cpu <= pa.maxCpuSoftThreshold {
+				allAbove = false
+				break
+			}
+		}
+
+		if allAbove {
+			log.Infof("adaptive: node %s soft cpu threshold breached: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThreshold)
+			return true, nil
+		}
+	}
 	return false, nil
+}
+
+func (pa *ParallelismAdapter) updateCpuHistory(clusterMetrics map[string]tgtdb.NodeMetrics) {
+	// Clean up history for nodes no longer in cluster
+	for nodeUUID := range pa.cpuHistory {
+		if _, exists := clusterMetrics[nodeUUID]; !exists {
+			delete(pa.cpuHistory, nodeUUID)
+		}
+	}
+
+	// Update history for current nodes
+	for nodeUUID, nodeMetrics := range clusterMetrics {
+		var cpuUsagePct int
+
+		if nodeMetrics.Status != "OK" {
+			cpuUsagePct = CPU_USAGE_UNKNOWN
+		} else {
+			cpuUsagePctFloat, err := nodeMetrics.GetCPUPercent()
+			if err != nil {
+				log.Warnf("adaptive: error getting cpu usage for node %s: %v", nodeUUID, err)
+				cpuUsagePct = CPU_USAGE_UNKNOWN
+			} else {
+				cpuUsagePct = int(cpuUsagePctFloat)
+			}
+		}
+
+		// Add current CPU reading to history
+		pa.cpuHistory[nodeUUID] = append(pa.cpuHistory[nodeUUID], cpuUsagePct)
+
+		// Limit history to window size
+		if len(pa.cpuHistory[nodeUUID]) > pa.cpuSoftThresholdWindow {
+			pa.cpuHistory[nodeUUID] = pa.cpuHistory[nodeUUID][len(pa.cpuHistory[nodeUUID])-pa.cpuSoftThresholdWindow:]
+		}
+	}
 }
 
 func (pa *ParallelismAdapter) getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
