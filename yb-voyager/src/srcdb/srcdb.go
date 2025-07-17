@@ -86,7 +86,7 @@ func IsTableEmpty(db *sql.DB, query string) bool {
 		return true
 	}
 	if err != nil {
-		utils.ErrExit("Failed to query: %q to check table is empty: %s", query, err)
+		utils.ErrExit("Failed to query: %q to check table is empty: %w", query, err)
 	}
 	return false
 }

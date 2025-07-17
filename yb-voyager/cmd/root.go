@@ -103,7 +103,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(bulkAssessmentDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %v", err)
+				utils.ErrExit("Failed to initialize logging: %w", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -116,7 +116,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			// no info/payload is collected/supported for assess-migration-bulk
 			err = setControlPlane("")
 			if err != nil {
-				utils.ErrExit("ERROR: setting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
 		} else {
 			validateExportDirFlag()
@@ -134,7 +134,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = InitLogging(exportDir, config.LogLevel, cmd.Use == "status", GetCommandID(cmd))
 			if err != nil {
-				utils.ErrExit("Failed to initialize logging: %v", err)
+				utils.ErrExit("Failed to initialize logging: %w", err)
 			}
 			startTime = time.Now()
 			log.Infof("Start time: %s\n", startTime)
@@ -152,7 +152,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 				metaDB = initMetaDB(exportDir)
 				msr, err := metaDB.GetMigrationStatusRecord()
 				if err != nil {
-					utils.ErrExit("get migration status record: %v", err)
+					utils.ErrExit("get migration status record: %w", err)
 				}
 
 				msrVoyagerVersionString := msr.VoyagerVersion
@@ -165,7 +165,7 @@ Refer to docs (https://docs.yugabyte.com/preview/migrate/) for more details like
 			}
 			err = setControlPlane(getControlPlaneType())
 			if err != nil {
-				utils.ErrExit("ERROR: setting up control plane: %v", err)
+				utils.ErrExit("ERROR: setting up control plane: %w", err)
 			}
 		}
 
@@ -372,7 +372,7 @@ func validateExportDirFlag() {
 		var err error
 		exportDir, err = filepath.Abs(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to get absolute path for export-dir: %q: %v\n", exportDir, err)
+			utils.ErrExit("Failed to get absolute path for export-dir: %q: %w\n", exportDir, err)
 		}
 		exportDir = filepath.Clean(exportDir)
 	}
@@ -420,7 +420,7 @@ func setControlPlane(cpType string) error {
 		log.Infof("Migration UUID %s", migrationUUID)
 		err := controlPlane.Init()
 		if err != nil {
-			return fmt.Errorf("initialize the target DB for visualization. %s", err)
+			return fmt.Errorf("initialize the target DB for visualization. %w", err)
 		}
 	default:
 		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})
