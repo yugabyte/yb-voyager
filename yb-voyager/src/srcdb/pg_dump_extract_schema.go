@@ -35,7 +35,7 @@ import (
 func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string, schemaDir string) {
 	pgDumpPath, binaryCheckIssue, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
-		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
+		utils.ErrExit("could not get absolute path of pg_dump command: %w", err)
 	} else if binaryCheckIssue != "" {
 		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
@@ -63,14 +63,14 @@ func pgdumpExtractSchema(source *Source, connectionUri string, exportDir string,
 		utils.WaitChannel <- 1
 		<-utils.WaitChannel
 		log.Infof("pg_dump failed to export schema with output: %s", string(stdout))
-		utils.ErrExit("schema export unsuccessful: %v. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
+		utils.ErrExit("schema export unsuccessful: %w. For more details check '%s/logs/yb-voyager-export-schema.log'.\n", err, exportDir)
 	}
 }
 
 func readSchemaFile(path string) []string {
 	file, err := os.Open(path)
 	if err != nil {
-		utils.ErrExit("error in opening schema file: %s: %v", path, err)
+		utils.ErrExit("error in opening schema file: %s: %w", path, err)
 	}
 	defer file.Close()
 	var lines []string
@@ -83,7 +83,7 @@ func readSchemaFile(path string) []string {
 	}
 
 	if scanner.Err() != nil {
-		utils.ErrExit("error in reading schema file: %s: %v", path, scanner.Err())
+		utils.ErrExit("error in reading schema file: %s: %w", path, scanner.Err())
 	}
 
 	return lines
@@ -181,7 +181,7 @@ func parseSchemaFile(exportDir string, schemaDir string, exportObjectTypesList [
 
 		err := os.WriteFile(filePath, dataBytes, 0644)
 		if err != nil {
-			utils.ErrExit("Failed to create sql file for %q: %v", objType, err)
+			utils.ErrExit("Failed to create sql file for %q: %w", objType, err)
 		}
 	}
 
