@@ -62,6 +62,11 @@ func (ora *Oracle) Connect() error {
 	db.SetMaxOpenConns(ora.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ora.db = db
+
+	err = ora.db.Ping()
+	if err != nil {
+		return err
+	}
 	return err
 }
 
