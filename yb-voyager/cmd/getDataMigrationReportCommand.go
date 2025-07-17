@@ -76,7 +76,7 @@ var getDataMigrationReportCmd = &cobra.Command{
 			}
 			err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 			if err != nil {
-				utils.ErrExit("initializing name registry: %v", err)
+				utils.ErrExit("initializing name registry: %w", err)
 			}
 			color.Yellow("Generating data migration report for migration UUID: %s...\n", migrationStatus.MigrationUUID)
 			getDataMigrationReportCmdFn(migrationStatus)
@@ -113,7 +113,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	tableList := msr.TableListExportedFromSource
 	tableNameTups, err := getImportTableList(tableList)
 	if err != nil {
-		utils.ErrExit("getting name tuples from table list: %v", err)
+		utils.ErrExit("getting name tuples from table list: %w", err)
 	}
 	params := namereg.NameRegistryParams{
 		FilePath: fmt.Sprintf("%s/metainfo/name_registry.json", exportDir),
@@ -124,7 +124,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	nameRegistryForSourceReplicaRole = namereg.NewNameRegistry(params)
 	err = nameRegistryForSourceReplicaRole.Init()
 	if err != nil {
-		utils.ErrExit("initializing name registry for source replica: %v", err)
+		utils.ErrExit("initializing name registry for source replica: %w", err)
 	}
 	uitbl := uitable.New()
 	uitbl.MaxColWidth = 50
@@ -138,7 +138,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	exportStatusFilePath := filepath.Join(exportDir, "data", "export_status.json")
 	dbzmStatus, err := dbzm.ReadExportStatus(exportStatusFilePath)
 	if err != nil {
-		utils.ErrExit("Failed to read export status file: %s: %v", exportStatusFilePath, err)
+		utils.ErrExit("Failed to read export status file: %s: %w", exportStatusFilePath, err)
 	}
 	if dbzmStatus == nil {
 		utils.ErrExit("Export data has not started yet. Try running after export has started.")
@@ -159,7 +159,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			if errors.Is(err, fs.ErrNotExist) {
 				utils.ErrExit("Export data has not started yet. Try running after export has started.")
 			}
-			utils.ErrExit("Failed to read export status file: %s: %v", exportSnapshotStatusFilePath, err)
+			utils.ErrExit("Failed to read export status file: %s: %w", exportSnapshotStatusFilePath, err)
 		}
 		exportedPGSnapshotRowsMap, _, err = getExportedSnapshotRowsMap(exportSnapshotStatus)
 		if err != nil {
@@ -170,7 +170,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 			tableName := fmt.Sprintf("%s.%s", tableExportStatus.SchemaName, tableExportStatus.TableName)
 			nt, err := namereg.NameReg.LookupTableName(tableName)
 			if err != nil {
-				utils.ErrExit("lookup in name registry: %s: %v", tableName, err)
+				utils.ErrExit("lookup in name registry: %s: %w", tableName, err)
 			}
 			dbzmNameTupToRowCount.Put(nt, tableExportStatus.ExportedRowCountSnapshot)
 		}
@@ -180,18 +180,18 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 	var targetExportedEventsMap *utils.StructMap[sqlname.NameTuple, *tgtdb.EventCounter]
 	sourceExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(SOURCE_DB_EXPORTER_ROLE)
 	if err != nil {
-		utils.ErrExit("getting exported events from source stats: %v", err)
+		utils.ErrExit("getting exported events from source stats: %w", err)
 	}
 	if fFEnabled {
 		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FF_ROLE)
 		if err != nil {
-			utils.ErrExit("getting exported events from target stats: %v", err)
+			utils.ErrExit("getting exported events from target stats: %w", err)
 		}
 	}
 	if fBEnabled {
 		targetExportedEventsMap, err = metaDB.GetExportedEventsStatsForExporterRole(TARGET_DB_EXPORTER_FB_ROLE)
 		if err != nil {
-			utils.ErrExit("getting exported events from target stats: %v", err)
+			utils.ErrExit("getting exported events from target stats: %w", err)
 		}
 	}
 
@@ -308,7 +308,7 @@ func getDataMigrationReportCmdFn(msr *metadb.MigrationStatusRecord) {
 		reportFile := jsonfile.NewJsonFile[[]*rowData](reportFilePath)
 		err := reportFile.Create(&reportData)
 		if err != nil {
-			utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
+			utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Data migration report is written to %s\n", reportFilePath))
 		return
@@ -361,7 +361,7 @@ func getImportedEventsMap(dbType string, tableNameTups []sqlname.NameTuple, targ
 	state := NewImportDataState(exportDir)
 	tableNameTupToEventsCounter, err := state.GetImportedEventsStatsForTableList(tableNameTups, migrationUUID)
 	if err != nil {
-		return nil, fmt.Errorf("imported events stats for tableList: %s", err)
+		return nil, fmt.Errorf("imported events stats for tableList: %w", err)
 	}
 	return tableNameTupToEventsCounter, nil
 }
@@ -382,7 +382,7 @@ func updateImportedEventsCountsInTheRow(row *rowData, tableNameTup sqlname.NameT
 		// and hence ForKey() returns source-replica name so we need to get that from reg
 		tableNameTup, err = nameRegistryForSourceReplicaRole.LookupTableName(tblName)
 		if err != nil {
-			return fmt.Errorf("lookup %s in source replica name registry: %v", tblName, err)
+			return fmt.Errorf("lookup %s in source replica name registry: %w", tblName, err)
 		}
 	}
 

@@ -396,7 +396,7 @@ func (s *ImportDataState) discoverTableNames() ([]sqlname.NameTuple, error) {
 			tableNameRaw := dirEntry.Name()[len("table::"):]
 			tableName, err := namereg.NameReg.LookupTableName(tableNameRaw)
 			if err != nil {
-				return nil, fmt.Errorf("lookup table naame %s in name registry: %v", tableNameRaw, err)
+				return nil, fmt.Errorf("lookup table naame %s in name registry: %w", tableNameRaw, err)
 			}
 			result = append(result, tableName)
 		}
@@ -691,7 +691,7 @@ func (s *ImportDataState) GetImportedEventsStatsForTableList(tableNameTupList []
 		}
 		tableNameTup, err := namereg.NameReg.LookupTableName(tableName)
 		if err != nil {
-			return nil, fmt.Errorf("error in lookup in namreg: %v", err)
+			return nil, fmt.Errorf("error in lookup in namreg: %w", err)
 		}
 		tablesToEventCounter.Put(tableNameTup, &eventCounter)
 	}

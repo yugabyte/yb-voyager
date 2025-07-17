@@ -112,7 +112,7 @@ func initializeExportTableMetadata(tableList []sqlname.NameTuple) {
 	}
 	err := exportSnapshotStatusFile.Create(exportSnapshotStatus)
 	if err != nil {
-		utils.ErrExit("failed to create export status file: %v", err)
+		utils.ErrExit("failed to create export status file: %w", err)
 	}
 }
 
@@ -306,7 +306,7 @@ func updateExportSnapshotStatus(ctx context.Context, tableMetadata map[string]*u
 				}
 			})
 			if err != nil {
-				utils.ErrExit("failed to update export snapshot status: %v", err)
+				utils.ErrExit("failed to update export snapshot status: %w", err)
 			}
 		}
 	}

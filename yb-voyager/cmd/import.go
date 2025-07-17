@@ -334,7 +334,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting target-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %w", err)
 	}
 }
 
@@ -515,7 +515,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	if !bool(startClean) && metaDBIsCreated(exportDir) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			return fmt.Errorf("error getting migration status record: %v", err)
+			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
 			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}
