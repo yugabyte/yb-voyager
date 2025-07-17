@@ -1061,27 +1061,22 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 
 	// Handle different object name patterns based on object type
 	switch rs.RenameType {
-	case pg_query.ObjectType_OBJECT_SCHEMA:
-		// Schema names are in rs.Subname
-		if rs.Subname != "" {
-			var err error
-			rs.Subname, err = a.registry.GetHash(prefix, rs.Subname)
-			if err != nil {
-				return fmt.Errorf("anon rename schema: %w", err)
-			}
-		}
 
 	/*
+		SQL:		ALTER SCHEMA sales RENAME TO sales_new;
+		ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_SCHEMA  relation_type:OBJECT_ACCESS_METHOD  subname:"sales"  newname:"sales_new" ...}}
+
 		SQL:		ALTER TABLE sales.orders RENAME COLUMN amt TO amount;
 		ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_COLUMN  relation_type:OBJECT_TABLE  relation:{schemaname:"sales"  relname:"orders" ...}
-					subname:"amt"  newname:"amount"  behavior:DROP_RESTRICT}}
+				subname:"amt"  newname:"amount"  behavior:DROP_RESTRICT}}
 	*/
-	case pg_query.ObjectType_OBJECT_COLUMN:
+	case pg_query.ObjectType_OBJECT_SCHEMA, pg_query.ObjectType_OBJECT_COLUMN:
+		// Both schema and column names are in rs.Subname
 		if rs.Subname != "" {
 			var err error
 			rs.Subname, err = a.registry.GetHash(prefix, rs.Subname)
 			if err != nil {
-				return fmt.Errorf("anon rename column old name: %w", err)
+				return fmt.Errorf("anon rename %s: %w", rs.RenameType, err)
 			}
 		}
 
@@ -1132,8 +1127,11 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 
 	// Process each object in the DROP statement
 	for _, obj := range ds.Objects {
-		var err error
+		if obj == nil {
+			continue
+		}
 
+		var err error
 		// Handle different object name patterns based on object type
 		switch ds.RemoveType {
 		case pg_query.ObjectType_OBJECT_SCHEMA:
@@ -1173,23 +1171,16 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		return nil
 	}
 
+	prefix := a.getObjectTypePrefix(aos.ObjectType)
+
 	// Handle TABLE, EXTENSION, TYPE, and SEQUENCE
 	switch aos.ObjectType {
-	case pg_query.ObjectType_OBJECT_TABLE:
-		// Tables use RangeVar for their names
+	case pg_query.ObjectType_OBJECT_TABLE, pg_query.ObjectType_OBJECT_SEQUENCE:
+		// Tables, Sequences use RangeVar for their names
 		if aos.Relation != nil {
-			err := a.anonymizeRangeVarNode(aos.Relation, TABLE_KIND_PREFIX)
+			err := a.anonymizeRangeVarNode(aos.Relation, prefix)
 			if err != nil {
 				return fmt.Errorf("anon alter table schema: %w", err)
-			}
-		}
-
-	case pg_query.ObjectType_OBJECT_SEQUENCE:
-		// Sequences use RangeVar for their names
-		if aos.Relation != nil {
-			err := a.anonymizeRangeVarNode(aos.Relation, SEQUENCE_KIND_PREFIX)
-			if err != nil {
-				return fmt.Errorf("anon alter sequence schema: %w", err)
 			}
 		}
 
@@ -1215,10 +1206,6 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 				return fmt.Errorf("anon alter type schema: %w", err)
 			}
 		}
-
-	default:
-		// Skip other object types for now
-		return nil
 	}
 
 	// Always anonymize the new schema name
