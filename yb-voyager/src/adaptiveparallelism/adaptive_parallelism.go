@@ -172,17 +172,11 @@ func (pa *ParallelismAdapter) getMaxCpuUsageInCluster(clusterMetrics map[string]
 		if nodeMetrics.Status != "OK" {
 			continue
 		}
-		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
+		cpuUsagePct, err := nodeMetrics.GetCPUPercent()
 		if err != nil {
-			return -1, fmt.Errorf("parsing cpu usage user as float: %w", err)
+			return -1, fmt.Errorf("getting cpu usage for node %s: %w", nodeMetrics.UUID, err)
 		}
-		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
-		if err != nil {
-			return -1, fmt.Errorf("parsing cpu usage system as float: %w", err)
-		}
-
-		cpuUsagePct := int((cpuUsageUser + cpuUsageSystem) * 100)
-		maxCpuPct = max(maxCpuPct, cpuUsagePct)
+		maxCpuPct = max(maxCpuPct, int(cpuUsagePct))
 	}
 	return maxCpuPct, nil
 }
