@@ -75,3 +75,25 @@ func NewImportBatchError(tableName sqlname.NameTuple, batchFilePath string, err 
 		dbSpecificContext: dbSpecificContext,
 	}
 }
+
+type ExecuteDDLError struct {
+	ddl         string
+	ddlFilePath string
+	err         error
+}
+
+func (e ExecuteDDLError) Error() string {
+	return fmt.Sprintf("execute DDL: %q from file: %s: %s", e.ddl, e.ddlFilePath, e.err.Error())
+}
+
+func (e ExecuteDDLError) Unwrap() error {
+	return e.err
+}
+
+func NewExecuteDDLError(ddl, ddlFilePath string, err error) ExecuteDDLError {
+	return ExecuteDDLError{
+		ddl:         ddl,
+		ddlFilePath: ddlFilePath,
+		err:         err,
+	}
+}

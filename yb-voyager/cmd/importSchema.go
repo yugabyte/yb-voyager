@@ -17,6 +17,7 @@ package cmd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -30,6 +31,7 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/tgtdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -79,6 +81,8 @@ func init() {
 	registerTargetDBConnFlags(importSchemaCmd)
 	registerImportSchemaFlags(importSchemaCmd)
 }
+
+const ANALYZE_REPORT_SUGGESTION_MSG = "Review the schema analysis report (%s) for any incompatibilities or recommendations that must be resolved before proceeding with schema import. Addressing these will help ensure a successful schema import."
 
 var flagPostSnapshotImport utils.BoolStr
 var importObjectsInStraightOrder utils.BoolStr
@@ -138,14 +142,13 @@ func importSchema() error {
 		return fmt.Errorf("failed to connect to target database: %v", err)
 	}
 	defer conn.Close(context.Background())
-
-	targetDBVersion := ""
+	var importTargetDBVersion string
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
-	err = conn.QueryRow(context.Background(), query).Scan(&targetDBVersion)
+	err = conn.QueryRow(context.Background(), query).Scan(&importTargetDBVersion)
 	if err != nil {
 		return fmt.Errorf("failed to get target db version: %s", err)
 	}
-	utils.PrintAndLog("YugabyteDB version: %s\n", targetDBVersion)
+	utils.PrintAndLog("YugabyteDB version: %s\n", importTargetDBVersion)
 
 	migrationAssessmentDoneAndApplied, err := MigrationAssessmentDoneAndApplied()
 	if err != nil {
@@ -167,7 +170,21 @@ func importSchema() error {
 		installOrafceIfRequired(conn)
 	}
 
+	reportPath, reportErr := generateAnalyzeReport(importTargetDBVersion)
+	if reportErr != nil {
+		log.Errorf("Error generating analyze report: %v", reportErr)
+	}
+	importSchemaErrorSuggestions := []string{
+		CONTINUE_ON_ERROR_IGNORE_EXIST_MSG,
+	}
+	if reportPath != "" {
+		importSchemaErrorSuggestions = append([]string{fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath)}, importSchemaErrorSuggestions...)
+	}
+	suggestionStr := color.YellowString("\n\n%s\n", strings.Join(importSchemaErrorSuggestions, "\n"))
+
 	var objectList []string
+	var execDDLError errs.ExecuteDDLError
+
 	// Pre data load.
 	// This list also has defined the order to create object type in target YugabyteDB.
 	// if post snapshot import, no objects should be imported.
@@ -200,9 +217,15 @@ func importSchema() error {
 			return false
 		}
 		skipFn := isSkipStatement
+
 		err = importSchemaInternal(exportDir, objectList, skipFn)
 		if err != nil {
-			return fmt.Errorf("failed to import schema for various objects: %s", err) // object list is the static list of object types
+			if errors.As(err, &execDDLError) {
+				//Add the analysis report message to the error suggestion first in the order and then append the existing suggestions
+				// to the error suggestions.
+				err = fmt.Errorf("%w\n %s", err, suggestionStr)
+			}
+			return fmt.Errorf("failed to import schema for various objects: %w", err)
 		}
 
 		// Import the skipped ALTER TABLE statements from sequence.sql and table.sql if it exists
@@ -212,25 +235,33 @@ func importSchema() error {
 		if slices.Contains(objectList, "SEQUENCE") {
 			err = importSchemaInternal(exportDir, []string{"SEQUENCE"}, skipFn)
 			if err != nil {
-				return fmt.Errorf("failed to import schema for SEQUENCEs: %s", err)
+				if errors.As(err, &execDDLError) {
+					err = fmt.Errorf("%w\n %s", err, suggestionStr)
+				}
+				return fmt.Errorf("failed to import schema for SEQUENCEs: %w", err)
 			}
 		}
 		if slices.Contains(objectList, "TABLE") {
 			err = importSchemaInternal(exportDir, []string{"TABLE"}, skipFn)
 			if err != nil {
+				if errors.As(err, &execDDLError) {
+					err = fmt.Errorf("%w\n %s", err, suggestionStr)
+				}
 				return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 			}
 		}
 
 		importDeferredStatements()
 		log.Info("Schema import is complete.")
-
-		dumpStatements(finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
+		dumpStatements(reportPath, finalFailedSqlStmts, filepath.Join(exportDir, "schema", "failed.sql"))
 	}
 
 	if flagPostSnapshotImport {
 		err = importSchemaInternal(exportDir, []string{"TABLE"}, nil)
 		if err != nil {
+			if errors.As(err, &execDDLError) {
+				err = fmt.Errorf("%w\n %s", err, suggestionStr)
+			}
 			return fmt.Errorf("failed to import schema for TABLEs: %s", err)
 		}
 		if flagRefreshMViews {
@@ -319,7 +350,7 @@ func isYBDatabaseIsColocated(conn *pgx.Conn) bool {
 	return isColocated
 }
 
-func dumpStatements(stmts []string, filePath string) {
+func dumpStatements(reportPath string, stmts []string, filePath string) {
 	if len(stmts) == 0 {
 		if flagPostSnapshotImport {
 			// nothing
@@ -354,6 +385,9 @@ func dumpStatements(stmts []string, filePath string) {
 	msg := fmt.Sprintf("\nSQL statements failed during migration are present in %q file\n", filePath)
 	color.Red(msg)
 	log.Info(msg)
+
+	//if there is failed sql statements, print analyze report
+	color.Yellow("\n%s", fmt.Sprintf(ANALYZE_REPORT_SUGGESTION_MSG, reportPath))
 }
 
 // installs Orafce extension in target YugabyteDB.

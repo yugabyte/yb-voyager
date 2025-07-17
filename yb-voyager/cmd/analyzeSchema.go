@@ -1193,10 +1193,19 @@ func analyzeSchema() {
 	analyzeSchemaInternal(msr.SourceDBConf, true, false)
 
 	if analyzeSchemaReportFormat != "" {
-		generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat)
+		err = generateAnalyzeSchemaReport(msr, analyzeSchemaReportFormat, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
 	} else {
-		generateAnalyzeSchemaReport(msr, HTML)
-		generateAnalyzeSchemaReport(msr, JSON)
+		err = generateAnalyzeSchemaReport(msr, HTML, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
+		err = generateAnalyzeSchemaReport(msr, JSON, true)
+		if err != nil {
+			utils.ErrExit("failed to generate analyze schema report: %s", err)
+		}
 	}
 
 	packAndSendAnalyzeSchemaPayload(COMPLETE, nil)
@@ -1205,7 +1214,7 @@ func analyzeSchema() {
 	controlPlane.SchemaAnalysisIterationCompleted(&schemaAnalysisReport)
 }
 
-func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string) (err error) {
+func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat string, printReportPath bool) (err error) {
 	var finalReport string
 	switch reportFormat {
 	case "html":
@@ -1216,25 +1225,25 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 		}
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisHtmlTmpl)
 		if err != nil {
-			utils.ErrExit("failed to apply template for html schema analysis report: %v", err)
+			return fmt.Errorf("failed to apply template for html schema analysis report: %v", err)
 		}
 		// restorting the value in struct for generating other format reports
 		schemaAnalysisReport.SchemaSummary.SchemaNames = schemaNames
 	case "json":
 		jsonReportBytes, err := json.MarshalIndent(schemaAnalysisReport, "", "    ")
 		if err != nil {
-			utils.ErrExit("failed to marshal the report struct into json schema analysis report: %v", err)
+			return fmt.Errorf("failed to marshal the report struct into json schema analysis report: %v", err)
 		}
 		finalReport = string(jsonReportBytes)
 	case "txt":
 		finalReport, err = applyTemplate(schemaAnalysisReport, schemaAnalysisTxtTmpl)
 		if err != nil {
-			utils.ErrExit("failed to apply template for txt schema analysis report: %v", err)
+			return fmt.Errorf("failed to apply template for txt schema analysis report: %v", err)
 		}
 	case "xml":
 		xmlReportBytes, err := xml.MarshalIndent(schemaAnalysisReport, "", "\t")
 		if err != nil {
-			utils.ErrExit("failed to marshal the report struct into xml schema analysis report: %v", err)
+			return fmt.Errorf("failed to marshal the report struct into xml schema analysis report: %v", err)
 		}
 		finalReport = string(xmlReportBytes)
 	default:
@@ -1250,7 +1259,7 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	file, err := os.OpenFile(reportPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
-		utils.ErrExit("Error while opening: %q: %s", reportPath, err)
+		return fmt.Errorf("Error while opening: %q: %s", reportPath, err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
@@ -1260,9 +1269,11 @@ func generateAnalyzeSchemaReport(msr *metadb.MigrationStatusRecord, reportFormat
 
 	_, err = file.WriteString(finalReport)
 	if err != nil {
-		utils.ErrExit("failed to write report to: %q: %s", reportPath, err)
+		return fmt.Errorf("failed to write report to: %q: %s", reportPath, err)
 	}
-	fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	if printReportPath {
+		fmt.Printf("-- find schema analysis report at: %s\n", reportPath)
+	}
 	return nil
 }
 
