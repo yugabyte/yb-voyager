@@ -106,29 +106,31 @@ var enabled = map[string]bool{
 	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
 	"POLICY-CREATE-ALL-COMMANDS":       true,
 
-	"COMMENT-TABLE":             true,
-	"COMMENT-COLUMN":            true,
-	"COMMENT-INDEX":             true,
-	"COMMENT-POLICY":            true,
-	"COMMENT-SEQUENCE":          true,
-	"COMMENT-TYPE":              true,
-	"COMMENT-DOMAIN":            true,
-	"COMMENT-EXTENSION":         true,
-	"COMMENT-SCHEMA":            true,
-	"COMMENT-FUNCTION":          true,
-	"COMMENT-PROCEDURE":         true,
-	"COMMENT-TRIGGER":           true,
-	"COMMENT-VIEW":              true,
-	"COMMENT-MVIEW":             true,
-	"COMMENT-DATABASE":          true,
-	"COMMENT-CONSTRAINT":        true,
-	"COMMENT-ROLE":              true,
-	"COMMENT-COLLATION":         true,
-	"CONVERSION-CREATE":         true,
-	"CONVERSION-CREATE-BASIC":   true,
-	"CONVERSION-CREATE-DEFAULT": true,
-	"CONVERSION-SET-SCHEMA":     true,
-	"CONVERSION-OWNER":          true,
+	"COMMENT-TABLE":                     true,
+	"COMMENT-COLUMN":                    true,
+	"COMMENT-INDEX":                     true,
+	"COMMENT-POLICY":                    true,
+	"COMMENT-SEQUENCE":                  true,
+	"COMMENT-TYPE":                      true,
+	"COMMENT-DOMAIN":                    true,
+	"COMMENT-EXTENSION":                 true,
+	"COMMENT-SCHEMA":                    true,
+	"COMMENT-FUNCTION":                  true,
+	"COMMENT-PROCEDURE":                 true,
+	"COMMENT-TRIGGER":                   true,
+	"COMMENT-VIEW":                      true,
+	"COMMENT-MVIEW":                     true,
+	"COMMENT-DATABASE":                  true,
+	"COMMENT-CONSTRAINT":                true,
+	"COMMENT-ROLE":                      true,
+	"COMMENT-COLLATION":                 true,
+	"CONVERSION-CREATE":                 true,
+	"CONVERSION-CREATE-BASIC":           true,
+	"CONVERSION-CREATE-DEFAULT":         true,
+	"CONVERSION-SET-SCHEMA":             true,
+	"CONVERSION-OWNER":                  true,
+	"FOREIGN-TABLE-CREATE":              true,
+	"FOREIGN-TABLE-CREATE-WITH-OPTIONS": true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -644,6 +646,16 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER CONVERSION sales.my_conversion OWNER TO new_owner;`,
 			[]string{"sales", "my_conversion", "new_owner"},
 			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, ROLE_KIND_PREFIX}},
+
+		// ─── FOREIGN TABLE ───────────────────────────────────────────
+		{"FOREIGN-TABLE-CREATE",
+			`CREATE FOREIGN TABLE sales.foreign_orders (id int, name text) SERVER remote_server;`,
+			[]string{"sales", "foreign_orders", "id", "name", "remote_server"},
+			[]string{SCHEMA_KIND_PREFIX, FOREIGN_TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, DEFAULT_KIND_PREFIX}},
+		{"FOREIGN-TABLE-CREATE-WITH-OPTIONS",
+			`CREATE FOREIGN TABLE sales.foreign_orders (col1 int, col2 text) SERVER remote_server OPTIONS (table_name 'remote_orders', schema_name 'public');`,
+			[]string{"sales", "foreign_orders", "col1", "col2", "remote_server", "remote_orders", "public"},
+			[]string{SCHEMA_KIND_PREFIX, FOREIGN_TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, DEFAULT_KIND_PREFIX, TABLE_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -721,7 +733,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //
 //  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [x]
 //
-//  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [ ]
+//  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [x]
 
 //
 //  FOREIGN TABLE        | CREATE FOREIGN TABLE <schema>.<name> ...        | CreateForeignTableStmtNode   | [ ]

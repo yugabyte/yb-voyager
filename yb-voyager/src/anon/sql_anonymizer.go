@@ -119,6 +119,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling conversion object nodes: %w", err)
 	}
 
+	err = a.handleForeignTableObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling foreign table object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -1009,8 +1014,9 @@ func (a *SqlAnonymizer) handlePolicyObjectNodes(msg protoreflect.Message) (err e
 
 // handleGenericRenameStmt processes RENAME statements for any object type
 /*
-	SQL:			ALTER SCHEMA sales RENAME TO sales_new
-    ParseTree:		stmt:{rename_stmt:{rename_type:OBJECT_SCHEMA  relation_type:OBJECT_ACCESS_METHOD  subname:"sales"  newname:"sales_new" ...}}
+   SQL:		ALTER SCHEMA sales RENAME TO sales_new
+   ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_SCHEMA  relation_type:OBJECT_ACCESS_METHOD  subname:"sales"  newname:"sales_new" ...}}
+
 */
 func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 	if rs == nil {
@@ -1310,6 +1316,71 @@ func (a *SqlAnonymizer) handleConversionObjectNodes(msg protoreflect.Message) (e
 	return nil
 }
 
+// handleForeignTableObjectNodes processes ForeignTable nodes.
+// Foreign tables have a base_stmt with a relation field, which is a RangeVar.
+// We need to anonymize the relation (table name) with FOREIGN_TABLE_KIND_PREFIX instead of TABLE_KIND_PREFIX.
+/*
+	SQL:    CREATE FOREIGN TABLE sales.external_orders (id int, customer_id int, amount numeric) SERVER external_server OPTIONS (schema_name 'public', table_name 'orders');
+			ParseTree: stmt:{create_foreign_table_stmt:{base_stmt:{relation:{schemaname:"sales" relname:"external_orders" }
+			table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
+			table_elts:{column_def:{colname:"customer_id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}}}}}
+			table_elts:{column_def:{colname:"amount" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"numeric"}} } }} oncommit:ONCOMMIT_NOOP}
+			servername:"external_server" options:{def_elem:{defname:"schema_name" arg:{string:{sval:"public"}} defaction:DEFELEM_UNSPEC location:117}}
+			options:{def_elem:{defname:"table_name" arg:{string:{sval:"orders"}} defaction:DEFELEM_UNSPEC location:139}}}}
+*/
+func (a *SqlAnonymizer) handleForeignTableObjectNodes(msg protoreflect.Message) (err error) {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CREATE_FOREIGN_TABLE_STMT_NODE {
+		return nil
+	}
+	fts, ok := queryparser.ProtoAsCreateForeignTableStmt(msg)
+	if !ok {
+		return fmt.Errorf("expected CreateForeignTableStmt, got %T", msg.Interface())
+	}
+
+	// Anonymize the relation (table name) with FOREIGN_TABLE_KIND_PREFIX
+	if fts.BaseStmt != nil && fts.BaseStmt.Relation != nil {
+		err = a.anonymizeRangeVarNode(fts.BaseStmt.Relation, FOREIGN_TABLE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon foreign table relation: %w", err)
+		}
+	}
+
+	// Anonymize columns in BaseStmt.TableElts -> already covered by anonymizeColumnDefNode
+
+	// Anonymize the server name if present
+	if fts.Servername != "" {
+		fts.Servername, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, fts.Servername)
+		if err != nil {
+			return fmt.Errorf("anon foreign table servername: %w", err)
+		}
+	}
+
+	// Anonymize the options if present
+	if fts.Options != nil {
+		for _, opt := range fts.Options {
+			if defElem := opt.GetDefElem(); defElem != nil {
+				var prefix string
+				switch defElem.Defname {
+				case "table_name":
+					prefix = TABLE_KIND_PREFIX
+				case "schema_name":
+					prefix = SCHEMA_KIND_PREFIX
+				default:
+					prefix = DEFAULT_KIND_PREFIX
+				}
+				if defElem.Arg != nil && defElem.Arg.GetString_() != nil {
+					err = a.anonymizeStringNodes([]*pg_query.Node{defElem.Arg}, prefix)
+					if err != nil {
+						return fmt.Errorf("anon foreign table option %s: %w", defElem.Defname, err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
 // ========================= Anonymization Helpers =========================
 
 // anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
@@ -1454,6 +1525,8 @@ func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) stri
 		return CONSTRAINT_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_CONVERSION:
 		return CONVERSION_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_FOREIGN_TABLE:
+		return FOREIGN_TABLE_KIND_PREFIX
 	default:
 		log.Printf("Unknown object type: %s", objectType.String())
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix
