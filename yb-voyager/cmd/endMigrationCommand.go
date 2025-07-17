@@ -414,7 +414,7 @@ func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFileP
 	cmd.Stderr = &errbuf
 	err := cmd.Run()
 	if err != nil {
-		log.Errorf("running %s command: %s: %w", cmdName, errbuf.String(), err)
+		log.Errorf("running %s command: %s: %s", cmdName, errbuf.String(), err)
 		utils.ErrExit("running %s command: %s: %w", cmdName, errbuf.String(), err)
 	}
 
