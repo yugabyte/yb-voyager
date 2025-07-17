@@ -106,24 +106,29 @@ var enabled = map[string]bool{
 	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
 	"POLICY-CREATE-ALL-COMMANDS":       true,
 
-	"COMMENT-TABLE":      true,
-	"COMMENT-COLUMN":     true,
-	"COMMENT-INDEX":      true,
-	"COMMENT-POLICY":     true,
-	"COMMENT-SEQUENCE":   true,
-	"COMMENT-TYPE":       true,
-	"COMMENT-DOMAIN":     true,
-	"COMMENT-EXTENSION":  true,
-	"COMMENT-SCHEMA":     true,
-	"COMMENT-FUNCTION":   true,
-	"COMMENT-PROCEDURE":  true,
-	"COMMENT-TRIGGER":    true,
-	"COMMENT-VIEW":       true,
-	"COMMENT-MVIEW":      true,
-	"COMMENT-DATABASE":   true,
-	"COMMENT-CONSTRAINT": true,
-	"COMMENT-ROLE":       true,
-	"COMMENT-COLLATION":  true,
+	"COMMENT-TABLE":             true,
+	"COMMENT-COLUMN":            true,
+	"COMMENT-INDEX":             true,
+	"COMMENT-POLICY":            true,
+	"COMMENT-SEQUENCE":          true,
+	"COMMENT-TYPE":              true,
+	"COMMENT-DOMAIN":            true,
+	"COMMENT-EXTENSION":         true,
+	"COMMENT-SCHEMA":            true,
+	"COMMENT-FUNCTION":          true,
+	"COMMENT-PROCEDURE":         true,
+	"COMMENT-TRIGGER":           true,
+	"COMMENT-VIEW":              true,
+	"COMMENT-MVIEW":             true,
+	"COMMENT-DATABASE":          true,
+	"COMMENT-CONSTRAINT":        true,
+	"COMMENT-ROLE":              true,
+	"COMMENT-COLLATION":         true,
+	"CONVERSION-CREATE":         true,
+	"CONVERSION-CREATE-BASIC":   true,
+	"CONVERSION-CREATE-DEFAULT": true,
+	"CONVERSION-SET-SCHEMA":     true,
+	"CONVERSION-OWNER":          true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -617,6 +622,28 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`COMMENT ON POLICY p_sel ON sales.orders IS 'Select policy';`,
 			[]string{"p_sel", "sales", "orders", "Select policy"},
 			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"CONVERSION-CREATE",
+			`CREATE CONVERSION conversion_example.myconv FOR 'LATIN1' TO 'UTF8' FROM iso8859_1_to_utf8;`,
+			[]string{"conversion_example", "myconv", "iso8859_1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"CONVERSION-CREATE-BASIC",
+			`CREATE CONVERSION sales.my_conversion FOR 'LATIN1' TO 'UTF8' FROM schema1.latin1_to_utf8;`,
+			[]string{"sales", "my_conversion", "schema1", "latin1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"CONVERSION-CREATE-DEFAULT",
+			`CREATE DEFAULT CONVERSION sales.default_conversion FOR 'LATIN1' TO 'UTF8' FROM latin1_to_utf8;`,
+			[]string{"sales", "default_conversion", "latin1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+
+		// ALTER operations
+		{"CONVERSION-SET-SCHEMA",
+			`ALTER CONVERSION sales.my_conversion SET SCHEMA public;`,
+			[]string{"sales", "my_conversion", "public"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX}},
+		{"CONVERSION-OWNER",
+			`ALTER CONVERSION sales.my_conversion OWNER TO new_owner;`,
+			[]string{"sales", "my_conversion", "new_owner"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, ROLE_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -695,8 +722,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [x]
 //
 //  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [ ]
-//                       | ALTER CONVERSION <name> RENAME TO <new>         | RenameStmtNode               | [ ]
-//                       | DROP CONVERSION <name>                          | DropStmtNode                 | [ ]
+
 //
 //  FOREIGN TABLE        | CREATE FOREIGN TABLE <schema>.<name> ...        | CreateForeignTableStmtNode   | [ ]
 //                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [ ]

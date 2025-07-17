@@ -114,6 +114,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		return fmt.Errorf("error handling comment object nodes: %w", err)
 	}
 
+	err = a.handleConversionObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling conversion object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -456,15 +461,22 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 			return fmt.Errorf("expected AlterOwnerStmt, got %T", msg.Interface())
 		}
 
-		if ao.ObjectType != pg_query.ObjectType_OBJECT_SCHEMA {
-			return nil // not a schema DDL, skip
-		}
-
-		if ao.Object != nil && ao.Object.GetString_() != nil {
-			// anonymize the schema name
-			ao.Object.GetString_().Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, ao.Object.GetString_().Sval)
-			if err != nil {
-				return fmt.Errorf("anon schema alter owner: %w", err)
+		if ao.ObjectType == pg_query.ObjectType_OBJECT_SCHEMA {
+			if ao.Object != nil && ao.Object.GetString_() != nil {
+				// anonymize the schema name
+				ao.Object.GetString_().Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, ao.Object.GetString_().Sval)
+				if err != nil {
+					return fmt.Errorf("anon schema alter owner: %w", err)
+				}
+			}
+		} else if ao.ObjectType == pg_query.ObjectType_OBJECT_CONVERSION {
+			// Handle CONVERSION objects
+			if ao.Object != nil && ao.Object.GetList() != nil {
+				items := ao.Object.GetList().Items
+				err = a.anonymizeStringNodes(items, CONVERSION_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon conversion alter owner: %w", err)
+				}
 			}
 		}
 
@@ -1029,7 +1041,7 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 		}
 
 	case pg_query.ObjectType_OBJECT_COLLATION, pg_query.ObjectType_OBJECT_TYPE,
-		pg_query.ObjectType_OBJECT_DOMAIN:
+		pg_query.ObjectType_OBJECT_DOMAIN, pg_query.ObjectType_OBJECT_CONVERSION:
 		// These objects have qualified names in rs.Object as a list
 		if rs.Object != nil && rs.Object.GetList() != nil {
 			items := rs.Object.GetList().Items
@@ -1113,7 +1125,7 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 	return nil
 }
 
-// handleGenericAlterObjectSchemaStmt processes ALTER ... SET SCHEMA statements for TABLE, EXTENSION, TYPE, and SEQUENCE object types
+// handleGenericAlterObjectSchemaStmt processes ALTER ... SET SCHEMA statements for TABLE, EXTENSION, TYPE, SEQUENCE, and CONVERSION object types
 func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterObjectSchemaStmt) error {
 	if aos == nil {
 		return nil
@@ -1152,6 +1164,20 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 			err := a.anonymizeStringNodes(items, TYPE_KIND_PREFIX)
 			if err != nil {
 				return fmt.Errorf("anon alter type schema: %w", err)
+			}
+		}
+
+	/*
+		SQL:    ALTER CONVERSION sales.my_conversion SET SCHEMA public;
+		ParseTree: stmt:{alter_object_schema_stmt:{object_type:OBJECT_CONVERSION object:{list:{items:{string:{sval:"sales"}} items:{string:{sval:"my_conversion"}}}} newschema:"public"}}
+	*/
+	case pg_query.ObjectType_OBJECT_CONVERSION:
+		// Conversions have qualified names in Object as a list
+		if aos.Object != nil && aos.Object.GetList() != nil {
+			items := aos.Object.GetList().Items
+			err := a.anonymizeStringNodes(items, CONVERSION_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon alter conversion schema: %w", err)
 			}
 		}
 	}
@@ -1244,6 +1270,42 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 		if err != nil {
 			return fmt.Errorf("anon comment text: %w", err)
 		}
+	}
+	return nil
+}
+
+func (a *SqlAnonymizer) handleConversionObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	/*
+		SQL:		CREATE CONVERSION conversion_example.myconv FOR 'LATIN1' TO 'UTF8' FROM iso8859_1_to_utf8;
+		ParseTree:	stmt:{create_conversion_stmt:{conversion_name:{string:{sval:"conversion_example"}} conversion_name:{string:{sval:"myconv"}}
+					for_encoding_name:{string:{sval:"LATIN1"}} to_encoding_name:{string:{sval:"UTF8"}} func_name:{string:{sval:"iso8859_1_to_utf8"}}}}
+
+		SQL:		CREATE CONVERSION sales.my_conversion FOR 'LATIN1' TO 'UTF8' FROM latin1_to_utf8;
+		ParseTree:	stmt:{create_conversion_stmt:{conversion_name:{string:{sval:"sales"}}  conversion_name:{string:{sval:"my_conversion"}}
+					for_encoding_name:"LATIN1"  to_encoding_name:"UTF8"  func_name:{string:{sval:"latin1_to_utf8"}}}}
+	*/
+	case queryparser.PG_QUERY_CREATE_CONVERSION_STMT_NODE:
+		ccs, ok := queryparser.ProtoAsCreateConversionStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateConversionStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the conversion name (fully qualified: schema.conversion_name)
+		err = a.anonymizeStringNodes(ccs.GetConversionName(), CONVERSION_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon conversion name: %w", err)
+		}
+
+		// Anonymize the function name if present
+		// The function name is typically a list of nodes like the conversion name
+		if ccs.FuncName != nil {
+			err = a.anonymizeStringNodes(ccs.FuncName, FUNCTION_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon conversion function name: %w", err)
+			}
+		}
+
 	}
 	return nil
 }
@@ -1390,6 +1452,8 @@ func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) stri
 		return POLICY_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_TABCONSTRAINT:
 		return CONSTRAINT_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_CONVERSION:
+		return CONVERSION_KIND_PREFIX
 	default:
 		log.Printf("Unknown object type: %s", objectType.String())
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix

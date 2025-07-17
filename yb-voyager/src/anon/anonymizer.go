@@ -21,6 +21,7 @@ const (
 	POLICY_KIND_PREFIX     = "policy_"
 	CONST_KIND_PREFIX      = "const_"
 	COLLATION_KIND_PREFIX  = "collation_"
+	CONVERSION_KIND_PREFIX = "conversion_"
 	DEFAULT_KIND_PREFIX    = "anon_" // fallback for any other identifiers
 )
 
@@ -47,6 +48,7 @@ var AllKindPrefixes = []string{
 	POLICY_KIND_PREFIX,
 	CONST_KIND_PREFIX,
 	COLLATION_KIND_PREFIX,
+	CONVERSION_KIND_PREFIX,
 	DEFAULT_KIND_PREFIX,
 }
 

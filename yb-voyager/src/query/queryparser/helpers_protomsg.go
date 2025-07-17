@@ -422,6 +422,14 @@ func ProtoAsCreateExtensionStmt(msg protoreflect.Message) (*pg_query.CreateExten
 	return createExtStmtNode, true
 }
 
+func ProtoAsCreateConversionStmtNode(msg protoreflect.Message) (*pg_query.CreateConversionStmt, bool) {
+	createConvStmtNode, ok := msg.Interface().(*pg_query.CreateConversionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createConvStmtNode, true
+}
+
 func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateForeignTableStmt, bool) {
 	createForeignTableStmtNode, ok := msg.Interface().(*pg_query.CreateForeignTableStmt)
 	if !ok {
