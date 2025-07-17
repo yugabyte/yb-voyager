@@ -134,7 +134,7 @@ func TestMaxCpuUsage(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	clusterMetrics, _ := yb.GetClusterMetrics()
 	maxCpuUsage, err := adapter.getMaxCpuUsageInCluster(clusterMetrics)
 	assert.NoError(t, err)
@@ -161,7 +161,7 @@ func TestIncreaseParallelism(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 4, yb.GetNumConnectionsInPool())
@@ -177,7 +177,7 @@ func TestDecreaseParallelismBasedOnCpu(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
@@ -203,7 +203,7 @@ func TestDecreaseInParallelismBecauseOfLowAvailableMemory(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
@@ -229,7 +229,7 @@ func TestDecreaseInParallelismBecauseofTserverRootMemoryConsumptionSoftLimitBrea
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	assert.Equal(t, 2, yb.GetNumConnectionsInPool())
@@ -255,7 +255,7 @@ func TestIncreaseInParallelismBeyondMax(t *testing.T) {
 		tserverRootMemSoftLimit2:   3286263299,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	// assert no change in size because it would go beyond max size
@@ -272,7 +272,7 @@ func TestDecreaseInParallelismBelowMin(t *testing.T) {
 		cpuUsageSys2:  0.1,
 	}
 
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	err := adapter.FetchClusterMetricsAndUpdateParallelism()
 	assert.NoErrorf(t, err, "failed to fetch cluster metrics and update parallelism")
 	// assert no change in size because it would go below min size
