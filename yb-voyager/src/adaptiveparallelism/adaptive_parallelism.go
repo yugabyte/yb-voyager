@@ -68,6 +68,24 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
+type ParallelismAdapter struct {
+	yb                          TargetYugabyteDBWithConnectionPool
+	minParallelism              int
+	maxParallelism              int
+	maxCpuThreshold             int
+	minAvailableMemoryThreshold int
+}
+
+func NewParallelismAdapter(yb TargetYugabyteDBWithConnectionPool, minParallelism, maxParallelism, maxCpuThreshold, minAvailableMemoryThreshold int) *ParallelismAdapter {
+	return &ParallelismAdapter{
+		yb:                          yb,
+		minParallelism:              minParallelism,
+		maxParallelism:              maxParallelism,
+		maxCpuThreshold:             maxCpuThreshold,
+		minAvailableMemoryThreshold: minAvailableMemoryThreshold,
+	}
+}
+
 var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
@@ -75,56 +93,57 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return ErrAdaptiveParallelismNotSupported
 	}
 	readConfig()
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_THRESHOLD, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
-		err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+		err := adapter.FetchClusterMetricsAndUpdateParallelism()
 		if err != nil {
 			log.Warnf("adaptive: error updating parallelism: %v", err)
 		}
 	}
 }
 
-func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPool, minParallelism int, maxParallelism int) error {
-	clusterMetrics, err := yb.GetClusterMetrics()
+func (pa *ParallelismAdapter) FetchClusterMetricsAndUpdateParallelism() error {
+	clusterMetrics, err := pa.yb.GetClusterMetrics()
 	log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
 	if err != nil {
 		return fmt.Errorf("getting cluster metrics: %w", err)
 	}
 
-	cpuLoadHigh, err := isCpuLoadHigh(clusterMetrics)
+	cpuLoadHigh, err := pa.isCpuLoadHigh(clusterMetrics)
 	if err != nil {
 		return fmt.Errorf("checking if cpu load is high: %w", err)
 	}
-	memLoadHigh, err := isMemoryLoadHigh(clusterMetrics)
+	memLoadHigh, err := pa.isMemoryLoadHigh(clusterMetrics)
 	if err != nil {
 		return fmt.Errorf("checking if memory load is high: %w", err)
 	}
 
 	if cpuLoadHigh || memLoadHigh {
 		deltaParallelism := -1
-		if (yb.GetNumConnectionsInPool() + deltaParallelism) < minParallelism {
+		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) < pa.minParallelism {
 			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
-				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, minParallelism)
+				cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.minParallelism)
 			return nil
 		}
 
 		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
-		err = yb.UpdateNumConnectionsInPool(deltaParallelism)
+			cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		err = pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
 	} else {
 		deltaParallelism := 1
-		if (yb.GetNumConnectionsInPool() + deltaParallelism) > maxParallelism {
+		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) > pa.maxParallelism {
 			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
-				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, maxParallelism)
+				cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.maxParallelism)
 			return nil
 		}
 
 		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
-		err := yb.UpdateNumConnectionsInPool(deltaParallelism)
+			cpuLoadHigh, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		err := pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
 		}
@@ -132,22 +151,22 @@ func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPo
 	return nil
 }
 
-func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	// get max CPU
 	// Note that right now, voyager ingests data into the target in parallel,
 	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
 	// either due to pre-split or colocated table, it is possible that the load on the cluster
 	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
 	// therefore we use the max CPU usage across all nodes in the cluster.
-	maxCpuUsagePct, err := getMaxCpuUsageInCluster(clusterMetrics)
+	maxCpuUsagePct, err := pa.getMaxCpuUsageInCluster(clusterMetrics)
 	if err != nil {
 		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
 	}
-	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threshold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
-	return maxCpuUsagePct > MAX_CPU_THRESHOLD, nil
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threshold = %d", maxCpuUsagePct, pa.maxCpuThreshold)
+	return maxCpuUsagePct > pa.maxCpuThreshold, nil
 }
 
-func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
+func (pa *ParallelismAdapter) getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
 	maxCpuPct := -1
 	for _, nodeMetrics := range clusterMetrics {
 		if nodeMetrics.Status != "OK" {
@@ -173,7 +192,7 @@ Memory load is considered to be high in the following scenarios
 - Available memory of any node is less than 10% (MIN_AVAILABLE_MEMORY_THRESHOLD) of it's total memory
 - tserver root memory consumption of any node has breached it's soft limit.
 */
-func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	minMemoryAvailablePct := 100
 	isTserverRootMemorySoftLimitBreached := false
 	for _, nodeMetrics := range clusterMetrics {
@@ -210,10 +229,10 @@ func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error)
 		}
 		memoryAvailablePct := int((memoryAvailable * 100) / memoryTotal)
 		minMemoryAvailablePct = min(minMemoryAvailablePct, memoryAvailablePct)
-		if minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD {
+		if minMemoryAvailablePct < pa.minAvailableMemoryThreshold {
 			break
 		}
 	}
 
-	return minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD || isTserverRootMemorySoftLimitBreached, nil
+	return minMemoryAvailablePct < pa.minAvailableMemoryThreshold || isTserverRootMemorySoftLimitBreached, nil
 }
