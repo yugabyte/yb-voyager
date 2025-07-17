@@ -530,6 +530,9 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 
 		// Anonymize each schema name in the GRANT list
 		for _, obj := range gs.Objects {
+			if obj == nil {
+				continue
+			}
 			if str := obj.GetString_(); str != nil && str.Sval != "" {
 				str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
 				if err != nil {
