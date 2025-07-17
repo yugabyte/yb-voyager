@@ -126,17 +126,21 @@ func (pg *TargetPostgreSQL) Init() error {
 		schemaList)
 	rows, err := pg.Query(checkSchemaExistsQuery)
 	if err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
-	} else {
-		var cntSchemaName int64
-		if err = pg.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-			err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, pg.tconf.Host, err)
-		} else if cntSchemaName == 0 {
-			err = fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
-		}
+		return fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, pg.tconf.Host, err)
 	}
-	if err != nil {
-		return err
+	var returnedSchemas []string
+	defer rows.Close()
+	for rows.Next() {
+		var schemaName string
+		err = rows.Scan(&schemaName)
+		if err != nil {
+			return fmt.Errorf("scan schema name: %w", err)
+		}
+		returnedSchemas = append(returnedSchemas, schemaName)
+	}
+	if len(returnedSchemas) != len(schemas) {
+		notExistsSchemas := utils.SetDifference(schemas, returnedSchemas)
+		return fmt.Errorf("schema '%s' does not exist in target", strings.Join(notExistsSchemas, ","))
 	}
 	return err
 }
