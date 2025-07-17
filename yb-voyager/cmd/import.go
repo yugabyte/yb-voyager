@@ -495,7 +495,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 
 	// flag only applicable for import-data-to-target and import-data-file commands
 	// ignore for import-data-to-source-replica and import-data-to-source commands
-	if !isPrimaryKeyConflictIgnoreModeValid() {
+	if !isPrimaryKeyConflictModeValid() {
 		return nil
 	}
 

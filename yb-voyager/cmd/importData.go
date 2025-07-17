@@ -1634,7 +1634,7 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 }
 
 func saveOnPrimaryKeyConflictActionInMSR() {
-	if !isPrimaryKeyConflictIgnoreModeValid() {
+	if !isPrimaryKeyConflictModeValid() {
 		return
 	}
 
@@ -1646,8 +1646,6 @@ func saveOnPrimaryKeyConflictActionInMSR() {
 func cleanMSRForImportDataStartClean() error {
 	if !startClean {
 		log.Infof("skipping cleaning migration status record for import data command start clean")
-		return nil
-	} else if !isPrimaryKeyConflictIgnoreModeValid() {
 		return nil
 	}
 
@@ -1666,7 +1664,7 @@ func cleanMSRForImportDataStartClean() error {
 	return nil
 }
 
-func isPrimaryKeyConflictIgnoreModeValid() bool {
+func isPrimaryKeyConflictModeValid() bool {
 	return importerRole == IMPORT_FILE_ROLE || importerRole == TARGET_DB_IMPORTER_ROLE
 }
 
