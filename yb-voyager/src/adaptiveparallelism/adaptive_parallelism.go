@@ -37,7 +37,8 @@ const (
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
 	DEFAULT_MAX_CPU_HARD_THRESHOLD                 = 90
-	DEFAULT_MAX_CPU_SOFT_THRESHOLD                 = 70
+	DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH            = 80
+	DEFAULT_MAX_CPU_SOFT_THRESHOLD_LOW             = 70
 	DEFAULT_CPU_SOFT_THRESHOLD_WINDOW              = 3
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
@@ -48,7 +49,8 @@ const (
 )
 
 var MAX_CPU_HARD_THRESHOLD int
-var MAX_CPU_SOFT_THRESHOLD int
+var MAX_CPU_SOFT_THRESHOLD_HIGH int
+var MAX_CPU_SOFT_THRESHOLD_LOW int
 var CPU_SOFT_THRESHOLD_WINDOW int
 var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
 var MIN_AVAILABLE_MEMORY_THRESHOLD int
@@ -58,9 +60,13 @@ func readConfig() {
 	if MAX_CPU_HARD_THRESHOLD != DEFAULT_MAX_CPU_HARD_THRESHOLD {
 		utils.PrintAndLog("Using MAX_CPU_HARD_THRESHOLD: %d", MAX_CPU_HARD_THRESHOLD)
 	}
-	MAX_CPU_SOFT_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_SOFT_THRESHOLD", DEFAULT_MAX_CPU_SOFT_THRESHOLD)
-	if MAX_CPU_SOFT_THRESHOLD != DEFAULT_MAX_CPU_SOFT_THRESHOLD {
-		utils.PrintAndLog("Using MAX_CPU_SOFT_THRESHOLD: %d", MAX_CPU_SOFT_THRESHOLD)
+	MAX_CPU_SOFT_THRESHOLD_HIGH = utils.GetEnvAsInt("MAX_CPU_SOFT_THRESHOLD_HIGH", DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH)
+	if MAX_CPU_SOFT_THRESHOLD_HIGH != DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH {
+		utils.PrintAndLog("Using MAX_CPU_SOFT_THRESHOLD_HIGH: %d", MAX_CPU_SOFT_THRESHOLD_HIGH)
+	}
+	MAX_CPU_SOFT_THRESHOLD_LOW = utils.GetEnvAsInt("MAX_CPU_SOFT_THRESHOLD_LOW", DEFAULT_MAX_CPU_SOFT_THRESHOLD_LOW)
+	if MAX_CPU_SOFT_THRESHOLD_LOW != DEFAULT_MAX_CPU_SOFT_THRESHOLD_LOW {
+		utils.PrintAndLog("Using MAX_CPU_SOFT_THRESHOLD_LOW: %d", MAX_CPU_SOFT_THRESHOLD_LOW)
 	}
 	CPU_SOFT_THRESHOLD_WINDOW = utils.GetEnvAsInt("CPU_SOFT_THRESHOLD_WINDOW", DEFAULT_CPU_SOFT_THRESHOLD_WINDOW)
 	if CPU_SOFT_THRESHOLD_WINDOW != DEFAULT_CPU_SOFT_THRESHOLD_WINDOW {
@@ -89,19 +95,21 @@ type ParallelismAdapter struct {
 	minParallelism              int
 	maxParallelism              int
 	maxCpuHardThreshold         int
-	maxCpuSoftThreshold         int
+	maxCpuSoftThresholdHigh     int
+	maxCpuSoftThresholdLow      int
 	cpuSoftThresholdWindow      int
 	minAvailableMemoryThreshold int
 	cpuHistory                  map[string][]int // node_uuid -> []cpu_percentages
 }
 
-func NewParallelismAdapter(yb TargetYugabyteDBWithConnectionPool, minParallelism, maxParallelism, maxCpuHardThreshold, maxCpuSoftThreshold, cpuSoftThresholdWindow, minAvailableMemoryThreshold int) *ParallelismAdapter {
+func NewParallelismAdapter(yb TargetYugabyteDBWithConnectionPool, minParallelism, maxParallelism, maxCpuHardThreshold, maxCpuSoftThresholdHigh, maxCpuSoftThresholdLow, cpuSoftThresholdWindow, minAvailableMemoryThreshold int) *ParallelismAdapter {
 	return &ParallelismAdapter{
 		yb:                          yb,
 		minParallelism:              minParallelism,
 		maxParallelism:              maxParallelism,
 		maxCpuHardThreshold:         maxCpuHardThreshold,
-		maxCpuSoftThreshold:         maxCpuSoftThreshold,
+		maxCpuSoftThresholdHigh:     maxCpuSoftThresholdHigh,
+		maxCpuSoftThresholdLow:      maxCpuSoftThresholdLow,
 		cpuSoftThresholdWindow:      cpuSoftThresholdWindow,
 		minAvailableMemoryThreshold: minAvailableMemoryThreshold,
 		cpuHistory:                  make(map[string][]int),
@@ -115,7 +123,7 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return ErrAdaptiveParallelismNotSupported
 	}
 	readConfig()
-	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD_HIGH, MAX_CPU_SOFT_THRESHOLD_LOW, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
 		err := adapter.FetchClusterMetricsAndUpdateParallelism()
@@ -238,14 +246,14 @@ func (pa *ParallelismAdapter) checkSoftCpuBreach(clusterMetrics map[string]tgtdb
 				allAbove = false
 				break
 			}
-			if cpu <= pa.maxCpuSoftThreshold {
+			if cpu <= pa.maxCpuSoftThresholdHigh {
 				allAbove = false
 				break
 			}
 		}
 
 		if allAbove {
-			log.Infof("adaptive: node %s soft cpu threshold breached: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThreshold)
+			log.Infof("adaptive: node %s soft cpu threshold breached: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThresholdHigh)
 			return true, nil
 		}
 	}
@@ -265,14 +273,14 @@ func (pa *ParallelismAdapter) checkCpuLoadLow(clusterMetrics map[string]tgtdb.No
 				allBelow = false
 				break
 			}
-			if cpu >= pa.maxCpuSoftThreshold {
+			if cpu >= pa.maxCpuSoftThresholdLow {
 				allBelow = false
 				break
 			}
 		}
 
 		if allBelow {
-			log.Infof("adaptive: node %s cpu load consistently low: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThreshold)
+			log.Infof("adaptive: node %s cpu load consistently low: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThresholdLow)
 			return true, nil
 		}
 	}
