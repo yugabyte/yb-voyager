@@ -377,3 +377,27 @@ func (pa *ParallelismAdapter) isMemoryLoadHigh(clusterMetrics map[string]tgtdb.N
 
 	return minMemoryAvailablePct < pa.minAvailableMemoryThreshold || isTserverRootMemorySoftLimitBreached, nil
 }
+
+/*
+This PR improves the adaptive parallelism logic to be more aggressive when CPU usage is consistently low while being less sensitive to random CPU spikes. The current single-threshold approach is too conservative and misses opportunities to increase parallelism when the cluster has spare capacity.
+Changes Made
+
+Before (Binary Logic)
+Single CPU threshold (80%)
+Binary state: CPU load either "high" or "low"
+Immediate throttling if any node exceeds threshold
+Conservative approach that could miss optimization opportunities
+
+After (Trend-based decision + Three-State Logic)
+Three load states: HIGH (reduce parallelism), OK (maintain), LOW (increase parallelism)
+HIGH state:
+Two CPU thresholds: Hard threshold (90%) for immediate response, soft threshold (70%) for trend-based decisions
+	Hard Threshold (90%): Immediate response - reduces parallelism if any node breaches
+	Soft Threshold (70%): Trend-based response - reduces parallelism if any node's last 3 readings consistently exceed threshold.
+			This will help avoid responses to temporary spikes and sustained load
+
+Low State: Increases parallelism when any node's last 3 readings are consistently below 70%
+
+OK State: Maintains current parallelism when CPU is in moderate range, preventing oscillation
+
+*/
