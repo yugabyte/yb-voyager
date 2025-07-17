@@ -80,10 +80,9 @@ jobs:
           docker_ip=$(docker inspect -f '{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}' yugabytedb)
           echo "$docker_ip	yb-cluster-test" | sudo tee -a /etc/hosts
           psql "postgresql://yugabyte@yb-cluster-test:5433/yugabyte" -c "SELECT version();"
-
-      # ========================================
-      # CLI WORKFLOW TESTS (7 tests)
-      # ========================================
+      
+      - name: "=== CLI WORKFLOW TESTS ==="
+        run: echo "Starting CLI workflow tests (7 tests)"
       
       - name: "TEST: mysql-table-list-flags-test (table-list and exclude-table-list)"
         if: ${{ !cancelled() }}
@@ -108,10 +107,8 @@ jobs:
       - name: "TEST: mysql-functions"
         if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/functions
-
-      # ========================================
-      # CONFIG FILE WORKFLOW TESTS (8 tests)
-      # ========================================
+      - name: "=== CONFIG FILE WORKFLOW TESTS ==="
+        run: echo "Starting config file workflow tests (8 tests)"
 
       - name: "TEST: mysql-table-list-file-path-test (table-list-file-path and exclude-table-list-file-path)"
         if: ${{ !cancelled() }}
@@ -145,9 +142,8 @@ jobs:
         if: ${{ !cancelled() }}
         run: migtests/scripts/run-test.sh mysql/case-sensitivity-reserved-words --run-via-config-file
 
-      # ========================================
-      # LIVE MIGRATION TEST (CLI)
-      # ========================================
+      - name: "=== LIVE MIGRATION TEST ==="
+        run: echo "Starting live migration test (CLI)"
 
       # Placeholder for now so that a basic test can run
       - name: Create the live migration user
