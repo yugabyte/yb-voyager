@@ -216,215 +216,6 @@ func exportSchema(cmd *cobra.Command) error {
 	return nil
 }
 
-func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
-	if skipPerfOptimizations {
-		log.Infof("not applying performance optimizations due to flag --skip-performance-optimizations=true")
-		return nil, nil
-	}
-
-	if source.DBType != POSTGRESQL {
-		return nil, nil
-	}
-
-	log.Infof("applying performance optimizations to the exported schema")
-
-	//ORDER needs to be retained atleast for a particular schema object type like INDEXES
-	//First we change the INDEXES_table.sql to indexes_before_perf_changes.sql
-	//Then we first remove the redundant indexes from that file - put removed ones in a file redundant_indexes.sql (nit: will add exisiting index of individual one in comments)
-	//then will modify rest of the indexes in the file to make them range sharded indexes
-	//in case anything goes wrong, we can always refer to the indexes_before_perf_changes.sql file
-	//and rename to INDEXES_table.sql back (original file)
-
-	//INDEX
-	fileName := utils.GetObjectFilePath(schemaDir, INDEX)
-	if !utils.FileOrFolderExists(fileName) { // there are no indexes
-		log.Infof("INDEXES_table.sql file doesn't exists, skipping applying indexes performance optimizations")
-		return nil, nil
-	}
-
-	// copy the current INDEXES_table.sql file to indexes_before_applying_perf_optimizations.sql
-	copiedFileName := filepath.Join(filepath.Dir(fileName), "indexes_before_applying_perf_optimizations.sql")
-	//copy files
-	err := utils.CopyFile(fileName, copiedFileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to copy %s to %s: %w", fileName, copiedFileName, err)
-	}
-
-	redundantIndexes, err := removeRedundantIndexes(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to remove redundant indexes: %w", err)
-	}
-
-	//TODO
-	// err = convertSecondaryIndexesToRangeShardedIndexes()
-	// if err != nil {
-	// return fmt.Errorf("failed to convert secondary indexes to range sharded indexes: %w", err)
-	// }
-	return redundantIndexes, nil
-}
-
-type ReportData struct {
-	Changes []Change
-}
-
-type Change struct {
-	Title                    string
-	Description              string
-	ReferenceFile            string
-	ReferenceFileDisplayName string
-	Items                    []string
-}
-
-//go:embed templates/optimization_changes_report.template
-var optimizationChangesTemplate []byte
-
-func generatePerformanceOptimizationReport(redundantIndexes []string, tables []string, mviews []string) error {
-	var changes []Change
-	//Redundndant one
-	changes = append(changes, Change{
-		Title:                    "Removed Redundant indexes",
-		Description:              "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary.",
-		ReferenceFile:            filepath.Join(exportDir, "schema", "tables", "redundant_indexes.sql"),
-		ReferenceFileDisplayName: "redundant_indexes.sql",
-		Items:                    redundantIndexes,
-	})
-	if assessmentRecommendationsApplied {
-		tableFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
-		if utils.FileOrFolderExists(tableFile) && len(tables) > 0 {
-			changes = append(changes, Change{
-				Title:                    "Applied sharding recommendations to Tables",
-				Description:              "Based on the assessment, sharding recommendations are applied to applicable tables to optimize data distribution and performance.",
-				ReferenceFile:            tableFile,
-				ReferenceFileDisplayName: "table.sql",
-				Items:                    tables,
-			})
-		}
-		mviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "MVIEW")
-		if utils.FileOrFolderExists(mviewFile) && len(mviews) > 0 {
-			changes = append(changes, Change{
-				Title:                    "Applied sharding recommendations to MViews",
-				Description:              "Based on the assessment, sharding recommendations are applied to applicable mviews to optimize data distribution and performance.",
-				ReferenceFile:            mviewFile,
-				ReferenceFileDisplayName: "mview.sql",
-				Items:                    mviews,
-			})
-		}
-	}
-	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("optimization_changes_report%s", HTML_EXTENSION))
-	log.Infof("writing changes report to file: %s", htmlReportFilePath)
-
-	file, err := os.Create(htmlReportFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("failed to close file %q: %v", htmlReportFilePath, err)
-		}
-	}()
-	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
-
-	err = tmpl.Execute(file, ReportData{
-		Changes: changes,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to render the assessment report: %w", err)
-	}
-
-	color.Green("\nPerformance optimization changes are applied to the schema, refer to the report for more details: %s", htmlReportFilePath)
-
-	return nil
-}
-
-func removeRedundantIndexes(fileName string) ([]string, error) {
-	//FETCH REDUNDANT INDEXES
-	//ASSSUMING THAT ASSESSMENT IS RUN AND FEETCHED THE REDUNDANT INDEXES
-	//TODO: SEE IF WE NEED TO TAKE CARE OF THE SCENARIO WHERE ASSESSMENT IS UNABLE TO FETCH REDUNDANT
-	var err error
-	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
-
-	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create assessment db: %w", err)
-	}
-
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
-	}
-	if len(redundantIndexesInfo) == 0 {
-		log.Infof("no redundant indexes found, skipping applying performance optimizations")
-		return nil, nil
-	}
-
-	redundantIndexMap := make(map[string]bool)
-	redundantIndexToResolvedExistingIndex := make(map[string]string)
-	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
-	//Find the resolved Existing index DDL from the redundant issues
-	for _, issue := range redundantIssues {
-		for _, info := range redundantIndexesInfo {
-			if issue.ObjectName == info.GetRedundantIndexObjectName() {
-				redundantIndexMap[info.GetRedundantIndexCatalogObjectName()] = true
-
-				redundantIndexToResolvedExistingIndex[info.GetRedundantIndexCatalogObjectName()] = issue.Details[queryissue.EXISTING_INDEX_SQL_STATEMENT].(string)
-				break
-			}
-		}
-	}
-
-	transformer := sqltransformer.NewTransformer()
-
-	rawStmts, err := queryparser.ParseSqlFile(fileName)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse table.sql file: %w", err)
-	}
-
-	filteredRawStmts, removedIndexToStmt, err := transformer.RemoveRedundantIndexes(rawStmts.Stmts, redundantIndexMap)
-	if err != nil {
-		return nil, fmt.Errorf("failed to merge constraints: %w", err)
-	}
-
-	sqlStmts, err := queryparser.DeparseRawStmts(filteredRawStmts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
-	}
-
-	var removedSqlStmts []string
-	for indexName, stmt := range removedIndexToStmt {
-		//Add the existing index ddl in the comments for the individual redundant index
-		stmtStr, err := queryparser.DeparseRawStmt(stmt)
-		if err != nil {
-			return nil, fmt.Errorf("failed to deparse removed index stmt: %w", err)
-		}
-		if existingIndex, ok := redundantIndexToResolvedExistingIndex[indexName]; ok {
-			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
-				existingIndex, stmtStr)
-		}
-		removedSqlStmts = append(removedSqlStmts, stmtStr)
-	}
-
-	// Write the removed indexes to a file
-	removedFileName := filepath.Join(filepath.Dir(fileName), "redundant_indexes.sql")
-	if len(removedSqlStmts) > 0 {
-		redundantIndexContent := strings.Join(removedSqlStmts, "\n\n")
-		err = os.WriteFile(removedFileName, []byte(redundantIndexContent), 0644)
-		if err != nil {
-			return nil, fmt.Errorf("failed to write redundant indexes file: %w", err)
-		}
-	} else {
-		log.Infof("no redundant indexes removed, skip making any changes to the file: %s", fileName)
-		return nil, nil
-	}
-
-	fileContent := strings.Join(sqlStmts, "\n\n")
-	err = os.WriteFile(fileName, []byte(fileContent), 0644)
-	if err != nil {
-		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
-	}
-	return lo.Keys(removedIndexToStmt), nil
-}
-
 func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Command) error {
 	if !bool(assessSchemaBeforeExport) {
 		log.Infof("skipping running assess-migration command before export schema as flag --assess-schema-before-export is set as false.")
@@ -965,4 +756,218 @@ func clearAssessmentRecommendationsApplied() {
 	if err != nil {
 		utils.ErrExit("clear assessment recommendations applied: update migration status record: %s", err)
 	}
+}
+
+func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
+	if skipPerfOptimizations {
+		log.Infof("not applying performance optimizations due to flag --skip-performance-optimizations=true")
+		return nil, nil
+	}
+
+	if source.DBType != POSTGRESQL {
+		return nil, nil
+	}
+
+	log.Infof("applying performance optimizations to the exported schema")
+
+	//order needs to be retained atleast for a particular schema object type like INDEXES
+	//First we change the INDEXES_table.sql to indexes_before_applying_perf_optimizations.sql
+	//Then we first remove the redundant indexes from that file
+	//then will modify rest of the indexes in the file to make them range sharded indexes
+	//in case anything goes wrong, we can always refer to the indexes_before_applying_perf_optimizations.sql file
+
+	//INDEX
+	fileName := utils.GetObjectFilePath(schemaDir, INDEX)
+	if !utils.FileOrFolderExists(fileName) { // there are no indexes
+		log.Infof("INDEXES_table.sql file doesn't exists, skipping applying indexes performance optimizations")
+		return nil, nil
+	}
+
+	// copy the current INDEXES_table.sql file to indexes_before_applying_perf_optimizations.sql
+	copiedFileName := filepath.Join(filepath.Dir(fileName), "indexes_before_applying_perf_optimizations.sql")
+	//copy files
+	err := utils.CopyFile(fileName, copiedFileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to copy %s to %s: %w", fileName, copiedFileName, err)
+	}
+
+	redundantIndexes, err := removeRedundantIndexes(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to remove redundant indexes: %w", err)
+	}
+
+	return redundantIndexes, nil
+}
+
+func removeRedundantIndexes(fileName string) ([]string, error) {
+	//fetching redundanant indexes from assessment db
+	//assuming that assessment is run and fetched the redundant indexes
+	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
+	var err error
+	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
+
+	assessmentDB, err = migassessment.NewAssessmentDB(source.DBType)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create assessment db: %w", err)
+	}
+
+	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
+	if err != nil {
+		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
+	}
+	if len(redundantIndexesInfo) == 0 {
+		log.Infof("no redundant indexes found, skipping applying performance optimizations")
+		return nil, nil
+	}
+
+	redundantIndexToResolvedExistingIndex := make(map[string]string)
+	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
+	//Find the resolved Existing index DDL from the redundant issues
+	for _, issue := range redundantIssues {
+		for _, info := range redundantIndexesInfo {
+			if issue.ObjectName == info.GetRedundantIndexObjectName() {
+				redundantIndexToResolvedExistingIndex[info.GetRedundantIndexCatalogObjectName()] = issue.Details[queryissue.EXISTING_INDEX_SQL_STATEMENT].(string)
+				break
+			}
+		}
+	}
+
+	transformer := sqltransformer.NewTransformer()
+
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse table.sql file: %w", err)
+	}
+
+	filteredRawStmts, removedIndexToStmtMap, err := transformer.RemoveRedundantIndexes(rawStmts.Stmts, redundantIndexToResolvedExistingIndex)
+	if err != nil {
+		return nil, fmt.Errorf("failed to merge constraints: %w", err)
+	}
+
+	sqlStmts, err := queryparser.DeparseRawStmts(filteredRawStmts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
+	}
+
+	var removedSqlStmts []string
+	for indexName, stmt := range removedIndexToStmtMap {
+		//Add the existing index ddl in the comments for the individual redundant index
+		stmtStr, err := queryparser.DeparseRawStmt(stmt)
+		if err != nil {
+			return nil, fmt.Errorf("failed to deparse removed index stmt: %w", err)
+		}
+		if existingIndex, ok := redundantIndexToResolvedExistingIndex[indexName]; ok {
+			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
+				existingIndex, stmtStr)
+		}
+		removedSqlStmts = append(removedSqlStmts, stmtStr)
+	}
+
+	// Write the removed indexes to a file
+	reundantIndexesFileName := filepath.Join(filepath.Dir(fileName), "redundant_indexes.sql")
+	if len(removedSqlStmts) > 0 {
+		redundantIndexContent := strings.Join(removedSqlStmts, "\n\n")
+		err = os.WriteFile(reundantIndexesFileName, []byte(redundantIndexContent), 0644)
+		if err != nil {
+			return nil, fmt.Errorf("failed to write redundant indexes file: %w", err)
+		}
+	} else {
+		log.Infof("no redundant indexes removed, skip making any changes to the file: %s", fileName)
+		return nil, nil
+	}
+
+	fileContent := strings.Join(sqlStmts, "\n\n")
+	err = os.WriteFile(fileName, []byte(fileContent), 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
+	}
+	return lo.Keys(removedIndexToStmtMap), nil
+}
+
+// =============================================== optimization changes report
+type ReportData struct {
+	Changes []Change
+}
+
+type Change struct {
+	Title                    string
+	Description              string
+	ReferenceFile            string
+	ReferenceFileDisplayName string
+	Items                    []string
+}
+
+//go:embed templates/optimization_changes_report.template
+var optimizationChangesTemplate []byte
+
+// generatePerformanceOptimizationReport generates an HTML report detailing performance optimization changes applied to the exported schema.
+// It reports the removal of redundant indexes and the application of sharding recommendations to tables and materialized views (mviews).
+// The report includes references to the relevant SQL files and lists the modified objects.
+// Parameters:
+//   - redundantIndexes: list of redundant index names that were removed.
+//   - tables: list of table names to which sharding recommendations were applied.
+//   - mviews: list of materialized view names to which sharding recommendations were applied.
+func generatePerformanceOptimizationReport(redundantIndexes []string, tables []string, mviews []string) error {
+	//TODO: see of we need to generate report in Oracle case also ?
+	var changes []Change
+
+	//Add redundant index removal change
+	if len(redundantIndexes) > 0 {
+		changes = append(changes, Change{
+			Title:                    "Removed Redundant indexes",
+			Description:              "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary.",
+			ReferenceFile:            filepath.Join(exportDir, "schema", "tables", "redundant_indexes.sql"),
+			ReferenceFileDisplayName: "redundant_indexes.sql",
+			Items:                    redundantIndexes,
+		})
+	}
+
+	//If assessment recommendations are applied
+	if assessmentRecommendationsApplied {
+		tableFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
+		//To tables then add that change
+		if utils.FileOrFolderExists(tableFile) && len(tables) > 0 {
+			changes = append(changes, Change{
+				Title:                    "Applied sharding recommendations to Tables",
+				Description:              "Based on the assessment, sharding recommendations are applied to applicable tables to optimize data distribution and performance.",
+				ReferenceFile:            tableFile,
+				ReferenceFileDisplayName: "table.sql",
+				Items:                    tables,
+			})
+		}
+		mviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "MVIEW")
+		//To mviews then add that change separately
+		if utils.FileOrFolderExists(mviewFile) && len(mviews) > 0 {
+			changes = append(changes, Change{
+				Title:                    "Applied sharding recommendations to MViews",
+				Description:              "Based on the assessment, sharding recommendations are applied to applicable mviews to optimize data distribution and performance.",
+				ReferenceFile:            mviewFile,
+				ReferenceFileDisplayName: "mview.sql",
+				Items:                    mviews,
+			})
+		}
+	}
+	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("optimization_changes_report%s", HTML_EXTENSION))
+	log.Infof("writing changes report to file: %s", htmlReportFilePath)
+
+	file, err := os.Create(htmlReportFilePath)
+	if err != nil {
+		return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
+	}
+	defer func() {
+		err := file.Close()
+		if err != nil {
+			log.Errorf("failed to close file %q: %v", htmlReportFilePath, err)
+		}
+	}()
+	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
+
+	err = tmpl.Execute(file, ReportData{Changes: changes})
+	if err != nil {
+		return fmt.Errorf("failed to render the assessment report: %w", err)
+	}
+
+	color.Green("\nPerformance optimization changes are applied to the schema, refer to the report for more details: %s", htmlReportFilePath)
+
+	return nil
 }

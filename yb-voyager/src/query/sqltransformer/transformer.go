@@ -156,7 +156,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	return result, nil
 }
 
-func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]bool) ([]*pg_query.RawStmt, map[string]*pg_query.RawStmt, error) {
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, map[string]*pg_query.RawStmt, error) {
 
 	var sqlStmts []*pg_query.RawStmt
 	removedIndexToStmt := make(map[string]*pg_query.RawStmt) // index object name to raw stmt
