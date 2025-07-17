@@ -142,7 +142,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 		return "", fmt.Errorf("error reading csv file %s: %w", ora2pgReportPath, err)
 	}
 	if len(rows) > 1 {
-		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %w", len(rows), rows)
+		return "", fmt.Errorf("invalid ora2pg report file format. Expected 1 row, found %d. contents = %v", len(rows), rows)
 	}
 	reportData := rows[0]
 	migrationLevel := strings.Split(reportData[5], "-")[0]
@@ -155,7 +155,7 @@ func calculateMigrationComplexityForOracle(schemaDirectory string) (string, erro
 	case "C":
 		return constants.MIGRATION_COMPLEXITY_HIGH, nil
 	default:
-		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %w", migrationLevel, reportData)
+		return "", fmt.Errorf("invalid migration level [%s] found in ora2pg report %v", migrationLevel, reportData)
 	}
 }
 

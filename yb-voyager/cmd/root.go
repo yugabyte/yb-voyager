@@ -423,7 +423,7 @@ func setControlPlane(cpType string) error {
 			return fmt.Errorf("initialize the target DB for visualization. %w", err)
 		}
 	default:
-		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %w", cpType, []string{YUGABYTED})
+		return fmt.Errorf("invalid value of control plane type: %q. Allowed values: %v", cpType, []string{YUGABYTED})
 	}
 	return nil
 }

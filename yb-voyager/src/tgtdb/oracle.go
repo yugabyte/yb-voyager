@@ -247,7 +247,7 @@ func (tdb *TargetOracleDB) TruncateTables(tables []sqlname.NameTuple) error {
 		}
 	}
 	if len(errors) > 0 {
-		return fmt.Errorf("truncate tables: %w", errors)
+		return fmt.Errorf("truncate tables: %v", errors)
 	}
 	return nil
 }

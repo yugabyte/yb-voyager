@@ -1012,7 +1012,7 @@ func (yb *YugabyteDB) CreatePublication(conn *pgconn.PgConn, publicationName str
 	result := conn.Exec(context.Background(), stmt)
 	_, err = result.ReadAll()
 	if err != nil {
-		return fmt.Errorf("create publication with stmt %s: %w", err, stmt)
+		return fmt.Errorf("create publication with stmt %s: %w", stmt, err)
 	}
 	log.Infof("created publication with stmt %s", stmt)
 	return nil
