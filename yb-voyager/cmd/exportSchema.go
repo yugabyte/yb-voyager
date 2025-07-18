@@ -821,6 +821,9 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	}
 
 	redundantIndexToResolvedExistingIndex := make(map[string]string)
+
+	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
+	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly 
 	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
 	//Find the resolved Existing index DDL from the redundant issues
 	for _, issue := range redundantIssues {
@@ -884,8 +887,8 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	return lo.Keys(removedIndexToStmtMap), nil
 }
 
-// =============================================== optimization changes report
-type ReportData struct {
+// =============================================== schema optimization changes report
+type SchemaOptimizationReport struct {
 	Changes []Change
 }
 
@@ -897,7 +900,7 @@ type Change struct {
 	Items                    []string
 }
 
-//go:embed templates/optimization_changes_report.template
+//go:embed templates/schema_optimization_report.template
 var optimizationChangesTemplate []byte
 
 // generatePerformanceOptimizationReport generates an HTML report detailing performance optimization changes applied to the exported schema.
@@ -908,7 +911,12 @@ var optimizationChangesTemplate []byte
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
 func generatePerformanceOptimizationReport(redundantIndexes []string, tables []string, mviews []string) error {
-	//TODO: see of we need to generate report in Oracle case also ?
+
+	if source.DBType != POSTGRESQL {
+		//NOt generating the report in case other than PG
+		return nil
+	}
+
 	var changes []Change
 
 	//Add redundant index removal change
@@ -928,10 +936,10 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, tables []s
 		//To tables then add that change
 		if utils.FileOrFolderExists(tableFile) && len(tables) > 0 {
 			changes = append(changes, Change{
-				Title:                    "Applied sharding recommendations to Tables",
-				Description:              "Based on the assessment, sharding recommendations are applied to applicable tables to optimize data distribution and performance.",
+				Title:                    "Applied Sharding Recommendations to Tables",
+				Description:              "Sharding recommendations from the assessment have been applied to the following tables to optimize data distribution and performance. All other tables will be colocated according to the target database configuration.",
 				ReferenceFile:            tableFile,
-				ReferenceFileDisplayName: "table.sql",
+				ReferenceFileDisplayName: filepath.Base(tableFile),
 				Items:                    tables,
 			})
 		}
@@ -939,15 +947,15 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, tables []s
 		//To mviews then add that change separately
 		if utils.FileOrFolderExists(mviewFile) && len(mviews) > 0 {
 			changes = append(changes, Change{
-				Title:                    "Applied sharding recommendations to MViews",
-				Description:              "Based on the assessment, sharding recommendations are applied to applicable mviews to optimize data distribution and performance.",
+				Title:                    "Applied sharding recommendations to Materialized Views",
+				Description:              "Based on the assessment, sharding recommendations have been applied to the following materialized views (mviews) to optimize data distribution and performance. All other mviews will be colocated according to the target database configuration.",
 				ReferenceFile:            mviewFile,
 				ReferenceFileDisplayName: "mview.sql",
 				Items:                    mviews,
 			})
 		}
 	}
-	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("optimization_changes_report%s", HTML_EXTENSION))
+	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("schema_optimization_report%s", HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
 	file, err := os.Create(htmlReportFilePath)
@@ -962,12 +970,12 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, tables []s
 	}()
 	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
 
-	err = tmpl.Execute(file, ReportData{Changes: changes})
+	err = tmpl.Execute(file, SchemaOptimizationReport{Changes: changes})
 	if err != nil {
 		return fmt.Errorf("failed to render the assessment report: %w", err)
 	}
 
-	color.Green("\nPerformance optimization changes are applied to the schema, refer to the report for more details: %s", htmlReportFilePath)
+	color.Green("\nSome optimization changes are applied to the schema, refer to the report for more details: %s", htmlReportFilePath)
 
 	return nil
 }

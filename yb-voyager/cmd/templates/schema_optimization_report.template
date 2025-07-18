@@ -2,7 +2,7 @@
 <html lang="en">
    <head>
       <meta charset="UTF-8">
-      <title> Performance Optimization Summary</title>
+      <title> Schema Optimization Summary</title>
       <style>
          body {
          font-family: Arial, sans-serif;
@@ -58,7 +58,7 @@
    </head>
    <body>
       <div class="wrapper">
-         <h1>Performance Optimization Summary</h1>
+         <h1>Schema Optimization Summary</h1>
          <div class="section">
             <h2>Changes Applied</h2>
             <hr>
@@ -67,7 +67,7 @@
                <h3>{{ .Title }}</h3>
                <p>{{ .Description }}</p>
                {{ if .ReferenceFile }}
-               <p>Refer to <a class="file-link" href="{{ .ReferenceFile }}">{{ .ReferenceFileDisplayName }}</a> for more details.</p>
+               <p>Refer to <a class="file-link" href="{{ .ReferenceFile }}" target="_blank">{{ .ReferenceFileDisplayName }}</a> for more details.</p>
                {{ end }}
                {{ if .Items }}
                <div class="scrollable-div no-wrap-list">
