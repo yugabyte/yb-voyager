@@ -17,6 +17,9 @@ const (
 
 type IdentifierHasher interface {
 	// GetHash returns a deterministic anonymised string for identifier with kind prefix.
+	// If identifier is empty, it returns empty string.
+	// If the identifier is itself anonymized, it returns the same string.
+	// If the identifier is not anonymized, it generates a new anonymized string and caches it for future use.
 	GetHash(kind string, identifier string) (string, error)
 }
 

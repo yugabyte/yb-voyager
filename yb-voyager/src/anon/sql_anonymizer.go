@@ -61,9 +61,7 @@ func (a *SqlAnonymizer) anonymizationProcessor(msg protoreflect.Message) (err er
 	return nil
 }
 
-func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error {
-	var err error
-
+func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err error) {
 	err = a.handleSchemaObjectNodes(msg)
 	if err != nil {
 		return fmt.Errorf("error handling schema object nodes: %w", err)
@@ -210,11 +208,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
-		if rt.Name != "" {
-			rt.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, rt.Name)
-			if err != nil {
-				return fmt.Errorf("anon alias: %w", err)
-			}
+		rt.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, rt.Name)
+		if err != nil {
+			return fmt.Errorf("anon alias: %w", err)
 		}
 
 	/*
@@ -244,11 +240,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 			return fmt.Errorf("expected TableConstraint, got %T", msg.Interface())
 		}
 
-		if cons.Conname != "" {
-			cons.Conname, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, cons.Conname)
-			if err != nil {
-				return fmt.Errorf("anon constraint: %w", err)
-			}
+		cons.Conname, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, cons.Conname)
+		if err != nil {
+			return fmt.Errorf("anon constraint: %w", err)
 		}
 
 		if len(cons.Keys) > 0 {
@@ -287,11 +281,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) error
 		if !ok {
 			return fmt.Errorf("expected Alias, got %T", msg.Interface())
 		}
-		if alias.Aliasname != "" {
-			alias.Aliasname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, alias.Aliasname)
-			if err != nil {
-				return fmt.Errorf("anon aliasnode: %w", err)
-			}
+		alias.Aliasname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, alias.Aliasname)
+		if err != nil {
+			return fmt.Errorf("anon aliasnode: %w", err)
 		}
 
 	/*
@@ -384,7 +376,7 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 			return fmt.Errorf("expected A_Const, got %T", msg.Interface())
 		}
 
-		if ac.Val != nil && ac.GetSval() != nil && ac.GetSval().Sval != "" {
+		if ac.Val != nil && ac.GetSval() != nil {
 			// Anonymize the string literal
 			tok, err := a.registry.GetHash(CONST_KIND_PREFIX, ac.GetSval().Sval)
 			if err != nil {
@@ -502,7 +494,7 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 			if obj == nil {
 				continue
 			}
-			if str := obj.GetString_(); str != nil && str.Sval != "" {
+			if str := obj.GetString_(); str != nil {
 				str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
 				if err != nil {
 					return fmt.Errorf("anon schema grant: %w", err)
@@ -539,31 +531,28 @@ func (a *SqlAnonymizer) handleCollationObjectNodes(msg protoreflect.Message) (er
 		//   [dbname, schema, name]
 		// parser won't fail if defnames has more than 3 elements, but thats not a valid SQL
 		for i, nameNode := range ds.Defnames {
-			if str := nameNode.GetString_(); str != nil && str.Sval != "" {
+			if str := nameNode.GetString_(); str != nil {
 				switch {
 				case len(ds.Defnames) == 3 && i == 0:
 					// first element is database
-					tok, err := a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
+					str.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
 					if err != nil {
 						return fmt.Errorf("anon collation create db: %w", err)
 					}
-					str.Sval = tok
 
 				case (len(ds.Defnames) == 3 || len(ds.Defnames) == 2) && i == len(ds.Defnames)-2:
 					// second‐to‐last element is schema (when 2 or 3 parts)
-					tok, err := a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
+					str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
 					if err != nil {
 						return fmt.Errorf("anon collation create schema: %w", err)
 					}
-					str.Sval = tok
 
 				case i == len(ds.Defnames)-1:
 					// last element is the collation name
-					tok, err := a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
+					str.Sval, err = a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
 					if err != nil {
 						return fmt.Errorf("anon collation create name: %w", err)
 					}
-					str.Sval = tok
 				}
 			}
 		}
@@ -670,7 +659,7 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 
 		// anonymize the enum values
 		for _, val := range ces.Vals {
-			if str := val.GetString_(); str != nil && str.Sval != "" {
+			if str := val.GetString_(); str != nil {
 				str.Sval, err = a.registry.GetHash(ENUM_KIND_PREFIX, str.Sval)
 				if err != nil {
 					return err
@@ -695,11 +684,9 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 		}
 
 		// Anonymize the new value
-		if ae.NewVal != "" {
-			ae.NewVal, err = a.registry.GetHash(ENUM_KIND_PREFIX, ae.NewVal)
-			if err != nil {
-				return err
-			}
+		ae.NewVal, err = a.registry.GetHash(ENUM_KIND_PREFIX, ae.NewVal)
+		if err != nil {
+			return err
 		}
 
 	/*
@@ -817,11 +804,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			pg_query.AlterTableType_AT_SetIdentity,
 			pg_query.AlterTableType_AT_DropIdentity:
 			// All these operations work on column names
-			if atc.Name != "" {
-				atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
-				if err != nil {
-					return fmt.Errorf("anon alter table column operation: %w", err)
-				}
+			atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
+			if err != nil {
+				return fmt.Errorf("anon alter table column operation: %w", err)
 			}
 
 		// ─── CONSTRAINT OPERATIONS (using CONSTRAINT_KIND_PREFIX) ─────────────────────────────────────────────
@@ -829,11 +814,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			pg_query.AlterTableType_AT_ValidateConstraint,
 			pg_query.AlterTableType_AT_DropConstraint:
 			// All these operations work on constraint names
-			if atc.Name != "" {
-				atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
-				if err != nil {
-					return fmt.Errorf("anon alter table constraint operation: %w", err)
-				}
+			atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
+			if err != nil {
+				return fmt.Errorf("anon alter table constraint operation: %w", err)
 			}
 
 		// ─── TRIGGER/RULE OPERATIONS (using TRIGGER_KIND_PREFIX) ─────────────────────────────────────────────
@@ -846,11 +829,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			pg_query.AlterTableType_AT_EnableReplicaRule,
 			pg_query.AlterTableType_AT_DisableRule:
 			// All these operations work on trigger/rule names
-			if atc.Name != "" {
-				atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
-				if err != nil {
-					return fmt.Errorf("anon alter table trigger/rule operation: %w", err)
-				}
+			atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
+			if err != nil {
+				return fmt.Errorf("anon alter table trigger/rule operation: %w", err)
 			}
 
 		// ─── INDEX OPERATIONS (using INDEX_KIND_PREFIX) ─────────────────────────────────────────────
@@ -859,11 +840,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 		// but here falling back to INDEX_KIND_PREFIX instead of going and determing it is index or primary key
 		case pg_query.AlterTableType_AT_ClusterOn:
 			// CLUSTER ON index_name
-			if atc.Name != "" {
-				atc.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, atc.Name)
-				if err != nil {
-					return fmt.Errorf("anon alter table cluster on: %w", err)
-				}
+			atc.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, atc.Name)
+			if err != nil {
+				return fmt.Errorf("anon alter table cluster on: %w", err)
 			}
 
 		// ─── REPLICA IDENTITY OPERATIONS (custom handling) ─────────────────────────────────────────────
@@ -871,7 +850,7 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// REPLICA IDENTITY { DEFAULT | USING INDEX index_name | FULL | NOTHING }
 			if atc.Def != nil {
 				replicaIdentityNode := atc.Def.GetReplicaIdentityStmt()
-				if replicaIdentityNode != nil && replicaIdentityNode.Name != "" {
+				if replicaIdentityNode != nil {
 					replicaIdentityNode.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, replicaIdentityNode.Name)
 					if err != nil {
 						return fmt.Errorf("anon alter table replica identity: %w", err)
@@ -935,11 +914,9 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 			return fmt.Errorf("expected IndexStmt, got %T", msg.Interface())
 		}
 
-		if idx.Idxname != "" {
-			idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
-			if err != nil {
-				return fmt.Errorf("anon idxname: %w", err)
-			}
+		idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
+		if err != nil {
+			return fmt.Errorf("anon idxname: %w", err)
 		}
 
 	case queryparser.PG_QUERY_INDEXELEM_NODE:
@@ -977,11 +954,9 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 		// 3) Expression alias: (Indexcolname != "")
 		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
 		//	 above this sql syntax is invalid, couldn't find an example of Indexcolname but still keeping the anonymization logic here
-		if ie.Indexcolname != "" {
-			ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
-			if err != nil {
-				return fmt.Errorf("anon index column alias: %w", err)
-			}
+		ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
+		if err != nil {
+			return fmt.Errorf("anon index column alias: %w", err)
 		}
 
 	}
@@ -1002,11 +977,9 @@ func (a *SqlAnonymizer) handlePolicyObjectNodes(msg protoreflect.Message) (err e
 		}
 
 		// Policy name is always unqualified
-		if ps.PolicyName != "" {
-			ps.PolicyName, err = a.registry.GetHash(POLICY_KIND_PREFIX, ps.PolicyName)
-			if err != nil {
-				return fmt.Errorf("anon policy name: %w", err)
-			}
+		ps.PolicyName, err = a.registry.GetHash(POLICY_KIND_PREFIX, ps.PolicyName)
+		if err != nil {
+			return fmt.Errorf("anon policy name: %w", err)
 		}
 	}
 	return nil
@@ -1018,7 +991,7 @@ func (a *SqlAnonymizer) handlePolicyObjectNodes(msg protoreflect.Message) (err e
    ParseTree:	stmt:{rename_stmt:{rename_type:OBJECT_SCHEMA  relation_type:OBJECT_ACCESS_METHOD  subname:"sales"  newname:"sales_new" ...}}
 
 */
-func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
+func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) (err error) {
 	if rs == nil {
 		return nil
 	}
@@ -1038,12 +1011,9 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 	*/
 	case pg_query.ObjectType_OBJECT_SCHEMA, pg_query.ObjectType_OBJECT_COLUMN:
 		// Both schema and column names are in rs.Subname
-		if rs.Subname != "" {
-			var err error
-			rs.Subname, err = a.registry.GetHash(prefix, rs.Subname)
-			if err != nil {
-				return fmt.Errorf("anon rename %s: %w", rs.RenameType, err)
-			}
+		rs.Subname, err = a.registry.GetHash(prefix, rs.Subname)
+		if err != nil {
+			return fmt.Errorf("anon rename %s: %w", rs.RenameType, err)
 		}
 
 	case pg_query.ObjectType_OBJECT_COLLATION, pg_query.ObjectType_OBJECT_TYPE,
@@ -1061,30 +1031,24 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) error {
 		// For other object types, try rs.Object as a simple string
 		if rs.Object != nil && rs.Object.GetString_() != nil {
 			str := rs.Object.GetString_()
-			if str.Sval != "" {
-				var err error
-				str.Sval, err = a.registry.GetHash(prefix, str.Sval)
-				if err != nil {
-					return fmt.Errorf("anon rename object: %w", err)
-				}
+			str.Sval, err = a.registry.GetHash(prefix, str.Sval)
+			if err != nil {
+				return fmt.Errorf("anon rename object: %w", err)
 			}
 		}
 	}
 
 	// Always anonymize the new name
-	if rs.Newname != "" {
-		var err error
-		rs.Newname, err = a.registry.GetHash(prefix, rs.Newname)
-		if err != nil {
-			return fmt.Errorf("anon rename newname: %w", err)
-		}
+	rs.Newname, err = a.registry.GetHash(prefix, rs.Newname)
+	if err != nil {
+		return fmt.Errorf("anon rename newname: %w", err)
 	}
 
 	return nil
 }
 
 // handleGenericDropStmt processes DROP statements for any object type
-func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
+func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) (err error) {
 	if ds == nil || len(ds.Objects) == 0 {
 		return nil
 	}
@@ -1097,12 +1061,11 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 			continue
 		}
 
-		var err error
 		// Handle different object name patterns based on object type
 		switch ds.RemoveType {
 		case pg_query.ObjectType_OBJECT_SCHEMA:
 			// Schema names are simple strings
-			if str := obj.GetString_(); str != nil && str.Sval != "" {
+			if str := obj.GetString_(); str != nil {
 				str.Sval, err = a.registry.GetHash(prefix, str.Sval)
 			}
 
@@ -1117,7 +1080,7 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 			if list := obj.GetList(); list != nil {
 				// Use existing anonymizeStringNodes for qualified names
 				err = a.anonymizeStringNodes(list.Items, prefix)
-			} else if str := obj.GetString_(); str != nil && str.Sval != "" {
+			} else if str := obj.GetString_(); str != nil {
 				// Fallback to simple string
 				str.Sval, err = a.registry.GetHash(prefix, str.Sval)
 			}
@@ -1132,7 +1095,7 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) error {
 }
 
 // handleGenericAlterObjectSchemaStmt processes ALTER ... SET SCHEMA statements for TABLE, EXTENSION, TYPE, SEQUENCE, and CONVERSION object types
-func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterObjectSchemaStmt) error {
+func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterObjectSchemaStmt) (err error) {
 	if aos == nil {
 		return nil
 	}
@@ -1144,7 +1107,7 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 	case pg_query.ObjectType_OBJECT_TABLE, pg_query.ObjectType_OBJECT_SEQUENCE:
 		// Tables, Sequences use RangeVar for their names
 		if aos.Relation != nil {
-			err := a.anonymizeRangeVarNode(aos.Relation, prefix)
+			err = a.anonymizeRangeVarNode(aos.Relation, prefix)
 			if err != nil {
 				return fmt.Errorf("anon alter table schema: %w", err)
 			}
@@ -1154,12 +1117,9 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		// Extensions have simple string names in Object field
 		if aos.Object != nil && aos.Object.GetString_() != nil {
 			str := aos.Object.GetString_()
-			if str.Sval != "" {
-				var err error
-				str.Sval, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, str.Sval) // No specific prefix for extensions
-				if err != nil {
-					return fmt.Errorf("anon alter extension schema: %w", err)
-				}
+			str.Sval, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, str.Sval) // No specific prefix for extensions
+			if err != nil {
+				return fmt.Errorf("anon alter extension schema: %w", err)
 			}
 		}
 
@@ -1167,7 +1127,7 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		// Types have qualified names in Object as a list
 		if aos.Object != nil && aos.Object.GetList() != nil {
 			items := aos.Object.GetList().Items
-			err := a.anonymizeStringNodes(items, TYPE_KIND_PREFIX)
+			err = a.anonymizeStringNodes(items, TYPE_KIND_PREFIX)
 			if err != nil {
 				return fmt.Errorf("anon alter type schema: %w", err)
 			}
@@ -1181,7 +1141,7 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		// Conversions have qualified names in Object as a list
 		if aos.Object != nil && aos.Object.GetList() != nil {
 			items := aos.Object.GetList().Items
-			err := a.anonymizeStringNodes(items, CONVERSION_KIND_PREFIX)
+			err = a.anonymizeStringNodes(items, CONVERSION_KIND_PREFIX)
 			if err != nil {
 				return fmt.Errorf("anon alter conversion schema: %w", err)
 			}
@@ -1189,18 +1149,15 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 	}
 
 	// Always anonymize the new schema name
-	if aos.Newschema != "" {
-		var err error
-		aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
-		if err != nil {
-			return fmt.Errorf("anon alter object schema newschema: %w", err)
-		}
+	aos.Newschema, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, aos.Newschema)
+	if err != nil {
+		return fmt.Errorf("anon alter object schema newschema: %w", err)
 	}
 
 	return nil
 }
 
-func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error {
+func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err error) {
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_COMMENT_STMT_NODE {
 		return nil
 	}
@@ -1215,7 +1172,8 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 		// Functions/procedures use ObjectWithArgs structure
 		if objWithArgs := cs.Object.GetObjectWithArgs(); objWithArgs != nil {
 			prefix := a.getObjectTypePrefix(cs.Objtype)
-			if err := a.anonymizeStringNodes(objWithArgs.Objname, prefix); err != nil {
+			err = a.anonymizeStringNodes(objWithArgs.Objname, prefix)
+			if err != nil {
 				return fmt.Errorf("anon comment function/procedure: %w", err)
 			}
 		}
@@ -1224,7 +1182,7 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 		// TYPE and DOMAIN use TypeName structure
 		if typeName := cs.Object.GetTypeName(); typeName != nil {
 			prefix := a.getObjectTypePrefix(cs.Objtype)
-			if err := a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
+			if err = a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
 				return fmt.Errorf("anon comment typename: %w", err)
 			}
 		}
@@ -1232,7 +1190,8 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 	case pg_query.ObjectType_OBJECT_COLUMN:
 		// COLUMN uses column reference logic
 		if list := cs.Object.GetList(); list != nil {
-			if err := a.anonymizeColumnRefNode(list.Items); err != nil {
+			err = a.anonymizeColumnRefNode(list.Items)
+			if err != nil {
 				return fmt.Errorf("anon comment column: %w", err)
 			}
 		}
@@ -1242,10 +1201,12 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 		if list := cs.Object.GetList(); list != nil && len(list.Items) >= 3 {
 			// [object_name, schema, table]
 			objectPrefix := a.getObjectTypePrefix(cs.Objtype)
-			if err := a.anonymizeStringNodes(list.Items[:1], objectPrefix); err != nil {
+			err = a.anonymizeStringNodes(list.Items[:1], objectPrefix)
+			if err != nil {
 				return fmt.Errorf("anon comment %s name: %w", cs.Objtype, err)
 			}
-			if err := a.anonymizeStringNodes(list.Items[1:], TABLE_KIND_PREFIX); err != nil {
+			err = a.anonymizeStringNodes(list.Items[1:], TABLE_KIND_PREFIX)
+			if err != nil {
 				return fmt.Errorf("anon comment %s table: %w", cs.Objtype, err)
 			}
 		}
@@ -1258,10 +1219,9 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 			if err := a.anonymizeStringNodes(list.Items, prefix); err != nil {
 				return fmt.Errorf("anon comment object: %w", err)
 			}
-		} else if str := cs.Object.GetString_(); str != nil && str.Sval != "" {
+		} else if str := cs.Object.GetString_(); str != nil {
 			// Simple unqualified names (SCHEMA, DATABASE, EXTENSION, ROLE)
 			prefix := a.getObjectTypePrefix(cs.Objtype)
-			var err error
 			str.Sval, err = a.registry.GetHash(prefix, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon comment object: %w", err)
@@ -1270,12 +1230,9 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) error
 	}
 
 	// Anonymize the comment text itself (if present)
-	if cs.Comment != "" {
-		var err error
-		cs.Comment, err = a.registry.GetHash(CONST_KIND_PREFIX, cs.Comment)
-		if err != nil {
-			return fmt.Errorf("anon comment text: %w", err)
-		}
+	cs.Comment, err = a.registry.GetHash(CONST_KIND_PREFIX, cs.Comment)
+	if err != nil {
+		return fmt.Errorf("anon comment text: %w", err)
 	}
 	return nil
 }
@@ -1348,11 +1305,9 @@ func (a *SqlAnonymizer) handleForeignTableObjectNodes(msg protoreflect.Message) 
 	// Anonymize columns in BaseStmt.TableElts -> already covered by anonymizeColumnDefNode
 
 	// Anonymize the server name if present
-	if fts.Servername != "" {
-		fts.Servername, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, fts.Servername)
-		if err != nil {
-			return fmt.Errorf("anon foreign table servername: %w", err)
-		}
+	fts.Servername, err = a.registry.GetHash(DEFAULT_KIND_PREFIX, fts.Servername)
+	if err != nil {
+		return fmt.Errorf("anon foreign table servername: %w", err)
 	}
 
 	// Anonymize the options if present
@@ -1399,7 +1354,7 @@ func (a *SqlAnonymizer) anonymizeStringNodes(nodes []*pg_query.Node, finalPrefix
 	// pick the actual *pg_query.String values
 	var strs []*pg_query.String
 	for _, n := range nodes {
-		if s := n.GetString_(); s != nil && s.Sval != "" {
+		if s := n.GetString_(); s != nil {
 			strs = append(strs, s)
 		}
 	}
@@ -1456,17 +1411,13 @@ func (a *SqlAnonymizer) anonymizeRangeVarNode(rv *pg_query.RangeVar, finalPrefix
 	if rv == nil {
 		return nil
 	}
-	if rv.Catalogname != "" {
-		rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
-		if err != nil {
-			return err
-		}
+	rv.Catalogname, err = a.registry.GetHash(DATABASE_KIND_PREFIX, rv.Catalogname)
+	if err != nil {
+		return err
 	}
-	if rv.Schemaname != "" {
-		rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
-		if err != nil {
-			return err
-		}
+	rv.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, rv.Schemaname)
+	if err != nil {
+		return err
 	}
 	rv.Relname, err = a.registry.GetHash(finalPrefix, rv.Relname)
 	if err != nil {
