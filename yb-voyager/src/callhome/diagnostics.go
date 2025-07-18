@@ -126,6 +126,7 @@ type AssessMigrationPhasePayload struct {
 	SourceConnectivity             bool                      `json:"source_connectivity"`
 	IopsInterval                   int64                     `json:"iops_interval"`
 	ControlPlaneType               string                    `json:"control_plane_type"`
+	AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
 }
 
 type AssessmentIssueCallhome struct {
@@ -349,6 +350,19 @@ func readCallHomeServiceEnv() {
 	}
 }
 
+func isLocalCallHome() bool {
+	host := os.Getenv("LOCAL_CALL_HOME_SERVICE_HOST")
+	port := os.Getenv("LOCAL_CALL_HOME_SERVICE_PORT")
+	return host != "" && port != ""
+}
+
+func getCallHomeProtocol() string {
+	if isLocalCallHome() {
+		return "http"
+	}
+	return "https"
+}
+
 // Send http request to flask servers after saving locally
 func SendPayload(payload *Payload) error {
 	if !SendDiagnostics {
@@ -365,7 +379,9 @@ func SendPayload(payload *Payload) error {
 	requestBody := bytes.NewBuffer(postBody)
 
 	log.Infof("callhome: Payload being sent for diagnostic usage: %s\n", string(postBody))
-	callhomeURL := fmt.Sprintf("https://%s:%d/", CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
+
+	protocol := getCallHomeProtocol()
+	callhomeURL := fmt.Sprintf("%s://%s:%d/", protocol, CALL_HOME_SERVICE_HOST, CALL_HOME_SERVICE_PORT)
 	resp, err := http.Post(callhomeURL, "application/json", requestBody)
 	if err != nil {
 		log.Infof("error while sending diagnostic data: %s", err)

@@ -1411,3 +1411,27 @@ func getSQLInfoArrayForObjectType(schemaDir, objType string) []sqlInfo {
 
 	return sqlInfoArr
 }
+
+// collectAllDDLs collects all DDL statements from the schema without any issue detection
+func collectAllDDLs(sourceDBConf *srcdb.Source, skipList []string) []string {
+	sourceDBType = sourceDBConf.DBType
+	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
+
+	var collectedDDLs []string
+
+	for _, objType := range sourceObjList {
+		// Skip object types that are in the skip list
+		if slices.Contains(skipList, objType) {
+			continue
+		}
+
+		sqlInfoArr := getSQLInfoArrayForObjectType(schemaDir, objType)
+
+		// Collect DDLs without doing any issue detection
+		for _, sqlInfo := range sqlInfoArr {
+			collectedDDLs = append(collectedDDLs, sqlInfo.formattedStmt)
+		}
+	}
+
+	return collectedDDLs
+}
