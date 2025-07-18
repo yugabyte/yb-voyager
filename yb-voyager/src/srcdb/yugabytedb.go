@@ -75,6 +75,11 @@ func (yb *YugabyteDB) Connect() error {
 	db.SetMaxOpenConns(yb.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	yb.db = db
+
+	err = yb.db.Ping()
+	if err != nil {
+		return err
+	}
 	return err
 }
 

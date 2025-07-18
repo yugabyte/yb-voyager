@@ -482,6 +482,24 @@ func ProtoAsAlterTableStmtNode(msg protoreflect.Message) (*pg_query.AlterTableSt
 	return alterTableStmtNode, true
 }
 
+func ProtoAsAlterTableCmdNode(msg protoreflect.Message) (*pg_query.AlterTableCmd, bool) {
+	alterTableCmdNode, ok := msg.Interface().(*pg_query.AlterTableCmd)
+	if !ok {
+		return nil, false
+	}
+
+	return alterTableCmdNode, true
+}
+
+func ProtoAsReplicaIdentityStmtNode(msg protoreflect.Message) (*pg_query.ReplicaIdentityStmt, bool) {
+	replicaIdentityStmtNode, ok := msg.Interface().(*pg_query.ReplicaIdentityStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return replicaIdentityStmtNode, true
+}
+
 func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt, error) {
 	node, ok := msg.Interface().(*pg_query.TransactionStmt)
 	if !ok {
@@ -489,6 +507,121 @@ func ProtoAsTransactionStmt(msg protoreflect.Message) (*pg_query.TransactionStmt
 	}
 
 	return node, nil
+}
+
+func ProtoAsCreateSchemaStmtNode(msg protoreflect.Message) (*pg_query.CreateSchemaStmt, bool) {
+	createSchemaStmtNode, ok := msg.Interface().(*pg_query.CreateSchemaStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createSchemaStmtNode, true
+}
+
+func ProtoAsRenameStmtNode(msg protoreflect.Message) (*pg_query.RenameStmt, bool) {
+	alterSchemaStmtNode, ok := msg.Interface().(*pg_query.RenameStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterSchemaStmtNode, true
+}
+
+func ProtoAsAlterOwnerStmtNode(msg protoreflect.Message) (*pg_query.AlterOwnerStmt, bool) {
+	alterOwnerStmtNode, ok := msg.Interface().(*pg_query.AlterOwnerStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterOwnerStmtNode, true
+}
+
+func ProtoAsDropStmtNode(msg protoreflect.Message) (*pg_query.DropStmt, bool) {
+	dropStmtNode, ok := msg.Interface().(*pg_query.DropStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return dropStmtNode, true
+}
+
+func ProtoAsGrantStmtNode(msg protoreflect.Message) (*pg_query.GrantStmt, bool) {
+	grantStmtNode, ok := msg.Interface().(*pg_query.GrantStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return grantStmtNode, true
+}
+
+func ProtoAsAlterObjectSchemaStmtNode(msg protoreflect.Message) (*pg_query.AlterObjectSchemaStmt, bool) {
+	alterObjectSchemaStmtNode, ok := msg.Interface().(*pg_query.AlterObjectSchemaStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterObjectSchemaStmtNode, true
+}
+
+func ProtoAsCreateSeqStmtNode(msg protoreflect.Message) (*pg_query.CreateSeqStmt, bool) {
+	createSeqStmtNode, ok := msg.Interface().(*pg_query.CreateSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createSeqStmtNode, true
+}
+
+func ProtoAsAlterSeqStmtNode(msg protoreflect.Message) (*pg_query.AlterSeqStmt, bool) {
+	alterSeqStmtNode, ok := msg.Interface().(*pg_query.AlterSeqStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterSeqStmtNode, true
+}
+
+func ProtoAsDefineStmtNode(msg protoreflect.Message) (*pg_query.DefineStmt, bool) {
+	defineStmtNode, ok := msg.Interface().(*pg_query.DefineStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return defineStmtNode, true
+}
+
+func ProtoAsCreateEnumStmtNode(msg protoreflect.Message) (*pg_query.CreateEnumStmt, bool) {
+	createEnumStmtNode, ok := msg.Interface().(*pg_query.CreateEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createEnumStmtNode, true
+}
+
+func ProtoAsAlterEnumStmtNode(msg protoreflect.Message) (*pg_query.AlterEnumStmt, bool) {
+	alterEnumStmtNode, ok := msg.Interface().(*pg_query.AlterEnumStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return alterEnumStmtNode, true
+}
+
+func ProtoAsCompositeTypeStmtNode(msg protoreflect.Message) (*pg_query.CompositeTypeStmt, bool) {
+	compositeTypeStmtNode, ok := msg.Interface().(*pg_query.CompositeTypeStmt)
+	if !ok {
+		return nil, false
+	}
+	return compositeTypeStmtNode, true
+}
+
+func ProtoAsCreateDomainStmtNode(msg protoreflect.Message) (*pg_query.CreateDomainStmt, bool) {
+	createDomainStmtNode, ok := msg.Interface().(*pg_query.CreateDomainStmt)
+	if !ok {
+		return nil, false
+	}
+	return createDomainStmtNode, true
 }
 
 func ProtoAsRangeVarNode(msg protoreflect.Message) (*pg_query.RangeVar, bool) {
@@ -505,6 +638,14 @@ func ProtoAsColumnDef(msg protoreflect.Message) (*pg_query.ColumnDef, bool) {
 		return nil, false
 	}
 	return columnDefNode, true
+}
+
+func ProtoAsColumnRefNode(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
+	columnRefNode, ok := msg.Interface().(*pg_query.ColumnRef)
+	if !ok {
+		return nil, false
+	}
+	return columnRefNode, true
 }
 
 func ProtoAsColumnRef(msg protoreflect.Message) (*pg_query.ColumnRef, bool) {
@@ -545,6 +686,14 @@ func ProtoAsRoleSpecNode(msg protoreflect.Message) (*pg_query.RoleSpec, bool) {
 		return nil, false
 	}
 	return roleSpecNode, true
+}
+
+func ProtoAsCreateStmtNode(msg protoreflect.Message) (*pg_query.CreateStmt, bool) {
+	createStmtNode, ok := msg.Interface().(*pg_query.CreateStmt)
+	if !ok {
+		return nil, false
+	}
+	return createStmtNode, true
 }
 
 /*

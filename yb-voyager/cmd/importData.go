@@ -1634,6 +1634,10 @@ func createInitialImportDataTableMetrics(tasks []*ImportFileTask) []*cp.UpdateIm
 }
 
 func saveOnPrimaryKeyConflictActionInMSR() {
+	if !isPrimaryKeyConflictModeValid() {
+		return
+	}
+
 	metaDB.UpdateMigrationStatusRecord(func(record *metadb.MigrationStatusRecord) {
 		record.OnPrimaryKeyConflictAction = tconf.OnPrimaryKeyConflictAction
 	})
@@ -1658,6 +1662,10 @@ func cleanMSRForImportDataStartClean() error {
 		})
 	}
 	return nil
+}
+
+func isPrimaryKeyConflictModeValid() bool {
+	return importerRole == IMPORT_FILE_ROLE || importerRole == TARGET_DB_IMPORTER_ROLE
 }
 
 func cleanStoredErrors(errorHandler importdata.ImportDataErrorHandler, tasks []*ImportFileTask) error {

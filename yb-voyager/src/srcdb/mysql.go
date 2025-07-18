@@ -62,6 +62,11 @@ func (ms *MySQL) Connect() error {
 	db.SetMaxOpenConns(ms.source.NumConnections)
 	db.SetConnMaxIdleTime(5 * time.Minute)
 	ms.db = db
+
+	err = ms.db.Ping()
+	if err != nil {
+		return err
+	}
 	return err
 }
 

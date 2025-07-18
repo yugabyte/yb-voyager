@@ -95,7 +95,6 @@ func validateImportFlags(cmd *cobra.Command, importerRole string) error {
 		getSourceDBPassword(cmd)
 	}
 	validateParallelismFlags()
-	validateTruncateTablesFlag()
 
 	return nil
 }
@@ -106,6 +105,10 @@ func validateImportDataFlags() error {
 		return fmt.Errorf("error validating --on-primary-key-conflict flag: %w", err)
 	}
 
+	err = validateTruncateTablesFlag()
+	if err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -477,10 +480,11 @@ func validateParallelismFlags() {
 
 }
 
-func validateTruncateTablesFlag() {
+func validateTruncateTablesFlag() error {
 	if truncateTables && !startClean {
-		utils.ErrExit("Error --truncate-tables true can only be specified along with --start-clean true")
+		return fmt.Errorf("Error --truncate-tables true can only be specified along with --start-clean true")
 	}
+	return nil
 }
 
 var onPrimaryKeyConflictActions = []string{
@@ -495,7 +499,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 
 	// flag only applicable for import-data-to-target and import-data-file commands
 	// ignore for import-data-to-source-replica and import-data-to-source commands
-	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+	if !isPrimaryKeyConflictModeValid() {
 		return nil
 	}
 

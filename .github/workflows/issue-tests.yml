@@ -41,7 +41,7 @@ jobs:
         wget https://s3.us-west-2.amazonaws.com/releases.yugabyte.com/${YB_VERSION}/yugabyte-${YB_VERSION}-centos-x86_64.tar.gz
         mkdir -p yugabyte-${YB_VERSION}
         tar -xvzf yugabyte-${YB_VERSION}-centos-x86_64.tar.gz -C yugabyte-${YB_VERSION} --strip-components=1
-        yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1
+        yugabyte-${YB_VERSION}/bin/yugabyted start --advertise_address 127.0.0.1 --callhome=false
         sleep 20
     
     - name: Test YugabyteDB connection

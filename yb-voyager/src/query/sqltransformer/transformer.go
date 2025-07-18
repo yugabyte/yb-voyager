@@ -68,7 +68,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
-		if stmtType == queryparser.PG_QUERY_CREATE_STMT {
+		if stmtType == queryparser.PG_QUERY_CREATE_STMT_NODE {
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetCreateStmt().Relation)
 			createStmtMap[objectName] = stmt
 		}
@@ -89,9 +89,9 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		switch stmtType {
-		case queryparser.PG_QUERY_CREATE_STMT:
+		case queryparser.PG_QUERY_CREATE_STMT_NODE:
 			result = append(result, stmt)
-		case queryparser.PG_QUERY_ALTER_TABLE_STMT:
+		case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
 			objectName := queryparser.GetObjectNameFromRangeVar(stmt.Stmt.GetAlterTableStmt().Relation)
 			alterTableNode := stmt.Stmt.GetAlterTableStmt()
 
