@@ -136,7 +136,7 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 			nodeName: "Cluster ON (ALTER TABLE)",
 			sql:      `ALTER TABLE humanresources.department CLUSTER ON "PK_Department_DepartmentID";`,
 			raw:      []string{"humanresources", "department", "PK_Department_DepartmentID"},
-			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONSTRAINT_KIND_PREFIX},
+			prefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, INDEX_KIND_PREFIX},
 		},
 		{
 			nodeName: "ResTarget",
@@ -172,8 +172,8 @@ func TestAllAnonymizationProcessorCases(t *testing.T) {
 		},
 		{
 			nodeName: "A_ArrayExpr (wrapping A_Const)",
-			sql:      `INSERT INTO t(arr) VALUES (ARRAY['abc','xyz','123']);`,
-			raw:      []string{"abc", "xyz", "123"},
+			sql:      `INSERT INTO t(arr) VALUES (ARRAY['val_one','val_two','val_three']);`,
+			raw:      []string{"val_one", "val_two", "val_three"},
 			prefixes: []string{CONST_KIND_PREFIX},
 		},
 		{
