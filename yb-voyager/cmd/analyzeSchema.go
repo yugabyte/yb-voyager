@@ -619,7 +619,11 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptim
 	checkSql(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
-	checkConversions(sqlInfoArr, fpath)
+
+	if objType == "CONVERSION" {
+		checkConversions(sqlInfoArr, fpath)
+	}
+
 	checkRemaining(sqlInfoArr, fpath)
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType, detectPerfOptimizationIssues)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
