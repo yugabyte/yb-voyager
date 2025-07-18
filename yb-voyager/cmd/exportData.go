@@ -211,7 +211,7 @@ func packAndSendExportDataPayload(status string, errorMsg error) {
 func exportData() bool {
 	err := source.DB().Connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the source db: %s", err)
+		utils.ErrExit("Failed to connect to the source db: %w", err)
 	}
 	defer source.DB().Disconnect()
 
