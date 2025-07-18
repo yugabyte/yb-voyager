@@ -655,11 +655,14 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 
 		// handle OWNED BY clause
 		for _, opt := range as.Options {
-			def := opt.GetDefElem()
-			if def == nil || def.Defname != "owned_by" {
+			if opt == nil {
 				continue
 			}
-			if list := def.GetArg().GetList(); list != nil {
+			def := opt.GetDefElem()
+			if def == nil || def.Defname != "owned_by" || def.Arg == nil {
+				continue
+			}
+			if list := def.Arg.GetList(); list != nil {
 				itemNodes := list.Items
 				err = a.anonymizeColumnRefNode(itemNodes)
 				if err != nil {

@@ -506,6 +506,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER EXTENSION <name> SET SCHEMA <schema>      | AlterExtensionStmtNode       | [x]
 //                       | DROP EXTENSION <name>                           | DropStmtNode                 | [x]
 //
+//  Verify with variants of TYPE at this - https://www.postgresql.org/docs/current/sql-createtype.html
 //  TYPE (ENUM)          | CREATE TYPE <name> AS ENUM (...)                | CreateEnumStmtNode           | [x]
 //                       | ALTER TYPE <name> RENAME TO <new>               | RenameStmtNode               | [x]
 //                       | DROP TYPE <name>                                | DropStmtNode                 | [x]
