@@ -710,6 +710,47 @@ func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err e
 	return nil
 }
 
+// alterTablePrefixMap maps AlterTableType to the appropriate prefix for anonymization
+var alterTablePrefixMap = map[pg_query.AlterTableType]string{
+	// Column operations
+	pg_query.AlterTableType_AT_DropColumn:                COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_AlterColumnType:           COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_ColumnDefault:             COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_CookedColumnDefault:       COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DropNotNull:               COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetNotNull:                COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_CheckNotNull:              COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetExpression:             COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DropExpression:            COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetStatistics:             COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetOptions:                COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_ResetOptions:              COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetStorage:                COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetCompression:            COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_AlterColumnGenericOptions: COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_AddIdentity:               COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_SetIdentity:               COLUMN_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DropIdentity:              COLUMN_KIND_PREFIX,
+
+	// Constraint operations
+	pg_query.AlterTableType_AT_AlterConstraint:    CONSTRAINT_KIND_PREFIX,
+	pg_query.AlterTableType_AT_ValidateConstraint: CONSTRAINT_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DropConstraint:     CONSTRAINT_KIND_PREFIX,
+
+	// Trigger/Rule operations
+	pg_query.AlterTableType_AT_EnableTrig:        TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableAlwaysTrig:  TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableReplicaTrig: TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DisableTrig:       TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableRule:        TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableAlwaysRule:  TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableReplicaRule: TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DisableRule:       TRIGGER_KIND_PREFIX,
+
+	// Index operations
+	pg_query.AlterTableType_AT_ClusterOn: INDEX_KIND_PREFIX,
+}
+
 func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err error) {
 	switch queryparser.GetMsgFullName(msg) {
 	/*
@@ -753,70 +794,17 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			return fmt.Errorf("expected AlterTableCmd, got %T", msg.Interface())
 		}
 
-		// Handle only ALTER TABLE command types that contain sensitive information
+		// Handle ALTER TABLE command types that contain sensitive information
+		// Check if this operation type is in our prefix map
+		if prefix, exists := alterTablePrefixMap[atc.Subtype]; exists {
+			atc.Name, err = a.registry.GetHash(prefix, atc.Name)
+			if err != nil {
+				return fmt.Errorf("anon alter table %s operation: %w", atc.Subtype, err)
+			}
+		}
+
+		// Handle other operations that need custom processing
 		switch atc.Subtype {
-
-		// ─── COLUMN OPERATIONS (using COLUMN_KIND_PREFIX) ─────────────────────────────────────────────
-		case pg_query.AlterTableType_AT_DropColumn,
-			pg_query.AlterTableType_AT_AlterColumnType,
-			pg_query.AlterTableType_AT_ColumnDefault,
-			pg_query.AlterTableType_AT_CookedColumnDefault,
-			pg_query.AlterTableType_AT_DropNotNull,
-			pg_query.AlterTableType_AT_SetNotNull,
-			pg_query.AlterTableType_AT_CheckNotNull,
-			pg_query.AlterTableType_AT_SetExpression,
-			pg_query.AlterTableType_AT_DropExpression,
-			pg_query.AlterTableType_AT_SetStatistics,
-			pg_query.AlterTableType_AT_SetOptions,
-			pg_query.AlterTableType_AT_ResetOptions,
-			pg_query.AlterTableType_AT_SetStorage,
-			pg_query.AlterTableType_AT_SetCompression,
-			pg_query.AlterTableType_AT_AlterColumnGenericOptions,
-			pg_query.AlterTableType_AT_AddIdentity,
-			pg_query.AlterTableType_AT_SetIdentity,
-			pg_query.AlterTableType_AT_DropIdentity:
-			// All these operations work on column names
-			atc.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, atc.Name)
-			if err != nil {
-				return fmt.Errorf("anon alter table column operation: %w", err)
-			}
-
-		// ─── CONSTRAINT OPERATIONS (using CONSTRAINT_KIND_PREFIX) ─────────────────────────────────────────────
-		case pg_query.AlterTableType_AT_AlterConstraint,
-			pg_query.AlterTableType_AT_ValidateConstraint,
-			pg_query.AlterTableType_AT_DropConstraint:
-			// All these operations work on constraint names
-			atc.Name, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, atc.Name)
-			if err != nil {
-				return fmt.Errorf("anon alter table constraint operation: %w", err)
-			}
-
-		// ─── TRIGGER/RULE OPERATIONS (using TRIGGER_KIND_PREFIX) ─────────────────────────────────────────────
-		case pg_query.AlterTableType_AT_EnableTrig,
-			pg_query.AlterTableType_AT_EnableAlwaysTrig,
-			pg_query.AlterTableType_AT_EnableReplicaTrig,
-			pg_query.AlterTableType_AT_DisableTrig,
-			pg_query.AlterTableType_AT_EnableRule,
-			pg_query.AlterTableType_AT_EnableAlwaysRule,
-			pg_query.AlterTableType_AT_EnableReplicaRule,
-			pg_query.AlterTableType_AT_DisableRule:
-			// All these operations work on trigger/rule names
-			atc.Name, err = a.registry.GetHash(TRIGGER_KIND_PREFIX, atc.Name)
-			if err != nil {
-				return fmt.Errorf("anon alter table trigger/rule operation: %w", err)
-			}
-
-		// ─── INDEX OPERATIONS (using INDEX_KIND_PREFIX) ─────────────────────────────────────────────
-		// caveat: Here after "ON" it can be INDEX or Primary key both
-		// because PRIMARY KEY is also an INDEX, but at other places we use CONSTRAINT_KIND_PREFIX for it
-		// but here falling back to INDEX_KIND_PREFIX instead of going and determing it is index or primary key
-		case pg_query.AlterTableType_AT_ClusterOn:
-			// CLUSTER ON index_name
-			atc.Name, err = a.registry.GetHash(INDEX_KIND_PREFIX, atc.Name)
-			if err != nil {
-				return fmt.Errorf("anon alter table cluster on: %w", err)
-			}
-
 		// ─── REPLICA IDENTITY OPERATIONS (custom handling) ─────────────────────────────────────────────
 		case pg_query.AlterTableType_AT_ReplicaIdentity:
 			// REPLICA IDENTITY { DEFAULT | USING INDEX index_name | FULL | NOTHING }
