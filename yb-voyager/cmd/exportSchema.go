@@ -823,7 +823,7 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	redundantIndexToResolvedExistingIndex := make(map[string]string)
 
 	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
-	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly 
+	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
 	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
 	//Find the resolved Existing index DDL from the redundant issues
 	for _, issue := range redundantIssues {
@@ -947,7 +947,7 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, tables []s
 		//To mviews then add that change separately
 		if utils.FileOrFolderExists(mviewFile) && len(mviews) > 0 {
 			changes = append(changes, Change{
-				Title:                    "Applied sharding recommendations to Materialized Views",
+				Title:                    "Applied Sharding Recommendations to Materialized Views",
 				Description:              "Based on the assessment, sharding recommendations have been applied to the following materialized views (mviews) to optimize data distribution and performance. All other mviews will be colocated according to the target database configuration.",
 				ReferenceFile:            mviewFile,
 				ReferenceFileDisplayName: "mview.sql",
@@ -955,6 +955,12 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, tables []s
 			})
 		}
 	}
+
+	if len(changes) == 0 {
+		//not dumping the report in case there are no changes
+		return nil
+	}
+
 	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("schema_optimization_report%s", HTML_EXTENSION))
 	log.Infof("writing changes report to file: %s", htmlReportFilePath)
 
