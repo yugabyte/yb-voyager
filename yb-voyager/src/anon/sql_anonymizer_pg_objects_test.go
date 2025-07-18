@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	log "github.com/sirupsen/logrus"
 
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -86,6 +87,50 @@ var enabled = map[string]bool{
 	"TABLE-DETACH-PARTITION":           true,
 	"TABLE-DETACH-PARTITION-FINALIZE":  true,
 	"TABLE-REPLICA-IDENTITY-INDEX":     true,
+	"INDEX-CREATE":                     true,
+	"INDEX-RENAME":                     true,
+	"INDEX-CREATE-UNIQUE":              true,
+	"INDEX-CREATE-GIN":                 true,
+	"INDEX-CREATE-EXPRESSION":          true,
+	"INDEX-CREATE-PARTIAL":             true,
+	"INDEX-CREATE-CONCURRENTLY":        true,
+	"INDEX-CREATE-IF-NOT-EXISTS":       true,
+	"INDEX-CREATE-WITH-OPTIONS":        true,
+	"INDEX-DROP":                       true,
+	"INDEX-DROP-IF-EXISTS":             true,
+	"INDEX-DROP-CONCURRENTLY":          true,
+
+	"POLICY-CREATE":                    true,
+	"POLICY-DROP":                      true,
+	"POLICY-CREATE-WITH-ROLES":         true,
+	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
+	"POLICY-CREATE-ALL-COMMANDS":       true,
+
+	"COMMENT-TABLE":                     true,
+	"COMMENT-COLUMN":                    true,
+	"COMMENT-INDEX":                     true,
+	"COMMENT-POLICY":                    true,
+	"COMMENT-SEQUENCE":                  true,
+	"COMMENT-TYPE":                      true,
+	"COMMENT-DOMAIN":                    true,
+	"COMMENT-EXTENSION":                 true,
+	"COMMENT-SCHEMA":                    true,
+	"COMMENT-FUNCTION":                  true,
+	"COMMENT-PROCEDURE":                 true,
+	"COMMENT-TRIGGER":                   true,
+	"COMMENT-VIEW":                      true,
+	"COMMENT-MVIEW":                     true,
+	"COMMENT-DATABASE":                  true,
+	"COMMENT-CONSTRAINT":                true,
+	"COMMENT-ROLE":                      true,
+	"COMMENT-COLLATION":                 true,
+	"CONVERSION-CREATE":                 true,
+	"CONVERSION-CREATE-BASIC":           true,
+	"CONVERSION-CREATE-DEFAULT":         true,
+	"CONVERSION-SET-SCHEMA":             true,
+	"CONVERSION-OWNER":                  true,
+	"FOREIGN-TABLE-CREATE":              true,
+	"FOREIGN-TABLE-CREATE-WITH-OPTIONS": true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -98,6 +143,7 @@ type ddlCase struct {
 }
 
 func TestPostgresDDLVariants(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
 	exportDir := testutils.CreateTempExportDir()
 	defer testutils.RemoveTempExportDir(exportDir)
 	az := newAnon(t, exportDir)
@@ -438,25 +484,178 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`ALTER TABLE sales.orders CLUSTER ON idx_amt;`,
 			[]string{"sales", "orders", "idx_amt"},
 			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-UNIQUE",
+			`CREATE UNIQUE INDEX idx_unique_amount ON sales.orders (amount);`,
+			[]string{"idx_unique_amount", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-GIN",
+			`CREATE INDEX idx_customer_name_gin ON sales.orders USING GIN (customer_name gin_trgm_ops);`,
+			[]string{"idx_customer_name_gin", "sales", "orders", "customer_name"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-EXPRESSION",
+			`CREATE INDEX idx_lower_customer_name ON sales.orders USING BTREE (lower(customer_name));`,
+			[]string{"idx_lower_customer_name", "sales", "orders", "customer_name"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-PARTIAL",
+			`CREATE INDEX idx_amount_gt0 ON sales.orders (amount) WHERE amount > 0;`,
+			[]string{"idx_amount_gt0", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-CONCURRENTLY",
+			`CREATE INDEX CONCURRENTLY idx_amt_concurrent ON sales.orders (amount);`,
+			[]string{"idx_amt_concurrent", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-IF-NOT-EXISTS",
+			`CREATE INDEX IF NOT EXISTS idx_amt_exists ON sales.orders (amount);`,
+			[]string{"idx_amt_exists", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-CREATE-WITH-OPTIONS",
+			`CREATE INDEX idx_amt_with_options ON sales.orders (amount) WITH (fillfactor = 80);`,
+			[]string{"idx_amt_with_options", "sales", "orders", "amount"},
+			[]string{INDEX_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"INDEX-RENAME",
+			`ALTER INDEX sales.idx_amt RENAME TO idx_amount_new;`,
+			[]string{"sales", "idx_amt", "idx_amount_new"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP",
+			`DROP INDEX sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP-IF-EXISTS",
+			`DROP INDEX IF EXISTS sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
+		{"INDEX-DROP-CONCURRENTLY",
+			`DROP INDEX CONCURRENTLY sales.idx_amt;`,
+			[]string{"sales", "idx_amt"},
+			[]string{INDEX_KIND_PREFIX}},
 
 		// ─── POLICY ────────────────────────────────────────────
 		{"POLICY-CREATE",
 			`CREATE POLICY p_sel ON sales.orders FOR SELECT USING (true);`,
 			[]string{"p_sel", "sales", "orders"},
-			[]string{CONSTRAINT_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
-		{"POLICY-RENAME",
-			`ALTER POLICY p_sel ON sales.orders RENAME TO p_sel2;`,
-			[]string{"p_sel", "p_sel2"}, []string{CONSTRAINT_KIND_PREFIX}},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
+		{"POLICY-DROP",
+			`DROP POLICY p_sel ON sales.orders;`,
+			[]string{"p_sel", "sales", "orders"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX}},
+		{"POLICY-CREATE-WITH-ROLES",
+			`CREATE POLICY p_manager ON sales.orders FOR ALL TO manager_role USING (department = current_setting('app.department'));`,
+			[]string{"p_manager", "sales", "orders", "manager_role", "department"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, ROLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"POLICY-CREATE-COMPLEX-CONDITIONS",
+			`CREATE POLICY p_secure ON sales.orders FOR UPDATE USING (user_id = current_user) WITH CHECK (amount < 10000);`,
+			[]string{"p_secure", "sales", "orders", "user_id", "amount"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"POLICY-CREATE-ALL-COMMANDS",
+			`CREATE POLICY p_all ON sales.orders FOR ALL USING (tenant_id = current_setting('app.tenant_id'));`,
+			[]string{"p_all", "sales", "orders", "tenant_id"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, COLUMN_KIND_PREFIX}},
 
 		// ─── COMMENT ───────────────────────────────────────────
 		{"COMMENT-TABLE",
 			`COMMENT ON TABLE sales.orders IS 'order table';`,
-			[]string{"sales", "orders"},
-			[]string{TABLE_KIND_PREFIX}},
+			[]string{"sales", "orders", "order table"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
 		{"COMMENT-COLUMN",
 			`COMMENT ON COLUMN sales.orders.amount IS 'gross amount';`,
-			[]string{"sales", "orders", "amount"},
-			[]string{COLUMN_KIND_PREFIX}},
+			[]string{"sales", "orders", "amount", "gross amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-INDEX",
+			`COMMENT ON INDEX sales.idx_amt IS 'amount index';`,
+			[]string{"sales", "idx_amt", "amount index"},
+			[]string{SCHEMA_KIND_PREFIX, INDEX_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-SCHEMA",
+			`COMMENT ON SCHEMA sales IS 'Sales schema for e-commerce';`,
+			[]string{"sales", "Sales schema for e-commerce"},
+			[]string{SCHEMA_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-FUNCTION",
+			`COMMENT ON FUNCTION sales.calculate_total(integer, numeric) IS 'Calculate order total with tax';`,
+			[]string{"sales", "calculate_total", "Calculate order total with tax"},
+			[]string{SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-PROCEDURE",
+			`COMMENT ON PROCEDURE sales.process_order(integer) IS 'Process customer order';`,
+			[]string{"sales", "process_order", "Process customer order"},
+			[]string{SCHEMA_KIND_PREFIX, PROCEDURE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-TRIGGER",
+			`COMMENT ON TRIGGER audit_trigger ON sales.orders IS 'Audit trail trigger';`,
+			[]string{"audit_trigger", "sales", "orders", "Audit trail trigger"},
+			[]string{TRIGGER_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-VIEW",
+			`COMMENT ON VIEW sales.order_summary IS 'Order summary view';`,
+			[]string{"sales", "order_summary", "Order summary view"},
+			[]string{SCHEMA_KIND_PREFIX, VIEW_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-MVIEW",
+			`COMMENT ON MATERIALIZED VIEW sales.order_stats IS 'Order statistics materialized view';`,
+			[]string{"sales", "order_stats", "Order statistics materialized view"},
+			[]string{SCHEMA_KIND_PREFIX, MVIEW_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-DATABASE",
+			`COMMENT ON DATABASE sales_db IS 'Sales database';`,
+			[]string{"sales_db", "Sales database"},
+			[]string{DATABASE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-CONSTRAINT",
+			`COMMENT ON CONSTRAINT pk_orders ON sales.orders IS 'Primary key constraint';`,
+			[]string{"pk_orders", "sales", "orders", "Primary key constraint"},
+			[]string{CONSTRAINT_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-ROLE",
+			`COMMENT ON ROLE sales_user IS 'Sales department user';`,
+			[]string{"sales_user", "Sales department user"},
+			[]string{ROLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-COLLATION",
+			`COMMENT ON COLLATION sales.nocase IS 'Case-insensitive collation';`,
+			[]string{"sales", "nocase", "Case-insensitive collation"},
+			[]string{SCHEMA_KIND_PREFIX, COLLATION_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-SEQUENCE",
+			`COMMENT ON SEQUENCE sales.ord_id_seq IS 'Order ID sequence';`,
+			[]string{"sales", "ord_id_seq", "Order ID sequence"},
+			[]string{SCHEMA_KIND_PREFIX, SEQUENCE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-TYPE",
+			`COMMENT ON TYPE sales.order_status IS 'Order status enum';`,
+			[]string{"sales", "order_status", "Order status enum"},
+			[]string{SCHEMA_KIND_PREFIX, TYPE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-DOMAIN",
+			`COMMENT ON DOMAIN sales.us_postal IS 'US postal code domain';`,
+			[]string{"sales", "us_postal", "US postal code domain"},
+			[]string{SCHEMA_KIND_PREFIX, DOMAIN_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"COMMENT-EXTENSION",
+			`COMMENT ON EXTENSION postgis IS 'PostGIS spatial extension';`,
+			[]string{"postgis", "PostGIS spatial extension"},
+			[]string{CONST_KIND_PREFIX}},
+		{"COMMENT-POLICY",
+			`COMMENT ON POLICY p_sel ON sales.orders IS 'Select policy';`,
+			[]string{"p_sel", "sales", "orders", "Select policy"},
+			[]string{POLICY_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, CONST_KIND_PREFIX}},
+		{"CONVERSION-CREATE",
+			`CREATE CONVERSION conversion_example.myconv FOR 'LATIN1' TO 'UTF8' FROM iso8859_1_to_utf8;`,
+			[]string{"conversion_example", "myconv", "iso8859_1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"CONVERSION-CREATE-BASIC",
+			`CREATE CONVERSION sales.my_conversion FOR 'LATIN1' TO 'UTF8' FROM schema1.latin1_to_utf8;`,
+			[]string{"sales", "my_conversion", "schema1", "latin1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"CONVERSION-CREATE-DEFAULT",
+			`CREATE DEFAULT CONVERSION sales.default_conversion FOR 'LATIN1' TO 'UTF8' FROM latin1_to_utf8;`,
+			[]string{"sales", "default_conversion", "latin1_to_utf8"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+
+		// ALTER operations
+		{"CONVERSION-SET-SCHEMA",
+			`ALTER CONVERSION sales.my_conversion SET SCHEMA public;`,
+			[]string{"sales", "my_conversion", "public"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX}},
+		{"CONVERSION-OWNER",
+			`ALTER CONVERSION sales.my_conversion OWNER TO new_owner;`,
+			[]string{"sales", "my_conversion", "new_owner"},
+			[]string{SCHEMA_KIND_PREFIX, CONVERSION_KIND_PREFIX, ROLE_KIND_PREFIX}},
+
+		// ─── FOREIGN TABLE ───────────────────────────────────────────
+		{"FOREIGN-TABLE-CREATE",
+			`CREATE FOREIGN TABLE sales.foreign_orders (id int, name text) SERVER remote_server;`,
+			[]string{"sales", "foreign_orders", "id", "name", "remote_server"},
+			[]string{SCHEMA_KIND_PREFIX, FOREIGN_TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, DEFAULT_KIND_PREFIX}},
+		{"FOREIGN-TABLE-CREATE-WITH-OPTIONS",
+			`CREATE FOREIGN TABLE sales.foreign_orders (col1 int, col2 text) SERVER remote_server OPTIONS (table_name 'remote_orders', schema_name 'public');`,
+			[]string{"sales", "foreign_orders", "col1", "col2", "remote_server", "remote_orders", "public"},
+			[]string{SCHEMA_KIND_PREFIX, FOREIGN_TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, DEFAULT_KIND_PREFIX, TABLE_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -525,24 +724,23 @@ func TestPostgresDDLVariants(t *testing.T) {
 //                       | ALTER TABLE <name> RENAME TO <new>              | RenameStmtNode               | [x]
 //                       | DROP TABLE <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
-//  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [ ]
-//                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [ ]
-//                       | DROP INDEX <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [ ]
+//  INDEX                | CREATE INDEX <name> ON <table> (...)            | IndexStmtNode                | [x]
+//                       | ALTER INDEX <name> RENAME TO <new>              | RenameStmtNode               | [x]
+//                       | DROP INDEX <name> [CASCADE|RESTRICT]            | DropStmtNode                 | [x]
 //
-//  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [ ]
-//                       | ALTER POLICY <name> RENAME TO <new>             | AlterPolicyStmtNode          | [ ]
-//                       | DROP POLICY <name>                              | DropStmtNode                 | [ ]
+//  POLICY               | CREATE POLICY <name> ON <table> ...             | CreatePolicyStmtNode         | [x]
+//                       | DROP POLICY <name>                              | DropStmtNode                 | [x]
 //
-//  COMMENT              | COMMENT ON TABLE/COLUMN/...                     | CommentOnStmtNode            | [ ]
+//  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [x]
 //
-//  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [ ]
-//                       | ALTER CONVERSION <name> RENAME TO <new>         | RenameStmtNode               | [ ]
-//                       | DROP CONVERSION <name>                          | DropStmtNode                 | [ ]
+//  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [x]
+
 //
 //  FOREIGN TABLE        | CREATE FOREIGN TABLE <schema>.<name> ...        | CreateForeignTableStmtNode   | [ ]
 //                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [ ]
 //                       | DROP FOREIGN TABLE <name>                       | DropStmtNode                 | [ ]
 //
+// No sensitive data in OPERATOR objects, so skipping.
 //  OPERATOR             | CREATE OPERATOR <schema>.<name> ...             | CreateOperatorStmtNode       | [ ]
 //                       | ALTER OPERATOR <name> RENAME TO <new>           | RenameStmtNode               | [ ]
 //                       | DROP OPERATOR <schema>.<name>                   | DropStmtNode                 | [ ]
