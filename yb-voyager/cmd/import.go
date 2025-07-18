@@ -499,7 +499,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 
 	// flag only applicable for import-data-to-target and import-data-file commands
 	// ignore for import-data-to-source-replica and import-data-to-source commands
-	if importerRole != TARGET_DB_IMPORTER_ROLE && importerRole != IMPORT_FILE_ROLE {
+	if !isPrimaryKeyConflictModeValid() {
 		return nil
 	}
 
