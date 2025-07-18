@@ -5,6 +5,34 @@ from collections import Counter
 from xmlrpc.client import boolean
 import psycopg2
 import json
+import re
+
+
+def has_pg15_merge(version_string):
+	"""
+	Check if YugabyteDB version has PG15 merge (preview >= 2.25 or stable >= 2025.1).
+	"""
+	if not version_string:
+		return False
+	
+	# Extract YugabyteDB version from PostgreSQL version string
+	yb_version_match = re.search(r'PostgreSQL\s+[\d.]+\-YB\-([0-9.]+)', version_string)
+	if not yb_version_match:
+		return False
+	
+	yb_version = yb_version_match.group(1)
+	version_clean = yb_version.split('-')[0]
+	
+	# Parse version components
+	match = re.match(r'^(\d+)\.(\d+)', version_clean)
+	if not match:
+		return False
+	
+	major = int(match.group(1))
+	minor = int(match.group(2))
+	
+	# Preview versions >= 2.25 or stable versions >= 2025.1
+	return (major == 2 and minor >= 25) or (major >= 2025 and minor >= 1)
 
 
 def run_checks(checkFn, db_type="yb"):

@@ -218,13 +218,13 @@ def migration_completed_checks(tgt):
 	
 	updates = {}
 
-	# for PG15 merged versions like 2.25, some extensions create more functions/procedures than in earlier versions.
+	# for PG15 merged versions (preview >= 2.25 or stable >= 2025.1), some extensions create more functions/procedures than in earlier versions.
 	# Example hstore
 	# 2024.2: 57 functions / procedures
-	# 2.25: 60 functions / procedures
+	# 2.25+: 60 functions / procedures
 	# Thus the change in count.
 
-	if "2.25" in tgtVersion:
+	if yb.has_pg15_merge(tgtVersion):
 		updates = {
 		    "extension_example": {"functions_procedures_count": 61},
 			"foreign_db_example": {"functions_procedures_count": 7},
