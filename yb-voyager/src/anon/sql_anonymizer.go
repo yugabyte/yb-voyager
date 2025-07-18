@@ -524,37 +524,9 @@ func (a *SqlAnonymizer) handleCollationObjectNodes(msg protoreflect.Message) (er
 			return nil // not a collation DDL, skip
 		}
 
-		// Anonymize the qualified collation name
-		// defnames may be:
-		//   [name]
-		//   [schema, name]
-		//   [dbname, schema, name]
-		// parser won't fail if defnames has more than 3 elements, but thats not a valid SQL
-		for i, nameNode := range ds.Defnames {
-			if str := nameNode.GetString_(); str != nil {
-				switch {
-				case len(ds.Defnames) == 3 && i == 0:
-					// first element is database
-					str.Sval, err = a.registry.GetHash(DATABASE_KIND_PREFIX, str.Sval)
-					if err != nil {
-						return fmt.Errorf("anon collation create db: %w", err)
-					}
-
-				case (len(ds.Defnames) == 3 || len(ds.Defnames) == 2) && i == len(ds.Defnames)-2:
-					// second‐to‐last element is schema (when 2 or 3 parts)
-					str.Sval, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, str.Sval)
-					if err != nil {
-						return fmt.Errorf("anon collation create schema: %w", err)
-					}
-
-				case i == len(ds.Defnames)-1:
-					// last element is the collation name
-					str.Sval, err = a.registry.GetHash(COLLATION_KIND_PREFIX, str.Sval)
-					if err != nil {
-						return fmt.Errorf("anon collation create name: %w", err)
-					}
-				}
-			}
+		err = a.anonymizeStringNodes(ds.Defnames, COLLATION_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon collation create: %w", err)
 		}
 	}
 	return nil
