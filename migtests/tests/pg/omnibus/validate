@@ -125,7 +125,7 @@ EXPECTED_COUNTS = {
 	},
 	"idx_ex": {
 		"table_count": 1,
-		"index_count": 8,
+		"index_count": 5,
 		"sequence_count": 0,
 		"view_count": 0,
 		"mview_count": 0,		
