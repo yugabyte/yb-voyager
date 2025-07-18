@@ -89,6 +89,7 @@ func TestCallhomeStructs(t *testing.T) {
 				SourceConnectivity             bool                      `json:"source_connectivity"`
 				IopsInterval                   int64                     `json:"iops_interval"`
 				ControlPlaneType               string                    `json:"control_plane_type"`
+				AnonymizedDDLs                 []string                  `json:"anonymized_ddls"`
 			}{},
 		},
 		{

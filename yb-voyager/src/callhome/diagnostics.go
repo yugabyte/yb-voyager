@@ -109,8 +109,9 @@ Version History
 1.2: Removed field 'ParallelVoyagerJobs` from SizingCallhome
 1.3: Added field Details in AssessmentIssueCallhome struct
 1.4: Added SqlStatement field in AssessmentIssueCallhome struct
+1.5: Added AnonymizedDDLs field in AssessMigrationPhasePayload struct
 */
-var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.4"
+var ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION = "1.5"
 
 type AssessMigrationPhasePayload struct {
 	PayloadVersion                 string                    `json:"payload_version"`
