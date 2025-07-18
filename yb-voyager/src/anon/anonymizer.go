@@ -1,5 +1,7 @@
 package anon
 
+import pg_query "github.com/pganalyze/pg_query_go/v6"
+
 const (
 	DATABASE_KIND_PREFIX      = "db_"
 	SCHEMA_KIND_PREFIX        = "schema_"
@@ -57,4 +59,50 @@ var AllKindPrefixes = []string{
 // interface to be implemented by any new anonymizer
 type Anonymizer interface {
 	Anonymize(input string) (string, error)
+}
+
+// GetObjectTypePrefix returns the appropriate prefix for anonymization based on the PostgreSQL object type
+func GetObjectTypePrefix(objectType pg_query.ObjectType) string {
+	switch objectType {
+	case pg_query.ObjectType_OBJECT_SCHEMA:
+		return SCHEMA_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_TABLE:
+		return TABLE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_VIEW:
+		return VIEW_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_MATVIEW:
+		return MVIEW_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_SEQUENCE:
+		return SEQUENCE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_INDEX:
+		return INDEX_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_TYPE:
+		return TYPE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_DOMAIN:
+		return DOMAIN_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_COLLATION:
+		return COLLATION_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_TRIGGER:
+		return TRIGGER_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_ROLE:
+		return ROLE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_DATABASE:
+		return DATABASE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_FUNCTION:
+		return FUNCTION_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_PROCEDURE:
+		return PROCEDURE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_COLUMN:
+		return COLUMN_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_POLICY:
+		return POLICY_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_TABCONSTRAINT:
+		return CONSTRAINT_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_CONVERSION:
+		return CONVERSION_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_FOREIGN_TABLE:
+		return FOREIGN_TABLE_KIND_PREFIX
+	default:
+		return DEFAULT_KIND_PREFIX // Fallback to default prefix
+	}
 }

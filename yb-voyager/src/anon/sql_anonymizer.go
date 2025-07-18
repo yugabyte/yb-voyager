@@ -3,8 +3,6 @@ package anon
 import (
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
-
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	"github.com/samber/lo"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
@@ -956,7 +954,7 @@ func (a *SqlAnonymizer) handleGenericRenameStmt(rs *pg_query.RenameStmt) (err er
 		return nil
 	}
 
-	prefix := a.getObjectTypePrefix(rs.RenameType)
+	prefix := GetObjectTypePrefix(rs.RenameType)
 
 	// Handle different object name patterns based on object type
 	switch rs.RenameType {
@@ -1013,7 +1011,7 @@ func (a *SqlAnonymizer) handleGenericDropStmt(ds *pg_query.DropStmt) (err error)
 		return nil
 	}
 
-	prefix := a.getObjectTypePrefix(ds.RemoveType)
+	prefix := GetObjectTypePrefix(ds.RemoveType)
 
 	// Process each object in the DROP statement
 	for _, obj := range ds.Objects {
@@ -1060,7 +1058,7 @@ func (a *SqlAnonymizer) handleGenericAlterObjectSchemaStmt(aos *pg_query.AlterOb
 		return nil
 	}
 
-	prefix := a.getObjectTypePrefix(aos.ObjectType)
+	prefix := GetObjectTypePrefix(aos.ObjectType)
 
 	// Handle TABLE, EXTENSION, TYPE, and SEQUENCE
 	switch aos.ObjectType {
@@ -1131,7 +1129,7 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 	case pg_query.ObjectType_OBJECT_FUNCTION, pg_query.ObjectType_OBJECT_PROCEDURE:
 		// Functions/procedures use ObjectWithArgs structure
 		if objWithArgs := cs.Object.GetObjectWithArgs(); objWithArgs != nil {
-			prefix := a.getObjectTypePrefix(cs.Objtype)
+			prefix := GetObjectTypePrefix(cs.Objtype)
 			err = a.anonymizeStringNodes(objWithArgs.Objname, prefix)
 			if err != nil {
 				return fmt.Errorf("anon comment function/procedure: %w", err)
@@ -1141,7 +1139,7 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 	case pg_query.ObjectType_OBJECT_TYPE, pg_query.ObjectType_OBJECT_DOMAIN:
 		// TYPE and DOMAIN use TypeName structure
 		if typeName := cs.Object.GetTypeName(); typeName != nil {
-			prefix := a.getObjectTypePrefix(cs.Objtype)
+			prefix := GetObjectTypePrefix(cs.Objtype)
 			if err = a.anonymizeStringNodes(typeName.Names, prefix); err != nil {
 				return fmt.Errorf("anon comment typename: %w", err)
 			}
@@ -1160,7 +1158,7 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 		// Table-scoped objects: CONSTRAINT/TRIGGER/POLICY object_name ON schema.table
 		if list := cs.Object.GetList(); list != nil && len(list.Items) >= 3 {
 			// [object_name, schema, table]
-			objectPrefix := a.getObjectTypePrefix(cs.Objtype)
+			objectPrefix := GetObjectTypePrefix(cs.Objtype)
 			err = a.anonymizeStringNodes(list.Items[:1], objectPrefix)
 			if err != nil {
 				return fmt.Errorf("anon comment %s name: %w", cs.Objtype, err)
@@ -1175,13 +1173,13 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 		// Handle all other object types
 		if list := cs.Object.GetList(); list != nil {
 			// Most objects use qualified names: [schema, object] or [db, schema, object]
-			prefix := a.getObjectTypePrefix(cs.Objtype)
+			prefix := GetObjectTypePrefix(cs.Objtype)
 			if err := a.anonymizeStringNodes(list.Items, prefix); err != nil {
 				return fmt.Errorf("anon comment object: %w", err)
 			}
 		} else if str := cs.Object.GetString_(); str != nil {
 			// Simple unqualified names (SCHEMA, DATABASE, EXTENSION, ROLE)
-			prefix := a.getObjectTypePrefix(cs.Objtype)
+			prefix := GetObjectTypePrefix(cs.Objtype)
 			str.Sval, err = a.registry.GetHash(prefix, str.Sval)
 			if err != nil {
 				return fmt.Errorf("anon comment object: %w", err)
@@ -1395,51 +1393,4 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 		return fmt.Errorf("anon coldef: %w", err)
 	}
 	return nil
-}
-
-// getObjectTypePrefix returns the appropriate prefix for anonymization based on the PostgreSQL object type
-func (a *SqlAnonymizer) getObjectTypePrefix(objectType pg_query.ObjectType) string {
-	switch objectType {
-	case pg_query.ObjectType_OBJECT_SCHEMA:
-		return SCHEMA_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_TABLE:
-		return TABLE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_VIEW:
-		return VIEW_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_MATVIEW:
-		return MVIEW_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_SEQUENCE:
-		return SEQUENCE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_INDEX:
-		return INDEX_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_TYPE:
-		return TYPE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_DOMAIN:
-		return DOMAIN_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_COLLATION:
-		return COLLATION_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_TRIGGER:
-		return TRIGGER_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_ROLE:
-		return ROLE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_DATABASE:
-		return DATABASE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_FUNCTION:
-		return FUNCTION_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_PROCEDURE:
-		return PROCEDURE_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_COLUMN:
-		return COLUMN_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_POLICY:
-		return POLICY_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_TABCONSTRAINT:
-		return CONSTRAINT_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_CONVERSION:
-		return CONVERSION_KIND_PREFIX
-	case pg_query.ObjectType_OBJECT_FOREIGN_TABLE:
-		return FOREIGN_TABLE_KIND_PREFIX
-	default:
-		log.Printf("Unknown object type: %s", objectType.String())
-		return DEFAULT_KIND_PREFIX // Fallback to default prefix
-	}
 }
