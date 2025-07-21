@@ -566,6 +566,10 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	tconf := msr.TargetDBConf
+	if tconf == nil {
+		log.Info("target db conf is not set. skipping cleanup")
+		return
+	}
 	if targetDBPassword == "" {
 		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
@@ -696,6 +700,10 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
 	sourceReplicaconf := msr.SourceReplicaDBConf
+	if sourceReplicaconf == nil {
+		log.Info("source replica db conf is not set. skipping cleanup")
+		return
+	}
 	if sourceReplicaDBPassword == "" {
 		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
@@ -723,6 +731,12 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
+	if fbconf == nil {
+		//in case if sourceDBAsTargetConf is not initialized becasue of various like some guardrails failures etc..
+		//no need to run any clean up for source db as its not
+		log.Info("source db as target conf is not set. skipping cleanup")
+		return
+	}
 	if sourceDBPassword == "" {
 		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
