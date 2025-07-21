@@ -146,6 +146,15 @@ var enabled = map[string]bool{
 	"OPERATOR-CLASS-CREATE":             true,
 	"OPERATOR-CLASS-CREATE-WITH-FAMILY": true,
 	"OPERATOR-FAMILY-CREATE":            true,
+
+	"OPERATOR-CREATE":                  true,
+	"OPERATOR-CREATE-WITH-COMMUTATOR":  true,
+	"OPERATOR-CREATE-WITH-NEGATOR":     true,
+	"OPERATOR-CREATE-WITH-RESTRICT":    true,
+	"OPERATOR-CREATE-WITH-JOIN":        true,
+	"OPERATOR-CREATE-WITH-ALL-OPTIONS": true,
+	"OPERATOR-CREATE-LEFT-UNARY":       true,
+	"OPERATOR-CREATE-RIGHT-UNARY":      true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -731,6 +740,40 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE OPERATOR FAMILY sales.abs_numeric_ops USING btree;`,
 			[]string{"sales", "abs_numeric_ops"},
 			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX}},
+
+		// ─── OPERATOR ─────────────────────────────────────────────
+		{"OPERATOR-CREATE",
+			`CREATE OPERATOR sales.<# (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_lt);`,
+			[]string{"sales", "<#", "int4_abs_lt"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CREATE-WITH-COMMUTATOR",
+			`CREATE OPERATOR sales.=# (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_eq, COMMUTATOR = =#);`,
+			[]string{"sales", "=#", "int4_abs_eq", "=#"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, OPERATOR_KIND_PREFIX}},
+		{"OPERATOR-CREATE-WITH-NEGATOR",
+			`CREATE OPERATOR sales.<># (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_ne, NEGATOR = =#);`,
+			[]string{"sales", "<>#", "int4_abs_ne", "=#"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, OPERATOR_KIND_PREFIX}},
+		{"OPERATOR-CREATE-WITH-RESTRICT",
+			`CREATE OPERATOR sales.># (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_gt, RESTRICT = scalargtsel);`,
+			[]string{"sales", ">#", "int4_abs_gt", "scalargtsel"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CREATE-WITH-JOIN",
+			`CREATE OPERATOR sales.># (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_gt, JOIN = scalargtjoinsel);`,
+			[]string{"sales", ">#", "int4_abs_gt", "scalargtjoinsel"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CREATE-WITH-ALL-OPTIONS",
+			`CREATE OPERATOR sales.># (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_gt, COMMUTATOR = <#, NEGATOR = <=#, RESTRICT = scalargtsel, JOIN = scalargtjoinsel, HASHES, MERGES);`,
+			[]string{"sales", ">#", "int4_abs_gt", "<#", "<=#", "scalargtsel", "scalargtjoinsel"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, OPERATOR_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CREATE-LEFT-UNARY",
+			`CREATE OPERATOR sales.@# (RIGHTARG = int4, PROCEDURE = int4_abs);`,
+			[]string{"sales", "@#", "int4_abs"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CREATE-RIGHT-UNARY",
+			`CREATE OPERATOR sales.#@ (LEFTARG = int4, PROCEDURE = int4_factorial);`,
+			[]string{"sales", "#@", "int4_factorial"},
+			[]string{SCHEMA_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -913,24 +956,21 @@ func TestBuiltinTypeAnonymization(t *testing.T) {
 //                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [x]
 //                       | DROP FOREIGN TABLE <name>                       | DropStmtNode                 | [x]
 //
-//  RULE                 | CREATE RULE <name> ON <table> ...                | CreateRuleStmtNode           | [x]
-//                       | ALTER RULE <name> ON <table> ...                 | AlterRuleStmtNode            | [x]
+//  RULE                 | CREATE RULE <name> ON <table> ...                | CreateRuleStmtNode          | [x]
+//                       | ALTER RULE <name> ON <table> ...                 | AlterRuleStmtNode           | [x]
 //
 //  AGGREGATE            | CREATE AGGREGATE <name> (<type>) ...            | CreateAggregateStmtNode      | [x]
 //
 //
-// No sensitive data in OPERATOR objects, so skipping.
-//  OPERATOR             | CREATE OPERATOR <schema>.<name> ...             | CreateOperatorStmtNode       | [ ]
-//                       | ALTER OPERATOR <name> RENAME TO <new>           | RenameStmtNode               | [ ]
-//                       | DROP OPERATOR <schema>.<name>                   | DropStmtNode                 | [ ]
+//  OPERATOR             | CREATE OPERATOR <schema>.<name> ...             | CreateOperatorStmtNode       | [x]
 //
-//  OPERATOR CLASS / FAMILY                                                  | [ ]
+//  OPERATOR CLASS       | CREATE OPERATOR CLASS <name> ...              | CreateOperatorClassStmtNode    | [x]
+//
+//  OPERATOR FAMILY      | CREATE OPERATOR FAMILY <name> ...              | CreateOperatorFamilyStmtNode  | [x]
 //
 // Below objects are not anonymized or send to callhome yet.
 //  TRIGGER               ... (Create/Alter/Drop)                        | [ ]
 //  VIEW                  ...                                            | [ ]
 //  MVIEW                 ...                                            | [ ]
 //  FUNCTION / PROCEDURE  ...                                            | [ ]
-//
-//  NOTE: After implementing a specific case, flip its [ ] to [x] above.
 // ============================================================================

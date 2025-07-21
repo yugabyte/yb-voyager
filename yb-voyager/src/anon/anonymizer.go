@@ -116,6 +116,8 @@ func GetObjectTypePrefix(objectType pg_query.ObjectType) string {
 		return RULE_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_AGGREGATE:
 		return AGGREGATE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_OPERATOR:
+		return OPERATOR_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_OPCLASS:
 		return OPCLASS_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_OPFAMILY:

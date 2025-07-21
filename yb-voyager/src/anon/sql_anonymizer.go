@@ -135,6 +135,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		return fmt.Errorf("error handling operator object nodes: %w", err)
 	}
 
+	err = a.handleOperatorClassAndFamilyObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling operator class and family object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -1398,6 +1403,83 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 }
 
 func (a *SqlAnonymizer) handleOperatorObjectNodes(msg protoreflect.Message) (err error) {
+	/*
+		SQL:		CREATE OPERATOR sales.<# (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_lt);
+		ParseTree:	stmt:{define_stmt:{kind:OBJECT_OPERATOR defnames:{string:{sval:"sales"}} defnames:{string:{sval:"<#"}}
+					definition:{def_elem:{defname:"leftarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:36}} defaction:DEFELEM_UNSPEC location:26}}
+					definition:{def_elem:{defname:"rightarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:53}} defaction:DEFELEM_UNSPEC location:42}}
+					definition:{def_elem:{defname:"procedure" arg:{type_name:{names:{string:{sval:"int4_abs_lt"}} typemod:-1 location:71}} defaction:DEFELEM_UNSPEC location:59}}}}
+
+		SQL:		CREATE OPERATOR sales.=# (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_eq, COMMUTATOR = =#);
+		ParseTree:	stmt:{define_stmt:{kind:OBJECT_OPERATOR defnames:{string:{sval:"sales"}} defnames:{string:{sval:"=#"}}
+					definition:{def_elem:{defname:"leftarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:36}} defaction:DEFELEM_UNSPEC location:26}}
+					definition:{def_elem:{defname:"rightarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:53}} defaction:DEFELEM_UNSPEC location:42}}
+					definition:{def_elem:{defname:"procedure" arg:{type_name:{names:{string:{sval:"int4_abs_eq"}} typemod:-1 location:71}} defaction:DEFELEM_UNSPEC location:59}}
+					definition:{def_elem:{defname:"commutator" arg:{type_name:{names:{string:{sval:"=#"}} typemod:-1 location:88}} defaction:DEFELEM_UNSPEC location:76}}}}
+	*/
+	ds, ok := queryparser.ProtoAsDefineStmtNode(msg)
+	if !ok {
+		return nil // Not a DefineStmt, skip
+	}
+
+	// Only process if it's an operator definition
+	if ds.Kind != pg_query.ObjectType_OBJECT_OPERATOR {
+		return nil
+	}
+
+	// Anonymize the operator name (qualified: schema.operator_name)
+	err = a.anonymizeStringNodes(ds.GetDefnames(), OPERATOR_KIND_PREFIX)
+	if err != nil {
+		return fmt.Errorf("anon operator name: %w", err)
+	}
+
+	// Process definition elements
+	if ds.Definition == nil {
+		return nil // no definition elements, skip
+	}
+
+	for _, defElem := range ds.Definition {
+		if defElemNode := defElem.GetDefElem(); defElemNode != nil {
+			// Handle different definition element types
+			switch defElemNode.Defname {
+			case "procedure":
+				// Anonymize procedure name - it's a TypeName node containing the function name
+				if defElemNode.Arg != nil {
+					if typeNameNode := defElemNode.Arg.GetTypeName(); typeNameNode != nil {
+						err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
+						if err != nil {
+							return fmt.Errorf("anon operator procedure: %w", err)
+						}
+					}
+				}
+			case "commutator", "negator":
+				// Anonymize operator references in lists
+				if defElemNode.Arg != nil {
+					if listNode := defElemNode.Arg.GetList(); listNode != nil {
+						err = a.anonymizeStringNodes(listNode.Items, OPERATOR_KIND_PREFIX)
+						if err != nil {
+							return fmt.Errorf("anon operator commutator/negator: %w", err)
+						}
+					}
+				}
+			case "restrict", "join":
+				// Anonymize function names - they're also TypeName nodes
+				if defElemNode.Arg != nil {
+					if typeNameNode := defElemNode.Arg.GetTypeName(); typeNameNode != nil {
+						err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
+						if err != nil {
+							return fmt.Errorf("anon operator restrict/join function: %w", err)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect.Message) (err error) {
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		SQL:		CREATE OPERATOR CLASS sales.int4_abs_ops FOR TYPE int4 USING btree AS OPERATOR 1 <#, OPERATOR 2 <=#, OPERATOR 3 =#, OPERATOR 4 >=#, OPERATOR 5 >#, FUNCTION 1 int4_abs_cmp(int4,int4);
