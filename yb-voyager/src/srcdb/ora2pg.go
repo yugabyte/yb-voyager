@@ -95,25 +95,25 @@ func populateOra2pgConfigFile(configFilePath string, conf *Ora2pgConfig) {
 	if utils.FileOrFolderExists(baseConfigFilePath) {
 		BaseOra2pgConfigFile, err := os.ReadFile(baseConfigFilePath)
 		if err != nil {
-			utils.ErrExit("Error while reading base ora2pg configuration file: %v", err)
+			utils.ErrExit("Error while reading base ora2pg configuration file: %w", err)
 		}
 		Ora2pgConfigFile = string(BaseOra2pgConfigFile)
 	}
 
 	tmpl, err := template.New("ora2pg").Parse(Ora2pgConfigFile)
 	if err != nil {
-		utils.ErrExit("Error while parsing ora2pg configuration file: %v", err)
+		utils.ErrExit("Error while parsing ora2pg configuration file: %w", err)
 	}
 
 	var output bytes.Buffer
 	err = tmpl.Execute(&output, conf)
 	if err != nil {
-		utils.ErrExit("Error while preparing ora2pg configuration file: %v", err)
+		utils.ErrExit("Error while preparing ora2pg configuration file: %w", err)
 	}
 
 	err = os.WriteFile(configFilePath, output.Bytes(), 0644)
 	if err != nil {
-		utils.ErrExit("unable to update config file: %q: %v\n", configFilePath, err)
+		utils.ErrExit("unable to update config file: %q: %w\n", configFilePath, err)
 	}
 }
 

@@ -206,7 +206,7 @@ func (pg *TargetPostgreSQL) disconnect() {
 func (pg *TargetPostgreSQL) EnsureConnected() {
 	err := pg.connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
+		utils.ErrExit("Failed to connect to the target DB: %w", err)
 	}
 }
 
@@ -221,7 +221,7 @@ func (pg *TargetPostgreSQL) GetVersion() string {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := pg.QueryRow(query).Scan(&pg.tconf.DBVersion)
 	if err != nil {
-		utils.ErrExit("get target db version: %s", err)
+		utils.ErrExit("get target db version: %w", err)
 	}
 	return pg.tconf.DBVersion
 }
@@ -377,7 +377,7 @@ func (pg *TargetPostgreSQL) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %w", table, err)
 		}
 		result = append(result, table)
 	}
@@ -697,7 +697,7 @@ func (pg *TargetPostgreSQL) setTargetSchema(conn *pgx.Conn) {
 	setSchemaQuery := fmt.Sprintf("SET SEARCH_PATH TO %s", pg.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		utils.ErrExit("run query: %q on target %q: %s", setSchemaQuery, pg.tconf.Host, err)
+		utils.ErrExit("run query: %q on target %q: %w", setSchemaQuery, pg.tconf.Host, err)
 	}
 }
 
@@ -818,7 +818,7 @@ func (pg *TargetPostgreSQL) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (pg *TargetPostgreSQL) isQueryResultNonEmpty(query string) bool {
 	rows, err := pg.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query is empty: %q: %v", query, err)
+		utils.ErrExit("error checking if query is empty: %q: %w", query, err)
 	}
 	defer rows.Close()
 

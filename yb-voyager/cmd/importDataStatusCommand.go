@@ -59,11 +59,11 @@ var importDataStatusCmd = &cobra.Command{
 
 		err = InitNameRegistry(exportDir, "", nil, nil, nil, nil, false)
 		if err != nil {
-			utils.ErrExit("initialize name registry: %v", err)
+			utils.ErrExit("initialize name registry: %w", err)
 		}
 		err = runImportDataStatusCmd()
 		if err != nil {
-			utils.ErrExit("error running import data status: %s\n", err)
+			utils.ErrExit("error running import data status: %w\n", err)
 		}
 	},
 }
@@ -111,7 +111,7 @@ func runImportDataStatusCmd() error {
 		reportFile := jsonfile.NewJsonFile[[]*tableMigStatusOutputRow](reportFilePath)
 		err := reportFile.Create(&rows)
 		if err != nil {
-			utils.ErrExit("creating into json file: %s: %v", reportFilePath, err)
+			utils.ErrExit("creating into json file: %s: %w", reportFilePath, err)
 		}
 		fmt.Print(color.GreenString("Import data status report is written to %s\n", reportFilePath))
 		return nil
@@ -154,7 +154,7 @@ func prepareDummyDescriptor(state *ImportDataState) (*datafile.Descriptor, error
 	var dataFileDescriptor datafile.Descriptor
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return nil, fmt.Errorf("getting migration status record: %v", err)
+		return nil, fmt.Errorf("getting migration status record: %w", err)
 	}
 	dataStore = datastore.NewDataStore(msr.ImportDataFileFlagDataDir)
 	importFileTasksForFTM := getImportFileTasks(msr.ImportDataFileFlagFileTableMapping)
@@ -264,7 +264,7 @@ func prepareRowWithDatafile(dataFile *datafile.FileEntry, state *ImportDataState
 	reportProgressInBytes = reportProgressInBytes || dataFile.RowCount == -1
 	dataFileNt, err := namereg.NameReg.LookupTableName(dataFile.TableName)
 	if err != nil {
-		return nil, fmt.Errorf("lookup %s from name registry: %v", dataFile.TableName, err)
+		return nil, fmt.Errorf("lookup %s from name registry: %w", dataFile.TableName, err)
 	}
 
 	if reportProgressInBytes {

@@ -38,7 +38,7 @@ func getExportedDataFileList(tablesMetadata map[string]*utils.TableProgressMetad
 		targetTableName := strings.TrimSuffix(filepath.Base(tableMetadata.FinalFilePath), "_data.sql")
 		table, err := namereg.NameReg.LookupTableName(targetTableName)
 		if err != nil {
-			utils.ErrExit("error while looking up table name: %q: %v", targetTableName, err)
+			utils.ErrExit("error while looking up table name: %q: %w", targetTableName, err)
 		}
 		if !utils.FileOrFolderExists(tableMetadata.FinalFilePath) {
 			// This can happen in case of nested tables in Oracle.
@@ -85,7 +85,7 @@ func processImportDirectives(fileName string) error {
 			importFileName := strings.Trim(line[3:], "' ")
 			log.Infof("Inlining contents of %q in %q", importFileName, fileName)
 			if _, err = os.Stat(importFileName); err != nil {
-				return fmt.Errorf("error while opening file %s: %v", importFileName, err)
+				return fmt.Errorf("error while opening file %s: %w", importFileName, err)
 			}
 			// Read the file and append its contents to the temporary file.
 			importFile, err := os.Open(importFileName)

@@ -40,7 +40,7 @@ func pgdumpExportDataOffline(ctx context.Context, source *Source, connectionUri 
 
 	pgDumpPath, binaryCheckIssue, err := GetAbsPathOfPGCommandAboveVersion("pg_dump", source.DBVersion)
 	if err != nil {
-		utils.ErrExit("could not get absolute path of pg_dump command: %v", err)
+		utils.ErrExit("could not get absolute path of pg_dump command: %w", err)
 	} else if binaryCheckIssue != "" {
 		utils.ErrExit("could not get absolute path of pg_dump command: %s", binaryCheckIssue)
 	}
@@ -108,23 +108,23 @@ func parseAndCreateTocTextFile(dataDirPath string) {
 	parseTocFileCommand := exec.Command("strings", tocFilePath)
 	cmdOutput, err := parseTocFileCommand.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("parsing tocfile: %q: %v", tocFilePath, err)
+		utils.ErrExit("parsing tocfile: %q: %w", tocFilePath, err)
 	}
 
 	//Put the data into a toc.txt file
 	tocTextFilePath := dataDirPath + "/toc.txt"
 	tocTextFile, err := os.Create(tocTextFilePath)
 	if err != nil {
-		utils.ErrExit("create toc.txt: %s", err)
+		utils.ErrExit("create toc.txt: %w", err)
 	}
 	writer := bufio.NewWriter(tocTextFile)
 	_, err = writer.Write(cmdOutput)
 	if err != nil {
-		utils.ErrExit("write to toc.txt: %s", err)
+		utils.ErrExit("write to toc.txt: %w", err)
 	}
 	err = writer.Flush()
 	if err != nil {
-		utils.ErrExit("flush toc.txt: %s", err)
+		utils.ErrExit("flush toc.txt: %w", err)
 	}
 	tocTextFile.Close()
 }
@@ -146,7 +146,7 @@ func renameDataFiles(tablesProgressMetadata map[string]*utils.TableProgressMetad
 			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
 			err := os.Rename(oldFilePath, newFilePath)
 			if err != nil {
-				utils.ErrExit("renaming data file: for table %q after data export: %v", tableProgressMetadata.TableName, err)
+				utils.ErrExit("renaming data file: for table %q after data export: %w", tableProgressMetadata.TableName, err)
 			}
 		} else {
 			log.Infof("File %q to rename doesn't exists!", oldFilePath)

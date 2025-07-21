@@ -141,7 +141,7 @@ func (yb *TargetYugabyteDB) Init() error {
 		yb.tconf.Schema)
 	var cntSchemaName int
 	if err = yb.QueryRow(checkSchemaExistsQuery).Scan(&cntSchemaName); err != nil {
-		err = fmt.Errorf("run query %q on target %q to check schema exists: %s", checkSchemaExistsQuery, yb.tconf.Host, err)
+		err = fmt.Errorf("run query %q on target %q to check schema exists: %w", checkSchemaExistsQuery, yb.tconf.Host, err)
 	} else if cntSchemaName == 0 {
 		err = fmt.Errorf("schema '%s' does not exist in target", yb.tconf.Schema)
 	}
@@ -212,7 +212,7 @@ func (yb *TargetYugabyteDB) disconnect() {
 func (yb *TargetYugabyteDB) EnsureConnected() {
 	err := yb.connect()
 	if err != nil {
-		utils.ErrExit("Failed to connect to the target DB: %s", err)
+		utils.ErrExit("Failed to connect to the target DB: %w", err)
 	}
 }
 
@@ -227,7 +227,7 @@ func (yb *TargetYugabyteDB) GetVersion() string {
 	query := "SELECT setting FROM pg_settings WHERE name = 'server_version'"
 	err := yb.QueryRow(query).Scan(&yb.tconf.DBVersion)
 	if err != nil {
-		utils.ErrExit("get target db version: %s", err)
+		utils.ErrExit("get target db version: %w", err)
 	}
 	return yb.tconf.DBVersion
 }
@@ -240,7 +240,7 @@ func (yb *TargetYugabyteDB) PrepareForStreaming() {
 func (yb *TargetYugabyteDB) InitConnPool() error {
 	loadBalancerUsed, confs, err := yb.GetYBServers()
 	if err != nil {
-		return fmt.Errorf("error fetching the yb servers: %v", err)
+		return fmt.Errorf("error fetching the yb servers: %w", err)
 	}
 	if loadBalancerUsed {
 		utils.PrintAndLog(LB_WARN_MSG)
@@ -377,7 +377,7 @@ func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, err
 	query := fmt.Sprintf(`SELECT sequencename FROM pg_sequences where schemaname = '%s';`, schemaName)
 	rows, err := yb.Query(query)
 	if err != nil {
-		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %v", query, err)
+		return nil, fmt.Errorf("error in querying(%q) source database for sequence names: %w", query, err)
 	}
 	defer rows.Close()
 
@@ -385,12 +385,12 @@ func (yb *TargetYugabyteDB) GetAllSequencesRaw(schemaName string) ([]string, err
 	for rows.Next() {
 		err = rows.Scan(&sequenceName)
 		if err != nil {
-			utils.ErrExit("error in scanning query rows for sequence names: %v\n", err)
+			utils.ErrExit("error in scanning query rows for sequence names: %w\n", err)
 		}
 		sequenceNames = append(sequenceNames, sequenceName)
 	}
 	if rows.Err() != nil {
-		return nil, fmt.Errorf("error in scanning query rows for sequence names: %v", rows.Err())
+		return nil, fmt.Errorf("error in scanning query rows for sequence names: %w", rows.Err())
 	}
 	return sequenceNames, nil
 }
@@ -564,7 +564,7 @@ func (yb *TargetYugabyteDB) GetNonEmptyTables(tables []sqlname.NameTuple) []sqln
 			continue
 		}
 		if err != nil {
-			utils.ErrExit("failed to check whether table is empty: %q: %s", table, err)
+			utils.ErrExit("failed to check whether table is empty: %q: %w", table, err)
 		}
 		result = append(result, table)
 	}
@@ -1142,7 +1142,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 				clone.Port, err = strconv.Atoi(strings.Split(ybServer, ":")[1])
 
 				if err != nil {
-					return false, nil, fmt.Errorf("error in parsing useYbServers flag: %v", err)
+					return false, nil, fmt.Errorf("error in parsing useYbServers flag: %w", err)
 				}
 			} else {
 				clone.Host = ybServer
@@ -1157,13 +1157,13 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 		url := tconf.GetConnectionUri()
 		conn, err := pgx.Connect(context.Background(), url)
 		if err != nil {
-			return false, nil, fmt.Errorf("Unable to connect to database: %v", err)
+			return false, nil, fmt.Errorf("Unable to connect to database: %w", err)
 		}
 		defer conn.Close(context.Background())
 
 		rows, err := conn.Query(context.Background(), GET_YB_SERVERS_QUERY)
 		if err != nil {
-			return false, nil, fmt.Errorf("error in query rows from yb_servers(): %v", err)
+			return false, nil, fmt.Errorf("error in query rows from yb_servers(): %w", err)
 		}
 		defer rows.Close()
 
@@ -1174,7 +1174,7 @@ func (yb *TargetYugabyteDB) GetYBServers() (bool, []*TargetConf, error) {
 			var port, num_conns int
 			if err := rows.Scan(&host, &port, &num_conns,
 				&nodeType, &cloud, &region, &zone, &public_ip); err != nil {
-				return false, nil, fmt.Errorf("error in scanning rows of yb_servers(): %v", err)
+				return false, nil, fmt.Errorf("error in scanning rows of yb_servers(): %w", err)
 			}
 
 			// check if given host is one of the server in cluster
@@ -1431,7 +1431,7 @@ func getYBSessionInitScript(tconf *TargetConf) []string {
 func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 	conn, err := pgx.Connect(context.Background(), tconf.GetConnectionUri())
 	if err != nil {
-		utils.ErrExit("error while creating connection for checking session parameter support: %q: %v", sqlStmt, err)
+		utils.ErrExit("error while creating connection for checking session parameter support: %q: %w", sqlStmt, err)
 	}
 	defer conn.Close(context.Background())
 
@@ -1445,7 +1445,7 @@ func checkSessionVariableSupport(tconf *TargetConf, sqlStmt string) bool {
 				}
 				return false // support is not there even if the target user doesn't have privileges to set this parameter.
 			}
-			utils.ErrExit("error while executing sqlStatement: %q: %v", sqlStmt, err)
+			utils.ErrExit("error while executing sqlStatement: %q: %w", sqlStmt, err)
 		} else {
 			log.Warnf("Warning: %q is not supported: %v", sqlStmt, err)
 		}
@@ -1458,7 +1458,7 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
 	setSchemaQuery := fmt.Sprintf("SET SCHEMA '%s'", yb.tconf.Schema)
 	_, err := conn.Exec(context.Background(), setSchemaQuery)
 	if err != nil {
-		return fmt.Errorf("run query: %q on target %q: %s", setSchemaQuery, conn.Config().Host, err)
+		return fmt.Errorf("run query: %q on target %q: %w", setSchemaQuery, conn.Config().Host, err)
 	}
 
 	// append oracle schema in the search_path for orafce
@@ -1466,7 +1466,7 @@ func (yb *TargetYugabyteDB) setTargetSchema(conn *pgx.Conn) error {
 	updateSearchPath := `SELECT set_config('search_path', current_setting('search_path') || ', oracle', false)`
 	_, err = conn.Exec(context.Background(), updateSearchPath)
 	if err != nil {
-		return fmt.Errorf("unable to update search_path for orafce extension with query: %q on target %q: %v", updateSearchPath, conn.Config().Host, err)
+		return fmt.Errorf("unable to update search_path for orafce extension with query: %q on target %q: %w", updateSearchPath, conn.Config().Host, err)
 	}
 	return nil
 }
@@ -1555,7 +1555,7 @@ func (yb *TargetYugabyteDB) alterColumns(tableColumnsMap *utils.StructMap[sqlnam
 					_, err := conn.Exec(context.Background(), query)
 					if err != nil {
 						log.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
-						return false, fmt.Errorf("executing query to alter columns for table(%s): %v", table.ForUserQuery(), err)
+						return false, fmt.Errorf("executing query to alter columns for table(%s): %w", table.ForUserQuery(), err)
 					}
 					return false, nil
 				})
@@ -1591,7 +1591,7 @@ func (yb *TargetYugabyteDB) isTableExists(tableNameTup sqlname.NameTuple) bool {
 func (yb *TargetYugabyteDB) isQueryResultNonEmpty(query string) bool {
 	rows, err := yb.Query(query)
 	if err != nil {
-		utils.ErrExit("error checking if query is empty: [%s]: %v", query, err)
+		utils.ErrExit("error checking if query is empty: [%s]: %w", query, err)
 	}
 	defer rows.Close()
 
@@ -1942,7 +1942,7 @@ func (yb *TargetYugabyteDB) NumOfLogicalReplicationSlots() (int64, error) {
 
 	err := yb.QueryRow(query).Scan(&numOfSlots)
 	if err != nil {
-		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %v", err)
+		return 0, fmt.Errorf("error scanning the row returned while querying pg_replication_slots: %w", err)
 	}
 
 	return numOfSlots, nil

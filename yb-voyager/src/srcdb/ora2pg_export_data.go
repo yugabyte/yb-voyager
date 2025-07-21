@@ -73,7 +73,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 
 	err := exportDataCommand.Start()
 	if err != nil {
-		utils.ErrExit("Failed to initiate data export: %v\n%s", err, errbuf.String())
+		utils.ErrExit("Failed to initiate data export: %w\n%s", err, errbuf.String())
 	}
 	fmt.Println("Data export started.")
 	exportDataStart <- true
@@ -82,7 +82,7 @@ func ora2pgExportDataOffline(ctx context.Context, source *Source, exportDir stri
 	log.Infof(`ora2pg STDOUT: "%s"`, outbuf.String())
 	log.Errorf(`ora2pg STDERR: "%s"`, errbuf.String())
 	if err != nil {
-		utils.ErrExit("Data export failed: %v\n%s", err, errbuf.String())
+		utils.ErrExit("Data export failed: %w\n%s", err, errbuf.String())
 	}
 
 	// move to ALTER SEQUENCE commands to postdata.sql file
@@ -118,7 +118,7 @@ func getIdentityColumnSequences(exportDir string) []string {
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("unable to read file: %q: %v\n", filePath, err)
+		utils.ErrExit("unable to read file: %q: %w\n", filePath, err)
 	}
 
 	lines := strings.Split(string(bytes), "\n")
@@ -137,7 +137,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 	filePath := filepath.Join(exportDir, "data", "postdata.sql")
 	bytes, err := os.ReadFile(filePath)
 	if err != nil {
-		utils.ErrExit("unable to read file: %q: %v\n", filePath, err)
+		utils.ErrExit("unable to read file: %q: %w\n", filePath, err)
 	}
 
 	lines := strings.Split(string(bytes), "\n")
@@ -160,7 +160,7 @@ func replaceAllIdentityColumns(exportDir string, sourceTargetIdentitySequenceNam
 
 	err = os.WriteFile(filePath, bytesToWrite, 0644)
 	if err != nil {
-		utils.ErrExit("unable to write file: %q: %v\n", filePath, err)
+		utils.ErrExit("unable to write file: %q: %w\n", filePath, err)
 	}
 }
 
@@ -180,7 +180,7 @@ func renameDataFilesForReservedWords(tablesProgressMetadata map[string]*utils.Ta
 			log.Infof("Renaming %q -> %q", oldFilePath, newFilePath)
 			err := os.Rename(oldFilePath, newFilePath)
 			if err != nil {
-				utils.ErrExit("renaming data file for table after data export: %q: %v", tblNameQuoted, err)
+				utils.ErrExit("renaming data file for table after data export: %q: %w", tblNameQuoted, err)
 			}
 			tableProgressMetadata.FinalFilePath = newFilePath
 		} else {
@@ -214,7 +214,7 @@ func getOra2pgExportedColumnsListForTable(exportDir, tableName, filePath string)
 		return false // stop reading file
 	})
 	if err != nil {
-		utils.ErrExit("error in reading file: %q: %v", filePath, err)
+		utils.ErrExit("error in reading file: %q: %w", filePath, err)
 	}
 	log.Infof("columns list for table %s: %v", tableName, columnsList)
 	return columnsList
