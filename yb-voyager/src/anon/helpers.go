@@ -4,7 +4,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 )
 
-// BuiltinTypeNames contains PostgreSQL built-in data types that should not be anonymized
+// BuiltinTypeNames contains PostgreSQL built-in data types that can be skipped during anonymization.
 var BuiltinTypeNames = map[string]bool{
 	// Numeric types
 	"int":      true,
@@ -147,31 +147,53 @@ var BuiltinTypeNames = map[string]bool{
 }
 
 // IsBuiltinType checks if a TypeName represents a built-in PostgreSQL type that should not be anonymized
+// built-in types are generally in pg_catalog schema.
 func IsBuiltinType(typeName *pg_query.TypeName) bool {
-	if typeName == nil || len(typeName.Names) == 0 {
-		return false
+	schema, typename := extractTypeInfo(typeName)
+	if schema == "pg_catalog" {
+		return BuiltinTypeNames[typename]
+	} else if schema == "" {
+		// for some reason	jsonb doesn't come with any schema in parse tree
+		// so if no schema is present we can check with the set directly
+		return BuiltinTypeNames[typename]
 	}
-
-	// Check if it's in pg_catalog schema (built-in types are in pg_catalog)
-	if len(typeName.Names) > 1 {
-		if schemaName := typeName.Names[0].GetString_(); schemaName != nil {
-			if schemaName.Sval == "pg_catalog" {
-				return true
-			}
-		}
-	}
-
-	// Check for common built-in type names (unqualified)
-	// Get the last element which is the actual type name
-	lastIndex := len(typeName.Names) - 1
-	if typeNameStr := typeName.Names[lastIndex].GetString_(); typeNameStr != nil && typeNameStr.Sval != "" {
-		return BuiltinTypeNames[typeNameStr.Sval]
-	}
-
 	return false
 }
 
-// IsBuiltinTypeName checks if a string represents a built-in PostgreSQL type name
-func IsBuiltinTypeName(typeName string) bool {
-	return BuiltinTypeNames[typeName]
+// extractTypeInfo extracts schema and type name from a TypeName
+// Returns empty strings if extraction fails
+func extractTypeInfo(typeName *pg_query.TypeName) (schema, typename string) {
+	if typeName == nil || len(typeName.Names) == 0 {
+		return "", ""
+	}
+
+	switch len(typeName.Names) {
+	case 1:
+		// typename only
+		if typeNameStr := typeName.Names[0].GetString_(); typeNameStr != nil {
+			return "", typeNameStr.Sval
+		}
+	case 2:
+		// schema.typename
+		var schemaStr, typeStr string
+		if schemaName := typeName.Names[0].GetString_(); schemaName != nil {
+			schemaStr = schemaName.Sval
+		}
+		if typeNameStr := typeName.Names[1].GetString_(); typeNameStr != nil {
+			typeStr = typeNameStr.Sval
+		}
+		return schemaStr, typeStr
+	case 3:
+		// database.schema.typename
+		var schemaStr, typeStr string
+		if schemaName := typeName.Names[1].GetString_(); schemaName != nil {
+			schemaStr = schemaName.Sval
+		}
+		if typeNameStr := typeName.Names[2].GetString_(); typeNameStr != nil {
+			typeStr = typeNameStr.Sval
+		}
+		return schemaStr, typeStr
+	}
+
+	return "", ""
 }

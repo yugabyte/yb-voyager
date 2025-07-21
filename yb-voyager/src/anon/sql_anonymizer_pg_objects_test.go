@@ -738,6 +738,105 @@ func TestPostgresDDLVariants(t *testing.T) {
 	}
 }
 
+func TestBuiltinTypeAnonymization(t *testing.T) {
+	// builtinTypeCase represents a test case for built-in type anonymization
+	type builtinTypeCase struct {
+		key              string   // unique test identifier
+		sql              string   // the SQL statement to test
+		shouldAnonymize  []string // identifiers that should be anonymized
+		shouldPreserve   []string // type names that should be preserved (built-in types)
+		expectedPrefixes []string // expected anonymization prefixes in output
+	}
+	log.SetLevel(log.WarnLevel)
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	az := newAnon(t, exportDir)
+
+	cases := []builtinTypeCase{
+		// Built-in types should NOT be anonymized
+		{
+			key:              "TYPE-BUILTIN-INT",
+			sql:              `CREATE TABLE sales.orders (id int PRIMARY KEY, amount int);`,
+			shouldAnonymize:  []string{"sales", "orders", "id", "amount"},
+			shouldPreserve:   []string{"int"},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			key:              "TYPE-BUILTIN-MULTIPLE-TYPES",
+			sql:              `CREATE TABLE sales.products (id bigint, name varchar(100), price numeric(10,2), created_at timestamp, metadata jsonb, is_active boolean);`,
+			shouldAnonymize:  []string{"sales", "products", "id", "name", "price", "created_at", "metadata", "is_active"},
+			shouldPreserve:   []string{"bigint", "varchar", "numeric", "timestamp", "jsonb", "boolean"},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Custom types should be anonymized
+		{
+			key:              "TYPE-CUSTOM-TYPES",
+			sql:              `CREATE TABLE sales.orders (status order_status, priority priority_level);`,
+			shouldAnonymize:  []string{"sales", "orders", "status", "priority", "order_status", "priority_level"},
+			shouldPreserve:   []string{},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, TYPE_KIND_PREFIX},
+		},
+
+		// Mixed built-in and custom types
+		{
+			key:              "TYPE-MIXED-BUILTIN-CUSTOM",
+			sql:              `CREATE TABLE sales.orders (id int, status order_status, amount numeric, priority priority_level);`,
+			shouldAnonymize:  []string{"sales", "orders", "id", "status", "amount", "priority", "order_status", "priority_level"},
+			shouldPreserve:   []string{"int", "numeric"},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, TYPE_KIND_PREFIX},
+		},
+
+		// Qualified type names
+		{
+			key:              "TYPE-QUALIFIED-BUILTIN",
+			sql:              `CREATE TABLE sales.orders (id int, name text);`,
+			shouldAnonymize:  []string{"sales", "orders", "id", "name"},
+			shouldPreserve:   []string{"int", "text"},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			key:              "TYPE-QUALIFIED-CUSTOM",
+			sql:              `CREATE TABLE sales.orders (status sales.order_status, priority public.priority_level);`,
+			shouldAnonymize:  []string{"sales", "orders", "status", "priority", "order_status", "priority_level"},
+			shouldPreserve:   []string{},
+			expectedPrefixes: []string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, TYPE_KIND_PREFIX},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.key, func(t *testing.T) {
+			out, err := az.Anonymize(c.sql)
+			if err != nil {
+				t.Fatalf("anonymize: %v", err)
+			}
+			fmt.Printf("Test Name: %s\nIN: %s\nOUT: %s\n\n", c.key, c.sql, out)
+
+			// Check that identifiers that should be anonymized are actually anonymized
+			for _, identifier := range c.shouldAnonymize {
+				if strings.Contains(out, identifier) {
+					t.Errorf("identifier %q should be anonymized but leaked in %s", identifier, out)
+				}
+			}
+
+			// Check that type names that should be preserved are actually preserved
+			for _, typeName := range c.shouldPreserve {
+				if !strings.Contains(out, typeName) {
+					t.Errorf("type name %q should be preserved but was anonymized in %s", typeName, out)
+				}
+			}
+
+			// Check that expected prefixes appear
+			for _, pref := range c.expectedPrefixes {
+				if !hasTok(out, pref) {
+					t.Errorf("expected prefix %q not found in %s", pref, out)
+				}
+			}
+		})
+	}
+}
+
 // ============================================================================
 //                          DDL ANONYMIZATION COVERAGE MATRIX
 //
