@@ -27,6 +27,9 @@ const (
 	FOREIGN_TABLE_KIND_PREFIX = "ftable_"
 	RULE_KIND_PREFIX          = "rule_"
 	AGGREGATE_KIND_PREFIX     = "agg_"
+	OPCLASS_KIND_PREFIX       = "opclass_"
+	OPFAMILY_KIND_PREFIX      = "opfamily_"
+	OPERATOR_KIND_PREFIX      = "op_"
 	DEFAULT_KIND_PREFIX       = "anon_" // fallback for any other identifiers
 )
 
@@ -57,6 +60,9 @@ var AllKindPrefixes = []string{
 	FOREIGN_TABLE_KIND_PREFIX,
 	RULE_KIND_PREFIX,
 	AGGREGATE_KIND_PREFIX,
+	OPCLASS_KIND_PREFIX,
+	OPFAMILY_KIND_PREFIX,
+	OPERATOR_KIND_PREFIX,
 	DEFAULT_KIND_PREFIX,
 }
 
@@ -110,6 +116,10 @@ func GetObjectTypePrefix(objectType pg_query.ObjectType) string {
 		return RULE_KIND_PREFIX
 	case pg_query.ObjectType_OBJECT_AGGREGATE:
 		return AGGREGATE_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_OPCLASS:
+		return OPCLASS_KIND_PREFIX
+	case pg_query.ObjectType_OBJECT_OPFAMILY:
+		return OPFAMILY_KIND_PREFIX
 	default:
 		return DEFAULT_KIND_PREFIX // Fallback to default prefix
 	}

@@ -130,6 +130,11 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		return fmt.Errorf("error handling aggregate object nodes: %w", err)
 	}
 
+	err = a.handleOperatorObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling operator object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -1386,6 +1391,82 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 					}
 				}
 			}
+		}
+	}
+
+	return nil
+}
+
+func (a *SqlAnonymizer) handleOperatorObjectNodes(msg protoreflect.Message) (err error) {
+	switch queryparser.GetMsgFullName(msg) {
+	/*
+		SQL:		CREATE OPERATOR CLASS sales.int4_abs_ops FOR TYPE int4 USING btree AS OPERATOR 1 <#, OPERATOR 2 <=#, OPERATOR 3 =#, OPERATOR 4 >=#, OPERATOR 5 >#, FUNCTION 1 int4_abs_cmp(int4,int4);
+		ParseTree:	stmt:{create_op_class_stmt:{opclassname:{string:{sval:"sales"}} opclassname:{string:{sval:"int4_abs_ops"}} amname:"btree" datatype:{names:{string:{sval:"int4"}} typemod:-1 location:50}
+					items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:"<#"}}} number:1}} items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:"<=#"}}} number:2}}
+					items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:"=#"}}} number:3}} items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:">=#"}}} number:4}}
+					items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:">#"}}} number:5}} items:{create_op_class_item:{itemtype:2 name:{objname:{string:{sval:"int4_abs_cmp"}}
+					objargs:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:171}} objargs:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:176}}
+					objfuncargs:{function_parameter:{arg_type:{names:{string:{sval:"int4"}} typemod:-1 location:171} mode:FUNC_PARAM_DEFAULT}}
+					objfuncargs:{function_parameter:{arg_type:{names:{string:{sval:"int4"}} typemod:-1 location:176} mode:FUNC_PARAM_DEFAULT}}} number:1}}}}
+
+	*/
+	case queryparser.PG_QUERY_CREATE_OP_CLASS_STMT_NODE:
+		cocs, ok := queryparser.ProtoAsCreateOpClassStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateOpClassStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the operator class name (qualified: schema.opclass_name)
+		err = a.anonymizeStringNodes(cocs.GetOpclassname(), OPCLASS_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon operator class name: %w", err)
+		}
+
+		// Anonymize the operator family name if present (qualified: schema.opfamily_name)
+		if cocs.Opfamilyname != nil {
+			err = a.anonymizeStringNodes(cocs.GetOpfamilyname(), OPFAMILY_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon operator class family name: %w", err)
+			}
+		}
+
+		// Anonymize operators and functions in the items
+		if cocs.Items != nil {
+			for _, item := range cocs.Items {
+				if itemNode := item.GetCreateOpClassItem(); itemNode != nil {
+					if itemNode.Name != nil && itemNode.Name.Objname != nil {
+						// itemtype: 1 = operator, 2 = function
+						var prefix string
+						if itemNode.Itemtype == 1 {
+							prefix = OPERATOR_KIND_PREFIX
+						} else if itemNode.Itemtype == 2 {
+							prefix = FUNCTION_KIND_PREFIX
+						} else {
+							prefix = DEFAULT_KIND_PREFIX
+						}
+						err = a.anonymizeStringNodes(itemNode.Name.Objname, prefix)
+						if err != nil {
+							return fmt.Errorf("anon operator class item: %w", err)
+						}
+					}
+				}
+			}
+		}
+
+	/*
+		SQL:		CREATE OPERATOR FAMILY sales.abs_numeric_ops USING btree;
+		ParseTree:	stmt:{create_op_family_stmt:{opfamilyname:{string:{sval:"sales"}} opfamilyname:{string:{sval:"abs_numeric_ops"}} amname:"btree"}}
+	*/
+	case queryparser.PG_QUERY_CREATE_OP_FAMILY_STMT_NODE:
+		cofs, ok := queryparser.ProtoAsCreateOpFamilyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateOpFamilyStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the operator family name (qualified: schema.opfamily_name)
+		err = a.anonymizeStringNodes(cofs.GetOpfamilyname(), OPFAMILY_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon operator family name: %w", err)
 		}
 	}
 

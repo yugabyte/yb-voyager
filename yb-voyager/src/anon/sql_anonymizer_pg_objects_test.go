@@ -142,6 +142,10 @@ var enabled = map[string]bool{
 	"AGGREGATE-CREATE-WITH-ORDER-BY":     true,
 	"AGGREGATE-CREATE-WITH-PARALLEL":     true,
 	"AGGREGATE-CREATE-WITH-HYPOTHETICAL": true,
+
+	"OPERATOR-CLASS-CREATE":             true,
+	"OPERATOR-CLASS-CREATE-WITH-FAMILY": true,
+	"OPERATOR-FAMILY-CREATE":            true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -711,6 +715,22 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE AGGREGATE sales.order_rank(int) (SFUNC = sales.add_order, STYPE = int, HYPOTHETICAL);`,
 			[]string{"sales", "order_rank", "sales", "add_order"},
 			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+
+		// ─── OPERATOR CLASS ─────────────────────────────────────────────
+		{"OPERATOR-CLASS-CREATE",
+			`CREATE OPERATOR CLASS sales.int4_abs_ops FOR TYPE int4 USING btree AS OPERATOR 1 <#, OPERATOR 2 <=#, OPERATOR 3 =#, OPERATOR 4 >=#, OPERATOR 5 >#, FUNCTION 1 int4_abs_cmp(int4,int4);`,
+			[]string{"sales", "int4_abs_ops", "<#", "<=#", "=#", ">=#", ">#", "int4_abs_cmp"},
+			[]string{SCHEMA_KIND_PREFIX, OPCLASS_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"OPERATOR-CLASS-CREATE-WITH-FAMILY",
+			`CREATE OPERATOR CLASS sales.int4_abs_ops FOR TYPE int4 USING btree FAMILY sales.abs_numeric_ops AS OPERATOR 1 <#, OPERATOR 2 <=#, OPERATOR 3 =#, OPERATOR 4 >=#, OPERATOR 5 >#, FUNCTION 1 int4_abs_cmp(int4,int4);`,
+			[]string{"sales", "int4_abs_ops", "abs_numeric_ops", "<#", "<=#", "=#", ">=#", ">#", "int4_abs_cmp"},
+			[]string{SCHEMA_KIND_PREFIX, OPCLASS_KIND_PREFIX, OPFAMILY_KIND_PREFIX, OPERATOR_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+
+		// ─── OPERATOR FAMILY ─────────────────────────────────────────────
+		{"OPERATOR-FAMILY-CREATE",
+			`CREATE OPERATOR FAMILY sales.abs_numeric_ops USING btree;`,
+			[]string{"sales", "abs_numeric_ops"},
+			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {

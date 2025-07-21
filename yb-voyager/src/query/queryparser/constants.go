@@ -62,6 +62,8 @@ const (
 	PG_QUERY_CREATE_EXTENSION_STMT          = "pg_query.CreateExtensionStmt"
 	PG_QUERY_CREATE_FOREIGN_TABLE_STMT_NODE = "pg_query.CreateForeignTableStmt"
 	PG_QUERY_CREATE_CONVERSION_STMT_NODE    = "pg_query.CreateConversionStmt"
+	PG_QUERY_CREATE_OP_CLASS_STMT_NODE      = "pg_query.CreateOpClassStmt"
+	PG_QUERY_CREATE_OP_FAMILY_STMT_NODE     = "pg_query.CreateOpFamilyStmt"
 	PG_QUERY_RULE_STMT_NODE                 = "pg_query.RuleStmt"
 
 	PG_QUERY_CREATE_SEQ_STMT_NODE = "pg_query.CreateSeqStmt"

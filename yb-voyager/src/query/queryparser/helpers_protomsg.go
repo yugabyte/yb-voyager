@@ -730,6 +730,22 @@ func ProtoAsCreateStmtNode(msg protoreflect.Message) (*pg_query.CreateStmt, bool
 	return createStmtNode, true
 }
 
+func ProtoAsCreateOpClassStmtNode(msg protoreflect.Message) (*pg_query.CreateOpClassStmt, bool) {
+	createOpClassStmt, ok := msg.Interface().(*pg_query.CreateOpClassStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpClassStmt, ok
+}
+
+func ProtoAsCreateOpFamilyStmtNode(msg protoreflect.Message) (*pg_query.CreateOpFamilyStmt, bool) {
+	createOpFamilyStmt, ok := msg.Interface().(*pg_query.CreateOpFamilyStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpFamilyStmt, ok
+}
+
 /*
 Example:
 options:{def_elem:{defname:"security_invoker" arg:{string:{sval:"true"}} defaction:DEFELEM_UNSPEC location:32}}
