@@ -430,6 +430,14 @@ func ProtoAsCreateConversionStmtNode(msg protoreflect.Message) (*pg_query.Create
 	return createConvStmtNode, true
 }
 
+func ProtoAsRuleStmtNode(msg protoreflect.Message) (*pg_query.RuleStmt, bool) {
+	ruleStmtNode, ok := msg.Interface().(*pg_query.RuleStmt)
+	if !ok {
+		return nil, false
+	}
+	return ruleStmtNode, true
+}
+
 func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateForeignTableStmt, bool) {
 	createForeignTableStmtNode, ok := msg.Interface().(*pg_query.CreateForeignTableStmt)
 	if !ok {

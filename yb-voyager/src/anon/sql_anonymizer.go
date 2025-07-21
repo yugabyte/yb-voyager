@@ -120,6 +120,16 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		return fmt.Errorf("error handling foreign table object nodes: %w", err)
 	}
 
+	err = a.handleRuleObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling rule object nodes: %w", err)
+	}
+
+	err = a.handleAggregateObjectNodes(msg)
+	if err != nil {
+		return fmt.Errorf("error handling aggregate object nodes: %w", err)
+	}
+
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		RangeVar node is for tablename in FROM clause of a query
@@ -296,15 +306,18 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 			return fmt.Errorf("expected TypeName, got %T", msg.Interface())
 		}
 
-		// get string node sval from TypeName
-		for i, node := range tn.Names {
-			str := node.GetString_()
-			if str == nil || str.Sval == "" {
-				continue
-			}
-			str.Sval, err = a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
-			if err != nil {
-				return fmt.Errorf("anon typename[%d]=%q lookup: %w", i, str.Sval, err)
+		// Only anonymize if it's not a built-in type
+		if !IsBuiltinType(tn) {
+			// get string node sval from TypeName
+			for i, node := range tn.Names {
+				str := node.GetString_()
+				if str == nil || str.Sval == "" {
+					continue
+				}
+				str.Sval, err = a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
+				if err != nil {
+					return fmt.Errorf("anon typename[%d]=%q lookup: %w", i, str.Sval, err)
+				}
 			}
 		}
 
@@ -740,10 +753,10 @@ var alterTablePrefixMap = map[pg_query.AlterTableType]string{
 	pg_query.AlterTableType_AT_EnableAlwaysTrig:  TRIGGER_KIND_PREFIX,
 	pg_query.AlterTableType_AT_EnableReplicaTrig: TRIGGER_KIND_PREFIX,
 	pg_query.AlterTableType_AT_DisableTrig:       TRIGGER_KIND_PREFIX,
-	pg_query.AlterTableType_AT_EnableRule:        TRIGGER_KIND_PREFIX,
-	pg_query.AlterTableType_AT_EnableAlwaysRule:  TRIGGER_KIND_PREFIX,
-	pg_query.AlterTableType_AT_EnableReplicaRule: TRIGGER_KIND_PREFIX,
-	pg_query.AlterTableType_AT_DisableRule:       TRIGGER_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableRule:        RULE_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableAlwaysRule:  RULE_KIND_PREFIX,
+	pg_query.AlterTableType_AT_EnableReplicaRule: RULE_KIND_PREFIX,
+	pg_query.AlterTableType_AT_DisableRule:       RULE_KIND_PREFIX,
 
 	// Index operations
 	pg_query.AlterTableType_AT_ClusterOn: INDEX_KIND_PREFIX,
@@ -1285,6 +1298,91 @@ func (a *SqlAnonymizer) handleForeignTableObjectNodes(msg protoreflect.Message) 
 					err = a.anonymizeStringNodes([]*pg_query.Node{defElem.Arg}, prefix)
 					if err != nil {
 						return fmt.Errorf("anon foreign table option %s: %w", defElem.Defname, err)
+					}
+				}
+			}
+		}
+	}
+
+	return nil
+}
+
+// Note: we should disable anonymization for rules for now.
+// because rule contains - SELECT, UPDATE, DELETE, INSERT DML in the DO clause.
+// Once we support DML anonymization, we can enable RULE anonymization.
+func (a *SqlAnonymizer) handleRuleObjectNodes(msg protoreflect.Message) (err error) {
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_RULE_STMT_NODE {
+		return nil
+	}
+
+	rs, ok := queryparser.ProtoAsRuleStmtNode(msg)
+	if !ok {
+		return fmt.Errorf("expected CreateRuleStmt, got %T", msg.Interface())
+	}
+
+	// Anonymize the rule name
+	// Note: rule name is not a qualified name, its stored/attached to the table on which it is defined
+	rs.Rulename, err = a.registry.GetHash(RULE_KIND_PREFIX, rs.Rulename)
+	if err != nil {
+		return fmt.Errorf("anon rule name: %w", err)
+	}
+
+	return nil
+}
+
+func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (err error) {
+	// there is no CREATE AGGREGATE stmt node in pg_query. DefineStmt is used instead.
+	// We need to anonymize the aggregate name and the function name.
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_DEFINE_STMT_NODE {
+		return nil
+	}
+
+	ds, ok := queryparser.ProtoAsDefineStmtNode(msg)
+	if !ok {
+		return fmt.Errorf("expected DefineStmt, got %T", msg.Interface())
+	}
+
+	if ds.Kind != pg_query.ObjectType_OBJECT_AGGREGATE {
+		return nil
+	}
+
+	/*
+		SQL:		CREATE AGGREGATE sales.order_total(int) (SFUNC = sales.add_order, STYPE = int);
+		ParseTree: 	stmt:{define_stmt:{kind:OBJECT_AGGREGATE  defnames:{string:{sval:"sales"}}  defnames:{string:{sval:"order_total"}}
+					args:{list:{items:{function_parameter:{arg_type:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}} }
+					mode:FUNC_PARAM_DEFAULT}}}}  args:{integer:{ival:-1}}  definition:{def_elem:{defname:"sfunc"
+					arg:{type_name:{names:{string:{sval:"sales"}}  names:{string:{sval:"add_order"}}}}}}
+					definition:{def_elem:{defname:"stype"  arg:{type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}}} }}}}
+	*/
+
+	// Anonymize the aggregate name
+	err = a.anonymizeStringNodes(ds.Defnames, AGGREGATE_KIND_PREFIX)
+	if err != nil {
+		return fmt.Errorf("anon aggregate name: %w", err)
+	}
+
+	// Process function references in the definition
+	if ds.Definition != nil {
+		functionDefs := map[string]bool{
+			"sfunc":      true,
+			"finalfunc":  true,
+			"msfunc":     true,
+			"minvfunc":   true,
+			"mfinalfunc": true,
+		}
+
+		for _, defElem := range ds.Definition {
+			defElemNode := defElem.GetDefElem()
+			if defElemNode == nil || !functionDefs[defElemNode.Defname] {
+				continue
+			}
+
+			// Anonymize function references
+			if defElemNode.Arg != nil {
+				if typeName := defElemNode.Arg.GetTypeName(); typeName != nil {
+					err = a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX)
+					if err != nil {
+						return fmt.Errorf("anon aggregate function %s: %w", defElemNode.Defname, err)
 					}
 				}
 			}

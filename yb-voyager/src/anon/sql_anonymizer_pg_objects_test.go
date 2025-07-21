@@ -106,31 +106,42 @@ var enabled = map[string]bool{
 	"POLICY-CREATE-COMPLEX-CONDITIONS": true,
 	"POLICY-CREATE-ALL-COMMANDS":       true,
 
-	"COMMENT-TABLE":                     true,
-	"COMMENT-COLUMN":                    true,
-	"COMMENT-INDEX":                     true,
-	"COMMENT-POLICY":                    true,
-	"COMMENT-SEQUENCE":                  true,
-	"COMMENT-TYPE":                      true,
-	"COMMENT-DOMAIN":                    true,
-	"COMMENT-EXTENSION":                 true,
-	"COMMENT-SCHEMA":                    true,
-	"COMMENT-FUNCTION":                  true,
-	"COMMENT-PROCEDURE":                 true,
-	"COMMENT-TRIGGER":                   true,
-	"COMMENT-VIEW":                      true,
-	"COMMENT-MVIEW":                     true,
-	"COMMENT-DATABASE":                  true,
-	"COMMENT-CONSTRAINT":                true,
-	"COMMENT-ROLE":                      true,
-	"COMMENT-COLLATION":                 true,
-	"CONVERSION-CREATE":                 true,
-	"CONVERSION-CREATE-BASIC":           true,
-	"CONVERSION-CREATE-DEFAULT":         true,
-	"CONVERSION-SET-SCHEMA":             true,
-	"CONVERSION-OWNER":                  true,
-	"FOREIGN-TABLE-CREATE":              true,
-	"FOREIGN-TABLE-CREATE-WITH-OPTIONS": true,
+	"COMMENT-TABLE":                      true,
+	"COMMENT-COLUMN":                     true,
+	"COMMENT-INDEX":                      true,
+	"COMMENT-POLICY":                     true,
+	"COMMENT-SEQUENCE":                   true,
+	"COMMENT-TYPE":                       true,
+	"COMMENT-DOMAIN":                     true,
+	"COMMENT-EXTENSION":                  true,
+	"COMMENT-SCHEMA":                     true,
+	"COMMENT-FUNCTION":                   true,
+	"COMMENT-PROCEDURE":                  true,
+	"COMMENT-TRIGGER":                    true,
+	"COMMENT-VIEW":                       true,
+	"COMMENT-MVIEW":                      true,
+	"COMMENT-DATABASE":                   true,
+	"COMMENT-CONSTRAINT":                 true,
+	"COMMENT-ROLE":                       true,
+	"COMMENT-COLLATION":                  true,
+	"CONVERSION-CREATE":                  true,
+	"CONVERSION-CREATE-BASIC":            true,
+	"CONVERSION-CREATE-DEFAULT":          true,
+	"CONVERSION-SET-SCHEMA":              true,
+	"CONVERSION-OWNER":                   true,
+	"FOREIGN-TABLE-CREATE":               true,
+	"FOREIGN-TABLE-CREATE-WITH-OPTIONS":  true,
+	"RULE-CREATE":                        true,
+	"RULE-CREATE-SELECT":                 true,
+	"RULE-CREATE-UPDATE":                 true,
+	"RULE-CREATE-DELETE":                 true,
+	"RULE-CREATE-WITH-ALSO":              true,
+	"RULE-CREATE-WITH-OR-REPLACE":        true,
+	"AGGREGATE-CREATE":                   true,
+	"AGGREGATE-CREATE-WITH-ALL-OPTIONS":  true,
+	"AGGREGATE-CREATE-WITH-ORDER-BY":     true,
+	"AGGREGATE-CREATE-WITH-PARALLEL":     true,
+	"AGGREGATE-CREATE-WITH-HYPOTHETICAL": true,
 }
 
 func hasTok(s, pref string) bool { return strings.Contains(s, pref) }
@@ -256,8 +267,8 @@ func TestPostgresDDLVariants(t *testing.T) {
 		// ─── DOMAIN ────────────────────────────────────────────
 		{"DOMAIN-CREATE",
 			`CREATE DOMAIN us_postal AS text CHECK (VALUE ~ '^[0-9]{5}$');`,
-			[]string{"us_postal", "text", "VALUE", "^[0-9]{5}$"},
-			[]string{DOMAIN_KIND_PREFIX, TYPE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+			[]string{"us_postal", "VALUE", "^[0-9]{5}$"},
+			[]string{DOMAIN_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
 		},
 		{"DOMAIN-RENAME",
 			`ALTER DOMAIN us_postal RENAME TO us_zip;`,
@@ -411,19 +422,19 @@ func TestPostgresDDLVariants(t *testing.T) {
 		{"TABLE-ENABLE-RULE",
 			`ALTER TABLE sales.orders ENABLE RULE order_rule;`,
 			[]string{"sales", "orders", "order_rule"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, TRIGGER_KIND_PREFIX}}, // Using TRIGGER prefix for rules
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, RULE_KIND_PREFIX}}, // Using TRIGGER prefix for rules
 		{"TABLE-DISABLE-RULE",
 			`ALTER TABLE sales.orders DISABLE RULE order_rule;`,
 			[]string{"sales", "orders", "order_rule"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, TRIGGER_KIND_PREFIX}}, // Using TRIGGER prefix for rules
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, RULE_KIND_PREFIX}}, // Using TRIGGER prefix for rules
 		{"TABLE-ENABLE-ALWAYS-RULE",
 			`ALTER TABLE sales.orders ENABLE ALWAYS RULE audit_rule;`,
 			[]string{"sales", "orders", "audit_rule"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, TRIGGER_KIND_PREFIX}}, // Using TRIGGER prefix for rules
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, RULE_KIND_PREFIX}}, // Using TRIGGER prefix for rules
 		{"TABLE-ENABLE-REPLICA-RULE",
 			`ALTER TABLE sales.orders ENABLE REPLICA RULE sync_rule;`,
 			[]string{"sales", "orders", "sync_rule"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, TRIGGER_KIND_PREFIX}}, // Using TRIGGER prefix for rules
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, RULE_KIND_PREFIX}}, // Using TRIGGER prefix for rules
 
 		// ─── IDENTITY OPERATIONS ─────────────────────────────────────────────
 		{"TABLE-ADD-IDENTITY",
@@ -656,6 +667,50 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE FOREIGN TABLE sales.foreign_orders (col1 int, col2 text) SERVER remote_server OPTIONS (table_name 'remote_orders', schema_name 'public');`,
 			[]string{"sales", "foreign_orders", "col1", "col2", "remote_server", "remote_orders", "public"},
 			[]string{SCHEMA_KIND_PREFIX, FOREIGN_TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, DEFAULT_KIND_PREFIX, TABLE_KIND_PREFIX}},
+
+		// ─── RULE ───────────────────────────────────────────
+		{"RULE-CREATE",
+			`CREATE RULE rule_name AS ON INSERT TO sales.orders DO INSTEAD INSERT INTO sales.orders_audit (id, amount) VALUES (NEW.id, NEW.amount);`,
+			[]string{"rule_name", "sales", "orders", "orders_audit", "id", "amount"},
+			[]string{RULE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"RULE-CREATE-SELECT",
+			`CREATE RULE select_rule AS ON SELECT TO sales.orders DO INSTEAD SELECT * FROM sales.orders_view;`,
+			[]string{"select_rule", "sales", "orders", "orders_view"},
+			[]string{RULE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX}},
+		{"RULE-CREATE-UPDATE",
+			`CREATE RULE update_rule AS ON UPDATE TO sales.orders DO INSTEAD UPDATE sales.orders_archive SET amount = NEW.amount WHERE id = OLD.id;`,
+			[]string{"update_rule", "sales", "orders", "orders_archive", "amount", "id"},
+			[]string{RULE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"RULE-CREATE-DELETE",
+			`CREATE RULE delete_rule AS ON DELETE TO sales.orders DO INSTEAD DELETE FROM sales.orders_archive WHERE id = OLD.id;`,
+			[]string{"delete_rule", "sales", "orders", "orders_archive", "id"},
+			[]string{RULE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+		{"RULE-CREATE-WITH-ALSO",
+			`CREATE RULE audit_rule AS ON INSERT TO sales.orders DO ALSO INSERT INTO sales.audit_log (table_name, action, timestamp) VALUES ('orders', 'INSERT', NOW());`,
+			[]string{"audit_rule", "sales", "orders", "audit_log", "table_name", "action", "timestamp"},
+			[]string{RULE_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX}},
+
+		// ─── AGGREGATE ───────────────────────────────────────────
+		{"AGGREGATE-CREATE",
+			`CREATE AGGREGATE sales.order_total(int) (SFUNC = sales.add_order, STYPE = int);`,
+			[]string{"sales", "order_total", "sales", "add_order"},
+			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"AGGREGATE-CREATE-WITH-ALL-OPTIONS",
+			`CREATE AGGREGATE sales.order_stats(int) (SFUNC = sales.add_order, STYPE = int, FINALFUNC = sales.finalize_stats, INITCOND = 0, MSFUNC = sales.add_order_multi, MSTYPE = int, MINVFUNC = sales.subtract_order, MFINALFUNC = sales.finalize_stats_multi, MINITCOND = 0, SORTOP = >);`,
+			[]string{"sales", "order_stats", "sales", "add_order", "sales", "finalize_stats", "sales", "add_order_multi", "sales", "subtract_order", "sales", "finalize_stats_multi"},
+			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"AGGREGATE-CREATE-WITH-ORDER-BY",
+			`CREATE AGGREGATE sales.order_total_ordered(int) (SFUNC = sales.add_order, STYPE = int, SORTOP = >);`,
+			[]string{"sales", "order_total_ordered", "sales", "add_order"},
+			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"AGGREGATE-CREATE-WITH-PARALLEL",
+			`CREATE AGGREGATE sales.order_total_parallel(int) (SFUNC = sales.add_order, STYPE = int, PARALLEL = SAFE);`,
+			[]string{"sales", "order_total_parallel", "sales", "add_order"},
+			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
+		{"AGGREGATE-CREATE-WITH-HYPOTHETICAL",
+			`CREATE AGGREGATE sales.order_rank(int) (SFUNC = sales.add_order, STYPE = int, HYPOTHETICAL);`,
+			[]string{"sales", "order_rank", "sales", "add_order"},
+			[]string{AGGREGATE_KIND_PREFIX, SCHEMA_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 	}
 
 	for _, c := range cases {
@@ -734,24 +789,29 @@ func TestPostgresDDLVariants(t *testing.T) {
 //  COMMENT              | COMMENT ON TABLE/COLUMN/... (all object types)  | CommentOnStmtNode            | [x]
 //
 //  CONVERSION           | CREATE CONVERSION <schema>.<name> ...           | CreateConversionStmtNode     | [x]
-
 //
-//  FOREIGN TABLE        | CREATE FOREIGN TABLE <schema>.<name> ...        | CreateForeignTableStmtNode   | [ ]
-//                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [ ]
-//                       | DROP FOREIGN TABLE <name>                       | DropStmtNode                 | [ ]
+//  FOREIGN TABLE        | CREATE FOREIGN TABLE <schema>.<name> ...        | CreateForeignTableStmtNode   | [x]
+//                       | ALTER FOREIGN TABLE <name> RENAME TO <new>      | RenameStmtNode               | [x]
+//                       | DROP FOREIGN TABLE <name>                       | DropStmtNode                 | [x]
+//
+//  RULE                 | CREATE RULE <name> ON <table> ...                | CreateRuleStmtNode           | [x]
+//                       | ALTER RULE <name> ON <table> ...                 | AlterRuleStmtNode            | [x]
+//
+//  AGGREGATE            | CREATE AGGREGATE <name> (<type>) ...            | CreateAggregateStmtNode      | [x]
+//
 //
 // No sensitive data in OPERATOR objects, so skipping.
 //  OPERATOR             | CREATE OPERATOR <schema>.<name> ...             | CreateOperatorStmtNode       | [ ]
 //                       | ALTER OPERATOR <name> RENAME TO <new>           | RenameStmtNode               | [ ]
 //                       | DROP OPERATOR <schema>.<name>                   | DropStmtNode                 | [ ]
 //
-//  TRIGGER               ... (Create/Alter/Drop)                          | [ ]
+//  OPERATOR CLASS / FAMILY                                                  | [ ]
+//
+// Below objects are not anonymized or send to callhome yet.
+//  TRIGGER               ... (Create/Alter/Drop)                        | [ ]
 //  VIEW                  ...                                            | [ ]
 //  MVIEW                 ...                                            | [ ]
-//  RULE                  ...                                            | [ ]
 //  FUNCTION / PROCEDURE  ...                                            | [ ]
-//  AGGREGATE             ...                                            | [ ]
-//  OPERATOR CLASS / FAMILY                                                  | [ ]
 //
 //  NOTE: After implementing a specific case, flip its [ ] to [x] above.
 // ============================================================================
