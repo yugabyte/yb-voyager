@@ -111,9 +111,8 @@ func GetObjectTypeAndObjectName(parseTree *pg_query.ParseResult) (string, string
 		fullyQualifiedName := utils.BuildObjectName(schemaName, tableName)
 		displayObjName := fmt.Sprintf("%s ON %s", indexName, fullyQualifiedName)
 		return "INDEX", displayObjName
-	default:
-		panic("unsupported type of parseResult")
 	}
+	return "NOT_SUPPORTED", ""
 }
 
 func isArrayType(typeName *pg_query.TypeName) bool {
