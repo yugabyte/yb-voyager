@@ -18,14 +18,12 @@ package cmd
 import (
 	"bufio"
 	"bytes"
-	_ "embed"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
-	"text/template"
 
 	"github.com/fatih/color"
 	pg_query "github.com/pganalyze/pg_query_go/v6"
@@ -885,156 +883,4 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
 	return lo.Keys(removedIndexToStmtMap), nil
-}
-
-// =============================================== schema optimization changes report
-type SchemaOptimizationReport struct {
-	VoyagerVersion              string
-	SourceDatabaseName          string
-	SourceDatabaseSchema        string
-	SourceDatabaseVersion       string
-	RedundantIndexChange        *RedundantIndexChange
-	TableShardingRecommendation *AppliedShardingRecommendationChange
-	MviewShardingRecommendation *AppliedShardingRecommendationChange
-}
-
-type AppliedShardingRecommendationChange struct {
-	Title                    string
-	Description              string
-	ReferenceFile            string
-	ReferenceFileDisplayName string
-	ShardedObjects           []string
-	CollocatedObjects        []string
-}
-
-type RedundantIndexChange struct {
-	Title                    string
-	Description              string
-	ReferenceFile            string
-	ReferenceFileDisplayName string
-	TableToRemovedIndexesMap map[string][]string
-}
-
-//go:embed templates/schema_optimization_report.template
-var optimizationChangesTemplate []byte
-
-// generatePerformanceOptimizationReport generates an HTML report detailing performance optimization changes applied to the exported schema.
-// It reports the removal of redundant indexes and the application of sharding recommendations to tables and materialized views (mviews).
-// The report includes references to the relevant SQL files and lists the modified objects.
-// Parameters:
-//   - redundantIndexes: list of redundant index names that were removed.
-//   - tables: list of table names to which sharding recommendations were applied.
-//   - mviews: list of materialized view names to which sharding recommendations were applied.
-func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string) error {
-
-	if source.DBType != POSTGRESQL {
-		//NOt generating the report in case other than PG
-		return nil
-	}
-
-	var err error
-	var redundantIndexChange *RedundantIndexChange
-	if len(redundantIndexes) > 0 {
-		redundantIndexChange = &RedundantIndexChange{}
-		redundantIndexChange.Title = "Removed Redundant indexes"
-		redundantIndexChange.Description = "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
-		redundantIndexChange.ReferenceFile = filepath.Join(exportDir, "schema", "tables", "redundant_indexes.sql")
-		redundantIndexChange.ReferenceFileDisplayName = "redundant_indexes.sql"
-
-		tableToIndexMap := make(map[string][]string)
-		for _, index := range redundantIndexes {
-			splits := strings.Split(index, " ON ")
-			if len(splits) != 2 {
-				log.Warnf("Redundant index is not in correct format (idx ON tbl) - %v", index)
-				continue
-			}
-			indexName := splits[0]
-			tableName := splits[1]
-			tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
-		}
-		redundantIndexChange.TableToRemovedIndexesMap = tableToIndexMap
-	}
-
-	var appliedRecommendationTable, appliedRecommendationMview *AppliedShardingRecommendationChange
-	//If assessment recommendations are applied
-	if assessmentRecommendationsApplied {
-		tableFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "TABLE")
-		//To tables then add that change
-		if utils.FileOrFolderExists(tableFile) && len(shardedTables) > 0 { // only display this in case there is any modifield sharded tables
-			appliedRecommendationTable = &AppliedShardingRecommendationChange{}
-			appliedRecommendationTable.Title = "Applied Sharding Recommendations to Tables"
-			appliedRecommendationTable.Description = "Sharding recommendations from the assessment have been applied to the tables to optimize data distribution and performance. Tables will be created as colocated automatically according to the target database configuration."
-			appliedRecommendationTable.ReferenceFile = tableFile
-			appliedRecommendationTable.ReferenceFileDisplayName = filepath.Base(tableFile)
-			appliedRecommendationTable.ShardedObjects = shardedTables
-			appliedRecommendationTable.CollocatedObjects, err = getColocatedObjects(tableFile, shardedTables, TABLE)
-			if err != nil {
-				return fmt.Errorf("error getting other objects: %w", err)
-			}
-		}
-		mviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), "MVIEW")
-		//To mviews then add that change separately
-		if utils.FileOrFolderExists(mviewFile) && len(shardedMviews) > 0 { // only display this in case there is any modifield sharded mview
-			appliedRecommendationMview = &AppliedShardingRecommendationChange{}
-			appliedRecommendationMview.Title = "Applied Sharding Recommendations to Materialized Views"
-			appliedRecommendationMview.Description = "Sharding recommendations from the assessment have been applied to the mviews to optimize data distribution and performance. Mviews will be created as colocated automatically according to the target database configuration."
-			appliedRecommendationMview.ReferenceFile = mviewFile
-			appliedRecommendationMview.ReferenceFileDisplayName = filepath.Base(mviewFile)
-			appliedRecommendationMview.ShardedObjects = shardedMviews
-			appliedRecommendationMview.CollocatedObjects, err = getColocatedObjects(mviewFile, shardedMviews, MVIEW)
-			if err != nil {
-				return fmt.Errorf("error getting other objects: %w", err)
-			}
-		}
-	}
-
-	htmlReportFilePath := filepath.Join(exportDir, "reports", fmt.Sprintf("schema_optimization_report%s", HTML_EXTENSION))
-	log.Infof("writing changes report to file: %s", htmlReportFilePath)
-
-	file, err := os.Create(htmlReportFilePath)
-	if err != nil {
-		return fmt.Errorf("failed to create file for %q: %w", filepath.Base(htmlReportFilePath), err)
-	}
-	defer func() {
-		err := file.Close()
-		if err != nil {
-			log.Errorf("failed to close file %q: %v", htmlReportFilePath, err)
-		}
-	}()
-	tmpl := template.Must(template.New("report").Parse(string(optimizationChangesTemplate)))
-	err = tmpl.Execute(file, SchemaOptimizationReport{
-		VoyagerVersion:              utils.YB_VOYAGER_VERSION,
-		SourceDatabaseName:          source.DBName,
-		SourceDatabaseSchema:        strings.Join(strings.Split(source.Schema, "|"), ", "),
-		SourceDatabaseVersion:       source.DBVersion,
-		RedundantIndexChange:        redundantIndexChange,
-		TableShardingRecommendation: appliedRecommendationTable,
-		MviewShardingRecommendation: appliedRecommendationMview,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to render the assessment report: %w", err)
-	}
-
-	color.Green("\nSome optimization changes are applied to the schema, refer to the report for more details: %s", htmlReportFilePath)
-
-	return nil
-}
-
-func getColocatedObjects(objectFile string, shardedObjects []string, objType string) ([]string, error) {
-	sqlInfoArr := parseSqlFileForObjectType(objectFile, objType)
-	allObject := make([]string, 0)
-	for _, sqlInfo := range sqlInfoArr {
-		sql := sqlInfo.formattedStmt
-		parseTree, err := queryparser.Parse(sql)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing sql statement: %w", err)
-		}
-		objT, objectName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		if objT != objType {
-			continue
-		}
-		allObject = append(allObject, objectName)
-	}
-	colocated, _ := lo.Difference(allObject, shardedObjects)
-	return colocated, nil
 }
