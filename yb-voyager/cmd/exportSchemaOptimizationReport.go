@@ -39,6 +39,39 @@ const (
 	SchemaOptimizationReportFileName = "schema_optimization_report"
 )
 
+// SchemaOptimizationReport represents a comprehensive report of schema optimizations
+// applied during the export process, including redundant index removal and sharding recommendations.
+type SchemaOptimizationReport struct {
+	// Metadata about the export process
+	VoyagerVersion        string `json:"voyager_version"`
+	SourceDatabaseName    string `json:"source_database_name"`
+	SourceDatabaseSchema  string `json:"source_database_schema"`
+	SourceDatabaseVersion string `json:"source_database_version"`
+
+	// Optimization changes applied
+	RedundantIndexChange        *RedundantIndexChange                `json:"redundant_index_change,omitempty"`
+	TableShardingRecommendation *AppliedShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
+	MviewShardingRecommendation *AppliedShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
+	SecondaryIndexToRangeChange *SecondaryIndexToRangeChange         `json:"secondary_index_to_range_change,omitempty"`
+}
+
+// HasOptimizations returns true if any optimizations were applied
+func (s *SchemaOptimizationReport) HasOptimizations() bool {
+	return !s.RedundantIndexChange.IsEmpty() ||
+		!s.TableShardingRecommendation.IsEmpty() ||
+		!s.MviewShardingRecommendation.IsEmpty()
+}
+
+// NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
+func NewSchemaOptimizationReport(voyagerVersion, dbName, dbSchema, dbVersion string) *SchemaOptimizationReport {
+	return &SchemaOptimizationReport{
+		VoyagerVersion:        voyagerVersion,
+		SourceDatabaseName:    dbName,
+		SourceDatabaseSchema:  dbSchema,
+		SourceDatabaseVersion: dbVersion,
+	}
+}
+
 // RedundantIndexChange represents the removal of redundant indexes that are fully
 // covered by stronger indexes, improving performance and reducing storage overhead.
 type RedundantIndexChange struct {
@@ -52,6 +85,15 @@ type RedundantIndexChange struct {
 // IsEmpty returns true if no redundant indexes were removed
 func (r *RedundantIndexChange) IsEmpty() bool {
 	return r == nil || len(r.TableToRemovedIndexesMap) == 0
+}
+
+// NewRedundantIndexChange creates a new RedundantIndexChange with default values
+func NewRedundantIndexChange() *RedundantIndexChange {
+	return &RedundantIndexChange{
+		Title:                    "Removed Redundant Indexes",
+		Description:              "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary.",
+		TableToRemovedIndexesMap: make(map[string][]string),
+	}
 }
 
 // AppliedShardingRecommendationChange represents the application of sharding recommendations
@@ -68,37 +110,6 @@ type AppliedShardingRecommendationChange struct {
 // IsEmpty returns true if no sharding recommendations were applied
 func (a *AppliedShardingRecommendationChange) IsEmpty() bool {
 	return a == nil || (len(a.ShardedObjects) == 0)
-}
-
-// SchemaOptimizationReport represents a comprehensive report of schema optimizations
-// applied during the export process, including redundant index removal and sharding recommendations.
-type SchemaOptimizationReport struct {
-	// Metadata about the export process
-	VoyagerVersion        string `json:"voyager_version"`
-	SourceDatabaseName    string `json:"source_database_name"`
-	SourceDatabaseSchema  string `json:"source_database_schema"`
-	SourceDatabaseVersion string `json:"source_database_version"`
-
-	// Optimization changes applied
-	RedundantIndexChange        *RedundantIndexChange                `json:"redundant_index_change,omitempty"`
-	TableShardingRecommendation *AppliedShardingRecommendationChange `json:"table_sharding_recommendation,omitempty"`
-	MviewShardingRecommendation *AppliedShardingRecommendationChange `json:"mview_sharding_recommendation,omitempty"`
-}
-
-// HasOptimizations returns true if any optimizations were applied
-func (s *SchemaOptimizationReport) HasOptimizations() bool {
-	return !s.RedundantIndexChange.IsEmpty() ||
-		!s.TableShardingRecommendation.IsEmpty() ||
-		!s.MviewShardingRecommendation.IsEmpty()
-}
-
-// NewRedundantIndexChange creates a new RedundantIndexChange with default values
-func NewRedundantIndexChange() *RedundantIndexChange {
-	return &RedundantIndexChange{
-		Title:                    "Removed Redundant Indexes",
-		Description:              "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary.",
-		TableToRemovedIndexesMap: make(map[string][]string),
-	}
 }
 
 // NewAppliedShardingRecommendationChange creates a new AppliedShardingRecommendationChange with default values
@@ -124,13 +135,19 @@ func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingR
 	}
 }
 
-// NewSchemaOptimizationReport creates a new SchemaOptimizationReport with the given metadata
-func NewSchemaOptimizationReport(voyagerVersion, dbName, dbSchema, dbVersion string) *SchemaOptimizationReport {
-	return &SchemaOptimizationReport{
-		VoyagerVersion:        voyagerVersion,
-		SourceDatabaseName:    dbName,
-		SourceDatabaseSchema:  dbSchema,
-		SourceDatabaseVersion: dbVersion,
+type SecondaryIndexToRangeChange struct {
+	Title                    string `json:"title"`
+	Description              string `json:"description"`
+	ReferenceFile            string `json:"reference_file"`
+	ReferenceFileDisplayName string `json:"reference_file_display_name"`
+}
+
+func NewSecondaryIndexToRangeChange() *SecondaryIndexToRangeChange {
+	return &SecondaryIndexToRangeChange{
+		Title:                    "Modified Secondary Indexes to be range-sharded",
+		Description:              "All the secondary indexes were converted to range-sharded indexes. This helps in distributing the data evenly across the nodes and improves the performance of these indexes.",
+		ReferenceFile:            utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), INDEX),
+		ReferenceFileDisplayName: "index.sql",
 	}
 }
 
@@ -144,7 +161,8 @@ var optimizationChangesTemplate []byte
 //   - redundantIndexes: list of redundant index names that were removed.
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
-func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string) error {
+//   - modifiedIndexesToRange: list of secondary indexes that were converted to range-sharded indexes.
+func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, modifiedIndexesToRange bool) error {
 
 	if source.DBType != POSTGRESQL {
 		//NOt generating the report in case other than PG
@@ -224,6 +242,9 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 	report.RedundantIndexChange = redundantIndexChange
 	report.TableShardingRecommendation = appliedRecommendationTable
 	report.MviewShardingRecommendation = appliedRecommendationMview
+	if modifiedIndexesToRange {
+		report.SecondaryIndexToRangeChange = NewSecondaryIndexToRangeChange()
+	}
 
 	if report.HasOptimizations() {
 		err = tmpl.Execute(file, report)
