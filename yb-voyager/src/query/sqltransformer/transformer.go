@@ -22,6 +22,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
@@ -187,6 +188,12 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) e
 		}
 		indexStmt := stmt.Stmt.GetIndexStmt()
 		if indexStmt == nil {
+			continue
+		}
+		if indexStmt.AccessMethod != queryissue.BTREE_ACCESS_METHOD {
+			//In Postgres the ordered scans are only supported for btree
+			//so restricting the change to only Btree indexes
+			//refer https://www.postgresql.org/docs/current/sql-createindex.html#:~:text=For%20index%20methods%20that%20support%20ordered%20scans%20(currently%2C%20only%20B%2Dtree)%2C%20the%20optional%20clauses%20ASC
 			continue
 		}
 		if len(indexStmt.IndexParams) == 0 {
