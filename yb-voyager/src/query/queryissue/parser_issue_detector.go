@@ -126,6 +126,10 @@ type ParserIssueDetector struct {
 
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
+
+	// Pre-computed index coverage map for foreign key detection
+	// key = "table.column1,column2,column3", value = true if covered by an index
+	indexCoverageMap map[string]bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -142,6 +146,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
+		indexCoverageMap:                        make(map[string]bool),
 	}
 }
 
@@ -452,6 +457,18 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
+
+			// Process primary key as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addIndexPrefixesToCoverageMap(alter.GetObjectName(), alter.ConstraintColumns)
+			}
+		}
+
+		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Process unique constraint as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addIndexPrefixesToCoverageMap(alter.GetObjectName(), alter.ConstraintColumns)
+			}
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
@@ -552,6 +569,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				referencedColumns: constraint.ReferencedColumns,
 			})
 		}
+
+		// Process primary keys and unique constraints as indexes for foreign key detection
+		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
@@ -564,6 +584,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if index.AccessMethod == GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
+
+		// Process index for foreign key detection
+		p.processIndexForForeignKeyDetection(index)
 	case *queryparser.Function:
 		fn, _ := ddlObj.(*queryparser.Function)
 		p.functionObjects = append(p.functionObjects, fn)
@@ -801,6 +824,60 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {
 	for _, stat := range columnStats {
 		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
+	}
+}
+
+// processIndexForForeignKeyDetection processes an index to build the coverage map for foreign key detection
+func (p *ParserIssueDetector) processIndexForForeignKeyDetection(index *queryparser.Index) {
+	tableName := index.GetTableName()
+
+	// Extract columns in order (only non-expression columns)
+	columns := make([]string, 0)
+	for _, param := range index.Params {
+		if !param.IsExpression {
+			columns = append(columns, param.ColName)
+		}
+	}
+
+	// Generate all prefix combinations and store in coverage map
+	p.addIndexPrefixesToCoverageMap(tableName, columns)
+}
+
+// addIndexPrefixesToCoverageMap generates all prefix combinations for given columns and adds them to the coverage map
+func (p *ParserIssueDetector) addIndexPrefixesToCoverageMap(tableName string, columns []string) {
+	for i := 1; i <= len(columns); i++ {
+		prefix := columns[:i]
+		key := fmt.Sprintf("%s.%s", tableName, strings.Join(prefix, ","))
+		p.indexCoverageMap[key] = true
+	}
+}
+
+// processTableConstraintsAsIndexes processes primary keys and unique constraints as indexes for foreign key detection.
+func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparser.Table) {
+	tableName := table.GetObjectName()
+
+	// Process primary keys
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+			// Primary key constraints are also indexes for foreign key detection
+			// We need to ensure the index is processed and covered
+			primaryKeyColumns := constraint.Columns
+			if len(primaryKeyColumns) > 0 {
+				p.addIndexPrefixesToCoverageMap(tableName, primaryKeyColumns)
+			}
+		}
+	}
+
+	// Process unique constraints
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Unique constraints are also indexes for foreign key detection
+			// We need to ensure the index is processed and covered
+			uniqueColumns := constraint.Columns
+			if len(uniqueColumns) > 0 {
+				p.addIndexPrefixesToCoverageMap(tableName, uniqueColumns)
+			}
+		}
 	}
 }
 

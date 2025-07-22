@@ -19,6 +19,7 @@ package queryissue
 import (
 	"fmt"
 	"slices"
+	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
@@ -130,6 +131,16 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					table.GetObjectName(),
 					c.Columns,
 					d.columnMetadata,
+					&issues,
+				)
+
+				// Detect missing foreign key indexes
+				detectMissingForeignKeyIndex(
+					obj.GetObjectType(),
+					table.GetObjectName(),
+					c.Columns,
+					c.ReferencedTable,
+					d.indexCoverageMap,
 					&issues,
 				)
 			}
@@ -324,6 +335,23 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 			colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
 			localDatatypeWithModifiers,
 			referencedDatatypeWithModifiers,
+		))
+	}
+}
+
+func detectMissingForeignKeyIndex(objectType string, objectName string, fkColumns []string, referencedTable string, indexCoverageMap map[string]bool, issues *[]QueryIssue) {
+	// Check if there's an index that covers all FK columns in the same order
+	key := fmt.Sprintf("%s.%s", objectName, strings.Join(fkColumns, ","))
+
+	if !indexCoverageMap[key] {
+		// Report missing index for the entire FK constraint
+		*issues = append(*issues, NewMissingForeignKeyIndexIssue(
+			objectType,
+			objectName,
+			"",                            // sqlStatement
+			strings.Join(fkColumns, ", "), // all FK columns
+			objectName,
+			referencedTable,
 		))
 	}
 }
@@ -1054,6 +1082,16 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				alter.GetObjectName(),
 				alter.ConstraintColumns,
 				aid.columnMetadata,
+				&issues,
+			)
+
+			// Detect missing foreign key indexes
+			detectMissingForeignKeyIndex(
+				obj.GetObjectType(),
+				alter.GetObjectName(),
+				alter.ConstraintColumns,
+				alter.ConstraintReferencedTable,
+				aid.indexCoverageMap,
 				&issues,
 			)
 		}
