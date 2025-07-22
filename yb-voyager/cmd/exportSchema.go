@@ -193,12 +193,12 @@ func exportSchema(cmd *cobra.Command) error {
 		log.Warnf("failed to apply merge constraints transformation to the schema files: %v", err)
 	}
 
-	removedRedundantIndexes, err := applyPerformanceOptimizationsAndGenerateReport()
+	removedRedundantIndexes, modifiedIndexesToRange, err := applyPerformanceOptimizationsAndGenerateReport()
 	if err != nil {
 		return fmt.Errorf("failed to apply performance optimization transformations to the schema files: %w", err)
 	}
 
-	err = generatePerformanceOptimizationReport(removedRedundantIndexes, modifiedTables, modifiedMviews)
+	err = generatePerformanceOptimizationReport(removedRedundantIndexes, modifiedTables, modifiedMviews, modifiedIndexesToRange)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -756,14 +756,14 @@ func clearAssessmentRecommendationsApplied() {
 	}
 }
 
-func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
+func applyPerformanceOptimizationsAndGenerateReport() ([]string, bool,error) {
 	if skipPerfOptimizations {
 		log.Infof("not applying performance optimizations due to flag --skip-performance-optimizations=true")
-		return nil, nil
+		return nil, false, nil
 	}
 
 	if source.DBType != POSTGRESQL {
-		return nil, nil
+		return nil, false, nil
 	}
 
 	log.Infof("applying performance optimizations to the exported schema")
@@ -778,7 +778,7 @@ func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
 	fileName := utils.GetObjectFilePath(schemaDir, INDEX)
 	if !utils.FileOrFolderExists(fileName) { // there are no indexes
 		log.Infof("INDEXES_table.sql file doesn't exists, skipping applying indexes performance optimizations")
-		return nil, nil
+		return nil, false, nil
 	}
 
 	// copy the current INDEXES_table.sql file to indexes_before_applying_perf_optimizations.sql
@@ -786,15 +786,20 @@ func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
 	//copy files
 	err := utils.CopyFile(fileName, copiedFileName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to copy %s to %s: %w", fileName, copiedFileName, err)
+		return nil, false, fmt.Errorf("failed to copy %s to %s: %w", fileName, copiedFileName, err)
 	}
 
 	redundantIndexes, err := removeRedundantIndexes(fileName)
 	if err != nil {
-		return nil, fmt.Errorf("failed to remove redundant indexes: %w", err)
+		return nil, false, fmt.Errorf("failed to remove redundant indexes: %w", err)
 	}
 
-	return redundantIndexes, nil
+	modifiedIndexesToRange, err := convertSecondaryIndexesToRange(fileName)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to modify the secondary indexes to range: %w", err)
+	}
+
+	return redundantIndexes, modifiedIndexesToRange, nil
 }
 
 func removeRedundantIndexes(fileName string) ([]string, error) {
@@ -883,4 +888,32 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
 	return lo.Keys(removedIndexToStmtMap), nil
+}
+
+func convertSecondaryIndexesToRange(fileName string) (bool, error) {
+
+	transformer := sqltransformer.NewTransformer()
+
+	rawStmts, err := queryparser.ParseSqlFile(fileName)
+	if err != nil {
+		return false, fmt.Errorf("failed to parse table.sql file: %w", err)
+	}
+
+	err = transformer.ModifySecondaryIndexesToRange(rawStmts.Stmts)
+	if err != nil {
+		return false, fmt.Errorf("failed to merge constraints: %w", err)
+	}
+
+	sqlStmts, err := queryparser.DeparseRawStmts(rawStmts.Stmts)
+	if err != nil {
+		return false, fmt.Errorf("failed to deparse transformed raw stmts: %w", err)
+	}
+
+	fileContent := strings.Join(sqlStmts, "\n\n")
+	err = os.WriteFile(fileName, []byte(fileContent), 0644)
+	if err != nil {
+		return false, fmt.Errorf("failed to write transformed table.sql file: %w", err)
+	}
+
+	return true, nil
 }

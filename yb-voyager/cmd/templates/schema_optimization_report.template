@@ -339,6 +339,12 @@
                   </table>
                </details>
             {{ end }}
+
+            {{ if .SecondaryIndexToRangeChange }}
+               <h3>{{.SecondaryIndexToRangeChange.Title}}</h3>
+               <p> {{.SecondaryIndexToRangeChange.Description}}</p>
+               <p> Refer to the <a class="file-link" href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank"> {{.SecondaryIndexToRangeChange.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
+            {{ end }}
          </div>
       </div>
    </body>

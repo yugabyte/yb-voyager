@@ -178,3 +178,31 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 
 	return sqlStmts, removedIndexToStmt, nil
 }
+
+func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) error {
+	for idx, stmt := range stmts {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
+			continue
+		}
+		indexStmt := stmt.Stmt.GetIndexStmt()
+		if indexStmt == nil {
+			continue
+		}
+		if len(indexStmt.IndexParams) == 0 {
+			continue
+		}
+		if indexStmt.IndexParams[0].GetIndexElem() == nil {
+			continue
+		}
+		if indexStmt.IndexParams[0].GetIndexElem().Ordering != queryparser.DEFAULT_SORTING_ORDER {
+			//If the index is already ordered, then we don't need to convert it to range index
+			continue
+		}
+		//If the index is not ordered, then we need to convert it to range index
+		//Add ASC clause to the index
+		indexStmt.IndexParams[0].GetIndexElem().Ordering = queryparser.ASC_SORTING_ORDER
+		stmts[idx] = stmt
+	}
+	return nil
+}
