@@ -189,13 +189,13 @@ func (pa *ParallelismAdapter) FetchClusterMetricsAndUpdateParallelism() error {
 
 func (pa *ParallelismAdapter) getCpuLoadState(clusterMetrics map[string]tgtdb.NodeMetrics) (string, error) {
 	// Check hard threshold first (immediate response)
-	hardThresholdBreached, err := pa.checkHardCpuBreach(clusterMetrics)
-	if err != nil {
-		return "", fmt.Errorf("checking hard cpu threshold: %w", err)
-	}
-	if hardThresholdBreached {
-		return CPU_LOAD_HIGH, nil
-	}
+	// hardThresholdBreached, err := pa.checkHardCpuBreach(clusterMetrics)
+	// if err != nil {
+	// 	return "", fmt.Errorf("checking hard cpu threshold: %w", err)
+	// }
+	// if hardThresholdBreached {
+	// 	return CPU_LOAD_HIGH, nil
+	// }
 
 	// Check soft threshold (trend-based response)
 	softThresholdBreached, err := pa.checkSoftCpuBreach(clusterMetrics)
