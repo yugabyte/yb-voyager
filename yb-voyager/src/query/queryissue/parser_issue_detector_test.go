@@ -442,27 +442,42 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt29: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "orders", stmt29, "user_id", "orders", "users"),
 		},
 		stmt32: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
+			NewMissingForeignKeyIndexIssue("TABLE", "invoices", stmt32, "payment_id", "invoices", "payments"),
 		},
 		stmt35: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "delivery_tracking", stmt35, "shipment_id, shipment_code, country_code", "delivery_tracking", "shipments"),
 		},
 		stmt38: []QueryIssue{},
 		stmt41: []QueryIssue{},
+		stmt38: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
+			NewMissingForeignKeyIndexIssue("TABLE", "orders2", stmt38, "customer_code", "orders2", "customers2"),
+		},
+		stmt41: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
+			NewMissingForeignKeyIndexIssue("TABLE", "orders3", stmt41, "product_price", "orders3", "products2"),
+		},
 		stmt44: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "Sessions", stmt44, "UserID", "Sessions", "Accounts"),
 		},
 		stmt48: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "orders_partitioned", stmt48, "customer_id", "orders_partitioned", "customers_root"),
 		},
 		stmt53: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "sales", stmt53, "product_id", "sales", "products_root"),
 		},
 		stmt57: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer"),
+			NewMissingForeignKeyIndexIssue("TABLE", "derived_items_2", stmt57, "item_id", "derived_items_2", "base_items"),
 		},
 		stmt62: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer"),
@@ -478,6 +493,7 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt74: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
+			NewMissingForeignKeyIndexIssue("TABLE", "schema1.employees", stmt62, "dept_id", "schema1.employees", "schema2.departments"),
 		},
 		stmt77: []QueryIssue{},
 		stmt80: []QueryIssue{},
@@ -1204,15 +1220,19 @@ REFERENCES schema1.abc (id);
 	ddlStmtsWithIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt1, "abc_fk_abc_id_fkey"),
+			NewMissingForeignKeyIndexIssue("TABLE", "abc_fk", stmt1, "abc_id", "abc_fk", "abc1"),
 		},
 		stmt2: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk1", stmt2, "fk"),
+			NewMissingForeignKeyIndexIssue("TABLE", "schema1.abc_fk1", stmt2, "abc1_id", "schema1.abc_fk1", "schema1.abc"),
 		},
 		stmt3: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt3, "fk_abc"),
+			NewMissingForeignKeyIndexIssue("TABLE", "abc_fk", stmt3, "abc_id", "abc_fk", "abc1"),
 		},
 		stmt4: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk", stmt4, "abc_fk_abc_id_fkey"),
+			NewMissingForeignKeyIndexIssue("TABLE", "schema1.abc_fk", stmt4, "abc_id", "schema1.abc_fk", "schema1.abc"),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
@@ -1930,8 +1950,8 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.Equal(t, 0, len(issues))
 	})
 
-	// Test Case 7: Index with wrong column order
-	t.Run("Index with Wrong Column Order", func(t *testing.T) {
+	// Test Case 7: Index with FK columns in different order (should cover FK)
+	t.Run("Index with FK Columns in Different Order", func(t *testing.T) {
 		const (
 			stmt_parent = `CREATE TABLE orders_7 (
 				id SERIAL,
@@ -1945,17 +1965,41 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				quantity INTEGER,
 				FOREIGN KEY (order_id, product_id) REFERENCES orders_7(id, product_id)
 			);`
-			stmt_wrong_index = `CREATE INDEX idx_order_items_7_wrong ON order_items_7(product_id, order_id);`
+			stmt_different_order_index = `CREATE INDEX idx_order_items_7_diff_order ON order_items_7(product_id, order_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_7", stmt_child, "order_id, product_id", "order_items_7", "orders_7")
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_different_order_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(issues))
+	})
 
-		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_index)
+	// Test Case 8: Index with FK columns not as prefix (should NOT cover FK)
+	t.Run("Index with FK Columns Not as Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_8 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_8 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_8(id, product_id)
+			);`
+			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON order_items_8(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_8", stmt_child, "order_id, product_id", "order_items_8", "orders_8")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
 		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
 		assert.NoError(t, err)
 
 		// Debug: Print expected and actual issues
-		fmt.Printf("\n=== Test Case 7: Wrong Column Order ===\n")
+		fmt.Printf("\n=== Test Case 8: FK Columns Not as Prefix ===\n")
 		fmt.Printf("Expected issue: %+v\n", expectedIssue)
 		if len(issues) > 0 {
 			fmt.Printf("Actual issue: %+v\n", issues[0])
@@ -1967,30 +2011,8 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
 	})
 
-	// Test Case 8: Index with extra columns (prefix should work)
-	t.Run("Index with Extra Columns (Prefix)", func(t *testing.T) {
-		const (
-			stmt_parent = `CREATE TABLE customers_8 (
-				id SERIAL PRIMARY KEY,
-				name VARCHAR(100)
-			);`
-			stmt_child = `CREATE TABLE orders_8 (
-				id SERIAL PRIMARY KEY,
-				customer_id SERIAL,
-				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_8(id)
-			);`
-			stmt_prefix_index = `CREATE INDEX idx_orders_8_prefix ON orders_8(customer_id, order_date);`
-		)
-
-		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_prefix_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
-		assert.Equal(t, 0, len(issues))
-	})
-
-	// Test Case 9: Expression index (should not cover FK)
-	t.Run("Expression Index (Should Not Cover FK)", func(t *testing.T) {
+	// Test Case 9: Index with extra columns (superset index - should cover FK)
+	t.Run("Index with Extra Columns (Superset)", func(t *testing.T) {
 		const (
 			stmt_parent = `CREATE TABLE customers_9 (
 				id SERIAL PRIMARY KEY,
@@ -2002,30 +2024,17 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				order_date DATE,
 				FOREIGN KEY (customer_id) REFERENCES customers_9(id)
 			);`
-			stmt_expr_index = `CREATE INDEX idx_orders_9_expr ON orders_9((customer_id + 1));`
+			stmt_superset_index = `CREATE INDEX idx_orders_9_superset ON orders_9(customer_id, order_date);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_9", stmt_child, "customer_id", "orders_9", "customers_9")
-
-		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_superset_index)
 		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
 		assert.NoError(t, err)
-
-		// Debug: Print expected and actual issues
-		fmt.Printf("\n=== Test Case 9: Expression Index ===\n")
-		fmt.Printf("Expected issue: %+v\n", expectedIssue)
-		if len(issues) > 0 {
-			fmt.Printf("Actual issue: %+v\n", issues[0])
-		} else {
-			fmt.Printf("No issues detected\n")
-		}
-
-		assert.Equal(t, 1, len(issues))
-		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+		assert.Equal(t, 0, len(issues))
 	})
 
-	// Test Case 10: Unique index (should cover FK)
-	t.Run("Unique Index (Should Cover FK)", func(t *testing.T) {
+	// Test Case 10: Expression index (should not cover FK)
+	t.Run("Expression Index (Should Not Cover FK)", func(t *testing.T) {
 		const (
 			stmt_parent = `CREATE TABLE customers_10 (
 				id SERIAL PRIMARY KEY,
@@ -2037,12 +2046,169 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				order_date DATE,
 				FOREIGN KEY (customer_id) REFERENCES customers_10(id)
 			);`
-			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_10_unique ON orders_10(customer_id);`
+			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON orders_10((customer_id + 1));`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_10", stmt_child, "customer_id", "orders_10", "customers_10")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 10: Expression Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 11: Unique index (should cover FK)
+	t.Run("Unique Index (Should Cover FK)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE customers_11 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE orders_11 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES customers_11(id)
+			);`
+			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_11_unique ON orders_11(customer_id);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_unique_index)
 		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 12: Index with FK columns in reverse order (should cover FK)
+	t.Run("Index with FK Columns in Reverse Order", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_12 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_12 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_12(id, product_id)
+			);`
+			stmt_reverse_index = `CREATE INDEX idx_order_items_12_reverse ON order_items_12(product_id, order_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_reverse_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 13: Index with FK columns as subset (should cover FK)
+	t.Run("Index with FK Columns as Subset", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_13 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_13 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_13(id, product_id)
+			);`
+			stmt_subset_index = `CREATE INDEX idx_order_items_13_subset ON order_items_13(order_id, product_id, quantity);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_subset_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 14: Index with FK columns in wrong position (should NOT cover FK)
+	t.Run("Index with FK Columns in Wrong Position", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_14 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_14 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_14(id, product_id)
+			);`
+			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON order_items_14(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_14", stmt_child, "order_id, product_id", "order_items_14", "orders_14")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 14: Wrong Position ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 15: Index missing one FK column (should NOT cover FK)
+	t.Run("Index Missing One FK Column", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_15 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_15 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_15(id, product_id)
+			);`
+			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON order_items_15(order_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_15", stmt_child, "order_id, product_id", "order_items_15", "orders_15")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
+		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
+		assert.NoError(t, err)
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 15: Missing Column ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
 	})
 }

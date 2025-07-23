@@ -127,9 +127,20 @@ type ParserIssueDetector struct {
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 
-	// Pre-computed index coverage map for foreign key detection
-	// key = "table.column1,column2,column3", value = true if covered by an index
-	indexCoverageMap map[string]bool
+	// Pre-computed index and prefix coverage map for missing foreign key index detection.
+	// Stores all possible column combinations that are covered by indexes, including prefixes.
+	//
+	// Examples:
+	// - Index on (user_id, product_id, order_date) creates entries:
+	//   "orders.user_id" = true
+	//   "orders.user_id,product_id" = true
+	//   "orders.user_id,product_id,order_date" = true
+	// - Foreign key on (user_id, product_id) is detected as covered
+	// - Primary key on (id) creates entry: "users.id" = true
+	// - Unique constraint on (email, status) creates entries:
+	//   "users.email" = true
+	//   "users.email,status" = true
+	indexPrefixCoverageMap map[string]bool
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -146,7 +157,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
-		indexCoverageMap:                        make(map[string]bool),
+		indexPrefixCoverageMap:                  make(map[string]bool),
 	}
 }
 
@@ -586,7 +597,7 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		}
 
 		// Process index for foreign key detection
-		p.processIndexForForeignKeyDetection(index)
+		p.addIndexToCoverage(index)
 	case *queryparser.Function:
 		fn, _ := ddlObj.(*queryparser.Function)
 		p.functionObjects = append(p.functionObjects, fn)
@@ -827,8 +838,8 @@ func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStat
 	}
 }
 
-// processIndexForForeignKeyDetection processes an index to build the coverage map for foreign key detection
-func (p *ParserIssueDetector) processIndexForForeignKeyDetection(index *queryparser.Index) {
+// addIndexToCoverage adds an index and its prefixes to the coverage map for checking missing foreign key index issue
+func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 	tableName := index.GetTableName()
 
 	// Extract columns in order (only non-expression columns)
@@ -843,12 +854,24 @@ func (p *ParserIssueDetector) processIndexForForeignKeyDetection(index *querypar
 	p.addIndexPrefixesToCoverageMap(tableName, columns)
 }
 
-// addIndexPrefixesToCoverageMap generates all prefix combinations for given columns and adds them to the coverage map
+// addIndexPrefixesToCoverageMap generates all prefix combinations for given columns and adds them to the coverage map.
+// This function handles the case where a superset index (containing FK columns as a prefix plus additional columns)
+// can efficiently serve foreign key operations.
+//
+// Example: For an index on (customer_id, product_id, order_date, status), this function adds:
+// - orders.customer_id
+// - orders.customer_id,product_id
+// - orders.customer_id,product_id,order_date
+// - orders.customer_id,product_id,order_date,status
+//
+// This allows the foreign key detection logic to recognize that a FK on (customer_id, product_id)
+// is properly indexed even when the actual index contains additional columns. PostgreSQL/YugabyteDB
+// can efficiently use the leading columns of a composite index for foreign key operations.
 func (p *ParserIssueDetector) addIndexPrefixesToCoverageMap(tableName string, columns []string) {
 	for i := 1; i <= len(columns); i++ {
 		prefix := columns[:i]
 		key := fmt.Sprintf("%s.%s", tableName, strings.Join(prefix, ","))
-		p.indexCoverageMap[key] = true
+		p.indexPrefixCoverageMap[key] = true
 	}
 }
 

@@ -140,7 +140,7 @@ func (d *TableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]QueryIss
 					table.GetObjectName(),
 					c.Columns,
 					c.ReferencedTable,
-					d.indexCoverageMap,
+					d.indexPrefixCoverageMap,
 					&issues,
 				)
 			}
@@ -339,21 +339,93 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 	}
 }
 
+// detectMissingForeignKeyIndex checks if a foreign key has proper index coverage.
+// Detects exact matches, column permutations, and composite index prefixes.
+// Only considers FK columns as leading columns.
+//
+// Examples:
+// FK (x,y,z) → Index (x,y,z) ✓ (exact match)
+// FK (x,y,z) → Index (y,z,x) ✓ (permutation)
+// FK (x,y,z) → Index (x,y,z,other) ✓ (prefix)
+// FK (x,y,z) → Index (other,x,y,z) ✗ (FK not at start) → Detected as missing index
+// FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
+// FK (x,y,z) → No index ✗ → Detected as missing index
 func detectMissingForeignKeyIndex(objectType string, objectName string, fkColumns []string, referencedTable string, indexCoverageMap map[string]bool, issues *[]QueryIssue) {
-	// Check if there's an index that covers all FK columns in the same order
-	key := fmt.Sprintf("%s.%s", objectName, strings.Join(fkColumns, ","))
-
-	if !indexCoverageMap[key] {
-		// Report missing index for the entire FK constraint
-		*issues = append(*issues, NewMissingForeignKeyIndexIssue(
-			objectType,
-			objectName,
-			"",                            // sqlStatement
-			strings.Join(fkColumns, ", "), // all FK columns
-			objectName,
-			referencedTable,
-		))
+	// Check for exact match first (O(1) lookup) - most common case
+	// It checks for exactly matching index or a prefix of the index that is stored in indexCoverageMap
+	if hasExactMatch(objectName, fkColumns, indexCoverageMap) {
+		return
 	}
+
+	// Check for permutation match (different column order)
+	if hasPermutationMatch(objectName, fkColumns, indexCoverageMap) {
+		return
+	}
+
+	// No suitable index found - report missing foreign key index issue
+	*issues = append(*issues, NewMissingForeignKeyIndexIssue(
+		objectType,
+		objectName,
+		"",                            // sqlStatement
+		strings.Join(fkColumns, ", "), // all FK columns
+		objectName,
+		referencedTable,
+	))
+}
+
+// Helper functions for index coverage detection
+
+// hasExactMatch checks for exact column order match (O(1) lookup).
+func hasExactMatch(tableName string, columns []string, indexCoverageMap map[string]bool) bool {
+	key := fmt.Sprintf("%s.%s", tableName, strings.Join(columns, ","))
+	return indexCoverageMap[key]
+}
+
+// hasPermutationMatch checks for different column order (O(n!) for n columns).
+func hasPermutationMatch(tableName string, columns []string, indexCoverageMap map[string]bool) bool {
+	permutations := generatePermutations(columns)
+	for _, perm := range permutations {
+		key := fmt.Sprintf("%s.%s", tableName, strings.Join(perm, ","))
+		if indexCoverageMap[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// generatePermutations generates all permutations of the given slice using a backtracking algorithm.
+// O(n!) complexity for n elements
+func generatePermutations(elements []string) [][]string {
+	if len(elements) <= 1 {
+		return [][]string{elements}
+	}
+
+	var result [][]string
+	var backtrack func(used []bool, current []string)
+
+	backtrack = func(used []bool, current []string) {
+		if len(current) == len(elements) {
+			// Make a copy of current
+			perm := make([]string, len(current))
+			copy(perm, current)
+			result = append(result, perm)
+			return
+		}
+
+		for i := 0; i < len(elements); i++ {
+			if !used[i] {
+				used[i] = true
+				current = append(current, elements[i])
+				backtrack(used, current)
+				current = current[:len(current)-1]
+				used[i] = false
+			}
+		}
+	}
+
+	used := make([]bool, len(elements))
+	backtrack(used, []string{})
+	return result
 }
 
 func detectHotspotIssueOnConstraint(constraintType string, constraintName string, constraintColumns []string, columnsWithHotspotRangeIndexesDatatypes map[string]map[string]string, obj queryparser.DDLObject) ([]QueryIssue, error) {
@@ -1091,7 +1163,7 @@ func (aid *AlterTableIssueDetector) DetectIssues(obj queryparser.DDLObject) ([]Q
 				alter.GetObjectName(),
 				alter.ConstraintColumns,
 				alter.ConstraintReferencedTable,
-				aid.indexCoverageMap,
+				aid.indexPrefixCoverageMap,
 				&issues,
 			)
 		}
