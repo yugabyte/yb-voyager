@@ -224,7 +224,7 @@ CREATE INDEX user_up_votes_idx ON public.users USING btree (upvotes) WITH (fillf
 ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
 File :/home/centos/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX usertagqa_all_qa_posts_idx ON public.usertagqa USING btree (((questions + answers))) WITH (fillfactor='100');
+CREATE INDEX usertagqa_all_qa_posts_idx ON public.usertagqa USING btree ((questions + answers)) WITH (fillfactor='100');
 
 /*
 ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
@@ -237,12 +237,6 @@ ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
 File :/home/centos/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql
 */
 CREATE INDEX usertagqa_questions_answers_idx ON public.usertagqa USING btree (questions, answers) WITH (fillfactor='100');
-
-/*
-ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
-File :/home/centos/yb-voyager/migtests/tests/pg/stackexchange/export-dir/schema/tables/INDEXES_table.sql
-*/
-CREATE INDEX usertagqa_questions_idx ON public.usertagqa USING btree (questions) WITH (fillfactor='100');
 
 /*
 ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)

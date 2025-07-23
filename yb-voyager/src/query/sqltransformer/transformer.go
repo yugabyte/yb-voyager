@@ -21,6 +21,7 @@ import (
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 )
 
@@ -153,4 +154,27 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	}
 
 	return result, nil
+}
+
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, map[string]*pg_query.RawStmt, error) {
+
+	var sqlStmts []*pg_query.RawStmt
+	removedIndexToStmt := make(map[string]*pg_query.RawStmt) // index object name to raw stmt
+	for _, stmt := range stmts {
+		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
+		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
+			sqlStmts = append(sqlStmts, stmt)
+			continue
+		}
+		objectName := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
+		if _, ok := redundantIndexesMap[objectName]; ok {
+			log.Infof("removing redundant index %s from the schema", objectName)
+			removedIndexToStmt[objectName] = stmt
+		} else {
+			sqlStmts = append(sqlStmts, stmt)
+		}
+
+	}
+
+	return sqlStmts, removedIndexToStmt, nil
 }

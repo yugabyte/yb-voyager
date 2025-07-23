@@ -275,6 +275,25 @@ func GetObjectDirPath(schemaDirPath string, objType string) string {
 	return requiredPath
 }
 
+func CopyFile(src, dst string) error {
+	srcFile, err := os.Open(src)
+	if err != nil {
+		return fmt.Errorf("failed to open source file %q: %w", src, err)
+	}
+	defer srcFile.Close()
+	dstFile, err := os.Create(dst)
+	if err != nil {
+		return fmt.Errorf("failed to create destination file %q: %w", dst, err)
+	}
+	defer dstFile.Close()
+	_, err = io.Copy(dstFile, srcFile)
+	if err != nil {
+		return fmt.Errorf("failed to copy from %q to %q: %w", src, dst, err)
+	}
+
+	return nil
+}
+
 func GetObjectFilePath(schemaDirPath string, objType string) string {
 	var requiredPath string
 	if objType == "INDEX" || objType == "UNIQUE INDEX" {

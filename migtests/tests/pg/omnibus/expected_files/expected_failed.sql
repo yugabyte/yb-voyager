@@ -48,19 +48,13 @@ CREATE TABLE regress_rls_schema.t3_3 (id int NOT NULL, c text, b text, a int, CO
 ERROR: syntax error at or near "(" (SQLSTATE 42601)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));
+CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops(siglen='32'));
 
 /*
 ERROR: ybgin indexes do not support reloption fastupdate (SQLSTATE 0A000)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
 CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);
-
-/*
-ERROR: unrecognized parameter "deduplicate_items" (SQLSTATE 22023)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
-*/
-CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off);
 
 /*
 ERROR: SQL function cannot accept shell type base_type_examples.int42 (SQLSTATE 42P13)
@@ -114,12 +108,6 @@ CREATE OPERATOR public.<% (
 );
 
 /*
-ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
-*/
-CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');
-
-/*
 ERROR: type "range_type_example.float8_range" does not exist (SQLSTATE 42704)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/table.sql
 */
@@ -148,12 +136,6 @@ ERROR: access method "gist2" does not exist (SQLSTATE 42704)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
 CREATE INDEX grect2ind2 ON am_examples.fast_emp4000 USING gist2 (home_base);
-
-/*
-ERROR: access method "gist2" does not exist (SQLSTATE 42704)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
-*/
-CREATE INDEX grect2ind3 ON am_examples.fast_emp4000 USING gist2 (home_base);
 
 /*
 ERROR: relation "composite_type_examples.ordinary_table" does not exist (SQLSTATE 42P01)

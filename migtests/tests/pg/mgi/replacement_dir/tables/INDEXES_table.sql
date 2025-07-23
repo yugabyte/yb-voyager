@@ -208,9 +208,6 @@ CREATE INDEX all_cellline_idx_modifiedby_key ON mgd.all_cellline USING btree (_m
 CREATE INDEX all_cellline_idx_strain_key ON mgd.all_cellline USING btree (_strain_key);
 
 
-CREATE INDEX all_cre_cache_idx_allele_key ON mgd.all_cre_cache USING btree (_allele_key);
-
-
 CREATE INDEX all_cre_cache_idx_allele_type_key ON mgd.all_cre_cache USING btree (_allele_type_key);
 
 
@@ -537,9 +534,6 @@ CREATE INDEX gxd_allelegenotype_idx_allele_key ON mgd.gxd_allelegenotype USING b
 CREATE INDEX gxd_allelegenotype_idx_createdby_key ON mgd.gxd_allelegenotype USING btree (_createdby_key);
 
 
-CREATE INDEX gxd_allelegenotype_idx_genotype_key ON mgd.gxd_allelegenotype USING btree (_genotype_key);
-
-
 CREATE INDEX gxd_allelegenotype_idx_marker_key ON mgd.gxd_allelegenotype USING btree (_marker_key);
 
 
@@ -696,25 +690,13 @@ CREATE INDEX gxd_expression_idx_clustered ON mgd.gxd_expression USING btree (_ma
 CREATE INDEX gxd_expression_idx_emapa_term_etc_key ON mgd.gxd_expression USING btree (_emapa_term_key, _stage_key, _expression_key, isforgxd);
 
 
-CREATE INDEX gxd_expression_idx_emapa_term_key ON mgd.gxd_expression USING btree (_emapa_term_key);
-
-
 CREATE INDEX gxd_expression_idx_gellane_key ON mgd.gxd_expression USING btree (_gellane_key);
-
-
-CREATE INDEX gxd_expression_idx_genotype_key ON mgd.gxd_expression USING btree (_genotype_key);
 
 
 CREATE INDEX gxd_expression_idx_genotypegxd_key ON mgd.gxd_expression USING btree (_genotype_key, isforgxd);
 
 
-CREATE INDEX gxd_expression_idx_marker_key ON mgd.gxd_expression USING btree (_marker_key);
-
-
 CREATE INDEX gxd_expression_idx_refs_etc_key ON mgd.gxd_expression USING btree (_refs_key, _emapa_term_key, _stage_key, isforgxd);
-
-
-CREATE INDEX gxd_expression_idx_refs_key ON mgd.gxd_expression USING btree (_refs_key);
 
 
 CREATE INDEX gxd_expression_idx_specimen_key ON mgd.gxd_expression USING btree (_specimen_key);
@@ -832,9 +814,6 @@ CREATE INDEX gxd_htrawsample_idx_modification_date ON mgd.gxd_htrawsample USING 
 
 
 CREATE INDEX gxd_htrawsample_idx_modifiedby_key ON mgd.gxd_htrawsample USING btree (_modifiedby_key);
-
-
-CREATE INDEX gxd_htrawsample_idx_rawsample_key ON mgd.gxd_htrawsample USING btree (_rawsample_key);
 
 
 CREATE INDEX gxd_htsample_idx_celltype_term_key ON mgd.gxd_htsample USING btree (_celltype_term_key);
@@ -1150,9 +1129,6 @@ CREATE INDEX mgi_keyvalue_idx_mgitype_key ON mgd.mgi_keyvalue USING btree (_mgit
 
 
 CREATE INDEX mgi_keyvalue_idx_modifiedby_key ON mgd.mgi_keyvalue USING btree (_modifiedby_key);
-
-
-CREATE INDEX mgi_keyvalue_idx_object_key ON mgd.mgi_keyvalue USING btree (_object_key);
 
 
 CREATE INDEX mgi_keyvalue_idx_objectkeysequencenum ON mgd.mgi_keyvalue USING btree (_object_key, sequencenum);
@@ -1506,9 +1482,6 @@ CREATE INDEX mld_ri2point_idx_marker_key_2 ON mgd.mld_ri2point USING btree (_mar
 CREATE INDEX mld_ri_idx_riset_key ON mgd.mld_ri USING btree (_riset_key);
 
 
-CREATE INDEX mld_ridata_idx_expt_key ON mgd.mld_ridata USING btree (_expt_key);
-
-
 CREATE INDEX mld_ridata_idx_marker_key ON mgd.mld_ridata USING btree (_marker_key);
 
 
@@ -1576,9 +1549,6 @@ CREATE INDEX mrk_do_cache_idx_organism_key ON mgd.mrk_do_cache USING btree (_org
 
 
 CREATE INDEX mrk_do_cache_idx_refs_key ON mgd.mrk_do_cache USING btree (_refs_key);
-
-
-CREATE INDEX mrk_do_cache_idx_term_key ON mgd.mrk_do_cache USING btree (_term_key);
 
 
 CREATE INDEX mrk_history_idx_createdby_key ON mgd.mrk_history USING btree (_createdby_key);
@@ -1672,9 +1642,6 @@ CREATE INDEX mrk_marker_idx_organism_key ON mgd.mrk_marker USING btree (_organis
 
 
 CREATE INDEX mrk_marker_idx_symbol ON mgd.mrk_marker USING btree (symbol);
-
-
-CREATE INDEX mrk_mcv_cache_idx_marker_key ON mgd.mrk_mcv_cache USING btree (_marker_key);
 
 
 CREATE INDEX mrk_mcv_cache_idx_term ON mgd.mrk_mcv_cache USING btree (term);
@@ -2058,9 +2025,6 @@ CREATE INDEX seq_sequence_idx_sequencequality_key ON mgd.seq_sequence USING btre
 CREATE INDEX seq_sequence_idx_sequencestatus_key ON mgd.seq_sequence USING btree (_sequencestatus_key);
 
 
-CREATE INDEX seq_sequence_idx_sequencetype_key ON mgd.seq_sequence USING btree (_sequencetype_key);
-
-
 CREATE INDEX seq_sequence_raw_idx_createdby_key ON mgd.seq_sequence_raw USING btree (_createdby_key);
 
 
@@ -2094,16 +2058,10 @@ CREATE INDEX voc_annot_idx_annottype_key ON mgd.voc_annot USING btree (_annottyp
 CREATE INDEX voc_annot_idx_clustered ON mgd.voc_annot USING btree (_object_key, _term_key, _annottype_key, _qualifier_key);
 
 
-CREATE INDEX voc_annot_idx_object_key ON mgd.voc_annot USING btree (_object_key);
-
-
 CREATE INDEX voc_annot_idx_qualifier_key ON mgd.voc_annot USING btree (_qualifier_key);
 
 
 CREATE INDEX voc_annot_idx_term_etc_key ON mgd.voc_annot USING btree (_term_key, _annottype_key, _qualifier_key, _object_key);
-
-
-CREATE INDEX voc_annot_idx_term_key ON mgd.voc_annot USING btree (_term_key);
 
 
 CREATE INDEX voc_annotheader_idx_approvedby_key ON mgd.voc_annotheader USING btree (_approvedby_key);
@@ -2175,9 +2133,6 @@ CREATE INDEX voc_evidence_property_idx_modifiedby_key ON mgd.voc_evidence_proper
 CREATE INDEX voc_evidence_property_idx_propertyterm_key ON mgd.voc_evidence_property USING btree (_propertyterm_key);
 
 
-CREATE INDEX voc_marker_cache_idx_annottype ON mgd.voc_marker_cache USING btree (annottype);
-
-
 CREATE INDEX voc_marker_cache_idx_annottype_etc ON mgd.voc_marker_cache USING btree (annottype, _marker_key);
 
 
@@ -2236,9 +2191,6 @@ CREATE INDEX voc_term_idx_modifiedby_key ON mgd.voc_term USING btree (_modifiedb
 
 
 CREATE INDEX voc_term_idx_term ON mgd.voc_term USING btree (term, _term_key, _vocab_key);
-
-
-CREATE INDEX voc_term_idx_vocab_key ON mgd.voc_term USING btree (_vocab_key);
 
 
 CREATE UNIQUE INDEX voc_vocab_idx_name ON mgd.voc_vocab USING btree (name, _vocab_key);
