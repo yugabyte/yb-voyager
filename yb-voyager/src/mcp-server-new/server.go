@@ -46,7 +46,7 @@ func (s *Server) registerTools() {
 	// Config validation tool
 	s.server.AddTool(
 		mcp.NewTool("validate_config",
-			mcp.WithDescription("Validate that a config file exists and is readable"),
+			mcp.WithDescription("Validate YB Voyager configuration files for existence, readability, YAML format, and content compliance with YB Voyager schema rules"),
 			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file to validate")),
 		),
 		s.validateConfigHandler,
