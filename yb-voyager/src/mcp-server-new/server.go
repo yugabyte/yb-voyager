@@ -4,12 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"sync"
 	"time"
 
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 	log "github.com/sirupsen/logrus"
+	"github.com/spf13/viper"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 // Server represents the MCP server
@@ -143,6 +148,24 @@ func (s *Server) registerTools() {
 			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
 		),
 		s.analyzeSchemaAsyncHandler,
+	)
+
+	// Get assessment report tool
+	s.server.AddTool(
+		mcp.NewTool("get_assessment_report",
+			mcp.WithDescription("Get the complete YB Voyager migration assessment report as structured JSON. This includes all issues, sizing recommendations, schema summary, and performance statistics."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing export-dir information")),
+		),
+		s.getAssessmentReportHandler,
+	)
+
+	// Get schema analysis report tool
+	s.server.AddTool(
+		mcp.NewTool("get_schema_analysis_report",
+			mcp.WithDescription("Get the complete YB Voyager schema analysis report as structured JSON. This includes all compatibility issues, object summaries, and migration readiness information."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing export-dir information")),
+		),
+		s.getSchemaAnalysisReportHandler,
 	)
 
 	// Get command status tool
@@ -574,4 +597,152 @@ func (s *Server) analyzeSchemaAsyncHandler(ctx context.Context, req mcp.CallTool
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil
+}
+
+// getAssessmentReportHandler handles assessment report requests
+func (s *Server) getAssessmentReportHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	// Extract export-dir from config file
+	exportDir, err := s.extractExportDirFromConfig(configPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to extract export-dir from config: %v", err)), nil
+	}
+
+	// Build the path to the assessment report
+	assessmentReportDir := filepath.Join(exportDir, "assessment", "reports")
+	jsonReportPath := filepath.Join(assessmentReportDir, "migration_assessment_report.json")
+
+	if !utils.FileOrFolderExists(jsonReportPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Assessment report not found at %s. Run 'assess-migration' command first.", jsonReportPath)), nil
+	}
+
+	// Read and parse the assessment report
+	reportData, err := s.parseAssessmentReport(jsonReportPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse assessment report: %v", err)), nil
+	}
+
+	// Return the complete structured report as JSON
+	result := map[string]interface{}{
+		"export_dir":  exportDir,
+		"report_path": jsonReportPath,
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"report":      reportData,
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// getSchemaAnalysisReportHandler handles schema analysis report requests
+func (s *Server) getSchemaAnalysisReportHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	// Extract export-dir from config file
+	exportDir, err := s.extractExportDirFromConfig(configPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to extract export-dir from config: %v", err)), nil
+	}
+
+	// Build the path to the schema analysis report
+	reportsDir := filepath.Join(exportDir, "reports")
+	jsonReportPath := filepath.Join(reportsDir, "schema_analysis_report.json")
+
+	if !utils.FileOrFolderExists(jsonReportPath) {
+		return mcp.NewToolResultError(fmt.Sprintf("Schema analysis report not found at %s. Run 'analyze-schema' command first.", jsonReportPath)), nil
+	}
+
+	// Read and parse the schema analysis report
+	reportData, err := s.parseSchemaAnalysisReport(jsonReportPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to parse schema analysis report: %v", err)), nil
+	}
+
+	// Return the complete structured report as JSON
+	result := map[string]interface{}{
+		"export_dir":  exportDir,
+		"report_path": jsonReportPath,
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"report":      reportData,
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// extractExportDirFromConfig extracts the export-dir from a config file
+func (s *Server) extractExportDirFromConfig(configPath string) (string, error) {
+	// Check if config file exists
+	if !utils.FileOrFolderExists(configPath) {
+		return "", fmt.Errorf("config file does not exist: %s", configPath)
+	}
+
+	// Load config using viper
+	v := viper.New()
+	v.SetConfigType("yaml")
+	v.SetConfigFile(configPath)
+	if err := v.ReadInConfig(); err != nil {
+		return "", fmt.Errorf("failed to read config file: %w", err)
+	}
+
+	// Get export-dir from config
+	exportDir := v.GetString("export-dir")
+	if exportDir == "" {
+		return "", fmt.Errorf("export-dir not found in config file")
+	}
+
+	return exportDir, nil
+}
+
+// parseAssessmentReport reads and parses an assessment report JSON file
+func (s *Server) parseAssessmentReport(reportPath string) (map[string]interface{}, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	// Read the JSON file
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read report file %q: %w", reportPath, err)
+	}
+
+	// Parse the JSON
+	var report map[string]interface{}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON report file %q: %w", reportPath, err)
+	}
+
+	return report, nil
+}
+
+// parseSchemaAnalysisReport reads and parses a schema analysis report JSON file
+func (s *Server) parseSchemaAnalysisReport(reportPath string) (map[string]interface{}, error) {
+	if !utils.FileOrFolderExists(reportPath) {
+		return nil, fmt.Errorf("report file %q does not exist", reportPath)
+	}
+
+	// Read the JSON file
+	data, err := os.ReadFile(reportPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read report file %q: %w", reportPath, err)
+	}
+
+	// Parse the JSON
+	var report map[string]interface{}
+	if err := json.Unmarshal(data, &report); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON report file %q: %w", reportPath, err)
+	}
+
+	return report, nil
 }
