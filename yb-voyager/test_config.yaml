@@ -1,0 +1,8 @@
+export-dir: /tmp/test_export
+source:
+  type: postgresql
+  host: localhost
+  port: 5432
+  database: testdb
+  username: testuser
+  password: testpass 
