@@ -42,7 +42,7 @@ func (e *ConfigValidationError) Error() string {
 }
 
 // Allowed global config keys
-var allowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
+var AllowedGlobalConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"export-dir", "log-level", "send-diagnostics",
 	"profile",
 	// environment variables keys
@@ -203,7 +203,7 @@ var allowedEndMigrationConfigKeys = mapset.NewThreadUnsafeSet[string](
 )
 
 // Define allowed nested sections
-var allowedConfigSections = map[string]mapset.Set[string]{
+var AllowedConfigSections = map[string]mapset.Set[string]{
 	"source":                           allowedSourceConfigKeys,
 	"source-replica":                   allowedSourceReplicaConfigKeys,
 	"target":                           allowedTargetConfigKeys,
@@ -243,7 +243,7 @@ func ValidateConfigFile(v *viper.Viper) error {
 		parts := strings.Split(key, ".")
 		if len(parts) == 1 {
 			// Check global level keys
-			if !allowedGlobalConfigKeys.Contains(key) {
+			if !AllowedGlobalConfigKeys.Contains(key) {
 				invalidGlobalKeys.Add(key)
 			}
 		} else {
@@ -254,7 +254,7 @@ func ValidateConfigFile(v *viper.Viper) error {
 			nestedKey := strings.Join(parts[1:], ".")
 			presentSections.Add(section)
 
-			allowedKeys, ok := allowedConfigSections[section]
+			allowedKeys, ok := AllowedConfigSections[section]
 			if !ok {
 				// Unknown section
 				invalidSections.Add(section)

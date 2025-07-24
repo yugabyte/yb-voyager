@@ -15,6 +15,7 @@ type Server struct {
 	server          *server.MCPServer
 	configValidator *ConfigValidator
 	sqlParser       *SQLParser
+	configSchema    *ConfigSchema
 }
 
 // NewServer creates a new MCP server instance
@@ -29,6 +30,7 @@ func NewServer() *Server {
 		server:          mcpServer,
 		configValidator: NewConfigValidator(),
 		sqlParser:       NewSQLParser(),
+		configSchema:    NewConfigSchema(),
 	}
 
 	s.registerTools()
@@ -59,6 +61,15 @@ func (s *Server) registerTools() {
 			mcp.WithString("sql_statement", mcp.Required(), mcp.Description("SQL statement to parse and validate")),
 		),
 		s.parseSQLHandler,
+	)
+
+	// Config schema tool
+	s.server.AddTool(
+		mcp.NewTool("get_config_schema",
+			mcp.WithDescription("Get available configuration keys and schema information for YB Voyager config sections. If no section is provided, returns all available sections."),
+			mcp.WithString("section", mcp.Description("Configuration section name (e.g., source, target, export-data). If not provided, returns all available sections.")),
+		),
+		s.getConfigSchemaHandler,
 	)
 }
 
@@ -103,6 +114,33 @@ func (s *Server) parseSQLHandler(ctx context.Context, req mcp.CallToolRequest) (
 	}
 
 	jsonResult, _ := json.MarshalIndent(parseResult, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// getConfigSchemaHandler handles config schema requests
+func (s *Server) getConfigSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	section := req.GetString("section", "")
+	if section == "" {
+		// No section provided, return all available sections
+		allSections, err := s.configSchema.GetAllSections()
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to get all sections: %v", err)), nil
+		}
+
+		jsonResult, _ := json.MarshalIndent(allSections, "", "  ")
+		return &mcp.CallToolResult{
+			Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+		}, nil
+	}
+
+	schemaInfo, err := s.configSchema.GetSchemaInfo(section)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get schema info: %v", err)), nil
+	}
+
+	jsonResult, _ := json.MarshalIndent(schemaInfo, "", "  ")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil

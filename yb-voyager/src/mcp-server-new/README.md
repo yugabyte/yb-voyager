@@ -10,6 +10,7 @@ A basic Model Context Protocol (MCP) server for YB Voyager, built with a config-
 - Integration with YB Voyager CLI as `start-mcp-server` command
 - **Config validation tool** - validates config files using shared YB Voyager validation logic
 - **SQL parsing tool** - parses and validates SQL statements using PostgreSQL parser (pg_query_go)
+- **Config schema tool** - provides schema information for YB Voyager configuration sections
 - Basic test coverage
 
 ### Tools Available
@@ -21,12 +22,18 @@ A basic Model Context Protocol (MCP) server for YB Voyager, built with a config-
    - **Parameter**: `sql_statement` (required) - SQL statement to parse and validate
    - **Returns**: JSON with parsing status, error details (if invalid), and parse tree information (if valid)
 
+3. **`get_config_schema`** - Get available configuration keys and schema information for YB Voyager config sections
+   - **Parameter**: `section` (optional) - Configuration section name (e.g., source, target, export-data). If not provided, returns all available sections.
+   - **Returns**: JSON with schema information including all available keys, descriptions, and counts. When no section is provided, returns a list of all available sections with descriptions.
+
 ### Files
 - `server.go` - MCP server implementation with tool registration
 - `config_validator.go` - Config file validation logic using shared utilities
 - `config_validator_test.go` - Config validation tests
 - `sql_parser.go` - SQL parsing logic using pg_query_go library
 - `sql_parser_test.go` - SQL parsing tests
+- `config_schema.go` - Config schema information provider
+- `config_schema_test.go` - Config schema tests
 - `server_test.go` - Basic server tests
 - `example-config.yaml` - Example config file for testing
 - `README.md` - This documentation
@@ -68,6 +75,15 @@ go test -v
 - ✅ Comprehensive error reporting for invalid SQL
 - ✅ Supports complex DDL statements (CREATE TABLE, CREATE INDEX, etc.)
 
+## Config Schema Features
+- ✅ Provides schema information for all YB Voyager configuration sections
+- ✅ Returns required vs optional keys for each section
+- ✅ Includes descriptions for each section
+- ✅ Handles case-insensitive section names
+- ✅ Normalizes section names (spaces to hyphens)
+- ✅ Provides helpful error messages with available sections for invalid requests
+- ✅ Supports all 20+ configuration sections (source, target, export-data, import-data, etc.)
+
 ## Implementation Details
 - **Reuses existing utilities**: Uses `utils.FileOrFolderExists()` and `utils.IsFileEmpty()`
 - **Shared validation logic**: Uses `utils/config.ValidateConfigFile()` from shared package
@@ -75,12 +91,14 @@ go test -v
 - **Follows YB Voyager patterns**: Uses the same validation approach as existing code
 - **Comprehensive validation**: Checks file existence, readability, content, format, and all YB Voyager validation rules
 - **SQL parsing integration**: Uses the same `pg_query_go` library as existing YB Voyager code
+- **Schema information**: Based on the same validation rules used in YB Voyager
 
 ## Architecture
 - **Shared validation**: `utils/config/validation.go` contains all validation logic
 - **No duplication**: Both `cmd` and `mcp-server-new` use the same validation function
 - **Clean separation**: MCP server focuses on MCP protocol, validation logic is shared
 - **SQL parsing**: Uses `pg_query_go` library for PostgreSQL-compatible parsing
+- **Schema provider**: Centralized schema information for all configuration sections
 
 ## Example Usage
 
@@ -101,6 +119,24 @@ go test -v
   "parameters": {
     "sql_statement": "SELECT * FROM users WHERE id = 1;"
   }
+}
+```
+
+### Config Schema
+```json
+{
+  "tool": "get_config_schema",
+  "parameters": {
+    "section": "source"
+  }
+}
+```
+
+**Get all available sections:**
+```json
+{
+  "tool": "get_config_schema",
+  "parameters": {}
 }
 ```
 
