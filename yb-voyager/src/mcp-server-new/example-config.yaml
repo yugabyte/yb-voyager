@@ -1,0 +1,17 @@
+# Example configuration file for testing MCP server
+source:
+  db-type: postgresql
+  db-host: localhost
+  db-port: 5432
+  db-name: testdb
+  db-user: postgres
+  db-password: ${SOURCE_DB_PASSWORD}
+
+target:
+  db-host: localhost
+  db-port: 5433
+  db-name: testdb
+  db-user: yugabyte
+  db-password: ${TARGET_DB_PASSWORD}
+
+export-dir: /tmp/migration-test 
