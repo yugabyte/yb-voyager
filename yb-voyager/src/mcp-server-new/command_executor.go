@@ -142,6 +142,9 @@ func (ce *CommandExecutor) buildCommandArgs(command string, configPath string, a
 		cmdArgs = append(cmdArgs, args...)
 	}
 
+	// Automatically add --yes flag for async commands to avoid interactive prompts
+	cmdArgs = append(cmdArgs, "--yes")
+
 	return cmdArgs
 }
 
@@ -154,10 +157,8 @@ func (ce *CommandExecutor) buildEnvironment(additionalArgs string) []string {
 	pathVar := "PATH=" + currentDir + ":" + os.Getenv("PATH")
 	env = append(env, pathVar)
 
-	// Add password if --yes flag is present
-	if strings.Contains(additionalArgs, "--yes") || strings.Contains(additionalArgs, "-y") {
-		env = append(env, "SOURCE_DB_PASSWORD=testpassword")
-	}
+	// Add password since we're always using --yes for async commands
+	env = append(env, "SOURCE_DB_PASSWORD=testpassword")
 
 	return env
 }
