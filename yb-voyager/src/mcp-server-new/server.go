@@ -83,16 +83,17 @@ func (s *Server) registerTools() {
 	)
 
 	// Assess migration tool (synchronous - may block for long-running commands)
-	s.server.AddTool(
-		mcp.NewTool("assess_migration",
-			mcp.WithDescription("Execute YB Voyager assess-migration command synchronously with automatic --yes flag. WARNING: This may block for long-running commands. Use assess_migration_async for better experience."),
-			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
-			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
-		),
-		s.assessMigrationHandler,
-	)
+	// TODO: Add this back in when we have a way to handle interactive prompts
+	// s.server.AddTool(
+	// 	mcp.NewTool("assess_migration",
+	// 		mcp.WithDescription("Execute YB Voyager assess-migration command synchronously with automatic --yes flag. WARNING: This may block for long-running commands. Use assess_migration_async for better experience."),
+	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
+	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
+	// 	),
+	// 	s.assessMigrationHandler,
+	// )
 
-	// Async assess migration tool (RECOMMENDED for long-running commands)
+	// Assess migration async tool (RECOMMENDED for long-running commands)
 	s.server.AddTool(
 		mcp.NewTool("assess_migration_async",
 			mcp.WithDescription("Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
@@ -100,6 +101,27 @@ func (s *Server) registerTools() {
 			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
 		),
 		s.assessMigrationAsyncHandler,
+	)
+
+	// Export schema tool (synchronous)
+	// TODO: Add this back in when we have a way to handle interactive prompts
+	// s.server.AddTool(
+	// 	mcp.NewTool("export_schema",
+	// 		mcp.WithDescription("Execute YB Voyager export schema command synchronously. Automatically adds --yes flag to avoid interactive prompts."),
+	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
+	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
+	// 	),
+	// 	s.exportSchemaHandler,
+	// )
+
+	// Export schema async tool (RECOMMENDED for long-running commands)
+	s.server.AddTool(
+		mcp.NewTool("export_schema_async",
+			mcp.WithDescription("Execute YB Voyager export schema command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
+			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+		),
+		s.exportSchemaAsyncHandler,
 	)
 
 	// Get command status tool
@@ -261,11 +283,89 @@ func (s *Server) assessMigrationAsyncHandler(ctx context.Context, req mcp.CallTo
 		"instructions": []string{
 			"1. Use 'get_command_status' with the execution_id to check progress",
 			"2. Monitor the 'progress' array for real-time output",
-			"3. Look for 'INTERACTIVE_PROMPT:' lines for user input needed",
-			"4. Use 'respond_to_prompt' if interactive prompts are detected",
-			"5. Continue monitoring until status becomes 'completed' or 'failed'",
-			"6. Interactive prompts will be detected but NOT automatically responded to",
-			"7. You must manually use respond_to_prompt to provide user input",
+			"3. Continue monitoring until status becomes 'completed' or 'failed'",
+			"4. Commands automatically include --yes flag to avoid interactive prompts",
+		},
+	}
+
+	jsonResult, _ := json.MarshalIndent(response, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// exportSchemaHandler handles export-schema requests
+func (s *Server) exportSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Execute the export-schema command synchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(ctx, "export schema", configPath, additionalArgs)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to start export schema: %v", err)), nil
+	}
+
+	// For synchronous execution, we just return the initial result
+	// The command will complete in the background
+
+	response := map[string]interface{}{
+		"execution_id": result.ExecutionID,
+		"status":       result.Status,
+		"progress":     result.Progress,
+		"start_time":   result.StartTime.Format(time.RFC3339),
+		"duration":     result.Duration,
+		"exit_code":    result.ExitCode,
+	}
+
+	if result.Error != "" {
+		response["error"] = result.Error
+	}
+
+	jsonResult, _ := json.MarshalIndent(response, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// exportSchemaAsyncHandler handles async export schema requests
+func (s *Server) exportSchemaAsyncHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Create a cancellable context for this command
+	cmdCtx, cancel := context.WithCancel(ctx)
+
+	// Execute the export schema command asynchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(cmdCtx, "export schema", configPath, additionalArgs)
+	if err != nil {
+		cancel() // Clean up the context
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to start export schema: %v", err)), nil
+	}
+
+	// Store the running command and cancel function
+	s.mu.Lock()
+	s.runningCommands[result.ExecutionID] = result
+	s.commandContexts[result.ExecutionID] = cancel
+	s.mu.Unlock()
+
+	response := map[string]interface{}{
+		"execution_id": result.ExecutionID,
+		"status":       result.Status,
+		"message":      "Export schema command started asynchronously. Use get_command_status to track progress.",
+		"start_time":   result.StartTime.Format(time.RFC3339),
+		"instructions": []string{
+			"1. Use 'get_command_status' with the execution_id to check progress",
+			"2. Monitor the 'progress' array for real-time output",
+			"3. Continue monitoring until status becomes 'completed' or 'failed'",
+			"4. Commands automatically include --yes flag to avoid interactive prompts",
 		},
 	}
 
