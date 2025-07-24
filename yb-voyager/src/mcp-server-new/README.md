@@ -26,17 +26,37 @@ A basic Model Context Protocol (MCP) server for YB Voyager, built with a config-
    - **Parameter**: `section` (optional) - Configuration section name (e.g., source, target, export-data). If not provided, returns all available sections.
    - **Returns**: JSON with schema information including all available keys, descriptions, and counts. When no section is provided, returns a list of all available sections with descriptions.
 
+4. **`assess_migration`** - Execute YB Voyager assess-migration command
+   - **Parameter**: `config_path` (required) - Path to the config file containing source and assess-migration sections
+   - **Parameter**: `additional_args` (optional) - Additional command line arguments
+   - **Returns**: JSON with execution results including success status, duration, output, and any errors
+
+5. **`assess_migration_async`** - Execute YB Voyager assess-migration command asynchronously with real-time output
+   - **Parameter**: `config_path` (required) - Path to the config file containing source and assess-migration sections
+   - **Parameter**: `additional_args` (optional) - Additional command line arguments
+   - **Returns**: JSON with execution ID for tracking long-running commands
+
+6. **`get_command_status`** - Get status and progress of a running command
+   - **Parameter**: `execution_id` (required) - Execution ID returned by async command
+   - **Returns**: JSON with current status, progress lines, and execution details
+
+7. **`respond_to_prompt`** - Respond to interactive prompts from running commands
+   - **Parameter**: `execution_id` (required) - Execution ID of the running command
+   - **Parameter**: `response` (required) - Response to send (e.g., 'y', 'n', 'yes', 'no', password, etc.)
+   - **Returns**: JSON confirming the response was sent
+
 ### Files
 - `server.go` - MCP server implementation with tool registration
-- `config_validator.go` - Config file validation logic using shared utilities
-- `config_validator_test.go` - Config validation tests
-- `sql_parser.go` - SQL parsing logic using pg_query_go library
-- `sql_parser_test.go` - SQL parsing tests
+- `config_validator.go` - Config file validation logic
+- `config_validator_test.go` - Tests for config validation
+- `sql_parser.go` - SQL parsing and validation logic
+- `sql_parser_test.go` - Tests for SQL parsing
 - `config_schema.go` - Config schema information provider
-- `config_schema_test.go` - Config schema tests
-- `server_test.go` - Basic server tests
-- `example-config.yaml` - Example config file for testing
-- `README.md` - This documentation
+- `config_schema_test.go` - Tests for config schema
+- `command_executor.go` - YB Voyager command execution logic
+- `command_executor_test.go` - Tests for command execution
+- `example-config.yaml` - Example configuration file for testing
+- `README.md` - This documentation file
 
 ### Usage
 ```bash
@@ -137,6 +157,49 @@ go test -v
 {
   "tool": "get_config_schema",
   "parameters": {}
+}
+```
+
+### Assess Migration
+```json
+{
+  "tool": "assess_migration",
+  "parameters": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--yes --log-level info"
+  }
+}
+```
+
+### Async Assess Migration
+```json
+{
+  "tool": "assess_migration_async",
+  "parameters": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--yes --log-level info"
+  }
+}
+```
+
+### Get Command Status
+```json
+{
+  "tool": "get_command_status",
+  "parameters": {
+    "execution_id": "exec_1732345678901234567"
+  }
+}
+```
+
+### Respond to Interactive Prompt
+```json
+{
+  "tool": "respond_to_prompt",
+  "parameters": {
+    "execution_id": "exec_1732345678901234567",
+    "response": "y"
+  }
 }
 ```
 

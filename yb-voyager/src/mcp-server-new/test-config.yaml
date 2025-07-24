@@ -1,0 +1,13 @@
+source:
+  db-type: postgresql
+  db-host: localhost
+  db-port: 5432
+  db-user: testuser
+  db-name: testdb
+  db-schema: public
+
+assess-migration:
+  log-level: info
+  run-guardrails-checks: false
+
+export-dir: /tmp/yb-voyager-test-export 
