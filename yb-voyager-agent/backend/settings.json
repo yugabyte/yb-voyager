@@ -1,0 +1,4 @@
+{
+  "model": "gemini-2.5-flash",
+  "google_application_credentials": "test-credentials"
+}
