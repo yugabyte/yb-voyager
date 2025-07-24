@@ -31,9 +31,11 @@ import (
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/config"
+	mainconfig "github.com/yugabyte/yb-voyager/yb-voyager/src/config"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/types"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	configvalidation "github.com/yugabyte/yb-voyager/yb-voyager/src/utils/config"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -116,10 +118,10 @@ export-dir: /tmp/export
 `
 	v := setupViperFromYAML(t, yaml)
 
-	err := validateConfigFile(v)
+	err := configvalidation.ValidateConfigFile(v)
 
 	// Check for expected error type (ValidationError)
-	var validationErr *ConfigValidationError
+	var validationErr *configvalidation.ConfigValidationError
 	require.Error(t, err, "Expected an error for invalid global key")
 	require.True(t, errors.As(err, &validationErr), "Expected error of type *ValidationError")
 
@@ -148,10 +150,10 @@ import-data-to-target:
 `
 	v := setupViperFromYAML(t, yaml)
 
-	err := validateConfigFile(v)
+	err := configvalidation.ValidateConfigFile(v)
 
 	// Check for expected error type (ValidationError)
-	var validationErr *ConfigValidationError
+	var validationErr *configvalidation.ConfigValidationError
 	require.Error(t, err, "Expected an error for conflicting sections")
 	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
 
@@ -180,10 +182,10 @@ bad-section2:
 `
 	v := setupViperFromYAML(t, yaml)
 
-	err := validateConfigFile(v)
+	err := configvalidation.ValidateConfigFile(v)
 
 	// Check for expected error type (ValidationError)
-	var validationErr *ConfigValidationError
+	var validationErr *configvalidation.ConfigValidationError
 	require.Error(t, err, "Expected an error for invalid section")
 	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
 
@@ -209,10 +211,10 @@ target:
   invalid-key2: value
 `
 	v := setupViperFromYAML(t, yaml)
-	err := validateConfigFile(v)
+	err := configvalidation.ValidateConfigFile(v)
 
 	// Check for expected error type (ValidationError)
-	var validationErr *ConfigValidationError
+	var validationErr *configvalidation.ConfigValidationError
 	require.Error(t, err, "Expected an error for invalid nested key")
 	require.True(t, errors.As(err, &validationErr), "Expected error of type *ConfigValidationError")
 
@@ -241,7 +243,7 @@ assess-migration:
   iops-capture-interval: 30
 `
 	v := setupViperFromYAML(t, yaml)
-	err := validateConfigFile(v)
+	err := configvalidation.ValidateConfigFile(v)
 	require.NoError(t, err, "Expected no error for valid config")
 }
 
@@ -326,7 +328,7 @@ func TestAssessMigration_ConfigFileBinding(t *testing.T) {
 
 	// Assertions on global flags
 	assert.Equal(t, ctx.tmpExportDir, exportDir, "Export directory should match the config")
-	assert.Equal(t, "info", config.LogLevel, "Log level should match the config")
+	assert.Equal(t, "info", mainconfig.LogLevel, "Log level should match the config")
 	assert.Equal(t, utils.BoolStr(true), callhome.SendDiagnostics, "Send diagnostics should match the config")
 	assert.Equal(t, utils.BoolStr(true), perfProfile, "Profile should match the config")
 	assert.Equal(t, "yugabyte", os.Getenv("CONTROL_PLANE_TYPE"), "Control plane type should match the config")
