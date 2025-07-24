@@ -40,10 +40,9 @@ A basic Model Context Protocol (MCP) server for YB Voyager, built with a config-
    - **Parameter**: `execution_id` (required) - Execution ID returned by async command
    - **Returns**: JSON with current status, progress lines, and execution details
 
-7. **`respond_to_prompt`** - Respond to interactive prompts from running commands
+7. **`stop_command`** - Stop/cancel a running command execution
    - **Parameter**: `execution_id` (required) - Execution ID of the running command
-   - **Parameter**: `response` (required) - Response to send (e.g., 'y', 'n', 'yes', 'no', password, etc.)
-   - **Returns**: JSON confirming the response was sent
+   - **Returns**: JSON confirming the command was stopped
 
 ### Files
 - `server.go` - MCP server implementation with tool registration
@@ -192,13 +191,12 @@ go test -v
 }
 ```
 
-### Respond to Interactive Prompt
+### Stop Command
 ```json
 {
-  "tool": "respond_to_prompt",
+  "tool": "stop_command",
   "parameters": {
-    "execution_id": "exec_1732345678901234567",
-    "response": "y"
+    "execution_id": "exec_1732345678901234567"
   }
 }
 ```

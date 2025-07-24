@@ -39,6 +39,8 @@ func TestServer_ToolDescriptions(t *testing.T) {
 	fmt.Println("Expected tool descriptions:")
 	fmt.Println("- assess_migration_async: Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress.")
 	fmt.Println("- assess_migration: Execute YB Voyager assess-migration command synchronously with automatic --yes flag. WARNING: This may block for long-running commands. Use assess_migration_async for better experience.")
+	fmt.Println("- export_schema: Execute YB Voyager export-schema command synchronously. Automatically adds --yes flag to avoid interactive prompts.")
+	fmt.Println("- export_schema_async: Execute YB Voyager export-schema command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts.")
 	fmt.Println("- stop_command: Stop/cancel a running command execution")
 }
 

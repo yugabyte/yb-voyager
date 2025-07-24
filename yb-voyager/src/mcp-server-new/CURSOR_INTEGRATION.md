@@ -13,8 +13,10 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 3. **`get_config_schema`** - Retrieves configuration schema information
 4. **`assess_migration`** - Executes YB Voyager assess-migration command synchronously with automatic `--yes` flag
 5. **`assess_migration_async`** - Executes YB Voyager assess-migration command asynchronously with real-time output streaming
-6. **`get_command_status`** - Gets the status and progress of running commands
-7. **`stop_command`** - Stops/cancels a running command execution
+6. **`export_schema`** - Executes YB Voyager export-schema command synchronously with automatic `--yes` flag
+7. **`export_schema_async`** - Executes YB Voyager export-schema command asynchronously with real-time output streaming
+8. **`get_command_status`** - Gets the status and progress of running commands
+9. **`stop_command`** - Stops/cancels a running command execution
 
 ### 🔄 In Progress
 
@@ -22,14 +24,13 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 
 ### 📋 Planned Tools
 
-1. **`export_schema`** - Export database schema
-2. **`export_data`** - Export data from source database
-3. **`import_schema`** - Import schema to target database
-4. **`import_data`** - Import data to target database
-5. **`analyze_schema`** - Analyze schema for migration
-6. **`initiate_cutover`** - Initiate cutover to target
-7. **`archive_changes`** - Archive migration changes
-8. **`end_migration`** - End the migration process
+1. **`export_data`** - Export data from source database
+2. **`import_schema`** - Import schema to target database
+3. **`import_data`** - Import data to target database
+4. **`analyze_schema`** - Analyze schema for migration
+5. **`initiate_cutover`** - Initiate cutover to target
+6. **`archive_changes`** - Archive migration changes
+7. **`end_migration`** - End the migration process
 
 ## Architecture
 
@@ -48,12 +49,10 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 - Output is streamed in real-time with timestamps
 - Progress updates are captured and stored for later retrieval
 
-#### Interactive Prompt Detection
-- **Async Commands**: All async commands automatically include the `--yes` flag to avoid interactive prompts
-- **Sync Commands**: Synchronous commands also automatically include the `--yes` flag for consistent behavior
-- The system detects interactive prompts in command output (for manual handling if needed)
-- Prompts are marked with `INTERACTIVE_PROMPT` in the progress logs
-- **Note**: Commands are configured to avoid prompts automatically, but manual prompt handling is available if needed
+#### Interactive Prompt Handling
+- **All Commands**: All commands automatically include the `--yes` flag to avoid interactive prompts
+- **No Manual Intervention**: Commands run non-interactively by default
+- **Automatic Responses**: The system automatically handles prompts using the `--yes` flag
 
 #### Command Status Tracking
 - Each command gets a unique execution ID
@@ -131,7 +130,31 @@ src/mcp-server-new/
 }
 ```
 
-### 5. Execute Assess Migration (Async - Recommended)
+### 5. Execute Export Schema (Synchronous)
+
+```json
+{
+  "name": "export_schema",
+  "arguments": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--log-level debug"
+  }
+}
+```
+
+### 6. Execute Export Schema (Async - Recommended)
+
+```json
+{
+  "name": "export_schema_async",
+  "arguments": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--log-level debug"
+  }
+}
+```
+
+### 7. Execute Assess Migration (Async - Recommended)
 
 ```json
 {
@@ -143,7 +166,7 @@ src/mcp-server-new/
 }
 ```
 
-### 6. Check Command Status
+### 8. Check Command Status
 
 ```json
 {
@@ -173,33 +196,33 @@ src/mcp-server-new/
 2. **Logging**: Prompts are logged with `INTERACTIVE_PROMPT` prefix
 3. **User Action**: The AI agent must manually respond using appropriate methods
 
-### For Non-Interactive Commands
+### Command Execution
 
-Use the `--yes` flag to avoid interactive prompts:
+All commands automatically include the `--yes` flag to avoid interactive prompts:
 
 ```json
 {
   "name": "assess_migration_async",
   "arguments": {
     "config_path": "/path/to/config.yaml",
-    "additional_args": "--yes"
+    "additional_args": "--log-level debug"
   }
 }
 ```
 
-### For Interactive Commands
+### Command Monitoring
 
-Commands without `--yes` will wait for user input. The AI agent should:
+The AI agent should:
 
 1. Monitor the command status using `get_command_status`
-2. Look for `INTERACTIVE_PROMPT` messages in the progress
-3. Provide appropriate responses based on the prompt
+2. Check progress logs for execution details and errors
+3. Continue monitoring until status becomes 'completed' or 'failed'
 
 ## Current Limitations
 
-1. **Automatic --yes Flag**: All commands automatically include `--yes` flag to avoid interactive prompts
-2. **Limited Interactive Control**: Manual prompt handling is available but not the default behavior
-3. **Database Dependencies**: Commands require valid database connections to complete successfully
+1. **Non-Interactive Execution**: All commands run with `--yes` flag to avoid interactive prompts
+2. **Database Dependencies**: Commands require valid database connections to complete successfully
+3. **No Manual Prompt Handling**: Commands are designed to run without user intervention
 
 ## Best Practices
 
@@ -243,20 +266,11 @@ Commands without `--yes` will wait for user input. The AI agent should:
 4. Add support for command cancellation
 5. Implement command history and logging
 
-3. **Respond to prompts manually** when you see `INTERACTIVE_PROMPT_DETECTED:`:
-   ```json
-   {
-     "tool": "respond_to_prompt",
-     "execution_id": "exec_1234567890",
-     "response": "Y"
-   }
-   ```
-
 ## Why Use Async?
 
 - **Real-time streaming**: See command output as it happens
 - **Non-blocking**: Commands run in background
-- **User-controlled prompts**: You decide how to respond to interactive prompts
+- **Automatic prompt handling**: Commands include `--yes` flag automatically
 - **Better user experience**: No timeouts or blocking
 
 ## Tool Descriptions

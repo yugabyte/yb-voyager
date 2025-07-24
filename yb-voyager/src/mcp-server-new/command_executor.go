@@ -135,7 +135,9 @@ func (ce *CommandExecutor) runCommand(ctx context.Context, command string, confi
 
 // buildCommandArgs builds the command arguments
 func (ce *CommandExecutor) buildCommandArgs(command string, configPath string, additionalArgs string) []string {
-	cmdArgs := []string{command, "--config-file", configPath}
+	// Split the command into separate arguments (e.g., "export schema" -> ["export", "schema"])
+	commandArgs := strings.Fields(command)
+	cmdArgs := append(commandArgs, "--config-file", configPath)
 
 	if additionalArgs != "" {
 		args := strings.Fields(additionalArgs)
@@ -256,13 +258,13 @@ func (ce *CommandExecutor) getRequiredSectionsForCommand(command string) []strin
 	switch normalizedCommand {
 	case "assess-migration":
 		return []string{"source", "assess-migration"}
-	case "export-schema":
-		return []string{"source", "export-schema"}
-	case "export-data":
-		return []string{"source", "export-data"}
-	case "import-schema":
+	case "export schema":
+		return []string{"source"} // export-schema section is optional
+	case "export data":
+		return []string{"source"} // export-data section is optional
+	case "import schema":
 		return []string{"target", "import-schema"}
-	case "import-data":
+	case "import data":
 		return []string{"target", "import-data"}
 	default:
 		return []string{"source"}
@@ -287,14 +289,14 @@ func (ce *CommandExecutor) normalizeCommand(command string) string {
 	switch strings.ToLower(command) {
 	case "assess", "assess-migration", "assess_migration":
 		return "assess-migration"
-	case "export-schema", "export_schema":
-		return "export-schema"
-	case "export-data", "export_data":
-		return "export-data"
-	case "import-schema", "import_schema":
-		return "import-schema"
-	case "import-data", "import_data":
-		return "import-data"
+	case "export-schema", "export_schema", "export schema":
+		return "export schema"
+	case "export-data", "export_data", "export data":
+		return "export data"
+	case "import-schema", "import_schema", "import schema":
+		return "import schema"
+	case "import-data", "import_data", "import data":
+		return "import data"
 	default:
 		return command
 	}
