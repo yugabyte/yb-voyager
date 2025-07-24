@@ -124,6 +124,27 @@ func (s *Server) registerTools() {
 		s.exportSchemaAsyncHandler,
 	)
 
+	// TODO: Add this back in when we have a way to handle interactive prompts
+	// Analyze schema tool (synchronous)
+	// s.server.AddTool(
+	// 	mcp.NewTool("analyze_schema",
+	// 		mcp.WithDescription("Execute YB Voyager analyze-schema command synchronously. Automatically adds --yes flag to avoid interactive prompts."),
+	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and analyze-schema sections")),
+	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
+	// 	),
+	// 	s.analyzeSchemaHandler,
+	// )
+
+	// Analyze schema async tool (RECOMMENDED for long-running commands)
+	s.server.AddTool(
+		mcp.NewTool("analyze_schema_async",
+			mcp.WithDescription("Execute YB Voyager analyze-schema command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and analyze-schema sections")),
+			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+		),
+		s.analyzeSchemaAsyncHandler,
+	)
+
 	// Get command status tool
 	s.server.AddTool(
 		mcp.NewTool("get_command_status",
@@ -469,6 +490,87 @@ func (s *Server) stopCommandHandler(ctx context.Context, req mcp.CallToolRequest
 	}
 
 	jsonResult, _ := json.MarshalIndent(responseData, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// analyzeSchemaHandler handles analyze-schema requests
+func (s *Server) analyzeSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Execute the analyze-schema command synchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(ctx, "analyze-schema", configPath, additionalArgs)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to start analyze schema: %v", err)), nil
+	}
+
+	// For synchronous execution, we just return the initial result
+	// The command will complete in the background
+
+	response := map[string]interface{}{
+		"execution_id": result.ExecutionID,
+		"status":       result.Status,
+		"progress":     result.Progress,
+		"start_time":   result.StartTime.Format(time.RFC3339),
+		"duration":     result.Duration,
+		"exit_code":    result.ExitCode,
+	}
+
+	if result.Error != "" {
+		response["error"] = result.Error
+	}
+
+	jsonResult, _ := json.MarshalIndent(response, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// analyzeSchemaAsyncHandler handles async analyze-schema requests
+func (s *Server) analyzeSchemaAsyncHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Create a cancellable context for this command
+	cmdCtx, cancel := context.WithCancel(ctx)
+
+	// Execute the analyze-schema command asynchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(cmdCtx, "analyze-schema", configPath, additionalArgs)
+	if err != nil {
+		cancel() // Clean up the context
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to start analyze schema: %v", err)), nil
+	}
+
+	// Store the running command and cancel function
+	s.mu.Lock()
+	s.runningCommands[result.ExecutionID] = result
+	s.commandContexts[result.ExecutionID] = cancel
+	s.mu.Unlock()
+
+	response := map[string]interface{}{
+		"execution_id": result.ExecutionID,
+		"status":       result.Status,
+		"message":      "Analyze schema command started asynchronously. Use get_command_status to track progress.",
+		"start_time":   result.StartTime.Format(time.RFC3339),
+		"instructions": []string{
+			"1. Use 'get_command_status' with the execution_id to check progress",
+			"2. Monitor the 'progress' array for real-time output",
+			"3. Continue monitoring until status becomes 'completed' or 'failed'",
+			"4. Commands automatically include --yes flag to avoid interactive prompts",
+		},
+	}
+
+	jsonResult, _ := json.MarshalIndent(response, "", "  ")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil

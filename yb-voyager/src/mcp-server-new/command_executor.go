@@ -266,6 +266,8 @@ func (ce *CommandExecutor) getRequiredSectionsForCommand(command string) []strin
 		return []string{"target", "import-schema"}
 	case "import data":
 		return []string{"target", "import-data"}
+	case "analyze-schema":
+		return []string{"source"} // analyze-schema section is optional
 	default:
 		return []string{"source"}
 	}
@@ -297,6 +299,8 @@ func (ce *CommandExecutor) normalizeCommand(command string) string {
 		return "import schema"
 	case "import-data", "import_data", "import data":
 		return "import data"
+	case "analyze-schema", "analyze_schema", "analyze schema":
+		return "analyze-schema"
 	default:
 		return command
 	}

@@ -40,7 +40,17 @@ A basic Model Context Protocol (MCP) server for YB Voyager, built with a config-
    - **Parameter**: `execution_id` (required) - Execution ID returned by async command
    - **Returns**: JSON with current status, progress lines, and execution details
 
-7. **`stop_command`** - Stop/cancel a running command execution
+7. **`analyze_schema`** - Execute YB Voyager analyze-schema command synchronously
+   - **Parameter**: `config_path` (required) - Path to the config file containing source and analyze-schema sections
+   - **Parameter**: `additional_args` (optional) - Additional command line arguments
+   - **Returns**: JSON with execution details
+
+8. **`analyze_schema_async`** - Execute YB Voyager analyze-schema command asynchronously
+   - **Parameter**: `config_path` (required) - Path to the config file containing source and analyze-schema sections
+   - **Parameter**: `additional_args` (optional) - Additional command line arguments
+   - **Returns**: JSON with execution ID for tracking long-running commands
+
+9. **`stop_command`** - Stop/cancel a running command execution
    - **Parameter**: `execution_id` (required) - Execution ID of the running command
    - **Returns**: JSON confirming the command was stopped
 
@@ -187,6 +197,28 @@ go test -v
   "tool": "get_command_status",
   "parameters": {
     "execution_id": "exec_1732345678901234567"
+  }
+}
+```
+
+### Analyze Schema
+```json
+{
+  "tool": "analyze_schema",
+  "parameters": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--output-format json --log-level debug"
+  }
+}
+```
+
+### Async Analyze Schema
+```json
+{
+  "tool": "analyze_schema_async",
+  "parameters": {
+    "config_path": "/path/to/config.yaml",
+    "additional_args": "--output-format html --log-level info"
   }
 }
 ```

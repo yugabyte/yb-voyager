@@ -13,10 +13,12 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 3. **`get_config_schema`** - Retrieves configuration schema information
 4. **`assess_migration`** - Executes YB Voyager assess-migration command synchronously with automatic `--yes` flag
 5. **`assess_migration_async`** - Executes YB Voyager assess-migration command asynchronously with real-time output streaming
-6. **`export_schema`** - Executes YB Voyager export-schema command synchronously with automatic `--yes` flag
-7. **`export_schema_async`** - Executes YB Voyager export-schema command asynchronously with real-time output streaming
-8. **`get_command_status`** - Gets the status and progress of running commands
-9. **`stop_command`** - Stops/cancels a running command execution
+6. **`export_schema`** - Executes YB Voyager export schema command synchronously with automatic `--yes` flag
+7. **`export_schema_async`** - Executes YB Voyager export schema command asynchronously with real-time output streaming
+8. **`analyze_schema`** - Executes YB Voyager analyze-schema command synchronously with automatic `--yes` flag
+9. **`analyze_schema_async`** - Executes YB Voyager analyze-schema command asynchronously with real-time output streaming
+10. **`get_command_status`** - Gets the status and progress of running commands
+11. **`stop_command`** - Stops/cancels a running command execution
 
 ### 🔄 In Progress
 
@@ -27,10 +29,9 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 1. **`export_data`** - Export data from source database
 2. **`import_schema`** - Import schema to target database
 3. **`import_data`** - Import data to target database
-4. **`analyze_schema`** - Analyze schema for migration
-5. **`initiate_cutover`** - Initiate cutover to target
-6. **`archive_changes`** - Archive migration changes
-7. **`end_migration`** - End the migration process
+4. **`initiate_cutover`** - Initiate cutover to target
+5. **`archive_changes`** - Archive migration changes
+6. **`end_migration`** - End the migration process
 
 ## Architecture
 

@@ -314,3 +314,43 @@ export-dir: /tmp/test-export
 	// The command should have completed (even if it failed due to database connection)
 	assert.True(t, result.Status == "completed" || result.Status == "failed")
 }
+
+func TestCommandExecutor_AnalyzeSchemaCommand(t *testing.T) {
+	ce := NewCommandExecutor()
+
+	// Create a temporary config file
+	tempDir := t.TempDir()
+	configPath := filepath.Join(tempDir, "test-config.yaml")
+	configContent := `
+source:
+  db-type: postgresql
+  db-host: localhost
+  db-port: 5432
+  db-user: testuser
+  db-name: testdb
+  db-schema: public
+export-dir: /tmp/test-export
+`
+	err := os.WriteFile(configPath, []byte(configContent), 0644)
+	require.NoError(t, err)
+
+	// Execute analyze schema command
+	ctx := context.Background()
+	result, err := ce.ExecuteCommandAsync(ctx, "analyze-schema", configPath, "")
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	fmt.Printf("Analyze schema test started with ID: %s\n", result.ExecutionID)
+
+	// Wait for the command to complete
+	time.Sleep(5 * time.Second)
+
+	// Check final status
+	fmt.Printf("Final command status: %s\n", result.Status)
+	fmt.Printf("Command completed at: %s\n", time.Now().Format("15:04:05"))
+	fmt.Printf("Exit code: %d\n", result.ExitCode)
+	fmt.Printf("Duration: %s\n", result.Duration)
+
+	// The command should have completed (even if it failed due to database connection)
+	assert.True(t, result.Status == "completed" || result.Status == "failed")
+}
