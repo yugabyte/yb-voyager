@@ -95,7 +95,7 @@ func (s *Server) registerTools() {
 	// Async assess migration tool (RECOMMENDED for long-running commands)
 	s.server.AddTool(
 		mcp.NewTool("assess_migration_async",
-			mcp.WithDescription("Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress."),
+			mcp.WithDescription("Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
 			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
 			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
 		),
@@ -202,13 +202,6 @@ func (s *Server) assessMigrationHandler(ctx context.Context, req mcp.CallToolReq
 	}
 
 	additionalArgs := req.GetString("additional_args", "")
-
-	// Automatically add --yes flag for synchronous execution to avoid interactive prompts
-	if additionalArgs != "" {
-		additionalArgs = additionalArgs + " --yes"
-	} else {
-		additionalArgs = "--yes"
-	}
 
 	// Execute the assess-migration command synchronously
 	result, err := s.commandExecutor.ExecuteCommandAsync(ctx, "assess-migration", configPath, additionalArgs)

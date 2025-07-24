@@ -49,16 +49,17 @@ This is a new MCP (Model Context Protocol) server implementation for YB Voyager,
 - Progress updates are captured and stored for later retrieval
 
 #### Interactive Prompt Detection
-- The system detects interactive prompts in command output
+- **Async Commands**: All async commands automatically include the `--yes` flag to avoid interactive prompts
+- **Sync Commands**: Synchronous commands also automatically include the `--yes` flag for consistent behavior
+- The system detects interactive prompts in command output (for manual handling if needed)
 - Prompts are marked with `INTERACTIVE_PROMPT` in the progress logs
-- **Note**: The system detects prompts but does NOT automatically respond to them
-- Commands without `--yes` flag will wait for user input and may appear to hang
+- **Note**: Commands are configured to avoid prompts automatically, but manual prompt handling is available if needed
 
 #### Command Status Tracking
 - Each command gets a unique execution ID
-- Status updates: `running` → `completed`/`failed`/`timeout`/`cancelled`
+- Status updates: `running` → `completed`/`failed`/`cancelled`
 - Progress logs with timestamps for debugging
-- 30-second timeout for long-running commands
+- Commands can run for hours without timeout
 - Commands can be manually stopped using `stop_command` tool
 
 #### Config-First Approach
@@ -137,7 +138,7 @@ src/mcp-server-new/
   "name": "assess_migration_async",
   "arguments": {
     "config_path": "/path/to/config.yaml",
-    "additional_args": "--yes"
+    "additional_args": "--log-level debug"
   }
 }
 ```
@@ -196,18 +197,18 @@ Commands without `--yes` will wait for user input. The AI agent should:
 
 ## Current Limitations
 
-1. **No Automatic Response**: The system detects prompts but does not automatically respond
-2. **Manual Intervention**: Commands without `--yes` require manual user input
-3. **Cursor Auto-Response**: Cursor might automatically respond to prompts, which could interfere with intended behavior
+1. **Automatic --yes Flag**: All commands automatically include `--yes` flag to avoid interactive prompts
+2. **Limited Interactive Control**: Manual prompt handling is available but not the default behavior
+3. **Database Dependencies**: Commands require valid database connections to complete successfully
 
 ## Best Practices
 
 ### For AI Agents
 
-1. **Use `--yes` flag** for non-interactive commands when possible
+1. **Commands auto-include `--yes`** - no need to manually add it
 2. **Monitor command status** using `get_command_status` for long-running operations
-3. **Check progress logs** for `INTERACTIVE_PROMPT` messages
-4. **Handle timeouts** - commands have a 30-second timeout
+3. **Check progress logs** for execution details and any errors
+4. **Commands can run for hours** - no timeout restrictions
 5. **Use async commands** (`assess_migration_async`) for better user experience
 6. **Stop long-running commands** using `stop_command` when needed
 
@@ -216,7 +217,7 @@ Commands without `--yes` will wait for user input. The AI agent should:
 1. **Test with valid configs** - ensure configuration files are properly formatted
 2. **Monitor progress logs** - they provide detailed execution information
 3. **Handle errors gracefully** - commands may fail due to database connectivity issues
-4. **Use timeout handling** - long-running commands are automatically killed after 30 seconds
+4. **Commands run indefinitely** - no automatic timeout, use `stop_command` to cancel if needed
 
 ## Integration with Cursor
 
