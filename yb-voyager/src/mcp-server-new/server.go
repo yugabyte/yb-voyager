@@ -91,7 +91,7 @@ func (s *Server) registerTools() {
 	s.server.AddTool(
 		mcp.NewTool("assess_migration",
 			mcp.WithDescription("Execute YB Voyager assess-migration command synchronously. This tool will block until the command completes, polling every 2 seconds for status updates. Automatically adds --yes flag to avoid interactive prompts. WARNING: This may take several minutes for large databases. The tool returns complete progress output and final results when finished."),
-			mcp.WithString("config_path", mcp.Description("Path to the config file containing source and assess-migration sections")),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
 			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
 		),
 		s.assessMigrationHandler,
