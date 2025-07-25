@@ -114,32 +114,17 @@ func (ce *CommandExecutor) runCommand(ctx context.Context, command string, confi
 		ce.streamOutput(stderr, result, "stderr")
 	}()
 
-	// Wait for command to complete with timeout
-	done := make(chan error, 1)
-	go func() {
-		done <- cmd.Wait()
-	}()
-
-	select {
-	case err := <-done:
-		wg.Wait()
-		if err != nil {
-			result.Status = "failed"
-			result.Error = err.Error()
-		} else {
-			result.Status = "completed"
-		}
-		result.ExitCode = ce.getExitCode(err)
-		result.Progress = append(result.Progress, fmt.Sprintf("[%s] COMMAND_COMPLETED: Status=%s, ExitCode=%d", time.Now().Format("15:04:05"), result.Status, result.ExitCode))
-
-	case <-time.After(30 * time.Second):
-		cmd.Process.Kill()
-		wg.Wait()
-		result.Status = "timeout"
-		result.Error = "Command timed out after 30 seconds"
-		result.ExitCode = -1
-		result.Progress = append(result.Progress, fmt.Sprintf("[%s] COMMAND_TIMEOUT: Command killed after 30 seconds", time.Now().Format("15:04:05")))
+	// Wait for command to complete
+	err = cmd.Wait()
+	wg.Wait()
+	if err != nil {
+		result.Status = "failed"
+		result.Error = err.Error()
+	} else {
+		result.Status = "completed"
 	}
+	result.ExitCode = ce.getExitCode(err)
+	result.Progress = append(result.Progress, fmt.Sprintf("[%s] COMMAND_COMPLETED: Status=%s, ExitCode=%d", time.Now().Format("15:04:05"), result.Status, result.ExitCode))
 }
 
 // buildCommandArgs builds the command arguments
