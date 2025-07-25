@@ -168,6 +168,16 @@ func (s *Server) registerTools() {
 		s.getSchemaAnalysisReportHandler,
 	)
 
+	// Get config keys for command tool
+	s.server.AddTool(
+		mcp.NewTool("get_config_keys_for_command",
+			mcp.WithDescription("Get all config keys that are relevant to a specific YB Voyager command. Returns global, source/target, and command-specific configuration keys."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file to analyze")),
+			mcp.WithString("command", mcp.Required(), mcp.Description("YB Voyager command (e.g., 'assess-migration', 'export schema', 'import data')")),
+		),
+		s.getConfigKeysForCommandHandler,
+	)
+
 	// Get command status tool
 	s.server.AddTool(
 		mcp.NewTool("get_command_status",
@@ -279,9 +289,10 @@ func (s *Server) assessMigrationHandler(ctx context.Context, req mcp.CallToolReq
 	time.Sleep(2 * time.Second) // Give it some time to start
 
 	response := map[string]interface{}{
-		"message":  "Command executed synchronously with --yes flag to avoid interactive prompts. For better experience with long-running commands, consider using assess_migration_async instead.",
-		"status":   result.Status,
-		"progress": result.Progress,
+		"message":     "Command executed synchronously with --yes flag to avoid interactive prompts. For better experience with long-running commands, consider using assess_migration_async instead.",
+		"status":      result.Status,
+		"progress":    result.Progress,
+		"config_keys": result.ConfigKeys,
 	}
 
 	if result.Error != "" {
@@ -330,6 +341,7 @@ func (s *Server) assessMigrationAsyncHandler(ctx context.Context, req mcp.CallTo
 			"3. Continue monitoring until status becomes 'completed' or 'failed'",
 			"4. Commands automatically include --yes flag to avoid interactive prompts",
 		},
+		"config_keys": result.ConfigKeys,
 	}
 
 	jsonResult, _ := json.MarshalIndent(response, "", "  ")
@@ -363,6 +375,7 @@ func (s *Server) exportSchemaHandler(ctx context.Context, req mcp.CallToolReques
 		"start_time":   result.StartTime.Format(time.RFC3339),
 		"duration":     result.Duration,
 		"exit_code":    result.ExitCode,
+		"config_keys":  result.ConfigKeys,
 	}
 
 	if result.Error != "" {
@@ -411,6 +424,7 @@ func (s *Server) exportSchemaAsyncHandler(ctx context.Context, req mcp.CallToolR
 			"3. Continue monitoring until status becomes 'completed' or 'failed'",
 			"4. Commands automatically include --yes flag to avoid interactive prompts",
 		},
+		"config_keys": result.ConfigKeys,
 	}
 
 	jsonResult, _ := json.MarshalIndent(response, "", "  ")
@@ -745,4 +759,36 @@ func (s *Server) parseSchemaAnalysisReport(reportPath string) (map[string]interf
 	}
 
 	return report, nil
+}
+
+// getConfigKeysForCommandHandler handles requests to get config keys for a specific command
+func (s *Server) getConfigKeysForCommandHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	command, err := req.RequireString("command")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'command': %v", err)), nil
+	}
+
+	// Extract config keys for the command
+	configKeys, err := s.commandExecutor.extractConfigKeysForCommand(command, configPath)
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to extract config keys: %v", err)), nil
+	}
+
+	// Return the config keys as JSON
+	result := map[string]interface{}{
+		"config_path": configPath,
+		"command":     command,
+		"config_keys": configKeys,
+		"timestamp":   time.Now().Format(time.RFC3339),
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
 }
