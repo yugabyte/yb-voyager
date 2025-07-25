@@ -187,6 +187,16 @@ func (s *Server) registerTools() {
 		s.getCommandStatusHandler,
 	)
 
+	// Export data async tool (RECOMMENDED for long-running commands)
+	s.server.AddTool(
+		mcp.NewTool("export_data_async",
+			mcp.WithDescription("Execute YB Voyager export data command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export data sections")),
+			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+		),
+		s.exportDataAsyncHandler,
+	)
+
 	// Stop command tool
 	s.server.AddTool(
 		mcp.NewTool("stop_command",
@@ -759,6 +769,51 @@ func (s *Server) parseSchemaAnalysisReport(reportPath string) (map[string]interf
 	}
 
 	return report, nil
+}
+
+// exportDataAsyncHandler handles async export data requests
+func (s *Server) exportDataAsyncHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	configPath, err := req.RequireString("config_path")
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Missing required parameter 'config_path': %v", err)), nil
+	}
+
+	additionalArgs := req.GetString("additional_args", "")
+
+	// Create a cancellable context for this command
+	cmdCtx, cancel := context.WithCancel(ctx)
+
+	// Execute the export data command asynchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(cmdCtx, "export data", configPath, additionalArgs)
+	if err != nil {
+		cancel() // Clean up the context
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to start export data: %v", err)), nil
+	}
+
+	// Store the running command and cancel function
+	s.mu.Lock()
+	s.runningCommands[result.ExecutionID] = result
+	s.commandContexts[result.ExecutionID] = cancel
+	s.mu.Unlock()
+
+	response := map[string]interface{}{
+		"execution_id": result.ExecutionID,
+		"status":       result.Status,
+		"message":      "Export data command started asynchronously. Use get_command_status to track progress.",
+		"start_time":   result.StartTime.Format(time.RFC3339),
+		"instructions": []string{
+			"1. Use 'get_command_status' with the execution_id to check progress",
+			"2. Monitor the 'progress' array for real-time output",
+			"3. Continue monitoring until status becomes 'completed' or 'failed'",
+			"4. Commands automatically include --yes flag to avoid interactive prompts",
+		},
+		"config_keys": result.ConfigKeys,
+	}
+
+	jsonResult, _ := json.MarshalIndent(response, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
 }
 
 // getConfigKeysForCommandHandler handles requests to get config keys for a specific command
