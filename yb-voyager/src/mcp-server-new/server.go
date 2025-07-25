@@ -78,6 +78,14 @@ func (s *Server) registerTools() {
 		s.parseSQLHandler,
 	)
 
+	// Get YB Voyager binary path tool
+	s.server.AddTool(
+		mcp.NewTool("get_yb_voyager_binary_path",
+			mcp.WithDescription("Get the path to the yb-voyager binary using the 'which' command. Returns detailed information about the binary location, executable permissions, and file details."),
+		),
+		s.getYbVoyagerBinaryPathHandler,
+	)
+
 	// Config schema tool
 	s.server.AddTool(
 		mcp.NewTool("get_config_schema",
@@ -302,6 +310,19 @@ func (s *Server) parseSQLHandler(ctx context.Context, req mcp.CallToolRequest) (
 	}
 
 	jsonResult, _ := json.MarshalIndent(parseResult, "", "  ")
+	return &mcp.CallToolResult{
+		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+	}, nil
+}
+
+// getYbVoyagerBinaryPathHandler handles requests to get the yb-voyager binary path
+func (s *Server) getYbVoyagerBinaryPathHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+	result, err := s.commandExecutor.getYbVoyagerBinaryPath()
+	if err != nil {
+		return mcp.NewToolResultError(fmt.Sprintf("Failed to get yb-voyager binary path: %v", err)), nil
+	}
+
+	jsonResult, _ := json.MarshalIndent(result, "", "  ")
 	return &mcp.CallToolResult{
 		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
 	}, nil

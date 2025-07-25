@@ -49,7 +49,6 @@ func (ce *CommandExecutor) ExecuteCommandAsync(ctx context.Context, command stri
 		// Log the error but don't fail the command
 		log.Warnf("Failed to extract config keys: %v", err)
 	}
-
 	// Create result
 	result := &CommandResult{
 		ExecutionID: ce.generateExecutionID(),
@@ -367,6 +366,26 @@ func (ce *CommandExecutor) findYbVoyagerPath(configPath string) string {
 		return path
 	}
 
+	// Try to find yb-voyager in the project root
+	projectRoot := "/home/ubuntu/yb-voyager/yb-voyager"
+	binaryPath := filepath.Join(projectRoot, "yb-voyager")
+	if utils.FileOrFolderExists(binaryPath) {
+		return binaryPath
+	}
+
+	// Fallback to common locations
+	commonPaths := []string{
+		"/Users/sanyamsinghal/go/bin/yb-voyager",
+		"/usr/local/bin/yb-voyager",
+		"/usr/bin/yb-voyager",
+	}
+
+	for _, path := range commonPaths {
+		if _, err := os.Stat(path); err == nil {
+			return path
+		}
+	}
+
 	// Try to find yb-voyager in current directory
 	currentDir, _ := os.Getwd()
 	localPath := filepath.Join(currentDir, "yb-voyager")
@@ -376,14 +395,7 @@ func (ce *CommandExecutor) findYbVoyagerPath(configPath string) string {
 
 	// Try to find yb-voyager in the same directory as the config file
 	configDir := filepath.Dir(configPath)
-	binaryPath := filepath.Join(configDir, "yb-voyager")
-	if utils.FileOrFolderExists(binaryPath) {
-		return binaryPath
-	}
-
-	// Try to find yb-voyager in the project root
-	projectRoot := "/home/ubuntu/yb-voyager/yb-voyager"
-	binaryPath = filepath.Join(projectRoot, "yb-voyager")
+	binaryPath = filepath.Join(configDir, "yb-voyager")
 	if utils.FileOrFolderExists(binaryPath) {
 		return binaryPath
 	}
