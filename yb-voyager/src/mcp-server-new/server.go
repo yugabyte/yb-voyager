@@ -88,46 +88,45 @@ func (s *Server) registerTools() {
 	)
 
 	// Assess migration tool (synchronous - may block for long-running commands)
-	// TODO: Add this back in when we have a way to handle interactive prompts
-	// s.server.AddTool(
-	// 	mcp.NewTool("assess_migration",
-	// 		mcp.WithDescription("Execute YB Voyager assess-migration command synchronously with automatic --yes flag. WARNING: This may block for long-running commands. Use assess_migration_async for better experience."),
-	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
-	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
-	// 	),
-	// 	s.assessMigrationHandler,
-	// )
-
-	// Assess migration async tool (RECOMMENDED for long-running commands)
 	s.server.AddTool(
-		mcp.NewTool("assess_migration_async",
-			mcp.WithDescription("Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+		mcp.NewTool("assess_migration",
+			mcp.WithDescription("Execute YB Voyager assess-migration command synchronously. This tool will block until the command completes, polling every 2 seconds for status updates. Automatically adds --yes flag to avoid interactive prompts. WARNING: This may take several minutes for large databases. The tool returns complete progress output and final results when finished."),
 			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
-			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
 		),
-		s.assessMigrationAsyncHandler,
+		s.assessMigrationHandler,
 	)
+
+	// TODO: Add this back in when we have a way to handle interactive prompts
+	// Assess migration async tool (RECOMMENDED for long-running commands)
+	// s.server.AddTool(
+	// 	mcp.NewTool("assess_migration_async",
+	// 		mcp.WithDescription("Execute YB Voyager assess-migration command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and assess-migration sections")),
+	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+	// 	),
+	// 	s.assessMigrationAsyncHandler,
+	// )
 
 	// Export schema tool (synchronous)
-	// TODO: Add this back in when we have a way to handle interactive prompts
-	// s.server.AddTool(
-	// 	mcp.NewTool("export_schema",
-	// 		mcp.WithDescription("Execute YB Voyager export schema command synchronously. Automatically adds --yes flag to avoid interactive prompts."),
-	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
-	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
-	// 	),
-	// 	s.exportSchemaHandler,
-	// )
+	s.server.AddTool(
+		mcp.NewTool("export_schema",
+			mcp.WithDescription("Execute YB Voyager export schema command synchronously. This tool will block until the command completes, polling every 2 seconds for status updates. Automatically adds --yes flag to avoid interactive prompts. WARNING: This may take several minutes for large schemas. The tool returns complete progress output and final results when finished."),
+			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
+			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional, --yes is automatically added)")),
+		),
+		s.exportSchemaHandler,
+	)
 
 	// Export schema async tool (RECOMMENDED for long-running commands)
-	s.server.AddTool(
-		mcp.NewTool("export_schema_async",
-			mcp.WithDescription("Execute YB Voyager export schema command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
-			mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
-			mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
-		),
-		s.exportSchemaAsyncHandler,
-	)
+	// s.server.AddTool(
+	// 	mcp.NewTool("export_schema_async",
+	// 		mcp.WithDescription("Execute YB Voyager export schema command asynchronously with real-time output streaming. RECOMMENDED for long-running commands. Returns execution ID for tracking progress. Automatically adds --yes flag to avoid interactive prompts."),
+	// 		mcp.WithString("config_path", mcp.Required(), mcp.Description("Path to the config file containing source and export schema sections")),
+	// 		mcp.WithString("additional_args", mcp.Description("Additional command line arguments (optional)")),
+	// 	),
+	// 	s.exportSchemaAsyncHandler,
+	// )
 
 	// TODO: Add this back in when we have a way to handle interactive prompts
 	// Analyze schema tool (synchronous)
@@ -309,30 +308,76 @@ func (s *Server) assessMigrationHandler(ctx context.Context, req mcp.CallToolReq
 
 	additionalArgs := req.GetString("additional_args", "")
 
-	// Execute the assess-migration command synchronously
-	result, err := s.commandExecutor.ExecuteCommandAsync(ctx, "assess-migration", configPath, additionalArgs)
+	// Create a cancellable context for this command
+	cmdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Execute the assess-migration command asynchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(cmdCtx, "assess-migration", configPath, additionalArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to start assess migration: %v", err)), nil
 	}
 
-	// Wait for completion (this may block for long-running commands)
-	time.Sleep(2 * time.Second) // Give it some time to start
+	// Store the running command and cancel function
+	s.mu.Lock()
+	s.runningCommands[result.ExecutionID] = result
+	s.commandContexts[result.ExecutionID] = cancel
+	s.mu.Unlock()
 
-	response := map[string]interface{}{
-		"message":     "Command executed synchronously with --yes flag to avoid interactive prompts. For better experience with long-running commands, consider using assess_migration_async instead.",
-		"status":      result.Status,
-		"progress":    result.Progress,
-		"config_keys": result.ConfigKeys,
+	// Poll for completion with 2-second intervals
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+			return mcp.NewToolResultError("Command was cancelled by context"), nil
+		case <-ticker.C:
+			// Check command status by directly accessing the CommandResult
+			s.mu.RLock()
+			commandResult, exists := s.runningCommands[result.ExecutionID]
+			s.mu.RUnlock()
+
+			if !exists {
+				return mcp.NewToolResultError(fmt.Sprintf("Command with execution ID '%s' not found", result.ExecutionID)), nil
+			}
+
+			// Check if command has completed
+			if commandResult.Status == "completed" || commandResult.Status == "failed" || commandResult.Status == "timeout" {
+				// Clean up the command from running commands
+				s.mu.Lock()
+				delete(s.runningCommands, result.ExecutionID)
+				delete(s.commandContexts, result.ExecutionID)
+				s.mu.Unlock()
+
+				// Build the complete response
+				response := map[string]interface{}{
+					"execution_id": result.ExecutionID,
+					"status":       commandResult.Status,
+					"message":      "Command completed synchronously",
+					"start_time":   commandResult.StartTime.Format(time.RFC3339),
+					"progress":     commandResult.Progress, // Direct access - no duplicates
+					"config_keys":  commandResult.ConfigKeys,
+				}
+
+				if commandResult.EndTime != nil {
+					response["end_time"] = commandResult.EndTime.Format(time.RFC3339)
+					response["duration"] = commandResult.Duration
+					response["exit_code"] = commandResult.ExitCode
+				}
+
+				if commandResult.Error != "" {
+					response["error"] = commandResult.Error
+				}
+
+				jsonResult, _ := json.MarshalIndent(response, "", "  ")
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+				}, nil
+			}
+		}
 	}
-
-	if result.Error != "" {
-		response["error"] = result.Error
-	}
-
-	jsonResult, _ := json.MarshalIndent(response, "", "  ")
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
-	}, nil
 }
 
 // assessMigrationAsyncHandler handles async assess-migration command requests
@@ -380,7 +425,7 @@ func (s *Server) assessMigrationAsyncHandler(ctx context.Context, req mcp.CallTo
 	}, nil
 }
 
-// exportSchemaHandler handles export-schema requests
+// exportSchemaHandler handles export-schema requests (synchronous)
 func (s *Server) exportSchemaHandler(ctx context.Context, req mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 	configPath, err := req.RequireString("config_path")
 	if err != nil {
@@ -389,33 +434,76 @@ func (s *Server) exportSchemaHandler(ctx context.Context, req mcp.CallToolReques
 
 	additionalArgs := req.GetString("additional_args", "")
 
-	// Execute the export-schema command synchronously
-	result, err := s.commandExecutor.ExecuteCommandAsync(ctx, "export schema", configPath, additionalArgs)
+	// Create a cancellable context for this command
+	cmdCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	// Execute the export schema command asynchronously
+	result, err := s.commandExecutor.ExecuteCommandAsync(cmdCtx, "export schema", configPath, additionalArgs)
 	if err != nil {
 		return mcp.NewToolResultError(fmt.Sprintf("Failed to start export schema: %v", err)), nil
 	}
 
-	// For synchronous execution, we just return the initial result
-	// The command will complete in the background
+	// Store the running command and cancel function
+	s.mu.Lock()
+	s.runningCommands[result.ExecutionID] = result
+	s.commandContexts[result.ExecutionID] = cancel
+	s.mu.Unlock()
 
-	response := map[string]interface{}{
-		"execution_id": result.ExecutionID,
-		"status":       result.Status,
-		"progress":     result.Progress,
-		"start_time":   result.StartTime.Format(time.RFC3339),
-		"duration":     result.Duration,
-		"exit_code":    result.ExitCode,
-		"config_keys":  result.ConfigKeys,
+	// Poll for completion with 2-second intervals
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			// Context was cancelled
+			return mcp.NewToolResultError("Command was cancelled by context"), nil
+		case <-ticker.C:
+			// Check command status by directly accessing the CommandResult
+			s.mu.RLock()
+			commandResult, exists := s.runningCommands[result.ExecutionID]
+			s.mu.RUnlock()
+
+			if !exists {
+				return mcp.NewToolResultError(fmt.Sprintf("Command with execution ID '%s' not found", result.ExecutionID)), nil
+			}
+
+			// Check if command has completed
+			if commandResult.Status == "completed" || commandResult.Status == "failed" || commandResult.Status == "timeout" {
+				// Clean up the command from running commands
+				s.mu.Lock()
+				delete(s.runningCommands, result.ExecutionID)
+				delete(s.commandContexts, result.ExecutionID)
+				s.mu.Unlock()
+
+				// Build the complete response
+				response := map[string]interface{}{
+					"execution_id": result.ExecutionID,
+					"status":       commandResult.Status,
+					"message":      "Export schema command completed synchronously",
+					"start_time":   commandResult.StartTime.Format(time.RFC3339),
+					"progress":     commandResult.Progress, // Direct access - no duplicates
+					"config_keys":  commandResult.ConfigKeys,
+				}
+
+				if commandResult.EndTime != nil {
+					response["end_time"] = commandResult.EndTime.Format(time.RFC3339)
+					response["duration"] = commandResult.Duration
+					response["exit_code"] = commandResult.ExitCode
+				}
+
+				if commandResult.Error != "" {
+					response["error"] = commandResult.Error
+				}
+
+				jsonResult, _ := json.MarshalIndent(response, "", "  ")
+				return &mcp.CallToolResult{
+					Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
+				}, nil
+			}
+		}
 	}
-
-	if result.Error != "" {
-		response["error"] = result.Error
-	}
-
-	jsonResult, _ := json.MarshalIndent(response, "", "  ")
-	return &mcp.CallToolResult{
-		Content: []mcp.Content{mcp.NewTextContent(string(jsonResult))},
-	}, nil
 }
 
 // exportSchemaAsyncHandler handles async export schema requests
