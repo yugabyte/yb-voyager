@@ -12,6 +12,7 @@ import (
 	"sync"
 	"time"
 
+	log "github.com/sirupsen/logrus"
 	"github.com/spf13/viper"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/config"
@@ -20,14 +21,15 @@ import (
 type CommandExecutor struct{}
 
 type CommandResult struct {
-	ExecutionID string     `json:"execution_id"`
-	Status      string     `json:"status"` // "running", "completed", "failed", "timeout"
-	Progress    []string   `json:"progress"`
-	Error       string     `json:"error,omitempty"`
-	StartTime   time.Time  `json:"start_time"`
-	EndTime     *time.Time `json:"end_time,omitempty"`
-	Duration    string     `json:"duration,omitempty"`
-	ExitCode    int        `json:"exit_code"`
+	ExecutionID string                 `json:"execution_id"`
+	Status      string                 `json:"status"` // "running", "completed", "failed", "timeout"
+	Progress    []string               `json:"progress"`
+	Error       string                 `json:"error,omitempty"`
+	StartTime   time.Time              `json:"start_time"`
+	EndTime     *time.Time             `json:"end_time,omitempty"`
+	Duration    string                 `json:"duration,omitempty"`
+	ExitCode    int                    `json:"exit_code"`
+	ConfigKeys  map[string]interface{} `json:"config_keys,omitempty"` // Config keys used by this command
 }
 
 func NewCommandExecutor() *CommandExecutor {
@@ -41,12 +43,20 @@ func (ce *CommandExecutor) ExecuteCommandAsync(ctx context.Context, command stri
 		return nil, fmt.Errorf("config validation failed: %w", err)
 	}
 
+	// Extract config keys used by this command
+	configKeys, err := ce.extractConfigKeysForCommand(command, configPath)
+	if err != nil {
+		// Log the error but don't fail the command
+		log.Warnf("Failed to extract config keys: %v", err)
+	}
+
 	// Create result
 	result := &CommandResult{
 		ExecutionID: ce.generateExecutionID(),
 		Status:      "running",
 		Progress:    make([]string, 0),
 		StartTime:   time.Now(),
+		ConfigKeys:  configKeys,
 	}
 
 	// Start command execution in background
@@ -257,15 +267,15 @@ func (ce *CommandExecutor) getRequiredSectionsForCommand(command string) []strin
 
 	switch normalizedCommand {
 	case "assess-migration":
-		return []string{"source", "assess-migration"}
+		return []string{"source"} // assess-migration section is optional
 	case "export schema":
 		return []string{"source"} // export-schema section is optional
 	case "export data":
 		return []string{"source"} // export-data section is optional
 	case "import schema":
-		return []string{"target", "import-schema"}
+		return []string{"target"} // import-schema section is optional
 	case "import data":
-		return []string{"target", "import-data"}
+		return []string{"target"} // import-data section is optional
 	case "analyze-schema":
 		return []string{"source"} // analyze-schema section is optional
 	default:
@@ -275,10 +285,11 @@ func (ce *CommandExecutor) getRequiredSectionsForCommand(command string) []strin
 
 // sectionExists checks if a section exists in the config
 func (ce *CommandExecutor) sectionExists(configInfo map[string]interface{}, section string) bool {
-	if sections, ok := configInfo["sections"].(map[string]interface{}); ok {
-		_, exists := sections[section]
+	// If sections is a map, check if the section exists
+	if _, exists := configInfo[section].(map[string]interface{}); exists {
 		return exists
 	}
+	// If sections is not a map, return false
 	return false
 }
 
@@ -321,17 +332,32 @@ func (ce *CommandExecutor) getConfigInfo(configPath string) (map[string]interfac
 	sections := make(map[string]interface{})
 
 	for _, key := range allKeys {
+		// If the key is in a section
 		parts := strings.Split(key, ".")
 		if len(parts) > 0 {
 			section := parts[0]
-			sections[section] = true
+
+			// Initialize section if it doesn't exist
+			if sections[section] == nil {
+				sections[section] = make(map[string]interface{})
+			}
+
+			// Get the value for this key
+			value := v.Get(key)
+			sections[section].(map[string]interface{})[key] = value
+		}
+		// if key is not in a section, include it as a global key
+		if len(parts) == 1 {
+			// Add it to the global section
+			// If the global section doesn't exist, create it
+			if sections["global"] == nil {
+				sections["global"] = make(map[string]interface{})
+			}
+			sections["global"].(map[string]interface{})[key] = v.Get(key)
 		}
 	}
 
-	return map[string]interface{}{
-		"path":     configPath,
-		"sections": sections,
-	}, nil
+	return sections, nil
 }
 
 // findYbVoyagerPath finds the path to the yb-voyager executable
@@ -382,4 +408,52 @@ func (ce *CommandExecutor) getExitCode(err error) int {
 // formatDuration formats a duration
 func (ce *CommandExecutor) formatDuration(d time.Duration) string {
 	return d.String()
+}
+
+// extractConfigKeysForCommand extracts config keys relevant to a specific command
+func (ce *CommandExecutor) extractConfigKeysForCommand(command string, configPath string) (map[string]interface{}, error) {
+	// Load config
+	configInfo, err := ce.getConfigInfo(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load config: %w", err)
+	}
+
+	normalizedCommand := ce.normalizeCommand(command)
+	relevantKeys := make(map[string]interface{})
+
+	// Always include global keys (top-level keys like export-dir, log-level, etc.)
+	// Get all the keys in the global section
+	globalKeys := configInfo["global"].(map[string]interface{})
+	for key, value := range globalKeys {
+		relevantKeys[key] = value
+	}
+
+	// Add source keys for commands that need source database
+	switch normalizedCommand {
+	case "assess-migration", "export schema", "export data", "analyze-schema":
+		if sourceKeys, exists := configInfo["source"]; exists {
+			relevantKeys["source"] = sourceKeys
+		}
+		// Add command-specific keys if they exist (using hyphenated section names)
+		hyphenatedCommand := strings.ReplaceAll(normalizedCommand, " ", "-")
+		if cmdKeys, exists := configInfo[hyphenatedCommand]; exists {
+			relevantKeys[hyphenatedCommand] = cmdKeys
+		}
+	case "import schema", "import data":
+		if targetKeys, exists := configInfo["target"]; exists {
+			relevantKeys["target"] = targetKeys
+		}
+		// Add command-specific keys if they exist (using hyphenated section names)
+		hyphenatedCommand := strings.ReplaceAll(normalizedCommand, " ", "-")
+		if cmdKeys, exists := configInfo[hyphenatedCommand]; exists {
+			relevantKeys[hyphenatedCommand] = cmdKeys
+		}
+	default:
+		// For unknown commands, include all sections
+		for section, keys := range configInfo {
+			relevantKeys[section] = keys
+		}
+	}
+
+	return relevantKeys, nil
 }

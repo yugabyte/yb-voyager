@@ -1,8 +1,32 @@
 export-dir: /tmp/test_export
+
 source:
-  type: postgresql
   host: localhost
   port: 5432
   database: testdb
   username: testuser
-  password: testpass 
+  password: testpass
+
+target:
+  host: localhost
+  port: 5433
+  database: targetdb
+  username: yugabyte
+  password: yugabyte
+
+export-schema:
+  exclude-table-list: "temp_*,log_*"
+  start-clean: false
+
+export-data:
+  parallel-jobs: 4
+  table-list: "users,orders,products"
+  export-type: snapshot-only
+
+import-schema:
+  start-clean: true
+
+import-data:
+  parallel-jobs: 2
+  batch-size: 20000
+  enable-upsert: false 
