@@ -35,8 +35,9 @@
          .scrollable-div {
             max-height: 300px;
             overflow-y: scroll;
-            border: 1px solid #ccc; /* a visual separator from the body */
+            border: 1px solid #ddd;
             padding: 10px;
+            border-radius: 4px;
             scrollbar-width: thin; /* Firefox */
             -ms-overflow-style: auto; /* IE 10+ */
          }
@@ -75,9 +76,10 @@
             overflow-wrap: break-word;
         }
 
-        th {
-            background-color: #f2f2f2;
-        }
+         th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #ddd;
+         }
 
         .formatted_table tr:nth-child(even) {
             background-color: #f9f9f9;
@@ -101,15 +103,15 @@
             -ms-overflow-style: auto; /* IE 10+ */
         }
 
-        .scrollable-div::-webkit-scrollbar {
+         .scrollable-div::-webkit-scrollbar {
             width: 8px;
-            background: #f2f2f2;
-        }
-
-        .scrollable-div::-webkit-scrollbar-thumb {
-            background: #ccc;
+            background: #f8f9fa;
+         }
+         
+         .scrollable-div::-webkit-scrollbar-thumb {
+            background: #ddd;
             border-radius: 4px;
-        }
+         }
 
         .no-wrap-list li {
             white-space: nowrap;
@@ -224,8 +226,8 @@
             word-spacing: 0.2em;
         }
 
-        /* Category and Arrow Styles */
-        .category-cell-flex {
+                 /* Category and Arrow Styles */
+         .category-cell-flex {
             display: flex;
             align-items: center;
             gap: 0.5em;
@@ -233,12 +235,45 @@
             padding-left: 0.5em;
             box-sizing: border-box;
             margin: 0;
-        }
+         }
+         
+         /* Details Styling - matching footer box style */
+         details {
+            margin: 1.5rem 0;
+         }
+         
+         summary {
+            cursor: pointer;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #;
+            font-weight: 600;
+            color: #333;
+            border: 1px solid #ddd;
+         }
+         
+         summary:hover {
+            background: #e9ecef;
+         }
+         
+         details[open] summary {
+            border-bottom-left-radius: 0;
+            border-bottom-right-radius: 0;
+            border-bottom: none;
+         }
+         
+         details > div {
+            padding: 1rem;
+            border-radius: 0 0 8px 8px;
+            border: 1px solid #ddd;
+            border-top: none;
+         }
       </style>
    </head>
    <body>
       <div class="wrapper">
-         <h1>Schema Optimization Summary</h1>
+         <h1 style="text-align:center">Schema Optimization Summary</h1>
          <div class="section">
             <p><strong>Voyager Version:</strong> {{.VoyagerVersion}}</p>
             <p><strong>Source DB Name:</strong> {{.SourceDatabaseName}}</p>
@@ -345,6 +380,21 @@
                <p> {{.SecondaryIndexToRangeChange.Description}}</p>
                <p> Refer to the <a class="file-link" href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank"> {{.SecondaryIndexToRangeChange.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
             {{ end }}
+         </div>
+         
+         <!-- Footer Note -->
+         <div class="footer-note">
+            <hr style="margin: 2rem 0; border: none; border-top: 1px solid #ddd;">
+            <div style="background-color: #f8f9fa; padding: 1rem; border-radius: 8px;">
+               <h4 style="margin: 0 0 0.5rem 0; color: #333; font-size: 1rem;">Note: Skipping Schema Modifications</h4>
+               <p style="margin: 0; color: #666; font-size: 0.9rem; line-height: 1.4;">
+                  To prevent automatic schema modifications during export, use these flags:
+               </p>
+               <ul style="margin: 0.5rem 0 0 0; padding-left: 1.5rem; color: #666; font-size: 0.9rem;">
+                  <li><strong>--skip-performance-optimizations true</strong> - Skip performance optimizations (e.g. redundant index removal)</li>
+                  <li><strong>--skip-recommendations true</strong> - Skip sharding recommendations from assessment</li>
+               </ul>
+            </div>
          </div>
       </div>
    </body>
