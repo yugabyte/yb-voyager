@@ -536,16 +536,7 @@ func (a *SqlAnonymizer) handleCollationObjectNodes(msg protoreflect.Message) (er
 					arg:{type_name:{names:{string:{sval:"icu"}} typemod:-1 location:43}} defaction:DEFELEM_UNSPEC location:32}} definition:{def_elem:{defname:"locale" arg:{string:{sval:"und"}} ...}}}
 	*/
 	case queryparser.PG_QUERY_DEFINE_STMT_NODE:
-		ds, err := mustProtoNode(queryparser.ProtoAsDefineStmtNode, msg, "DefineStmt")
-		if err != nil {
-			return err
-		}
-
-		if ds.Kind != pg_query.ObjectType_OBJECT_COLLATION {
-			return nil // not a collation DDL, skip
-		}
-
-		err = a.anonymizeStringNodes(ds.Defnames, COLLATION_KIND_PREFIX)
+		_, err = a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_COLLATION, COLLATION_KIND_PREFIX)
 		if err != nil {
 			return fmt.Errorf("anon collation create: %w", err)
 		}
@@ -1362,13 +1353,12 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 		return nil
 	}
 
-	ds, err := mustProtoNode(queryparser.ProtoAsDefineStmtNode, msg, "DefineStmt")
+	ds, err := a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_AGGREGATE, AGGREGATE_KIND_PREFIX)
 	if err != nil {
-		return err
+		return fmt.Errorf("anon aggregate name: %w", err)
 	}
-
-	if ds.Kind != pg_query.ObjectType_OBJECT_AGGREGATE {
-		return nil
+	if ds == nil {
+		return nil // not an aggregate, skip
 	}
 
 	/*
@@ -1379,12 +1369,6 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 					arg:{type_name:{names:{string:{sval:"sales"}}  names:{string:{sval:"add_order"}}}}}}
 					definition:{def_elem:{defname:"stype"  arg:{type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}}} }}}}
 	*/
-
-	// Anonymize the aggregate name
-	err = a.anonymizeStringNodes(ds.Defnames, AGGREGATE_KIND_PREFIX)
-	if err != nil {
-		return fmt.Errorf("anon aggregate name: %w", err)
-	}
 
 	// Process function references in the definition
 	if ds.Definition == nil {
@@ -1435,24 +1419,16 @@ func (a *SqlAnonymizer) handleOperatorObjectNodes(msg protoreflect.Message) (err
 		SQL:		CREATE OPERATOR sales.=# (LEFTARG = int4, RIGHTARG = int4, PROCEDURE = int4_abs_eq, COMMUTATOR = =#);
 		ParseTree:	stmt:{define_stmt:{kind:OBJECT_OPERATOR defnames:{string:{sval:"sales"}} defnames:{string:{sval:"=#"}}
 					definition:{def_elem:{defname:"leftarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:36}} defaction:DEFELEM_UNSPEC location:26}}
-					definition:{def_elem:{defname:"rightarg" arg:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:53}} defaction:DEFELEM_UNSPEC location:42}}
+					definition:{def_elem:{defname:"rightarg" argq:{type_name:{names:{string:{sval:"int4"}} typemod:-1 location:53}} defaction:DEFELEM_UNSPEC location:42}}
 					definition:{def_elem:{defname:"procedure" arg:{type_name:{names:{string:{sval:"int4_abs_eq"}} typemod:-1 location:71}} defaction:DEFELEM_UNSPEC location:59}}
 					definition:{def_elem:{defname:"commutator" arg:{type_name:{names:{string:{sval:"=#"}} typemod:-1 location:88}} defaction:DEFELEM_UNSPEC location:76}}}}
 	*/
-	ds, err := mustProtoNode(queryparser.ProtoAsDefineStmtNode, msg, "DefineStmt")
-	if err != nil {
-		return nil // Not a DefineStmt, skip
-	}
-
-	// Only process if it's an operator definition
-	if ds.Kind != pg_query.ObjectType_OBJECT_OPERATOR {
-		return nil
-	}
-
-	// Anonymize the operator name (qualified: schema.operator_name)
-	err = a.anonymizeStringNodes(ds.GetDefnames(), OPERATOR_KIND_PREFIX)
+	ds, err := a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_OPERATOR, OPERATOR_KIND_PREFIX)
 	if err != nil {
 		return fmt.Errorf("anon operator name: %w", err)
+	}
+	if ds == nil {
+		return nil // not an operator, skip
 	}
 
 	// Process definition elements
@@ -1608,14 +1584,25 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 
 // ========================= Anonymization Helpers =========================
 
-// mustProtoNode is a helper to check proto node extraction and return a clear error if the type is wrong.
-func mustProtoNode[T any](extractFunc func(protoreflect.Message) (T, bool), msg protoreflect.Message, expected string) (T, error) {
-	node, ok := extractFunc(msg)
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("expected %s, got %T", expected, msg.Interface())
+// handleDefineStmtWithReturn is a common handler for DefineStmt nodes that can handle different object types
+// based on the provided object type and prefix. Returns the DefineStmt for additional processing if needed.
+func (a *SqlAnonymizer) handleDefineStmtWithReturn(msg protoreflect.Message, expectedObjectType pg_query.ObjectType, objectPrefix string) (*pg_query.DefineStmt, error) {
+	ds, err := mustProtoNode(queryparser.ProtoAsDefineStmtNode, msg, "DefineStmt")
+	if err != nil {
+		return nil, err
 	}
-	return node, nil
+
+	if ds.Kind != expectedObjectType {
+		return nil, nil // not the expected object type, skip
+	}
+
+	// Anonymize the object name
+	err = a.anonymizeStringNodes(ds.Defnames, objectPrefix)
+	if err != nil {
+		return nil, fmt.Errorf("anon %s name: %w", expectedObjectType, err)
+	}
+
+	return ds, nil
 }
 
 // anonymizeStringNodes walks a slice of *pg_query.Node whose concrete
@@ -1715,4 +1702,14 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 		return fmt.Errorf("anon coldef: %w", err)
 	}
 	return nil
+}
+
+// mustProtoNode is a helper to check proto node extraction and return a clear error if the type is wrong.
+func mustProtoNode[T any](extractFunc func(protoreflect.Message) (T, bool), msg protoreflect.Message, expected string) (T, error) {
+	node, ok := extractFunc(msg)
+	if !ok {
+		var zero T
+		return zero, fmt.Errorf("expected %s, got %T", expected, msg.Interface())
+	}
+	return node, nil
 }
