@@ -319,6 +319,8 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 		UseOrafce:              bool(source.UseOrafce),
 		CommentsOnObjects:      bool(source.CommentsOnObjects),
 		Error:                  callhome.SanitizeErrorMsg(errorMsg),
+		SkipRecommendations:    bool(skipRecommendations),
+		SkipPerfOptimizations:  bool(skipPerfOptimizations),
 		ControlPlaneType:       getControlPlaneType(),
 	}
 
