@@ -42,10 +42,11 @@ type ColumnMetadata struct {
 	IsArray                bool
 	IsUserDefinedType      bool
 
-	IsForeignKey         bool
-	ReferencedTable      string
-	ReferencedColumn     string
-	ReferencedColumnType string
+	IsForeignKey             bool
+	ReferencedTable          string
+	ReferencedColumn         string
+	ReferencedColumnType     string  // Stores the base type (e.g., "varchar", "numeric")
+	ReferencedColumnTypeMods []int32 // Stores the type modifiers (e.g., [255] for varchar(255), [8,2] for numeric(8,2))
 }
 
 // foreignKeyConstraint represents a foreign key relationship defined in the schema.
@@ -186,7 +187,8 @@ func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[stri
 				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
 					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
 				}
-				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
+				// Apply SQL type name transformation for user-facing output
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = utils.GetSQLTypeName(meta.DataType)
 			}
 		}
 	}
@@ -205,7 +207,8 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
 					columnsWithHotspotRangeIndexesDatatypes[tableName] = make(map[string]string)
 				}
-				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = meta.DataType
+				// Apply SQL type name transformation for user-facing output
+				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = utils.GetSQLTypeName(meta.DataType)
 			}
 		}
 	}
@@ -420,8 +423,9 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 				meta.ReferencedColumn = refCol
 
 				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
-					// Store the referenced column datatype with modifiers
-					meta.ReferencedColumnType = utils.ApplyModifiersToDatatype(refMeta.DataType, refMeta.DataTypeMods)
+					// Store the referenced column type and modifiers separately for accurate comparison
+					meta.ReferencedColumnType = refMeta.DataType
+					meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
@@ -504,8 +508,8 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				p.columnMetadata[tableName][col.ColumnName] = meta
 			}
 
-			// Always update the full type name
-			meta.DataType = utils.GetSQLTypeName(col.TypeName)
+			// Store the original type name from parse tree
+			meta.DataType = col.TypeName
 			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
