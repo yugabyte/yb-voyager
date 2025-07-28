@@ -36,19 +36,41 @@ const (
 	MEMORY_TOTAL_METRIC                            = "memory_total"
 	MEMORY_AVAILABLE_METRIC                        = "memory_available"
 	MIN_PARALLELISM                                = 1
-	DEFAULT_MAX_CPU_THRESHOLD                      = 80
+	DEFAULT_MAX_CPU_HARD_THRESHOLD                 = 90
+	DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH            = 80
+	DEFAULT_MAX_CPU_HARD_THRESHOLD_LOW             = 70
+	DEFAULT_CPU_SOFT_THRESHOLD_WINDOW              = 3
 	DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = 10
 	DEFAULT_MIN_AVAILABLE_MEMORY_THRESHOLD         = 10
+	CPU_USAGE_UNKNOWN                              = -1
+	CPU_LOAD_HIGH                                  = "HIGH"
+	CPU_LOAD_OK                                    = "OK"
+	CPU_LOAD_LOW                                   = "LOW"
 )
 
-var MAX_CPU_THRESHOLD int
+var MAX_CPU_HARD_THRESHOLD int
+var MAX_CPU_SOFT_THRESHOLD_HIGH int
+var MAX_CPU_HARD_THRESHOLD_LOW int
+var CPU_SOFT_THRESHOLD_WINDOW int
 var ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS int
 var MIN_AVAILABLE_MEMORY_THRESHOLD int
 
 func readConfig() {
-	MAX_CPU_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_THRESHOLD", DEFAULT_MAX_CPU_THRESHOLD)
-	if MAX_CPU_THRESHOLD != DEFAULT_MAX_CPU_THRESHOLD {
-		utils.PrintAndLog("Using MAX_CPU_THRESHOLD: %d", MAX_CPU_THRESHOLD)
+	MAX_CPU_HARD_THRESHOLD = utils.GetEnvAsInt("MAX_CPU_HARD_THRESHOLD", DEFAULT_MAX_CPU_HARD_THRESHOLD)
+	if MAX_CPU_HARD_THRESHOLD != DEFAULT_MAX_CPU_HARD_THRESHOLD {
+		utils.PrintAndLog("Using MAX_CPU_HARD_THRESHOLD: %d", MAX_CPU_HARD_THRESHOLD)
+	}
+	MAX_CPU_SOFT_THRESHOLD_HIGH = utils.GetEnvAsInt("MAX_CPU_SOFT_THRESHOLD_HIGH", DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH)
+	if MAX_CPU_SOFT_THRESHOLD_HIGH != DEFAULT_MAX_CPU_SOFT_THRESHOLD_HIGH {
+		utils.PrintAndLog("Using MAX_CPU_SOFT_THRESHOLD_HIGH: %d", MAX_CPU_SOFT_THRESHOLD_HIGH)
+	}
+	MAX_CPU_HARD_THRESHOLD_LOW = utils.GetEnvAsInt("MAX_CPU_HARD_THRESHOLD_LOW", DEFAULT_MAX_CPU_HARD_THRESHOLD_LOW)
+	if MAX_CPU_HARD_THRESHOLD_LOW != DEFAULT_MAX_CPU_HARD_THRESHOLD_LOW {
+		utils.PrintAndLog("Using MAX_CPU_HARD_THRESHOLD_LOW: %d", MAX_CPU_HARD_THRESHOLD_LOW)
+	}
+	CPU_SOFT_THRESHOLD_WINDOW = utils.GetEnvAsInt("CPU_SOFT_THRESHOLD_WINDOW", DEFAULT_CPU_SOFT_THRESHOLD_WINDOW)
+	if CPU_SOFT_THRESHOLD_WINDOW != DEFAULT_CPU_SOFT_THRESHOLD_WINDOW {
+		utils.PrintAndLog("Using CPU_SOFT_THRESHOLD_WINDOW: %d", CPU_SOFT_THRESHOLD_WINDOW)
 	}
 	ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS = utils.GetEnvAsInt("ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS", DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS)
 	if ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS != DEFAULT_ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS {
@@ -68,6 +90,32 @@ type TargetYugabyteDBWithConnectionPool interface {
 	UpdateNumConnectionsInPool(int) error // (delta)
 }
 
+type ParallelismAdapter struct {
+	yb                          TargetYugabyteDBWithConnectionPool
+	minParallelism              int
+	maxParallelism              int
+	maxCpuHardThreshold         int
+	maxCpuSoftThresholdHigh     int
+	maxCpuHardThresholdLow      int
+	cpuSoftThresholdWindow      int
+	minAvailableMemoryThreshold int
+	cpuHistory                  map[string][]int // node_uuid -> []cpu_percentages
+}
+
+func NewParallelismAdapter(yb TargetYugabyteDBWithConnectionPool, minParallelism, maxParallelism, maxCpuHardThreshold, maxCpuSoftThresholdHigh, maxCpuHardThresholdLow, cpuSoftThresholdWindow, minAvailableMemoryThreshold int) *ParallelismAdapter {
+	return &ParallelismAdapter{
+		yb:                          yb,
+		minParallelism:              minParallelism,
+		maxParallelism:              maxParallelism,
+		maxCpuHardThreshold:         maxCpuHardThreshold,
+		maxCpuSoftThresholdHigh:     maxCpuSoftThresholdHigh,
+		maxCpuHardThresholdLow:      maxCpuHardThresholdLow,
+		cpuSoftThresholdWindow:      cpuSoftThresholdWindow,
+		minAvailableMemoryThreshold: minAvailableMemoryThreshold,
+		cpuHistory:                  make(map[string][]int),
+	}
+}
+
 var ErrAdaptiveParallelismNotSupported = fmt.Errorf("adaptive parallelism not supported in target YB database")
 
 func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
@@ -75,95 +123,203 @@ func AdaptParallelism(yb TargetYugabyteDBWithConnectionPool) error {
 		return ErrAdaptiveParallelismNotSupported
 	}
 	readConfig()
+	adapter := NewParallelismAdapter(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool(), MAX_CPU_HARD_THRESHOLD, MAX_CPU_SOFT_THRESHOLD_HIGH, MAX_CPU_HARD_THRESHOLD_LOW, CPU_SOFT_THRESHOLD_WINDOW, MIN_AVAILABLE_MEMORY_THRESHOLD)
 	for {
 		time.Sleep(time.Duration(ADAPTIVE_PARALLELISM_FREQUENCY_SECONDS) * time.Second)
-		err := fetchClusterMetricsAndUpdateParallelism(yb, MIN_PARALLELISM, yb.GetNumMaxConnectionsInPool())
+		err := adapter.FetchClusterMetricsAndUpdateParallelism()
 		if err != nil {
 			log.Warnf("adaptive: error updating parallelism: %v", err)
 		}
 	}
 }
 
-func fetchClusterMetricsAndUpdateParallelism(yb TargetYugabyteDBWithConnectionPool, minParallelism int, maxParallelism int) error {
-	clusterMetrics, err := yb.GetClusterMetrics()
+func (pa *ParallelismAdapter) FetchClusterMetricsAndUpdateParallelism() error {
+	clusterMetrics, err := pa.yb.GetClusterMetrics()
 	log.Infof("adaptive: clusterMetrics: %v", spew.Sdump(clusterMetrics)) // TODO: move to debug?
 	if err != nil {
 		return fmt.Errorf("getting cluster metrics: %w", err)
 	}
 
-	cpuLoadHigh, err := isCpuLoadHigh(clusterMetrics)
+	pa.updateCpuHistory(clusterMetrics)
+
+	cpuLoadState, err := pa.getCpuLoadState(clusterMetrics)
 	if err != nil {
-		return fmt.Errorf("checking if cpu load is high: %w", err)
+		return fmt.Errorf("checking cpu load state: %w", err)
 	}
-	memLoadHigh, err := isMemoryLoadHigh(clusterMetrics)
+	memLoadHigh, err := pa.isMemoryLoadHigh(clusterMetrics)
 	if err != nil {
 		return fmt.Errorf("checking if memory load is high: %w", err)
 	}
 
-	if cpuLoadHigh || memLoadHigh {
+	if cpuLoadState == CPU_LOAD_HIGH || memLoadHigh {
 		deltaParallelism := -1
-		if (yb.GetNumConnectionsInPool() + deltaParallelism) < minParallelism {
-			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
-				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, minParallelism)
+		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) < pa.minParallelism {
+			log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, not reducing parallelism to %d as it will become less than minParallelism %d",
+				cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.minParallelism)
 			return nil
 		}
 
-		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, reducing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
-		err = yb.UpdateNumConnectionsInPool(deltaParallelism)
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, reducing parallelism to %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		err = pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with -1: %w", err)
 		}
-	} else {
+	} else if cpuLoadState == CPU_LOAD_LOW {
 		deltaParallelism := 1
-		if (yb.GetNumConnectionsInPool() + deltaParallelism) > maxParallelism {
-			log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
-				cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism, maxParallelism)
+		if (pa.yb.GetNumConnectionsInPool() + deltaParallelism) > pa.maxParallelism {
+			log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, not increasing parallelism to %d as it will become more than maxParallelism %d",
+				cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism, pa.maxParallelism)
 			return nil
 		}
 
-		log.Infof("adaptive: cpuLoadHigh=%t, memLoadHigh=%t, increasing parallelism to %d",
-			cpuLoadHigh, memLoadHigh, yb.GetNumConnectionsInPool()+deltaParallelism)
-		err := yb.UpdateNumConnectionsInPool(deltaParallelism)
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, increasing parallelism to %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool()+deltaParallelism)
+		err := pa.yb.UpdateNumConnectionsInPool(deltaParallelism)
 		if err != nil {
 			return fmt.Errorf("updating parallelism with +1 : %w", err)
 		}
+	} else {
+		// CPU_LOAD_OK - maintain current parallelism
+		log.Infof("adaptive: cpuLoadState=%s, memLoadHigh=%t, maintaining current parallelism %d",
+			cpuLoadState, memLoadHigh, pa.yb.GetNumConnectionsInPool())
 	}
 	return nil
 }
 
-func isCpuLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) getCpuLoadState(clusterMetrics map[string]tgtdb.NodeMetrics) (string, error) {
+	// Check hard threshold first (immediate response)
+	// hardThresholdBreached, err := pa.checkHardCpuBreach(clusterMetrics)
+	// if err != nil {
+	// 	return "", fmt.Errorf("checking hard cpu threshold: %w", err)
+	// }
+	// if hardThresholdBreached {
+	// 	return CPU_LOAD_HIGH, nil
+	// }
+
+	// Check soft threshold (trend-based response)
+	softThresholdBreached, err := pa.checkSoftCpuBreach(clusterMetrics)
+	if err != nil {
+		return "", fmt.Errorf("checking soft cpu threshold: %w", err)
+	}
+	if softThresholdBreached {
+		return CPU_LOAD_HIGH, nil
+	}
+
+	// Check if CPU load is consistently low
+	cpuLoadLow, err := pa.checkCpuLoadLow(clusterMetrics)
+	if err != nil {
+		return "", fmt.Errorf("checking cpu load low: %w", err)
+	}
+	if cpuLoadLow {
+		return CPU_LOAD_LOW, nil
+	}
+
+	return CPU_LOAD_OK, nil
+}
+
+func (pa *ParallelismAdapter) checkHardCpuBreach(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	// get max CPU
 	// Note that right now, voyager ingests data into the target in parallel,
 	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
 	// either due to pre-split or colocated table, it is possible that the load on the cluster
 	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
 	// therefore we use the max CPU usage across all nodes in the cluster.
-	maxCpuUsagePct, err := getMaxCpuUsageInCluster(clusterMetrics)
+	maxCpuUsagePct, err := pa.getMaxCpuUsageInCluster(clusterMetrics)
 	if err != nil {
 		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
 	}
-	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu threshold = %d", maxCpuUsagePct, MAX_CPU_THRESHOLD)
-	return maxCpuUsagePct > MAX_CPU_THRESHOLD, nil
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu hard threshold = %d", maxCpuUsagePct, pa.maxCpuHardThreshold)
+	return maxCpuUsagePct > pa.maxCpuHardThreshold, nil
 }
 
-func getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
+func (pa *ParallelismAdapter) checkSoftCpuBreach(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	for nodeUUID, history := range pa.cpuHistory {
+		if len(history) < pa.cpuSoftThresholdWindow {
+			// Not enough data for this node
+			continue
+		}
+
+		allAbove := true
+		for _, cpu := range history {
+			if cpu == CPU_USAGE_UNKNOWN {
+				allAbove = false
+				break
+			}
+			if cpu <= pa.maxCpuSoftThresholdHigh {
+				allAbove = false
+				break
+			}
+		}
+
+		if allAbove {
+			log.Infof("adaptive: node %s soft cpu threshold breached: last %d readings = %v, soft threshold = %d", nodeUUID, pa.cpuSoftThresholdWindow, history, pa.maxCpuSoftThresholdHigh)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+func (pa *ParallelismAdapter) checkCpuLoadLow(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+	// get max CPU
+	// Note that right now, voyager ingests data into the target in parallel,
+	// but one table at a time. Therefore, in cases where there is a single tablet for a table,
+	// either due to pre-split or colocated table, it is possible that the load on the cluster
+	// will be uneven. Nevertheless, we still want to ensure that the cluster is not overloaded,
+	// therefore we use the max CPU usage across all nodes in the cluster.
+	maxCpuUsagePct, err := pa.getMaxCpuUsageInCluster(clusterMetrics)
+	if err != nil {
+		return false, fmt.Errorf("getting max cpu usage in cluster: %w", err)
+	}
+	log.Infof("adaptive: max cpu usage in cluster = %d, max cpu hard threshold low = %d", maxCpuUsagePct, pa.maxCpuHardThresholdLow)
+	return maxCpuUsagePct < pa.maxCpuHardThresholdLow, nil
+}
+
+func (pa *ParallelismAdapter) updateCpuHistory(clusterMetrics map[string]tgtdb.NodeMetrics) {
+	// Clean up history for nodes no longer in cluster
+	for nodeUUID := range pa.cpuHistory {
+		if _, exists := clusterMetrics[nodeUUID]; !exists {
+			delete(pa.cpuHistory, nodeUUID)
+		}
+	}
+
+	// Update history for current nodes
+	for nodeUUID, nodeMetrics := range clusterMetrics {
+		var cpuUsagePct int
+
+		if nodeMetrics.Status != "OK" {
+			cpuUsagePct = CPU_USAGE_UNKNOWN
+		} else {
+			cpuUsagePctFloat, err := nodeMetrics.GetCPUPercent()
+			if err != nil {
+				log.Warnf("adaptive: error getting cpu usage for node %s: %v", nodeUUID, err)
+				cpuUsagePct = CPU_USAGE_UNKNOWN
+			} else {
+				cpuUsagePct = int(cpuUsagePctFloat)
+			}
+		}
+
+		// Add current CPU reading to history
+		pa.cpuHistory[nodeUUID] = append(pa.cpuHistory[nodeUUID], cpuUsagePct)
+
+		// Limit history to window size
+		if len(pa.cpuHistory[nodeUUID]) > pa.cpuSoftThresholdWindow {
+			pa.cpuHistory[nodeUUID] = pa.cpuHistory[nodeUUID][len(pa.cpuHistory[nodeUUID])-pa.cpuSoftThresholdWindow:]
+		}
+	}
+}
+
+func (pa *ParallelismAdapter) getMaxCpuUsageInCluster(clusterMetrics map[string]tgtdb.NodeMetrics) (int, error) {
 	maxCpuPct := -1
 	for _, nodeMetrics := range clusterMetrics {
 		if nodeMetrics.Status != "OK" {
 			continue
 		}
-		cpuUsageUser, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_USER_METRIC], 64)
+		cpuUsagePct, err := nodeMetrics.GetCPUPercent()
 		if err != nil {
-			return -1, fmt.Errorf("parsing cpu usage user as float: %w", err)
+			return -1, fmt.Errorf("getting cpu usage for node %s: %w", nodeMetrics.UUID, err)
 		}
-		cpuUsageSystem, err := strconv.ParseFloat(nodeMetrics.Metrics[CPU_USAGE_SYSTEM_METRIC], 64)
-		if err != nil {
-			return -1, fmt.Errorf("parsing cpu usage system as float: %w", err)
-		}
-
-		cpuUsagePct := int((cpuUsageUser + cpuUsageSystem) * 100)
-		maxCpuPct = max(maxCpuPct, cpuUsagePct)
+		maxCpuPct = max(maxCpuPct, int(cpuUsagePct))
 	}
 	return maxCpuPct, nil
 }
@@ -173,7 +329,7 @@ Memory load is considered to be high in the following scenarios
 - Available memory of any node is less than 10% (MIN_AVAILABLE_MEMORY_THRESHOLD) of it's total memory
 - tserver root memory consumption of any node has breached it's soft limit.
 */
-func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
+func (pa *ParallelismAdapter) isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error) {
 	minMemoryAvailablePct := 100
 	isTserverRootMemorySoftLimitBreached := false
 	for _, nodeMetrics := range clusterMetrics {
@@ -210,10 +366,34 @@ func isMemoryLoadHigh(clusterMetrics map[string]tgtdb.NodeMetrics) (bool, error)
 		}
 		memoryAvailablePct := int((memoryAvailable * 100) / memoryTotal)
 		minMemoryAvailablePct = min(minMemoryAvailablePct, memoryAvailablePct)
-		if minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD {
+		if minMemoryAvailablePct < pa.minAvailableMemoryThreshold {
 			break
 		}
 	}
 
-	return minMemoryAvailablePct < MIN_AVAILABLE_MEMORY_THRESHOLD || isTserverRootMemorySoftLimitBreached, nil
+	return minMemoryAvailablePct < pa.minAvailableMemoryThreshold || isTserverRootMemorySoftLimitBreached, nil
 }
+
+/*
+This PR improves the adaptive parallelism logic to be more aggressive when CPU usage is consistently low while being less sensitive to random CPU spikes. The current single-threshold approach is too conservative and misses opportunities to increase parallelism when the cluster has spare capacity.
+Changes Made
+
+Before (Binary Logic)
+Single CPU threshold (80%)
+Binary state: CPU load either "high" or "low"
+Immediate throttling if any node exceeds threshold
+Conservative approach that could miss optimization opportunities
+
+After (Trend-based decision + Three-State Logic)
+Three load states: HIGH (reduce parallelism), OK (maintain), LOW (increase parallelism)
+HIGH state:
+Two CPU thresholds: Hard threshold (90%) for immediate response, soft threshold (70%) for trend-based decisions
+	Hard Threshold (90%): Immediate response - reduces parallelism if any node breaches
+	Soft Threshold (70%): Trend-based response - reduces parallelism if any node's last 3 readings consistently exceed threshold.
+			This will help avoid responses to temporary spikes and sustained load
+
+Low State: Increases parallelism when any node's last 3 readings are consistently below 70%
+
+OK State: Maintains current parallelism when CPU is in moderate range, preventing oscillation
+
+*/
