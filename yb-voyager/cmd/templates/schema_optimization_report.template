@@ -379,6 +379,31 @@
                <h3>{{.SecondaryIndexToRangeChange.Title}}</h3>
                <p> {{.SecondaryIndexToRangeChange.Description}}</p>
                <p> Refer to the <a class="file-link" href="{{.SecondaryIndexToRangeChange.ReferenceFile}}" target="_blank"> {{.SecondaryIndexToRangeChange.ReferenceFileDisplayName}} </a> for modified DDLs.</p>
+               <details>
+                  <summary>Details</summary>
+                  <table>
+                     <thead>
+                        <tr>
+                           <th class="centered-cell">Table</th>
+                           <th class="centered-cell">Modified Indexes</th>
+                        </tr>
+                     </thead>
+                     <tbody>
+                        {{range $table, $indexes := .SecondaryIndexToRangeChange.ModifiedIndexes}}
+                           <tr>
+                              <td>{{$table}}</td>
+                              <td class="scrollable-div">
+                                 <ul>
+                                    {{range $indexes}}
+                                       <li>{{.}}</li>
+                                    {{end}}
+                                 </ul>
+                              </td>
+                           </tr>
+                        {{end}}
+                     </tbody>
+                  </table>
+               </details>
             {{ end }}
          </div>
          

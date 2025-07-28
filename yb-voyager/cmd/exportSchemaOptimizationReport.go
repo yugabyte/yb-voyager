@@ -136,16 +136,17 @@ func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingR
 }
 
 type SecondaryIndexToRangeChange struct {
-	Title                    string `json:"title"`
-	Description              string `json:"description"`
-	ReferenceFile            string `json:"reference_file"`
-	ReferenceFileDisplayName string `json:"reference_file_display_name"`
+	Title                    string   `json:"title"`
+	Description              string   `json:"description"`
+	ReferenceFile            string   `json:"reference_file"`
+	ReferenceFileDisplayName string   `json:"reference_file_display_name"`
+	ModifiedIndexes          map[string][]string `json:"modified_indexes"`
 }
 
 func NewSecondaryIndexToRangeChange() *SecondaryIndexToRangeChange {
 	return &SecondaryIndexToRangeChange{
 		Title:                    "Modified Secondary Indexes to be range-sharded",
-		Description:              "All the secondary indexes were converted to range-sharded indexes. This helps in distributing the data evenly across the nodes and improves the performance of these indexes.",
+		Description:              "The following secondary indexes were converted to range-sharded indexes. This helps in distributing the data evenly across the nodes and improves the performance of these indexes.",
 		ReferenceFile:            utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), INDEX),
 		ReferenceFileDisplayName: "index.sql",
 	}
@@ -162,7 +163,7 @@ var optimizationChangesTemplate []byte
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
 //   - modifiedIndexesToRange: list of secondary indexes that were converted to range-sharded indexes.
-func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, modifiedIndexesToRange bool) error {
+func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, modifiedIndexesToRange []string) error {
 
 	if source.DBType != POSTGRESQL {
 		//NOt generating the report in case other than PG
@@ -175,19 +176,7 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 		redundantIndexChange = NewRedundantIndexChange()
 		redundantIndexChange.ReferenceFile = filepath.Join(exportDir, "schema", "tables", RedundantIndexesFileName)
 		redundantIndexChange.ReferenceFileDisplayName = RedundantIndexesFileName
-
-		tableToIndexMap := make(map[string][]string)
-		for _, index := range redundantIndexes {
-			splits := strings.Split(index, " ON ")
-			if len(splits) != 2 {
-				log.Warnf("Redundant index is not in correct format (idx ON tbl) - %v", index)
-				continue
-			}
-			indexName := splits[0]
-			tableName := splits[1]
-			tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
-		}
-		redundantIndexChange.TableToRemovedIndexesMap = tableToIndexMap
+		redundantIndexChange.TableToRemovedIndexesMap = GetTableToIndexMap(redundantIndexes)
 	}
 
 	var appliedRecommendationTable, appliedRecommendationMview *AppliedShardingRecommendationChange
@@ -242,8 +231,9 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 	report.RedundantIndexChange = redundantIndexChange
 	report.TableShardingRecommendation = appliedRecommendationTable
 	report.MviewShardingRecommendation = appliedRecommendationMview
-	if modifiedIndexesToRange {
+	if len(modifiedIndexesToRange) > 0 {
 		report.SecondaryIndexToRangeChange = NewSecondaryIndexToRangeChange()
+		report.SecondaryIndexToRangeChange.ModifiedIndexes = GetTableToIndexMap(modifiedIndexesToRange)
 	}
 
 	if report.HasOptimizations() {
@@ -275,4 +265,19 @@ func getColocatedObjects(objectFile string, shardedObjects []string, objType str
 	}
 	colocated, _ := lo.Difference(allObject, shardedObjects)
 	return colocated, nil
+}
+
+func GetTableToIndexMap(indexes []string) map[string][]string {
+	tableToIndexMap := make(map[string][]string)
+	for _, index := range indexes {
+		splits := strings.Split(index, " ON ")
+		if len(splits) != 2 {
+			log.Warnf("Redundant index is not in correct format (idx ON tbl) - %v", index)
+			continue
+		}
+		indexName := splits[0]
+		tableName := splits[1]
+		tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
+	}
+	return tableToIndexMap
 }

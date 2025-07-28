@@ -180,7 +180,8 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 	return sqlStmts, removedIndexToStmt, nil
 }
 
-func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) error {
+func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) ([]string, error) {
+	var modifiedObjNames []string
 	for idx, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
@@ -210,6 +211,7 @@ func (t *Transformer) ModifySecondaryIndexesToRange(stmts []*pg_query.RawStmt) e
 		//Add ASC clause to the index
 		indexStmt.IndexParams[0].GetIndexElem().Ordering = queryparser.ASC_SORTING_ORDER
 		stmts[idx] = stmt
+		modifiedObjNames = append(modifiedObjNames, queryparser.GetIndexObjectNameFromIndexStmt(indexStmt))
 	}
-	return nil
+	return modifiedObjNames, nil
 }
