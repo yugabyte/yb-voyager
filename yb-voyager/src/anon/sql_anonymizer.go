@@ -609,16 +609,21 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 			if opt == nil {
 				continue
 			}
+
 			def := opt.GetDefElem()
 			if def == nil || def.Defname != "owned_by" || def.Arg == nil {
 				continue
 			}
-			if list := def.Arg.GetList(); list != nil {
-				itemNodes := list.Items
-				err = a.anonymizeColumnRefNode(itemNodes)
-				if err != nil {
-					return fmt.Errorf("anon alter sequence owned by: %w", err)
-				}
+
+			list := def.Arg.GetList()
+			if list == nil {
+				continue
+			}
+
+			itemNodes := list.Items
+			err = a.anonymizeColumnRefNode(itemNodes)
+			if err != nil {
+				return fmt.Errorf("anon alter sequence owned by: %w", err)
 			}
 		}
 
@@ -652,11 +657,14 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 
 		// anonymize the enum values
 		for _, val := range ces.Vals {
-			if str := val.GetString_(); str != nil {
-				str.Sval, err = a.registry.GetHash(ENUM_KIND_PREFIX, str.Sval)
-				if err != nil {
-					return err
-				}
+			str := val.GetString_()
+			if str == nil {
+				continue
+			}
+
+			str.Sval, err = a.registry.GetHash(ENUM_KIND_PREFIX, str.Sval)
+			if err != nil {
+				return err
 			}
 		}
 
@@ -1292,25 +1300,32 @@ func (a *SqlAnonymizer) handleForeignTableObjectNodes(msg protoreflect.Message) 
 	}
 
 	// Anonymize the options if present
-	if fts.Options != nil {
-		for _, opt := range fts.Options {
-			if defElem := opt.GetDefElem(); defElem != nil {
-				var prefix string
-				switch defElem.Defname {
-				case "table_name":
-					prefix = TABLE_KIND_PREFIX
-				case "schema_name":
-					prefix = SCHEMA_KIND_PREFIX
-				default:
-					prefix = DEFAULT_KIND_PREFIX
-				}
-				if defElem.Arg != nil && defElem.Arg.GetString_() != nil {
-					err = a.anonymizeStringNodes([]*pg_query.Node{defElem.Arg}, prefix)
-					if err != nil {
-						return fmt.Errorf("anon foreign table option %s: %w", defElem.Defname, err)
-					}
-				}
-			}
+	if fts.Options == nil {
+		return nil
+	}
+
+	for _, opt := range fts.Options {
+		defElem := opt.GetDefElem()
+		if defElem == nil {
+			continue
+		}
+
+		var prefix string
+		switch defElem.Defname {
+		case "table_name":
+			prefix = TABLE_KIND_PREFIX
+		case "schema_name":
+			prefix = SCHEMA_KIND_PREFIX
+		default:
+			prefix = DEFAULT_KIND_PREFIX
+		}
+
+		if defElem.Arg == nil || defElem.Arg.GetString_() == nil {
+			continue
+		}
+		err = a.anonymizeStringNodes([]*pg_query.Node{defElem.Arg}, prefix)
+		if err != nil {
+			return fmt.Errorf("anon foreign table option %s: %w", defElem.Defname, err)
 		}
 	}
 
@@ -1372,30 +1387,37 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 	}
 
 	// Process function references in the definition
-	if ds.Definition != nil {
-		functionDefs := map[string]bool{
-			"sfunc":      true,
-			"finalfunc":  true,
-			"msfunc":     true,
-			"minvfunc":   true,
-			"mfinalfunc": true,
+	if ds.Definition == nil {
+		return nil
+	}
+
+	functionDefs := map[string]bool{
+		"sfunc":      true,
+		"finalfunc":  true,
+		"msfunc":     true,
+		"minvfunc":   true,
+		"mfinalfunc": true,
+	}
+
+	for _, defElem := range ds.Definition {
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil || !functionDefs[defElemNode.Defname] {
+			continue
 		}
 
-		for _, defElem := range ds.Definition {
-			defElemNode := defElem.GetDefElem()
-			if defElemNode == nil || !functionDefs[defElemNode.Defname] {
-				continue
-			}
+		// Anonymize function references
+		if defElemNode.Arg == nil {
+			continue
+		}
 
-			// Anonymize function references
-			if defElemNode.Arg != nil {
-				if typeName := defElemNode.Arg.GetTypeName(); typeName != nil {
-					err = a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX)
-					if err != nil {
-						return fmt.Errorf("anon aggregate function %s: %w", defElemNode.Defname, err)
-					}
-				}
-			}
+		typeName := defElemNode.Arg.GetTypeName()
+		if typeName == nil {
+			continue
+		}
+
+		err = a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon aggregate function %s: %w", defElemNode.Defname, err)
 		}
 	}
 
@@ -1439,39 +1461,59 @@ func (a *SqlAnonymizer) handleOperatorObjectNodes(msg protoreflect.Message) (err
 	}
 
 	for _, defElem := range ds.Definition {
-		if defElemNode := defElem.GetDefElem(); defElemNode != nil {
-			// Handle different definition element types
-			switch defElemNode.Defname {
-			case "procedure":
-				// Anonymize procedure name - it's a TypeName node containing the function name
-				if defElemNode.Arg != nil {
-					if typeNameNode := defElemNode.Arg.GetTypeName(); typeNameNode != nil {
-						err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
-						if err != nil {
-							return fmt.Errorf("anon operator procedure: %w", err)
-						}
-					}
-				}
-			case "commutator", "negator":
-				// Anonymize operator references in lists
-				if defElemNode.Arg != nil {
-					if listNode := defElemNode.Arg.GetList(); listNode != nil {
-						err = a.anonymizeStringNodes(listNode.Items, OPERATOR_KIND_PREFIX)
-						if err != nil {
-							return fmt.Errorf("anon operator commutator/negator: %w", err)
-						}
-					}
-				}
-			case "restrict", "join":
-				// Anonymize function names - they're also TypeName nodes
-				if defElemNode.Arg != nil {
-					if typeNameNode := defElemNode.Arg.GetTypeName(); typeNameNode != nil {
-						err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
-						if err != nil {
-							return fmt.Errorf("anon operator restrict/join function: %w", err)
-						}
-					}
-				}
+		defElemNode := defElem.GetDefElem()
+		if defElemNode == nil {
+			continue
+		}
+
+		// Handle different definition element types
+		switch defElemNode.Defname {
+		case "procedure":
+			// Anonymize procedure name - it's a TypeName node containing the function name
+			if defElemNode.Arg == nil {
+				continue
+			}
+
+			typeNameNode := defElemNode.Arg.GetTypeName()
+			if typeNameNode == nil {
+				continue
+			}
+
+			err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon operator procedure: %w", err)
+			}
+
+		case "commutator", "negator":
+			// Anonymize operator references in lists
+			if defElemNode.Arg == nil {
+				continue
+			}
+
+			listNode := defElemNode.Arg.GetList()
+			if listNode == nil {
+				continue
+			}
+
+			err = a.anonymizeStringNodes(listNode.Items, OPERATOR_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon operator commutator/negator: %w", err)
+			}
+
+		case "restrict", "join":
+			// Anonymize function names - they're also TypeName nodes
+			if defElemNode.Arg == nil {
+				continue
+			}
+
+			typeNameNode := defElemNode.Arg.GetTypeName()
+			if typeNameNode == nil {
+				continue
+			}
+
+			err = a.anonymizeStringNodes(typeNameNode.Names, FUNCTION_KIND_PREFIX)
+			if err != nil {
+				return fmt.Errorf("anon operator restrict/join function: %w", err)
 			}
 		}
 	}
@@ -1513,25 +1555,34 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 		}
 
 		// Anonymize operators and functions in the items
-		if cocs.Items != nil {
-			for _, item := range cocs.Items {
-				if itemNode := item.GetCreateOpClassItem(); itemNode != nil {
-					if itemNode.Name != nil && itemNode.Name.Objname != nil {
-						// itemtype: 1 = operator, 2 = function
-						var prefix string
-						if itemNode.Itemtype == 1 {
-							prefix = OPERATOR_KIND_PREFIX
-						} else if itemNode.Itemtype == 2 {
-							prefix = FUNCTION_KIND_PREFIX
-						} else {
-							prefix = DEFAULT_KIND_PREFIX
-						}
-						err = a.anonymizeStringNodes(itemNode.Name.Objname, prefix)
-						if err != nil {
-							return fmt.Errorf("anon operator class item: %w", err)
-						}
-					}
-				}
+		if cocs.Items == nil {
+			return nil
+		}
+
+		for _, item := range cocs.Items {
+			itemNode := item.GetCreateOpClassItem()
+			if itemNode == nil {
+				continue
+			}
+
+			if itemNode.Name == nil || itemNode.Name.Objname == nil {
+				continue
+			}
+
+			// itemtype: 1 = operator, 2 = function
+			var prefix string
+			switch itemNode.Itemtype {
+			case 1:
+				prefix = OPERATOR_KIND_PREFIX
+			case 2:
+				prefix = FUNCTION_KIND_PREFIX
+			default:
+				prefix = DEFAULT_KIND_PREFIX
+			}
+
+			err = a.anonymizeStringNodes(itemNode.Name.Objname, prefix)
+			if err != nil {
+				return fmt.Errorf("anon operator class item: %w", err)
 			}
 		}
 
