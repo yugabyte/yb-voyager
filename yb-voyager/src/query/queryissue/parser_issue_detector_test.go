@@ -450,12 +450,6 @@ func TestDDLIssues(t *testing.T) {
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
 		},
-		stmt38: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
-		},
-		stmt41: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
-		},
 		stmt44: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
 		},
@@ -482,27 +476,6 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt74: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
-		},
-		stmt77: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "bit_logs", stmt77, "bit_logs.status_flags", "bit_flags.flags", "bit(8)", "bit(10)"),
-		},
-		stmt80: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "event_logs", stmt80, "event_logs.log_time", "precise_events.event_time", "timestamp(3)", "timestamp(6)"),
-		},
-		stmt83: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "schedule_logs", stmt83, "schedule_logs.log_time", "precise_schedules.start_time", "time(3)", "time(6)"),
-		},
-		stmt86: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "duration_logs", stmt86, "duration_logs.log_duration", "precise_durations.duration", "interval(3)", "interval(6)"),
-		},
-		stmt89: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "tz_logs", stmt89, "tz_logs.log_time", "tz_events.event_time", "timestamptz(0)", "timestamptz(6)"),
-		},
-		stmt92: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "tz_schedule_logs", stmt92, "tz_schedule_logs.log_time", "tz_schedules.start_time", "timetz(0)", "timetz(6)"),
-		},
-		stmt95: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "varbit_logs", stmt95, "varbit_logs.status_flags", "varbit_flags.flags", "varbit(8)", "varbit(10)"),
 		},
 	}
 	for _, stmt := range requiredDDLs {

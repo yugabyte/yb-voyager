@@ -303,9 +303,9 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 		// For detection logic: compare internal types and modifiers for accurate detection
 		// For display: use SQL type names with modifiers for user-facing output
 
-		// Compare internal types and modifiers
-		if colMetadata.DataType == colMetadata.ReferencedColumnType &&
-			slices.Equal(colMetadata.DataTypeMods, colMetadata.ReferencedColumnTypeMods) {
+		// Compare only the internal types
+		// Not comparing the modifiers here as in the testing, there were no issues with datatypes with mismatched modifiers
+		if colMetadata.DataType == colMetadata.ReferencedColumnType {
 			continue
 		}
 
