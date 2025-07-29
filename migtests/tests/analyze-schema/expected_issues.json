@@ -99,20 +99,6 @@
         },
         {
             "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "test_1, constraint: (test_1_id_fkey)",
-            "Reason": "Foreign key references to partitioned table are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TABLE test_1 (\n\tid numeric NOT NULL REFERENCES sales_data(sales_id),\n\tcountry_code varchar(3),\n\trecord_type varchar(5),\n\tdescriptions varchar(50),\n\tPRIMARY KEY (id)\n) PARTITION BY LIST (country_code, record_type) ;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
             "ObjectType": "MVIEW",
             "ObjectName": "test",
             "Reason": "JSON constructor functions from PostgreSQL 17 are not yet supported in YugabyteDB.",
@@ -121,20 +107,6 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "COLLATION",
-            "ObjectName": "special1",
-            "Reason": "Deterministic option/attribute with collation is not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE COLLATION special1 (provider = icu, locale = 'en@colCaseFirst=upper;colReorder=grek-latn', deterministic = true);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
         },
         {
             "IssueType": "unsupported_features",
@@ -550,20 +522,6 @@
         {
             "IssueType": "unsupported_features",
             "ObjectType": "TRIGGER",
-            "ObjectName": "before_insert_or_delete_row_trigger ON public.range_columns_partition_test",
-            "Reason": "BEFORE ROW triggers on partitioned tables are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TRIGGER before_insert_or_delete_row_trigger\nBEFORE INSERT OR DELETE ON public.range_columns_partition_test\nFOR EACH ROW\nEXECUTE FUNCTION handle_insert_or_delete();",
-            "Suggestion": "Create the triggers on individual partitions.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TRIGGER",
             "ObjectName": "transfer_insert ON transfer",
             "Reason": "REFERENCING clause (transition tables) in triggers is not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE TRIGGER transfer_insert\n    AFTER INSERT ON transfer\n    REFERENCING NEW TABLE AS inserted\n    FOR EACH STATEMENT\n    EXECUTE FUNCTION check_transfer_balances_to_zero();",
@@ -613,34 +571,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10267",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "public.employees4",
-            "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name).",
-            "SqlStatement": "CREATE TABLE public.employees4 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED\n);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "order_details",
-            "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (amount).",
-            "SqlStatement": "CREATE TABLE order_details (\n    detail_id integer NOT NULL,\n    quantity integer,\n    price_per_unit numeric,\n    amount numeric GENERATED ALWAYS AS (((quantity)::numeric * price_per_unit)) STORED\n);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
         },
         {
             "IssueType": "unsupported_features",
@@ -1676,20 +1606,6 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "enum_example.bugs",
-            "Reason": "Stored generated columns are not supported in YugabyteDB. Detected columns are (_status, _severity, info).",
-            "SqlStatement": "CREATE TABLE enum_example.bugs (\n    id integer NOT NULL,\n    description text,\n    status enum_example.bug_status,\n    _status enum_example.bug_status GENERATED ALWAYS AS (status) STORED,\n    severity enum_example.bug_severity,\n    _severity enum_example.bug_severity GENERATED ALWAYS AS (severity) STORED,\n    info enum_example.bug_info GENERATED ALWAYS AS (enum_example.make_bug_info(status, severity)) STORED\n);",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-            "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
             "IssueType": "migration_caveats",
             "ObjectType": "POLICY",
             "ObjectName": "p ON tbl1",
@@ -2108,118 +2024,6 @@
             "MinimumVersionsFixedIn": null
         },
         {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "bigint_multirange_table",
-            "Reason": "INT8MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
-            "SqlStatement": "CREATE TABLE bigint_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int8multirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "date_multirange_table",
-            "Reason": "DATEMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: project_dates.",
-            "SqlStatement": "CREATE TABLE date_multirange_table (\n    id integer PRIMARY KEY,\n    project_dates datemultirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "int_multirange_table",
-            "Reason": "INT4MULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: value_ranges.",
-            "SqlStatement": "CREATE TABLE int_multirange_table (\n    id integer PRIMARY KEY,\n    value_ranges int4multirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "public.asterisks1",
-            "Reason": "SQL language functions with an inline body are not supported in YugabyteDB.",
-            "SqlStatement": "CREATE FUNCTION public.asterisks1(n integer) RETURNS text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    RETURN repeat('*'::text, n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "public.asterisks",
-            "Reason": "SQL language functions with an inline body are not supported in YugabyteDB.",
-            "SqlStatement": "CREATE FUNCTION public.asterisks(n integer) RETURNS SETOF text\n    LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE\n    BEGIN ATOMIC\n SELECT repeat('*'::text, g.g) AS repeat\n    FROM generate_series(1, asterisks.n) g(g);\nEND;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "FUNCTION",
-            "ObjectName": "add",
-            "Reason": "SQL language functions with an inline body are not supported in YugabyteDB.",
-            "SqlStatement": "CREATE FUNCTION add(int, int) RETURNS int IMMUTABLE PARALLEL SAFE BEGIN ATOMIC; SELECT $1 + $2; END;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "numeric_multirange_table",
-            "Reason": "NUMMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: price_ranges.",
-            "SqlStatement": "CREATE TABLE numeric_multirange_table (\n    id integer PRIMARY KEY,\n    price_ranges nummultirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "timestamp_multirange_table",
-            "Reason": "TSMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: event_times.",
-            "SqlStatement": "CREATE TABLE timestamp_multirange_table (\n    id integer PRIMARY KEY,\n    event_times tsmultirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
             "IssueType": "unsupported_features",
             "ObjectType": "VIEW",
             "ObjectName": "zz",
@@ -2229,76 +2033,6 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_datatypes",
-            "ObjectType": "TABLE",
-            "ObjectName": "timestamptz_multirange_table",
-            "Reason": "TSTZMULTIRANGE datatype is not yet supported in YugabyteDB. Affected column: global_event_times.",
-            "SqlStatement": "CREATE TABLE timestamptz_multirange_table (\n    id integer PRIMARY KEY,\n    global_event_times tstzmultirange\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "users_unique_nulls_not_distinct",
-            "Reason": "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TABLE users_unique_nulls_not_distinct (\n    id SERIAL PRIMARY KEY,\n    email TEXT,\n    UNIQUE NULLS NOT DISTINCT (email)\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "sales_unique_nulls_not_distinct",
-            "Reason": "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE TABLE sales_unique_nulls_not_distinct (\n    store_id INT,\n    product_id INT,\n    sale_date DATE,\n    UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date)\n);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "TABLE",
-            "ObjectName": "sales_unique_nulls_not_distinct_alter",
-            "Reason": "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB.",
-            "SqlStatement": "ALTER TABLE sales_unique_nulls_not_distinct_alter\n\tADD CONSTRAINT sales_unique_nulls_not_distinct_alter_unique UNIQUE NULLS NOT DISTINCT (store_id, product_id, sale_date);",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
-            "ObjectName": "users_unique_nulls_not_distinct_index_email ON users_unique_nulls_not_distinct_index",
-            "Reason": "Unique constraint treating NULL values as non-distinct is not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE UNIQUE INDEX users_unique_nulls_not_distinct_index_email\n    ON users_unique_nulls_not_distinct_index (email)\n    NULLS NOT DISTINCT;",
-            "Suggestion": "",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
-            "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0",
-                "2025.1": "2025.1.0.0"
-            }
         },
         {
             "IssueType": "migration_caveats",
