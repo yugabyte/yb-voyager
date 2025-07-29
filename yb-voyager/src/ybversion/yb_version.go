@@ -28,7 +28,7 @@ import (
 
 // Reference - https://docs.yugabyte.com/preview/releases/ybdb-releases/
 var supportedYBVersionStableSeriesOld = []string{SERIES_2_14, SERIES_2_18, SERIES_2_20}
-var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2}
+var supportedYBVersionStableSeries = []string{SERIES_2024_1, SERIES_2024_2, SERIES_2025_1}
 var supportedYBVersionPreviewSeries = []string{SERIES_2_21, SERIES_2_23, SERIES_2_25}
 
 var allSupportedYBVersionSeries = lo.Flatten([][]string{supportedYBVersionStableSeries, supportedYBVersionPreviewSeries, supportedYBVersionStableSeriesOld})
