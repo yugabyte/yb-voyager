@@ -580,11 +580,15 @@ func testIndexOnComplexDataType(t *testing.T) {
 
 	testCases := []testIndexOnComplexDataTypeTests{
 		testIndexOnComplexDataTypeTests{
-			sql: `CREATE TABLE citext_table (id int, name CITEXT);
-			CREATE INDEX citext_index ON citext_table (name);`,
-			errMsgBase:      "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			sql: `
+			CREATE EXTENSION IF NOT EXISTS citext;
+			CREATE TABLE citext_table (id int, name CITEXT);
+			CREATE INDEX citext_index ON citext_table (name);
+			`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
 			errMsgv2_25_0_0: "",
-			Issue:           indexOnCitextDatatypeIssue,
+
+			Issue: indexOnCitextDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsvector_table (id int, name TSVECTOR);
@@ -793,7 +797,8 @@ func testIndexOnComplexDataType(t *testing.T) {
 		assert.NoError(t, err)
 
 		var errMsg string
-		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+		if (testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)) && testCase.errMsgv2_25_0_0 != "" {
 			errMsg = testCase.errMsgv2_25_0_0
 		} else {
 			errMsg = testCase.errMsgBase
