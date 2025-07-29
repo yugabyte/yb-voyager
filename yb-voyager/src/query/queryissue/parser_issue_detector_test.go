@@ -314,7 +314,7 @@ func TestAllIssues(t *testing.T) {
 	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -424,7 +424,7 @@ func TestDDLIssues(t *testing.T) {
 	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -442,7 +442,7 @@ func TestUnloggedTableIssueReportedInOlderVersion(t *testing.T) {
 	parserIssueDetector := NewParserIssueDetector()
 
 	// Not reported by default
-	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+	issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 	testutils.FatalIfError(t, err)
 	assert.Equal(t, 0, len(issues))
 
@@ -593,7 +593,7 @@ $$ LANGUAGE plpgsql;
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedSQLsWithIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		fmt.Printf("%v", issues)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
@@ -774,7 +774,7 @@ JSON_TABLE(data, '$.skills[*]'
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -893,7 +893,7 @@ FROM test_jsonb1;`,
 	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -949,7 +949,7 @@ $$ LANGUAGE plpgsql;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range aggregateSqls {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -1025,7 +1025,7 @@ func TestFetchWithTiesInSelect(t *testing.T) {
 	parserIssueDetector := NewParserIssueDetector()
 
 	for stmt, expectedIssues := range expectedIssues {
-		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDMLIssues(stmt, ybversion.V2024_2_3_1)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
@@ -1039,7 +1039,7 @@ func TestFetchWithTiesInSelect(t *testing.T) {
 	}
 
 	for stmt, expectedIssues := range expectedDDLIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
@@ -1136,7 +1136,7 @@ REFERENCES schema1.abc (id);
 	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range ddlStmtsWithIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1169,7 +1169,7 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for sql, expectedIssue := range sqls {
-		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.V2024_2_3_1)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(issues))
 		cmp.Equal(issues[0], expectedIssue)
@@ -1192,7 +1192,7 @@ func TestNonDecimalIntegerLiteralsIssues(t *testing.T) {
     VALUES (0b1010, 0o012, 0xA);`,
 	}
 	for _, sql := range sqlsWithoutIssues {
-		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(sql, ybversion.V2024_2_3_1)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(issues))
 	}
@@ -1259,7 +1259,7 @@ SELECT * FROM data_cte;`,
 
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1304,7 +1304,7 @@ $func$;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1362,7 +1362,7 @@ func TestDatabaseOptions(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1424,7 +1424,7 @@ $$ LANGUAGE plpgsql;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1485,7 +1485,7 @@ $$;`,
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range stmtsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
@@ -1497,7 +1497,7 @@ $$;`,
 		}
 	}
 
-	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.LatestStable)
+	_, err := parserIssueDetector.GetAllIssues(`PREPARE TRANSACTION $1`, ybversion.V2024_2_3_1)
 	assert.Error(t, err, `syntax error at or near "$1"`)
 
 }
@@ -1517,7 +1517,7 @@ func TestCompressionClause(t *testing.T) {
 	}
 	parserIssueDetector := NewParserIssueDetector()
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
@@ -1595,7 +1595,7 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 	parserIssueDetector.FinalizeColumnMetadata()
 
 	for stmt, expectedIssues := range sqlsWithExpectedIssues {
-		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.LatestStable)
+		issues, err := parserIssueDetector.GetAllIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
 		for _, expectedIssue := range expectedIssues {
