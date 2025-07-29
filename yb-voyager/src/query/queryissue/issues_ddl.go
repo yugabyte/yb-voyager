@@ -36,6 +36,7 @@ var generatedColumnsIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -56,6 +57,7 @@ var unloggedTableIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -283,6 +285,7 @@ var beforeRowTriggerOnPartitionTableIssue = issue.Issue{
 	Suggestion:  BEFORE_ROW_TRIGGER_ON_PARTITION_TABLE_ISSUE_SUGGESTION,
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -301,6 +304,7 @@ var alterTableAddPKOnPartitionIssue = issue.Issue{
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2024_1: ybversion.V2024_1_0_0,
 		ybversion.SERIES_2024_2: ybversion.V2024_2_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 		ybversion.SERIES_2_23:   ybversion.V2_23_0_0,
 		ybversion.SERIES_2_25:   ybversion.V2_25_0_0,
 	},
@@ -544,6 +548,7 @@ var int8MultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -563,6 +568,7 @@ var int4MultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -582,6 +588,7 @@ var dateMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -601,6 +608,7 @@ var numMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -620,6 +628,7 @@ var tsMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -639,6 +648,7 @@ var tstzMultirangeDatatypeIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1854,6 +1864,7 @@ var securityInvokerViewIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1870,6 +1881,7 @@ var deterministicOptionCollationIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1899,6 +1911,7 @@ var foreignKeyReferencesPartitionedTableIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1918,6 +1931,7 @@ var sqlBodyInFunctionIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 
@@ -1935,6 +1949,7 @@ var uniqueNullsNotDistinctIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
 	MinimumVersionsFixedIn: map[string]*ybversion.YBVersion{
 		ybversion.SERIES_2_25: ybversion.V2_25_0_0,
+		ybversion.SERIES_2025_1: ybversion.V2025_1_0_0,
 	},
 }
 

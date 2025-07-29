@@ -116,7 +116,8 @@
 			"SqlStatement": "CREATE TABLE schema1.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
 			"MinimumVersionsFixedIn": {
-				"2.25": "2.25.0.0"
+				"2.25": "2.25.0.0",
+				"2025.1": "2025.1.0.0"
 			}
 		},
 		{

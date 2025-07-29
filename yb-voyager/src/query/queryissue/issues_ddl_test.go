@@ -137,7 +137,8 @@ func testSetAttributeIssue(t *testing.T) {
 	var errMsg string
 	switch {
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
-		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0):
+		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		errMsg = `ALTER action ALTER COLUMN ... SET not supported yet`
 	default:
 		errMsg = "ALTER TABLE ALTER column not supported yet"
@@ -165,7 +166,8 @@ func testClusterOnIssue(t *testing.T) {
 	var errMsg string
 	switch {
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
-		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0):
+		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		errMsg = "ALTER action CLUSTER ON not supported yet"
 	default:
 		errMsg = "ALTER TABLE CLUSTER not supported yet"
@@ -189,7 +191,8 @@ func testDisableRuleIssue(t *testing.T) {
 	var errMsg string
 	switch {
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
-		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0):
+		testYbVersion.ReleaseType() == ybversion.V2024_2_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2024_2_1_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		errMsg = "ALTER action DISABLE RULE not supported yet"
 	default:
 		errMsg = "ALTER TABLE DISABLE RULE not supported yet"
@@ -310,7 +313,8 @@ func testDeterministicCollationIssue(t *testing.T) {
 	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = true);`)
 
 	expectedMsg := `collation attribute "deterministic" not recognized`
-	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) ||
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		assert.NoError(t, err)
 		expectedMsg = ""
 	}
@@ -434,7 +438,8 @@ func testDatabaseOptions(t *testing.T) {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
 		switch {
-		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 			assert.NoError(t, err)
 			//Database options works on pg15 but not supported actually and hence not marking this as supported
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)
@@ -478,7 +483,8 @@ INSERT INTO collation_ex (name) VALUES
 ('andrÉ');
 	;`)
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `nondeterministic collation is not supported`, nonDeterministicCollationIssue)
 
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.Equal(ybversion.V2_25_0_0):
@@ -535,7 +541,8 @@ func testCompressionClauseIssue(t *testing.T) {
 
 	var errMsg string
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		assert.NoError(t, err)
 		err = fmt.Errorf("")
 		errMsg = ""
@@ -549,7 +556,8 @@ func testCompressionClauseIssue(t *testing.T) {
 	ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
 	//ALTER not supported in 2.25
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		errMsg = "ALTER TABLE command is not yet supported"
 	default:
 		errMsg = `syntax error at or near "COMPRESSION"`

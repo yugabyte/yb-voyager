@@ -107,7 +107,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -131,7 +132,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -555,7 +557,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/24830",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#before-row-triggers-on-partitioned-tables",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -621,7 +624,8 @@
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -634,7 +638,8 @@
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -1680,7 +1685,8 @@
             "Suggestion": "Using Triggers to update the generated columns is one way to work around this issue.",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/10695",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2111,7 +2117,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2124,7 +2131,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2137,7 +2145,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2150,7 +2159,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2163,7 +2173,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2176,7 +2187,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2189,7 +2201,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2202,7 +2215,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2226,7 +2240,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2239,7 +2254,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2252,7 +2268,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2265,7 +2282,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
@@ -2278,7 +2296,8 @@
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/25575",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#postgresql-12-and-later-features",
             "MinimumVersionsFixedIn": {
-                "2.25": "2.25.0.0"
+                "2.25": "2.25.0.0",
+                "2025.1": "2025.1.0.0"
             }
         },
         {
