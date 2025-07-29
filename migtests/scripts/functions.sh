@@ -250,6 +250,7 @@ export_schema() {
         --source-db-password ${SOURCE_DB_PASSWORD}
         --source-db-name ${SOURCE_DB_NAME}
         --send-diagnostics=false --yes
+        --skip-performance-optimizations false
     "
     # Use the resolved local variable which may override the default env var
     # Required for Bulk Assessment test
