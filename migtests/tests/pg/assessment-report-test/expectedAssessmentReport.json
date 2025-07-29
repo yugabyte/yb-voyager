@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.0.0",
 	"MigrationComplexity": "HIGH",
-	"MigrationComplexityExplanation": "Found 39 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
+	"MigrationComplexityExplanation": "Found 32 Level 2 issue(s) and 18 Level 3 issue(s), resulting in HIGH migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_assessment_report",
@@ -64,7 +64,7 @@
 			{
 				"ObjectType": "FUNCTION",
 				"TotalCount": 19,
-				"InvalidCount": 8,
+				"InvalidCount": 6,
 				"ObjectNames": "public.asterisks, public.asterisks1, public.auditlogfunc, public.check_sales_region, public.insert_non_decimal, public.manage_large_object, public.notify_and_insert, public.prevent_update_shipped_without_date, public.process_combined_tbl, public.process_order, public.total, schema2.asterisks, schema2.asterisks1, schema2.auditlogfunc, schema2.insert_non_decimal, schema2.notify_and_insert, schema2.prevent_update_shipped_without_date, schema2.process_order, schema2.total"
 			},
 			{
