@@ -165,19 +165,6 @@
 			"SqlStatement": "LISTEN my_table_changes",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#events-listen-notify",
 			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_query_constructs",
-			"CategoryDescription": "Source database queries not supported in YugabyteDB, identified by scanning system tables.",
-			"Type": "ADVISORY_LOCKS",
-			"Name": "Advisory Locks",
-			"Description": "Advisory locks are not yet implemented in YugabyteDB.",
-			"Impact": "LEVEL_2",
-			"ObjectType": "",
-			"ObjectName": "",
-			"SqlStatement": "SELECT metric_name, pg_advisory_lock(metric_id)\nFROM analytics.metrics\nWHERE metric_value \u003e $1",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
 		}
 	],
 	"TableIndexStats": [
