@@ -52,11 +52,11 @@ type ColumnMetadata struct {
 // foreignKeyConstraint represents a foreign key relationship defined in the schema.
 // It captures the child table and columns, and the corresponding referenced parent table and columns.
 // This structure is used to defer FK processing until all schema definitions are parsed.
-type foreignKeyConstraint struct {
-	tableName         string
-	columnNames       []string
-	referencedTable   string
-	referencedColumns []string
+type ForeignKeyConstraint struct {
+	TableName         string
+	ColumnNames       []string
+	ReferencedTable   string
+	ReferencedColumns []string
 }
 
 type ParserIssueDetector struct {
@@ -64,7 +64,7 @@ type ParserIssueDetector struct {
 	columnMetadata map[string]map[string]*ColumnMetadata
 
 	// list of foreign key constraints in the exported schema
-	foreignKeyConstraints []foreignKeyConstraint
+	foreignKeyConstraints []ForeignKeyConstraint
 
 	/*
 		this will contain the information in this format:
@@ -151,7 +151,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		partitionedTablesMap:                    make(map[string]bool),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
-		foreignKeyConstraints:                   make([]foreignKeyConstraint, 0),
+		foreignKeyConstraints:                   make([]ForeignKeyConstraint, 0),
 		inheritedFrom:                           make(map[string][]string),
 		partitionedFrom:                         make(map[string]string),
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
@@ -420,30 +420,30 @@ func topoSort(dependencyMap map[string][]string) []string {
 // This is done after all DDL statements have been processed to ensure complete metadata is
 func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 	for _, fk := range p.foreignKeyConstraints {
-		for i, localCol := range fk.columnNames {
-			if _, ok := p.columnMetadata[fk.tableName]; !ok {
-				p.columnMetadata[fk.tableName] = make(map[string]*ColumnMetadata)
+		for i, localCol := range fk.ColumnNames {
+			if _, ok := p.columnMetadata[fk.TableName]; !ok {
+				p.columnMetadata[fk.TableName] = make(map[string]*ColumnMetadata)
 			}
-			meta, ok := p.columnMetadata[fk.tableName][localCol]
+			meta, ok := p.columnMetadata[fk.TableName][localCol]
 			if !ok {
 				meta = &ColumnMetadata{}
-				p.columnMetadata[fk.tableName][localCol] = meta
+				p.columnMetadata[fk.TableName][localCol] = meta
 			}
 
 			meta.IsForeignKey = true
-			meta.ReferencedTable = fk.referencedTable
-			if i < len(fk.referencedColumns) {
-				refCol := fk.referencedColumns[i]
+			meta.ReferencedTable = fk.ReferencedTable
+			if i < len(fk.ReferencedColumns) {
+				refCol := fk.ReferencedColumns[i]
 				meta.ReferencedColumn = refCol
 
-				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
+				if refMeta, ok := p.columnMetadata[fk.ReferencedTable][refCol]; ok {
 					// Store the referenced column type and modifiers separately for accurate comparison
 					meta.ReferencedColumnType = refMeta.DataType
 					meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
-					fk.tableName, fk.columnNames, fk.referencedColumns)
+					fk.TableName, fk.ColumnNames, fk.ReferencedColumns)
 			}
 		}
 	}
@@ -486,11 +486,11 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			// Collect the foreign key constraint details from ALTER TABLE statement.
 			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
 			// once all tables and columns are parsed and available in columnMetadata.
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
-				tableName:         alter.GetObjectName(),
-				columnNames:       alter.ConstraintColumns,
-				referencedTable:   alter.ConstraintReferencedTable,
-				referencedColumns: alter.ConstraintReferencedColumns,
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         alter.GetObjectName(),
+				ColumnNames:       alter.ConstraintColumns,
+				ReferencedTable:   alter.ConstraintReferencedTable,
+				ReferencedColumns: alter.ConstraintReferencedColumns,
 			})
 		}
 
@@ -573,11 +573,11 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 
 			// Populate the foreign key constraints
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
-				tableName:         tableName,
-				columnNames:       constraint.Columns,
-				referencedTable:   constraint.ReferencedTable,
-				referencedColumns: constraint.ReferencedColumns,
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         tableName,
+				ColumnNames:       constraint.Columns,
+				ReferencedTable:   constraint.ReferencedTable,
+				ReferencedColumns: constraint.ReferencedColumns,
 			})
 		}
 
@@ -830,6 +830,128 @@ func (p *ParserIssueDetector) IsGinIndexPresentInSchema() bool {
 
 func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 	return p.isUnloggedTablesIssueFiltered
+}
+
+// GetForeignKeyConstraints returns all foreign key constraints
+func (p *ParserIssueDetector) GetForeignKeyConstraints() []ForeignKeyConstraint {
+	return p.foreignKeyConstraints
+}
+
+// GetIndexPrefixCoverageMap returns the index prefix coverage map
+func (p *ParserIssueDetector) GetIndexPrefixCoverageMap() map[string]bool {
+	return p.indexPrefixCoverageMap
+}
+
+// DetectMissingForeignKeyIndexes detects missing foreign key indexes after all DDL has been processed
+// This method should be called after all DDL statements have been parsed to ensure complete metadata
+func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
+	var issues []QueryIssue
+
+	// Process all stored foreign key constraints
+	for _, fkConstraint := range p.foreignKeyConstraints {
+		// Check if this FK has proper index coverage using existing logic
+		if !p.hasProperIndexCoverage(fkConstraint) {
+			// Create and add the issue
+			issue := p.createMissingFKIndexIssue(fkConstraint)
+			issues = append(issues, issue)
+		}
+	}
+
+	return issues
+}
+
+// hasProperIndexCoverage checks if a foreign key has proper index coverage.
+// Detects exact matches, column permutations, and composite index prefixes.
+// Only considers FK columns as leading columns.
+//
+// Examples:
+// FK (x,y,z) → Index (x,y,z) ✓ (exact match)
+// FK (x,y,z) → Index (y,z,x) ✓ (permutation)
+// FK (x,y,z) → Index (x,y,z,other) ✓ (prefix)
+// FK (x,y,z) → Index (other,x,y,z) ✗ (FK not at start) → Detected as missing index
+// FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
+// FK (x,y,z) → No index ✗ → Detected as missing index
+func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bool {
+	// Use the existing detection logic from detectors_ddl.go
+	// We'll reuse the same functions but with the stored data
+
+	// Check for exact match first (O(1) lookup)
+	if p.hasExactMatch(fk.TableName, fk.ColumnNames) {
+		return true
+	}
+
+	// Check for permutation match (different column order)
+	if p.hasPermutationMatch(fk.TableName, fk.ColumnNames) {
+		return true
+	}
+
+	// No suitable index found
+	return false
+}
+
+// hasExactMatch checks for exact column order match (O(1) lookup).
+func (p *ParserIssueDetector) hasExactMatch(tableName string, columns []string) bool {
+	key := fmt.Sprintf("%s.%s", tableName, strings.Join(columns, ","))
+	return p.indexPrefixCoverageMap[key]
+}
+
+// hasPermutationMatch checks for different column order (O(n!) for n columns).
+func (p *ParserIssueDetector) hasPermutationMatch(tableName string, columns []string) bool {
+	permutations := p.generatePermutations(columns)
+	for _, perm := range permutations {
+		key := fmt.Sprintf("%s.%s", tableName, strings.Join(perm, ","))
+		if p.indexPrefixCoverageMap[key] {
+			return true
+		}
+	}
+	return false
+}
+
+// generatePermutations generates all permutations of the given slice using a backtracking algorithm.
+// O(n!) complexity for n elements
+func (p *ParserIssueDetector) generatePermutations(elements []string) [][]string {
+	if len(elements) <= 1 {
+		return [][]string{elements}
+	}
+
+	var result [][]string
+	var backtrack func(used []bool, current []string)
+
+	backtrack = func(used []bool, current []string) {
+		if len(current) == len(elements) {
+			// Make a copy of current
+			perm := make([]string, len(current))
+			copy(perm, current)
+			result = append(result, perm)
+			return
+		}
+
+		for i := 0; i < len(elements); i++ {
+			if !used[i] {
+				used[i] = true
+				current = append(current, elements[i])
+				backtrack(used, current)
+				current = current[:len(current)-1]
+				used[i] = false
+			}
+		}
+	}
+
+	used := make([]bool, len(elements))
+	backtrack(used, []string{})
+	return result
+}
+
+// createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
+func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint) QueryIssue {
+	return NewMissingForeignKeyIndexIssue(
+		"TABLE",
+		fk.TableName,
+		"", // sqlStatement - we don't have this in stored constraint
+		strings.Join(fk.ColumnNames, ", "),
+		fk.TableName,
+		fk.ReferencedTable,
+	)
 }
 
 func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {

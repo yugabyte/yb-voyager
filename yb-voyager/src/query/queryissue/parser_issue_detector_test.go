@@ -1773,11 +1773,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_1", stmt_child, "customer_id", "orders_1", "customers_1")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_1", "", "customer_id", "orders_1", "customers_1")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 1: Basic FK - No Index ===\n")
@@ -1809,8 +1808,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -1831,11 +1829,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_3", stmt_child, "order_id, product_id", "order_items_3", "orders_3")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_3", "", "order_id, product_id", "order_items_3", "orders_3")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 3: Composite FK - No Index ===\n")
@@ -1869,8 +1866,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -1890,7 +1886,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				FOREIGN KEY (customer_id) REFERENCES customers_5(id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_5", stmt_alter, "customer_id", "orders_5", "customers_5")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_5", "", "customer_id", "orders_5", "customers_5")
 
 		detector := NewParserIssueDetector()
 		err := detector.ParseAndProcessDDL(stmt_parent)
@@ -1901,8 +1897,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.NoError(t, err)
 		detector.FinalizeColumnMetadata()
 
-		issues, err := detector.GetDDLIssues(stmt_alter, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 5: ALTER TABLE FK - No Index ===\n")
@@ -1945,8 +1940,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		assert.NoError(t, err)
 		detector.FinalizeColumnMetadata()
 
-		issues, err := detector.GetDDLIssues(stmt_alter, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -1969,8 +1963,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_different_order_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -1992,11 +1985,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON order_items_8(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_8", stmt_child, "order_id, product_id", "order_items_8", "orders_8")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_8", "", "order_id, product_id", "order_items_8", "orders_8")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 8: FK Columns Not as Prefix ===\n")
@@ -2028,8 +2020,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_superset_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -2049,11 +2040,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON orders_10((customer_id + 1));`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_10", stmt_child, "customer_id", "orders_10", "customers_10")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_10", "", "customer_id", "orders_10", "customers_10")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 10: Expression Index ===\n")
@@ -2085,8 +2075,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_unique_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -2109,8 +2098,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_reverse_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -2133,8 +2121,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_subset_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 		assert.Equal(t, 0, len(issues))
 	})
 
@@ -2156,11 +2143,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON order_items_14(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_14", stmt_child, "order_id, product_id", "order_items_14", "orders_14")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_14", "", "order_id, product_id", "order_items_14", "orders_14")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 14: Wrong Position ===\n")
@@ -2193,11 +2179,10 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON order_items_15(order_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_15", stmt_child, "order_id, product_id", "order_items_15", "orders_15")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_15", "", "order_id, product_id", "order_items_15", "orders_15")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
-		issues, err := detector.GetDDLIssues(stmt_child, ybversion.LatestStable)
-		assert.NoError(t, err)
+		issues := detector.DetectMissingForeignKeyIndexes()
 
 		// Debug: Print expected and actual issues
 		fmt.Printf("\n=== Test Case 15: Missing Column ===\n")

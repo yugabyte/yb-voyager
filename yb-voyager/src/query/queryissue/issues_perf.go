@@ -219,10 +219,11 @@ func NewForeignKeyDatatypeMismatchIssue(objectType string, objectName string, sq
 }
 
 var missingForeignKeyIndexIssue = issue.Issue{
-	Name:     MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME,
-	Type:     MISSING_FOREIGN_KEY_INDEX,
-	Impact:   constants.IMPACT_LEVEL_1,
-	DocsLink: "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes", // TODO add link to docs
+	Name:        MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME,
+	Type:        MISSING_FOREIGN_KEY_INDEX,
+	Impact:      constants.IMPACT_LEVEL_1,
+	Description: MISSING_FOREIGN_KEY_INDEX_DESCRIPTION,
+	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes", // TODO add link to docs
 }
 
 func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, childTable string, referencedTable string) QueryIssue {
