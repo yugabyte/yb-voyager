@@ -982,7 +982,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		// Now Unique Key
 		{
 			sql:        `CREATE TABLE citext_table_uk (id int, name CITEXT, UNIQUE (name));`,
-			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			errMsgBase: "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
 			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
 		},
 		{
