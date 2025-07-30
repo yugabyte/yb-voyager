@@ -182,7 +182,7 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to update indexes info metadata db: %w", err)
 	}
 
-	modifiedTables, modifiedMviews, err := applyMigrationAssessmentRecommendations()
+	modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, err := applyMigrationAssessmentRecommendations()
 	if err != nil {
 		return fmt.Errorf("failed to apply migration assessment recommendation to the schema files: %w", err)
 	}
@@ -198,7 +198,7 @@ func exportSchema(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to apply performance optimization transformations to the schema files: %w", err)
 	}
 
-	err = generatePerformanceOptimizationReport(removedRedundantIndexes, modifiedTables, modifiedMviews)
+	err = generatePerformanceOptimizationReport(removedRedundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -413,22 +413,22 @@ func updateIndexesInfoInMetaDB() error {
 	return nil
 }
 
-func applyMigrationAssessmentRecommendations() ([]string, []string, error) {
+func applyMigrationAssessmentRecommendations() ([]string, []string, []string, []string, error) {
 	if skipRecommendations {
 		log.Infof("not apply recommendations due to flag --skip-recommendations=true")
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	} else if source.DBType == MYSQL {
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	assessViaExportSchema, err := IsMigrationAssessmentDoneViaExportSchema()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to check if migration assessment is done via export schema: %w", err)
 	}
 
 	if !bool(skipRecommendations) && assessViaExportSchema {
 		utils.PrintAndLog(`Recommendations generated but not applied. Run the "assess-migration" command explicitly to produce precise recommendations and apply them.`)
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	// TODO: copy the reports to "export-dir/assessment/reports" for further usage
@@ -437,27 +437,27 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, error) {
 	log.Infof("using assessmentReportPath: %s", assessmentReportPath)
 	if !utils.FileOrFolderExists(assessmentReportPath) {
 		utils.PrintAndLog("migration assessment report file doesn't exists at %q, skipping apply recommendations step...", assessmentReportPath)
-		return nil, nil, nil
+		return nil, nil, nil, nil, nil
 	}
 
 	log.Infof("parsing assessment report json file for applying recommendations")
 	report, err := ParseJSONToAssessmentReport(assessmentReportPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to parse json report file %q: %w", assessmentReportPath, err)
 	}
 
-	var modifiedTables, modifiedMviews []string
+	var modifiedTables, modifiedMviews, colocatedTables, colocatedMviews []string
 	shardedTables, err := report.GetShardedTablesRecommendation()
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
+		return nil, nil, nil, nil, fmt.Errorf("failed to fetch sharded tables recommendation: %w", err)
 	} else {
-		modifiedTables, err = applyShardedTablesRecommendation(shardedTables, TABLE)
+		modifiedTables, colocatedTables, err = applyShardedTablesRecommendation(shardedTables, TABLE)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
-		modifiedMviews, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
+		modifiedMviews, colocatedMviews, err = applyShardedTablesRecommendation(shardedTables, MVIEW)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
+			return nil, nil, nil, nil, fmt.Errorf("failed to apply colocated vs sharded table recommendation: %w", err)
 		}
 	}
 
@@ -465,7 +465,7 @@ func applyMigrationAssessmentRecommendations() ([]string, []string, error) {
 	SetAssessmentRecommendationsApplied()
 
 	utils.PrintAndLog("Applied assessment recommendations.")
-	return modifiedTables, modifiedMviews, nil
+	return modifiedTables, modifiedMviews, colocatedTables, colocatedMviews, nil
 }
 
 // TODO: merge this function with applying sharded/colocated recommendation
@@ -517,10 +517,10 @@ func applyMergeConstraintsTransformations() error {
 	return nil
 }
 
-func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, error) {
+func applyShardedTablesRecommendation(shardedTables []string, objType string) ([]string, []string, error) {
 	if shardedTables == nil {
 		log.Info("list of sharded tables is null hence all the tables are recommended as colocated")
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	filePath := utils.GetObjectFilePath(schemaDir, objType)
@@ -530,14 +530,14 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 			utils.PrintAndLog("Required schema file %s does not exists, "+
 				"returning without applying colocated/sharded tables recommendation", filePath)
 		}
-		return nil, nil
+		return nil, nil, nil
 	}
 
 	log.Infof("applying colocated vs sharded tables recommendation")
 	var newSQLFileContent strings.Builder
 	sqlInfoArr := parseSqlFileForObjectType(filePath, objType)
 
-	var modifiedObjects []string
+	var modifiedObjects, colocatedObjects []string
 
 	for _, sqlInfo := range sqlInfoArr {
 		/*
@@ -547,7 +547,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 			We can pass the whole .sql file as a string also to pg_query.Parse() all the statements at once.
 			But avoiding that also specially for cases where the SQL syntax can be invalid
 		*/
-		modifiedSqlStmt, match, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
+		modifiedSqlStmt, match, isColocated, objectName, err := applyShardingRecommendationIfMatching(&sqlInfo, shardedTables, objType)
 		if err != nil {
 			log.Errorf("failed to apply sharding recommendation for table=%q: %v", sqlInfo.objName, err)
 			if match {
@@ -560,11 +560,14 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 				log.Infof("modified ddl - %s", modifiedSqlStmt)
 				modifiedObjects = append(modifiedObjects, objectName)
 			}
+			if isColocated {
+				colocatedObjects = append(colocatedObjects, objectName)
+			}
 		}
 
 		_, err = newSQLFileContent.WriteString(modifiedSqlStmt + "\n\n")
 		if err != nil {
-			return nil, fmt.Errorf("write SQL string to string builder: %w", err)
+			return nil, nil, fmt.Errorf("write SQL string to string builder: %w", err)
 		}
 	}
 
@@ -573,20 +576,20 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 	log.Infof("renaming existing file '%s' --> '%s.orig'", filePath, backupPath)
 	err := os.Rename(filePath, filePath+".orig")
 	if err != nil {
-		return nil, fmt.Errorf("error renaming file %s: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error renaming file %s: %w", filePath, err)
 	}
 
 	// create new table.sql file for modified schema
 	log.Infof("creating file %q to store the modified recommended schema", filePath)
 	file, err := os.Create(filePath)
 	if err != nil {
-		return nil, fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error creating file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if _, err = file.WriteString(newSQLFileContent.String()); err != nil {
-		return nil, fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error writing to file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	if err = file.Close(); err != nil {
-		return nil, fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
+		return nil, nil, fmt.Errorf("error closing file '%q' storing the modified recommended schema: %w", filePath, err)
 	}
 	var objTypeName = ""
 	switch objType {
@@ -602,7 +605,7 @@ func applyShardedTablesRecommendation(shardedTables []string, objType string) ([
 		objTypeName,
 		utils.GetRelativePathFromCwd(filePath))
 	utils.PrintAndLog("The original DDLs have been preserved in %q for reference.", utils.GetRelativePathFromCwd(backupPath))
-	return modifiedObjects, nil
+	return modifiedObjects, colocatedObjects, nil
 }
 
 /*
@@ -615,23 +618,28 @@ so in worse case, only recommendation of that table won't be followed.
 returns:
 modifiedSqlStmt: original stmt if not sharded else modified stmt with colocation clause
 match: true if its a sharded table and should be modified
+isColocated: true if the table is colocated
 error: nil/non-nil
+
+if any error scenerio both the match and isColocated will be false
+if the table / mview is not sharded then match will be false and isColocated will be true
+if the table is sharded then match will be true and isColocated will be false
 
 Drawback: pg_query module doesn't have functionality to format the query after parsing
 so the CREATE TABLE for sharding recommended tables will be one-liner
 */
-func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, string, error) {
+func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []string, objType string) (string, bool, bool, string, error) {
 
 	stmt := sqlInfo.stmt
 	formattedStmt := sqlInfo.formattedStmt
 	parseTree, err := pg_query.Parse(stmt)
 	if err != nil {
-		return formattedStmt, false, "", fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
+		return formattedStmt, false, false, "", fmt.Errorf("error parsing the stmt-%s: %v", stmt, err)
 	}
 
 	if len(parseTree.Stmts) == 0 {
 		log.Warnf("parse tree is empty for stmt=%s for table '%s'", stmt, sqlInfo.objName)
-		return formattedStmt, false, "", nil
+		return formattedStmt, false, false, "", nil
 	}
 
 	relation := &pg_query.RangeVar{}
@@ -642,14 +650,14 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 			// return the original sql if it's not a Create Materialized view statement
 			log.Infof("stmt=%s is not create materialized view as per the parse tree,"+
 				" expected tablename=%s", stmt, sqlInfo.objName)
-			return formattedStmt, false, "", nil
+			return formattedStmt, false, false, "", nil
 		}
 		relation = createMViewNode.CreateTableAsStmt.Into.Rel
 	case TABLE:
 		createStmtNode, ok := parseTree.Stmts[0].Stmt.Node.(*pg_query.Node_CreateStmt)
 		if !ok { // return the original sql if it's not a CreateStmt
 			log.Infof("stmt=%s is not createTable as per the parse tree, expected tablename=%s", stmt, sqlInfo.objName)
-			return formattedStmt, false, "", nil
+			return formattedStmt, false, false, "", nil
 		}
 		relation = createStmtNode.CreateStmt.Relation
 	default:
@@ -677,7 +685,7 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	}
 	if !match {
 		log.Infof("%q not present in the sharded table list", parsedObjectName)
-		return formattedStmt, false, "", nil
+		return formattedStmt, false, true, parsedObjectName, nil //It a colocated table
 	} else {
 		log.Infof("%q present in the sharded table list", parsedObjectName)
 	}
@@ -721,11 +729,11 @@ func applyShardingRecommendationIfMatching(sqlInfo *sqlInfo, shardedTables []str
 	log.Infof("deparsing the updated parse tre into a stmt for table '%s'", parsedObjectName)
 	modifiedQuery, err := pg_query.Deparse(parseTree)
 	if err != nil {
-		return formattedStmt, false, "", fmt.Errorf("error deparsing the parseTree into the query: %w", err)
+		return formattedStmt, false, false, "", fmt.Errorf("error deparsing the parseTree into the query: %w", err)
 	}
 
 	// adding semi-colon at the end
-	return fmt.Sprintf("%s;", modifiedQuery), true, parsedObjectName, nil
+	return fmt.Sprintf("%s;", modifiedQuery), true, false, parsedObjectName, nil
 }
 
 func createExportSchemaStartedEvent() cp.ExportSchemaStartedEvent {
@@ -784,7 +792,9 @@ func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
 	}
 
 	// copy the current INDEXES_table.sql file to indexes_before_applying_perf_optimizations.sql
-	copiedFileName := filepath.Join(filepath.Dir(fileName), "indexes_before_applying_perf_optimizations.sql")
+	//back up file name backup_before_applying_perf_optimizations_INDEXES_table.sql
+	backUpFileName := fmt.Sprintf("backup_before_applying_perf_optimizations_%s", filepath.Base(fileName))
+	copiedFileName := filepath.Join(filepath.Dir(fileName), backUpFileName)
 	//copy files
 	err := utils.CopyFile(fileName, copiedFileName)
 	if err != nil {
@@ -824,6 +834,7 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 
 	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
 	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
+	//TODO: revisit this index object name check to properly done on each item of index qualified name instead of some formatted string.
 	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
 	//Find the resolved Existing index DDL from the redundant issues
 	for _, issue := range redundantIssues {
