@@ -149,8 +149,8 @@ target:
 assess-migration:
 
   ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2024.2.3.1.
-  target-db-version: 2024.2.3.1
+  ### Default - latest stable version i.e. 2025.1.0.0
+  target-db-version: 2025.1.0.0
 
   ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
   ### Note: Only valid for PostgreSQL
@@ -236,8 +236,8 @@ analyze-schema:
   # output-format: txt    
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
-   ### Default - latest stable version i.e. 2024.2.3.1
-  target-db-version: 2024.2.3.1
+  ### Default - latest stable version i.e. 2025.1.0.0
+  target-db-version: 2025.1.0.0
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
