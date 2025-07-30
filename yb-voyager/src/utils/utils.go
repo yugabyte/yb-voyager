@@ -1002,3 +1002,22 @@ func GenerateAnonymisationSalt(n int) (string, error) {
 	// convert bytes to hex to make it printable ASCII string
 	return hex.EncodeToString(b), nil
 }
+
+// IsSetEqual checks if two string slices contain the same elements regardless of order.
+// It sorts both slices and compares them for equality.
+func IsSetEqual(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+
+	// Sort both slices and compare (same pattern as AssertEqualStringSlices in test utils)
+	aSorted := make([]string, len(a))
+	bSorted := make([]string, len(b))
+	copy(aSorted, a)
+	copy(bSorted, b)
+
+	slices.Sort(aSorted)
+	slices.Sort(bSorted)
+
+	return slices.Equal(aSorted, bSorted)
+}

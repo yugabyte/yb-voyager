@@ -127,20 +127,9 @@ type ParserIssueDetector struct {
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
 
-	// Pre-computed index and prefix coverage map for missing foreign key index detection.
-	// Stores all possible column combinations that are covered by indexes, including prefixes.
-	//
-	// Examples:
-	// - Index on (user_id, product_id, order_date) creates entries:
-	//   "orders.user_id" = true
-	//   "orders.user_id,product_id" = true
-	//   "orders.user_id,product_id,order_date" = true
-	// - Foreign key on (user_id, product_id) is detected as covered
-	// - Primary key on (id) creates entry: "users.id" = true
-	// - Unique constraint on (email, status) creates entries:
-	//   "users.email" = true
-	//   "users.email,status" = true
-	indexPrefixCoverageMap map[string]bool
+	// Indexes stored per table
+	// Key is table name, value is slice of indexes on that table.
+	tableIndexes map[string][]*queryparser.Index
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -157,7 +146,7 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
-		indexPrefixCoverageMap:                  make(map[string]bool),
+		tableIndexes:                            make(map[string][]*queryparser.Index),
 	}
 }
 
@@ -471,14 +460,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Process primary key as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addIndexPrefixesToCoverageMap(alter.GetObjectName(), alter.ConstraintColumns)
+				p.addConstraintAsIndex(alter.GetObjectName(), alter.ConstraintColumns, "PRIMARY KEY")
 			}
 		}
 
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addIndexPrefixesToCoverageMap(alter.GetObjectName(), alter.ConstraintColumns)
+				p.addConstraintAsIndex(alter.GetObjectName(), alter.ConstraintColumns, "UNIQUE")
 			}
 		}
 
@@ -837,9 +826,9 @@ func (p *ParserIssueDetector) GetForeignKeyConstraints() []ForeignKeyConstraint 
 	return p.foreignKeyConstraints
 }
 
-// GetIndexPrefixCoverageMap returns the index prefix coverage map
-func (p *ParserIssueDetector) GetIndexPrefixCoverageMap() map[string]bool {
-	return p.indexPrefixCoverageMap
+// GetTableIndexes returns the table indexes map
+func (p *ParserIssueDetector) GetTableIndexes() map[string][]*queryparser.Index {
+	return p.tableIndexes
 }
 
 // DetectMissingForeignKeyIndexes detects missing foreign key indexes after all DDL has been processed
@@ -872,74 +861,40 @@ func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
 // FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
 // FK (x,y,z) → No index ✗ → Detected as missing index
 func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bool {
-	// Use the existing detection logic from detectors_ddl.go
-	// We'll reuse the same functions but with the stored data
-
-	// Check for exact match first (O(1) lookup)
-	if p.hasExactMatch(fk.TableName, fk.ColumnNames) {
-		return true
+	indexes, exists := p.tableIndexes[fk.TableName]
+	if !exists {
+		return false
 	}
 
-	// Check for permutation match (different column order)
-	if p.hasPermutationMatch(fk.TableName, fk.ColumnNames) {
-		return true
-	}
-
-	// No suitable index found
-	return false
-}
-
-// hasExactMatch checks for exact column order match (O(1) lookup).
-func (p *ParserIssueDetector) hasExactMatch(tableName string, columns []string) bool {
-	key := fmt.Sprintf("%s.%s", tableName, strings.Join(columns, ","))
-	return p.indexPrefixCoverageMap[key]
-}
-
-// hasPermutationMatch checks for different column order (O(n!) for n columns).
-func (p *ParserIssueDetector) hasPermutationMatch(tableName string, columns []string) bool {
-	permutations := p.generatePermutations(columns)
-	for _, perm := range permutations {
-		key := fmt.Sprintf("%s.%s", tableName, strings.Join(perm, ","))
-		if p.indexPrefixCoverageMap[key] {
+	for _, index := range indexes {
+		if p.hasIndexCoverage(index, fk.ColumnNames) {
 			return true
 		}
 	}
+
 	return false
 }
 
-// generatePermutations generates all permutations of the given slice using a backtracking algorithm.
-// O(n!) complexity for n elements
-func (p *ParserIssueDetector) generatePermutations(elements []string) [][]string {
-	if len(elements) <= 1 {
-		return [][]string{elements}
-	}
-
-	var result [][]string
-	var backtrack func(used []bool, current []string)
-
-	backtrack = func(used []bool, current []string) {
-		if len(current) == len(elements) {
-			// Make a copy of current
-			perm := make([]string, len(current))
-			copy(perm, current)
-			result = append(result, perm)
-			return
-		}
-
-		for i := 0; i < len(elements); i++ {
-			if !used[i] {
-				used[i] = true
-				current = append(current, elements[i])
-				backtrack(used, current)
-				current = current[:len(current)-1]
-				used[i] = false
-			}
+// hasIndexCoverage checks if an index provides coverage for the given foreign key columns.
+// It checks if the FK columns form a subset of the index columns (in any order) and are at the beginning.
+func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColumns []string) bool {
+	// Extract non-expression columns from the index
+	indexColumns := make([]string, 0)
+	for _, param := range index.Params {
+		if !param.IsExpression {
+			indexColumns = append(indexColumns, param.ColName)
 		}
 	}
 
-	used := make([]bool, len(elements))
-	backtrack(used, []string{})
-	return result
+	// Check if we have enough columns in the index
+	if len(indexColumns) < len(fkColumns) {
+		return false
+	}
+
+	// Check if the FK columns are a subset of the first len(fkColumns) index columns
+	// This handles both exact order and permutation cases
+	indexPrefix := indexColumns[:len(fkColumns)]
+	return utils.IsSetEqual(fkColumns, indexPrefix)
 }
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
@@ -960,41 +915,49 @@ func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStat
 	}
 }
 
-// addIndexToCoverage adds an index and its prefixes to the coverage map for checking missing foreign key index issue
+// addIndexToCoverage adds an index to the table indexes map for checking missing foreign key index issue
 func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 	tableName := index.GetTableName()
 
-	// Extract columns in order (only non-expression columns)
-	columns := make([]string, 0)
-	for _, param := range index.Params {
-		if !param.IsExpression {
-			columns = append(columns, param.ColName)
+	// Add the index to the table's index list
+	if _, exists := p.tableIndexes[tableName]; !exists {
+		p.tableIndexes[tableName] = make([]*queryparser.Index, 0)
+	}
+	p.tableIndexes[tableName] = append(p.tableIndexes[tableName], index)
+}
+
+// addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
+// This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
+func (p *ParserIssueDetector) addConstraintAsIndex(tableName string, columns []string, constraintType string) {
+	// Create mock index parameters from columns
+	indexParams := make([]queryparser.IndexParam, len(columns))
+	for i, colName := range columns {
+		indexParams[i] = queryparser.IndexParam{
+			ColName:      colName,
+			IsExpression: false,
 		}
 	}
 
-	// Generate all prefix combinations and store in coverage map
-	p.addIndexPrefixesToCoverageMap(tableName, columns)
-}
-
-// addIndexPrefixesToCoverageMap generates all prefix combinations for given columns and adds them to the coverage map.
-// This function handles the case where a superset index (containing FK columns as a prefix plus additional columns)
-// can efficiently serve foreign key operations.
-//
-// Example: For an index on (customer_id, product_id, order_date, status), this function adds:
-// - orders.customer_id
-// - orders.customer_id,product_id
-// - orders.customer_id,product_id,order_date
-// - orders.customer_id,product_id,order_date,status
-//
-// This allows the foreign key detection logic to recognize that a FK on (customer_id, product_id)
-// is properly indexed even when the actual index contains additional columns. PostgreSQL/YugabyteDB
-// can efficiently use the leading columns of a composite index for foreign key operations.
-func (p *ParserIssueDetector) addIndexPrefixesToCoverageMap(tableName string, columns []string) {
-	for i := 1; i <= len(columns); i++ {
-		prefix := columns[:i]
-		key := fmt.Sprintf("%s.%s", tableName, strings.Join(prefix, ","))
-		p.indexPrefixCoverageMap[key] = true
+	// Extract schema name from tableName (format: "schema.table")
+	schemaName := ""
+	tableNameOnly := tableName
+	if strings.Contains(tableName, ".") {
+		parts := strings.SplitN(tableName, ".", 2)
+		schemaName = parts[0]
+		tableNameOnly = parts[1]
 	}
+
+	// Create a mock index object
+	mockIndex := &queryparser.Index{
+		SchemaName:   schemaName,
+		IndexName:    fmt.Sprintf("%s_%s", strings.ToLower(constraintType), strings.Join(columns, "_")),
+		TableName:    tableNameOnly,
+		AccessMethod: BTREE_ACCESS_METHOD, // Primary keys and unique constraints use btree by default
+		Params:       indexParams,
+	}
+
+	// Add to table indexes
+	p.addIndexToCoverage(mockIndex)
 }
 
 // processTableConstraintsAsIndexes processes primary keys and unique constraints as indexes for foreign key detection.
@@ -1004,11 +967,11 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 	// Process primary keys
 	for _, constraint := range table.Constraints {
 		if constraint.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
-			// Primary key constraints are also indexes for foreign key detection
+			// Primary key constraints are also indexes for missing foreign key index detection
 			// We need to ensure the index is processed and covered
 			primaryKeyColumns := constraint.Columns
 			if len(primaryKeyColumns) > 0 {
-				p.addIndexPrefixesToCoverageMap(tableName, primaryKeyColumns)
+				p.addConstraintAsIndex(tableName, primaryKeyColumns, "PRIMARY KEY")
 			}
 		}
 	}
@@ -1016,11 +979,11 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 	// Process unique constraints
 	for _, constraint := range table.Constraints {
 		if constraint.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
-			// Unique constraints are also indexes for foreign key detection
+			// Unique constraints are also indexes for missing foreign key index detection
 			// We need to ensure the index is processed and covered
 			uniqueColumns := constraint.Columns
 			if len(uniqueColumns) > 0 {
-				p.addIndexPrefixesToCoverageMap(tableName, uniqueColumns)
+				p.addConstraintAsIndex(tableName, uniqueColumns, "UNIQUE")
 			}
 		}
 	}
