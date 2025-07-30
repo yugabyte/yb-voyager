@@ -450,6 +450,8 @@ func TestDDLIssues(t *testing.T) {
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
 		},
+		stmt38: []QueryIssue{},
+		stmt41: []QueryIssue{},
 		stmt44: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
 		},
@@ -477,6 +479,13 @@ func TestDDLIssues(t *testing.T) {
 		stmt74: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
 		},
+		stmt77: []QueryIssue{},
+		stmt80: []QueryIssue{},
+		stmt83: []QueryIssue{},
+		stmt86: []QueryIssue{},
+		stmt89: []QueryIssue{},
+		stmt92: []QueryIssue{},
+		stmt95: []QueryIssue{},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)

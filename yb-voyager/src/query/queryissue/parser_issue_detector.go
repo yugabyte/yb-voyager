@@ -187,8 +187,7 @@ func (p *ParserIssueDetector) GetColumnsWithUnsupportedIndexDatatypes() map[stri
 				if _, exists := columnsWithUnsupportedIndexDatatypes[tableName]; !exists {
 					columnsWithUnsupportedIndexDatatypes[tableName] = make(map[string]string)
 				}
-				// Apply SQL type name transformation for user-facing output
-				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = utils.GetSQLTypeName(meta.DataType)
+				columnsWithUnsupportedIndexDatatypes[tableName][columnName] = meta.DataType
 			}
 		}
 	}
@@ -207,8 +206,7 @@ func (p *ParserIssueDetector) GetColumnsWithHotspotRangeIndexesDatatypes() map[s
 				if _, exists := columnsWithHotspotRangeIndexesDatatypes[tableName]; !exists {
 					columnsWithHotspotRangeIndexesDatatypes[tableName] = make(map[string]string)
 				}
-				// Apply SQL type name transformation for user-facing output
-				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = utils.GetSQLTypeName(meta.DataType)
+				columnsWithHotspotRangeIndexesDatatypes[tableName][columnName] = meta.DataType
 			}
 		}
 	}
