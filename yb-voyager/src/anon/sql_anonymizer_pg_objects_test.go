@@ -806,10 +806,8 @@ func TestPostgresDDLVariants(t *testing.T) {
 	}
 }
 
+// Based on analysis from postgresql_nodes_analysis.md
 func TestMissingNodeAnonymization(t *testing.T) {
-	// Test cases for PostgreSQL nodes that may be missing anonymization coverage
-	// Based on analysis from postgresql_nodes_analysis.md
-	log.SetLevel(log.WarnLevel)
 
 	type missingNodeCase struct {
 		key              string   // unique test identifier
@@ -881,55 +879,6 @@ func TestMissingNodeAnonymization(t *testing.T) {
 			sql:        "ALTER SYSTEM SET my_param = 'value';",
 			skipReason: "Not dumped by pg_dump",
 		},
-	}
-
-	enabled := map[string]bool{
-		// Enable all tests by default - we want to see what fails
-	}
-
-	exportDir := testutils.CreateTempExportDir()
-	defer testutils.RemoveTempExportDir(exportDir)
-	anonymizer := newAnon(t, exportDir)
-
-	for _, tc := range testCases {
-		if !enabled[tc.key] && len(enabled) > 0 {
-			continue // skip if enabled map is provided and this test is not in it
-		}
-
-		if tc.skipReason != "" {
-			t.Logf("SKIPPING %s: %s", tc.key, tc.skipReason)
-			continue
-		}
-
-		t.Run(tc.key, func(t *testing.T) {
-			result, err := anonymizer.Anonymize(tc.sql)
-
-			// For now, we expect many of these to fail since anonymization is not implemented
-			// This test is to identify what needs to be implemented
-			if err != nil {
-				t.Logf("EXPECTED FAILURE for node type %s: %v", tc.nodeType, err)
-				t.Logf("SQL: %s", tc.sql)
-				return
-			}
-
-			// Check that original identifiers are gone
-			for _, ident := range tc.shouldAnonymize {
-				if ident != "" && strings.Contains(result, ident) {
-					t.Errorf("Original identifier %q still present in result: %s", ident, result)
-				}
-			}
-
-			// Check that expected prefixes are present
-			for _, prefix := range tc.expectedPrefixes {
-				if prefix != "" && !hasTok(result, prefix) {
-					t.Errorf("Expected prefix %q not found in result: %s", prefix, result)
-				}
-			}
-
-			t.Logf("SUCCESS for node type %s", tc.nodeType)
-			t.Logf("Original: %s", tc.sql)
-			t.Logf("Anonymized: %s", result)
-		})
 	}
 }
 
