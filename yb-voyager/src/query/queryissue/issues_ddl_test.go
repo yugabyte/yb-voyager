@@ -827,7 +827,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	testCases := []testPKandUKOnComplexDataTypeTests{
 		{
 			sql:        `CREATE TABLE citext_table_pk (id int, name CITEXT, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported",
 			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
 		},
 		{
@@ -1158,6 +1158,8 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		conn.Close(ctx)
 	}
 }
+
+
 
 func testExtensionSupportList(t *testing.T) {
 	conn, err := getConn()
