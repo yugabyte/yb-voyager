@@ -1146,6 +1146,12 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 		return fmt.Errorf("expected CommentStmt, got %T", msg.Interface())
 	}
 
+	/*
+		SQL: COMMENT ON TABLE sales.orders IS 'Customer order information';
+		ParseTree: stmt:{comment_stmt:{objtype:OBJECT_TABLE object:{list:{items:{string:{sval:"sales"}}
+			items:{string:{sval:"orders"}}}} comment:"Customer order information"}}
+	*/
+
 	// Handle different object types based on their parse tree structure
 	switch cs.Objtype {
 	case pg_query.ObjectType_OBJECT_FUNCTION, pg_query.ObjectType_OBJECT_PROCEDURE:
@@ -1369,6 +1375,7 @@ func (a *SqlAnonymizer) handleAggregateObjectNodes(msg protoreflect.Message) (er
 					arg:{type_name:{names:{string:{sval:"sales"}}  names:{string:{sval:"add_order"}}}}}}
 					definition:{def_elem:{defname:"stype"  arg:{type_name:{names:{string:{sval:"pg_catalog"}}  names:{string:{sval:"int4"}}}} }}}}
 	*/
+	// stype can be a user-defined type, covered already in type nodes processors
 
 	// Process function references in the definition
 	if ds.Definition == nil {
