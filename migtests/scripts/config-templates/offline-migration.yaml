@@ -48,6 +48,7 @@ assess-migration:
 
 export-data:
   export-type: snapshot-only
+  disable-pb: true
 
   {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}
   table-list: '{{ EXPORT_TABLE_LIST }}'
@@ -67,6 +68,7 @@ export-data:
 
 import-data:
   enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+  disable-pb: true
 
   {% if IMPORT_TABLE_LIST is defined and IMPORT_TABLE_LIST != "" %}
   table-list: '{{ IMPORT_TABLE_LIST }}'
