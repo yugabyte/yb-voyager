@@ -7,6 +7,9 @@
 # Import Type
 import_type: offline
 
+additional_flags:
+  --error-policy-snapshot: stash-and-continue
+
 # Row Count Validation
 row_count:
   Case_Sensitive_Table: 5000000

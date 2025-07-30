@@ -9,6 +9,7 @@ import_type: offline
 
 additional_flags:
   --on-primary-key-conflict: "IGNORE"
+  --error-policy-snapshot: stash-and-continue
 
 # Row Count Validation
 row_count:

@@ -7,6 +7,7 @@ file_table_map: "accounts_350m_data.sql:accounts_large"
 additional_flags:
   --delimiter: "\\t"
   --format: "text"
+  --error-policy: stash-and-continue
 
 # Row Count Validation
 row_count:

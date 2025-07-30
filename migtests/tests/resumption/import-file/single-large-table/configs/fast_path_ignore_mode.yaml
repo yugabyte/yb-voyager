@@ -8,6 +8,7 @@ additional_flags:
   --on-primary-key-conflict: "IGNORE"
   --delimiter: "\\t"
   --format: "text"
+  --error-policy: stash-and-continue
 
 # Row Count Validation
 row_count:
