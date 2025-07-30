@@ -442,42 +442,33 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt29: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "orders", stmt29, "user_id", "orders", "users"),
 		},
 		stmt32: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
-			NewMissingForeignKeyIndexIssue("TABLE", "invoices", stmt32, "payment_id", "invoices", "payments"),
 		},
 		stmt35: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "delivery_tracking", stmt35, "shipment_id, shipment_code, country_code", "delivery_tracking", "shipments"),
 		},
 		stmt38: []QueryIssue{},
 		stmt41: []QueryIssue{},
 		stmt38: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
-			NewMissingForeignKeyIndexIssue("TABLE", "orders2", stmt38, "customer_code", "orders2", "customers2"),
 		},
 		stmt41: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
-			NewMissingForeignKeyIndexIssue("TABLE", "orders3", stmt41, "product_price", "orders3", "products2"),
 		},
 		stmt44: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "Sessions", stmt44, "UserID", "Sessions", "Accounts"),
 		},
 		stmt48: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "orders_partitioned", stmt48, "customer_id", "orders_partitioned", "customers_root"),
 		},
 		stmt53: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "sales", stmt53, "product_id", "sales", "products_root"),
 		},
 		stmt57: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer"),
-			NewMissingForeignKeyIndexIssue("TABLE", "derived_items_2", stmt57, "item_id", "derived_items_2", "base_items"),
 		},
 		stmt62: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer"),
@@ -493,7 +484,6 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt74: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
-			NewMissingForeignKeyIndexIssue("TABLE", "schema1.employees", stmt62, "dept_id", "schema1.employees", "schema2.departments"),
 		},
 		stmt77: []QueryIssue{},
 		stmt80: []QueryIssue{},
@@ -1220,19 +1210,15 @@ REFERENCES schema1.abc (id);
 	ddlStmtsWithIssues := map[string][]QueryIssue{
 		stmt1: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt1, "abc_fk_abc_id_fkey"),
-			NewMissingForeignKeyIndexIssue("TABLE", "abc_fk", stmt1, "abc_id", "abc_fk", "abc1"),
 		},
 		stmt2: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk1", stmt2, "fk"),
-			NewMissingForeignKeyIndexIssue("TABLE", "schema1.abc_fk1", stmt2, "abc1_id", "schema1.abc_fk1", "schema1.abc"),
 		},
 		stmt3: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "abc_fk", stmt3, "fk_abc"),
-			NewMissingForeignKeyIndexIssue("TABLE", "abc_fk", stmt3, "abc_id", "abc_fk", "abc1"),
 		},
 		stmt4: []QueryIssue{
 			NewForeignKeyReferencesPartitionedTableIssue(TABLE_OBJECT_TYPE, "schema1.abc_fk", stmt4, "abc_fk_abc_id_fkey"),
-			NewMissingForeignKeyIndexIssue("TABLE", "schema1.abc_fk", stmt4, "abc_id", "schema1.abc_fk", "schema1.abc"),
 		},
 	}
 	parserIssueDetector := NewParserIssueDetector()
