@@ -147,9 +147,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 			ParseTree:
 	*/
 	case queryparser.PG_QUERY_RANGEVAR_NODE:
-		rv, err := mustProtoNode(queryparser.ProtoAsRangeVarNode, msg, "RangeVar")
-		if err != nil {
-			return err
+		rv, ok := queryparser.ProtoAsRangeVarNode(msg)
+		if !ok {
+			return fmt.Errorf("expected RangeVar, got %T", msg.Interface())
 		}
 
 		// ISSUE: RangeVar.relname is not always a TABLE - it could be a SEQUENCE, VIEW, MATERIALIZED VIEW, etc.
@@ -200,9 +200,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 						from_clause:{range_var:{catalogname:"mydb"  schemaname:"sales"  relname:"users"  inh:true  relpersistence:"p"  location:41}}  }}
 	*/
 	case queryparser.PG_QUERY_COLUMNREF_NODE:
-		cr, err := mustProtoNode(queryparser.ProtoAsColumnRefNode, msg, "ColumnRef")
-		if err != nil {
-			return err
+		cr, ok := queryparser.ProtoAsColumnRefNode(msg)
+		if !ok {
+			return fmt.Errorf("expected ColumnRef, got %T", msg.Interface())
 		}
 		err = a.anonymizeColumnRefNode(cr.Fields)
 		if err != nil {
@@ -222,9 +222,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 
 	*/
 	case queryparser.PG_QUERY_RESTARGET_NODE:
-		rt, err := mustProtoNode(queryparser.ProtoAsResTargetNode, msg, "ResTarget")
-		if err != nil {
-			return err
+		rt, ok := queryparser.ProtoAsResTargetNode(msg)
+		if !ok {
+			return fmt.Errorf("expected ResTarget, got %T", msg.Interface())
 		}
 		rt.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, rt.Name)
 		if err != nil {
@@ -253,9 +253,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 
 	*/
 	case queryparser.PG_QUERY_CONSTRAINT_NODE:
-		cons, err := mustProtoNode(queryparser.ProtoAsTableConstraintNode, msg, "TableConstraint")
-		if err != nil {
-			return err
+		cons, ok := queryparser.ProtoAsTableConstraintNode(msg)
+		if !ok {
+			return fmt.Errorf("expected TableConstraint, got %T", msg.Interface())
 		}
 
 		cons.Conname, err = a.registry.GetHash(CONSTRAINT_KIND_PREFIX, cons.Conname)
@@ -295,9 +295,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 		}
 
 	case queryparser.PG_QUERY_ALIAS_NODE:
-		alias, err := mustProtoNode(queryparser.ProtoAsAliasNode, msg, "Alias")
-		if err != nil {
-			return err
+		alias, ok := queryparser.ProtoAsAliasNode(msg)
+		if !ok {
+			return fmt.Errorf("expected Alias, got %T", msg.Interface())
 		}
 		alias.Aliasname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, alias.Aliasname)
 		if err != nil {
@@ -311,9 +311,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 					....}}  oncommit:ONCOMMIT_NOOP}}
 	*/
 	case queryparser.PG_QUERY_TYPENAME_NODE:
-		tn, err := mustProtoNode(queryparser.ProtoAsTypeNameNode, msg, "TypeName")
-		if err != nil {
-			return err
+		tn, ok := queryparser.ProtoAsTypeNameNode(msg)
+		if !ok {
+			return fmt.Errorf("expected TypeName, got %T", msg.Interface())
 		}
 
 		// Only anonymize if it's not a built-in type
@@ -337,9 +337,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 					privileges:{access_priv:{priv_name:"select"}}  grantees:{role_spec:{roletype:ROLESPEC_CSTRING  rolename:"reporting_user" ...}}  ...}}
 	*/
 	case queryparser.PG_QUERY_ROLESPEC_NODE:
-		rs, err := mustProtoNode(queryparser.ProtoAsRoleSpecNode, msg, "RoleSpec")
-		if err != nil {
-			return err
+		rs, ok := queryparser.ProtoAsRoleSpecNode(msg)
+		if !ok {
+			return fmt.Errorf("expected RoleSpec, got %T", msg.Interface())
 		}
 
 		rs.Rolename, err = a.registry.GetHash(ROLE_KIND_PREFIX, rs.Rolename)
@@ -349,9 +349,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 
 	// ─── GENERIC RENAME STATEMENT PROCESSOR ─────────────────────────────────────────────
 	case queryparser.PG_QUERY_RENAME_STMT_NODE:
-		rs, err := mustProtoNode(queryparser.ProtoAsRenameStmtNode, msg, "RenameStmt")
-		if err != nil {
-			return err
+		rs, ok := queryparser.ProtoAsRenameStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected RenameStmt, got %T", msg.Interface())
 		}
 		err = a.handleGenericRenameStmt(rs)
 		if err != nil {
@@ -360,9 +360,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 
 	// ─── GENERIC DROP STATEMENT PROCESSOR ─────────────────────────────────────────────
 	case queryparser.PG_QUERY_DROP_STMT_NODE:
-		ds, err := mustProtoNode(queryparser.ProtoAsDropStmtNode, msg, "DropStmt")
-		if err != nil {
-			return err
+		ds, ok := queryparser.ProtoAsDropStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected DropStmt, got %T", msg.Interface())
 		}
 		err = a.handleGenericDropStmt(ds)
 		if err != nil {
@@ -371,9 +371,9 @@ func (a *SqlAnonymizer) identifierNodesProcessor(msg protoreflect.Message) (err 
 
 	// ─── GENERIC ALTER OBJECT SCHEMA STATEMENT PROCESSOR ─────────────────────────────────────────────
 	case queryparser.PG_QUERY_ALTER_OBJECT_SCHEMA_STMT_NODE:
-		aos, err := mustProtoNode(queryparser.ProtoAsAlterObjectSchemaStmtNode, msg, "AlterObjectSchemaStmt")
-		if err != nil {
-			return err
+		aos, ok := queryparser.ProtoAsAlterObjectSchemaStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterObjectSchemaStmt, got %T", msg.Interface())
 		}
 		err = a.handleGenericAlterObjectSchemaStmt(aos)
 		if err != nil {
@@ -392,9 +392,9 @@ func (a *SqlAnonymizer) literalNodesProcessor(msg protoreflect.Message) error {
 		select_stmt:{select_stmt:{values_lists:{list:{items:{a_const:{sval:{sval:"superSecret"}  ...}}}}  ...}}  ...}}
 	*/
 	case queryparser.PG_QUERY_ACONST_NODE:
-		ac, err := mustProtoNode(queryparser.ProtoAsAConstNode, msg, "A_Const")
-		if err != nil {
-			return err
+		ac, ok := queryparser.ProtoAsAConstNode(msg)
+		if !ok {
+			return fmt.Errorf("expected A_Const, got %T", msg.Interface())
 		}
 
 		if ac.Val != nil && ac.GetSval() != nil {
@@ -435,9 +435,9 @@ func (a *SqlAnonymizer) miscellaneousNodesProcessor(msg protoreflect.Message) (e
 	*/
 	case queryparser.PG_QUERY_DEFELEM_NODE:
 		// DEFELEM node is used in CREATE EXTENSION, CREATE FOREIGN TABLE have table_name and schema
-		defElem, err := mustProtoNode(queryparser.ProtoAsDefElemNode, msg, "DefElem")
-		if err != nil {
-			return err
+		defElem, ok := queryparser.ProtoAsDefElemNode(msg)
+		if !ok {
+			return fmt.Errorf("expected DefElem, got %T", msg.Interface())
 		}
 
 		defName := defElem.GetDefname()
@@ -461,9 +461,9 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 	switch queryparser.GetMsgFullName(msg) {
 	// ─── SCHEMA: CREATE ───────────────────────────────────────────
 	case queryparser.PG_QUERY_CREATE_SCHEMA_STMT_NODE:
-		cs, err := mustProtoNode(queryparser.ProtoAsCreateSchemaStmtNode, msg, "CreateSchemaStmt")
-		if err != nil {
-			return err
+		cs, ok := queryparser.ProtoAsCreateSchemaStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateSchemaStmt, got %T", msg.Interface())
 		}
 		// anonymize the schema name
 		cs.Schemaname, err = a.registry.GetHash(SCHEMA_KIND_PREFIX, cs.Schemaname)
@@ -474,9 +474,9 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 	// ─── SCHEMA: ALTER(OWNER) ────────────────────────────────────────────
 	// SQL: ALTER SCHEMA sales_new OWNER TO sales_owner;
 	case queryparser.PG_QUERY_ALTER_OWNER_STMT_NODE:
-		ao, err := mustProtoNode(queryparser.ProtoAsAlterOwnerStmtNode, msg, "AlterOwnerStmt")
-		if err != nil {
-			return err
+		ao, ok := queryparser.ProtoAsAlterOwnerStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterOwnerStmt, got %T", msg.Interface())
 		}
 
 		if ao.ObjectType == pg_query.ObjectType_OBJECT_SCHEMA {
@@ -501,9 +501,9 @@ func (a *SqlAnonymizer) handleSchemaObjectNodes(msg protoreflect.Message) (err e
 	// ─── SCHEMA: GRANT ────────────────────────────────────────────
 	// SQL: GRANT USAGE ON SCHEMA sales TO sales_user;
 	case queryparser.PG_QUERY_GRANT_STMT_NODE:
-		gs, err := mustProtoNode(queryparser.ProtoAsGrantStmtNode, msg, "GrantStmt")
-		if err != nil {
-			return err
+		gs, ok := queryparser.ProtoAsGrantStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected GrantStmt, got %T", msg.Interface())
 		}
 
 		if gs.Objtype != pg_query.ObjectType_OBJECT_SCHEMA {
@@ -570,9 +570,9 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 
 	// SQL: CREATE SEQUENCE sales.ord_id_seq;
 	case queryparser.PG_QUERY_CREATE_SEQ_STMT_NODE:
-		cs, err := mustProtoNode(queryparser.ProtoAsCreateSeqStmtNode, msg, "CreateSeqStmt")
-		if err != nil {
-			return err
+		cs, ok := queryparser.ProtoAsCreateSeqStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateSeqStmt, got %T", msg.Interface())
 		}
 		rv := cs.Sequence
 		if rv == nil {
@@ -586,9 +586,9 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 	// ALTER SEQUENCE  (incl. OWNED BY)
 	// SQL: ALTER SEQUENCE sales.ord_id_seq OWNED BY sales.orders.id;
 	case queryparser.PG_QUERY_ALTER_SEQ_STMT_NODE:
-		as, err := mustProtoNode(queryparser.ProtoAsAlterSeqStmtNode, msg, "AlterSeqStmt")
-		if err != nil {
-			return err
+		as, ok := queryparser.ProtoAsAlterSeqStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterSeqStmt, got %T", msg.Interface())
 		}
 		err = a.anonymizeRangeVarNode(as.Sequence, SEQUENCE_KIND_PREFIX)
 		if err != nil {
@@ -635,9 +635,9 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 					vals:{string:{sval:"new"}} vals:{string:{sval:"proc"}} vals:{string:{sval:"done"}}}}
 	*/
 	case queryparser.PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE:
-		ces, err := mustProtoNode(queryparser.ProtoAsCreateEnumStmtNode, msg, "CreateEnumStmt")
-		if err != nil {
-			return err
+		ces, ok := queryparser.ProtoAsCreateEnumStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateEnumStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the type name (fully qualified: database.schema.typename)
@@ -664,9 +664,9 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 		ParseTree:	stmt:{alter_enum_stmt:{type_name:{string:{sval:"status"}} new_val:"archived" new_val_is_after:true}} stmt_len:3
 	*/
 	case queryparser.PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE:
-		ae, err := mustProtoNode(queryparser.ProtoAsAlterEnumStmtNode, msg, "AlterEnumStmt")
-		if err != nil {
-			return err
+		ae, ok := queryparser.ProtoAsAlterEnumStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterEnumStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the type name (fully qualified: database.schema.typename)
@@ -688,9 +688,9 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 					coldeflist:{column_def:{colname:"b" type_name:{names:{string:{sval:"text"}} ... } }}}}
 	*/
 	case queryparser.PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE:
-		ct, err := mustProtoNode(queryparser.ProtoAsCompositeTypeStmtNode, msg, "CreateTypeStmt")
-		if err != nil {
-			return err
+		ct, ok := queryparser.ProtoAsCompositeTypeStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateTypeStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the type name present as RangeVar node
@@ -716,9 +716,9 @@ func (a *SqlAnonymizer) handleDomainObjectNodes(msg protoreflect.Message) (err e
 					 lexpr:{column_ref:{fields:{string:{sval:"value"}}  location:39}}  rexpr:{a_const:{sval:{sval:"^[0-9]{5}$"}  }} }}  }}}}  stmt_len:60
 	*/
 	case queryparser.PG_QUERY_CREATE_DOMAIN_STMT_NODE:
-		cd, err := mustProtoNode(queryparser.ProtoAsCreateDomainStmtNode, msg, "CreateDomainStmt")
-		if err != nil {
-			return err
+		cd, ok := queryparser.ProtoAsCreateDomainStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateDomainStmt, got %T", msg.Interface())
 		}
 		// Anonymize the domain name
 		err = a.anonymizeStringNodes(cd.Domainname, DOMAIN_KIND_PREFIX)
@@ -799,9 +799,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 
 	*/
 	case queryparser.PG_QUERY_ALTER_TABLE_STMT_NODE:
-		at, err := mustProtoNode(queryparser.ProtoAsAlterTableStmtNode, msg, "AlterTableStmt")
-		if err != nil {
-			return err
+		at, ok := queryparser.ProtoAsAlterTableStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterTableStmt, got %T", msg.Interface())
 		}
 		err = a.anonymizeRangeVarNode(at.Relation, TABLE_KIND_PREFIX)
 		if err != nil {
@@ -809,9 +809,9 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 		}
 
 	case queryparser.PG_QUERY_ALTER_TABLE_CMD_NODE:
-		atc, err := mustProtoNode(queryparser.ProtoAsAlterTableCmdNode, msg, "AlterTableCmd")
-		if err != nil {
-			return err
+		atc, ok := queryparser.ProtoAsAlterTableCmdNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterTableCmd, got %T", msg.Interface())
 		}
 
 		// Handle ALTER TABLE command types that contain sensitive information
@@ -889,9 +889,9 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 					index_params:{index_elem:{name:"last_name" ...}} index_params:{index_elem:{name:"first_name" ...}} index_params:{index_elem:{name:"hire_date" ...}}}}
 	*/
 	case queryparser.PG_QUERY_INDEX_STMT_NODE:
-		idx, err := mustProtoNode(queryparser.ProtoAsIndexStmtNode, msg, "IndexStmt")
-		if err != nil {
-			return err
+		idx, ok := queryparser.ProtoAsIndexStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexStmt, got %T", msg.Interface())
 		}
 
 		idx.Idxname, err = a.registry.GetHash(INDEX_KIND_PREFIX, idx.Idxname)
@@ -900,9 +900,9 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 		}
 
 	case queryparser.PG_QUERY_INDEXELEM_NODE:
-		ie, err := mustProtoNode(queryparser.ProtoAsIndexElemNode, msg, "IndexElem")
-		if err != nil {
-			return err
+		ie, ok := queryparser.ProtoAsIndexElemNode(msg)
+		if !ok {
+			return fmt.Errorf("expected IndexElem, got %T", msg.Interface())
 		}
 
 		/*
@@ -912,7 +912,7 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 						index_params:{index_elem:{name:"first_name" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}
 						index_params:{index_elem:{name:"hire_date" ordering:SORTBY_DEFAULT nulls_ordering:SORTBY_NULLS_DEFAULT}}}} stmt_len:79
 		*/
-		// 1) Plain column index: (Name != "")
+		// 1) Plain column index: (Name != "")
 		//    CREATE INDEX … ON tbl(col1);
 		if ie.Name != "" {
 			ie.Name, err = a.registry.GetHash(COLUMN_KIND_PREFIX, ie.Name)
@@ -927,11 +927,11 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 						index_params:{index_elem:{expr:{a_expr:{kind:AEXPR_OP name:{string:{sval:"+"}} lexpr:{column_ref:{fields:{string:{sval:"last_name"}} location:47}}
 						rexpr:{column_ref:{fields:{string:{sval:"first_name"}} ...}} ...}} ...}}}}
 		*/
-		// 2) Expression index: (Expr != nil, Name == "")
+		// 2) Expression index: (Expr != nil, Name == "")
 		//    CREATE INDEX … ON tbl((col1+col2));
 		// this case will be handled already by ColumnRefNode processor
 
-		// 3) Expression alias: (Indexcolname != "")
+		// 3) Expression alias: (Indexcolname != "")
 		//    CREATE INDEX … ON tbl((col1+col2) AS sum_col);
 		//	 above this sql syntax is invalid, couldn't find an example of Indexcolname but still keeping the anonymization logic here
 		ie.Indexcolname, err = a.registry.GetHash(ALIAS_KIND_PREFIX, ie.Indexcolname)
@@ -951,9 +951,9 @@ func (a *SqlAnonymizer) handlePolicyObjectNodes(msg protoreflect.Message) (err e
 		ParseTree:	stmt:{create_policy_stmt:{policy_name:"user_policy"  table:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:29}  cmd_name:"all"  permissive:true  roles:{role_spec:{roletype:ROLESPEC_CSTRING  rolename:"authenticated_users"  location:53}}  qual:{a_expr:{kind:AEXPR_OP  name:{string:{sval:"="}}  lexpr:{column_ref:{fields:{string:{sval:"user_id"}}  l
 	*/
 	case queryparser.PG_QUERY_CREATE_POLICY_STMT_NODE:
-		ps, err := mustProtoNode(queryparser.ProtoAsCreatePolicyStmtNode, msg, "CreatePolicyStmt")
-		if err != nil {
-			return err
+		ps, ok := queryparser.ProtoAsCreatePolicyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreatePolicyStmt, got %T", msg.Interface())
 		}
 
 		// Policy name is always unqualified
@@ -1141,9 +1141,9 @@ func (a *SqlAnonymizer) handleCommentObjectNodes(msg protoreflect.Message) (err 
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_COMMENT_STMT_NODE {
 		return nil
 	}
-	cs, err := mustProtoNode(queryparser.ProtoAsCommentStmtNode, msg, "CommentStmt")
-	if err != nil {
-		return err
+	cs, ok := queryparser.ProtoAsCommentStmtNode(msg)
+	if !ok {
+		return fmt.Errorf("expected CommentStmt, got %T", msg.Interface())
 	}
 
 	// Handle different object types based on their parse tree structure
@@ -1229,9 +1229,9 @@ func (a *SqlAnonymizer) handleConversionObjectNodes(msg protoreflect.Message) (e
 					for_encoding_name:"LATIN1"  to_encoding_name:"UTF8"  func_name:{string:{sval:"latin1_to_utf8"}}}}
 	*/
 	case queryparser.PG_QUERY_CREATE_CONVERSION_STMT_NODE:
-		ccs, err := mustProtoNode(queryparser.ProtoAsCreateConversionStmtNode, msg, "CreateConversionStmt")
-		if err != nil {
-			return err
+		ccs, ok := queryparser.ProtoAsCreateConversionStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateConversionStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the conversion name (fully qualified: schema.conversion_name)
@@ -1269,9 +1269,9 @@ func (a *SqlAnonymizer) handleForeignTableObjectNodes(msg protoreflect.Message) 
 	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_CREATE_FOREIGN_TABLE_STMT_NODE {
 		return nil
 	}
-	fts, err := mustProtoNode(queryparser.ProtoAsCreateForeignTableStmt, msg, "CreateForeignTableStmt")
-	if err != nil {
-		return err
+	fts, ok := queryparser.ProtoAsCreateForeignTableStmt(msg)
+	if !ok {
+		return fmt.Errorf("expected CreateForeignTableStmt, got %T", msg.Interface())
 	}
 
 	// Anonymize the relation (table name) with FOREIGN_TABLE_KIND_PREFIX
@@ -1331,9 +1331,9 @@ func (a *SqlAnonymizer) handleRuleObjectNodes(msg protoreflect.Message) (err err
 		return nil
 	}
 
-	rs, err := mustProtoNode(queryparser.ProtoAsRuleStmtNode, msg, "CreateRuleStmt")
-	if err != nil {
-		return err
+	rs, ok := queryparser.ProtoAsRuleStmtNode(msg)
+	if !ok {
+		return fmt.Errorf("expected CreateRuleStmt, got %T", msg.Interface())
 	}
 
 	// Anonymize the rule name
@@ -1511,9 +1511,9 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 
 	*/
 	case queryparser.PG_QUERY_CREATE_OP_CLASS_STMT_NODE:
-		cocs, err := mustProtoNode(queryparser.ProtoAsCreateOpClassStmtNode, msg, "CreateOpClassStmt")
-		if err != nil {
-			return err
+		cocs, ok := queryparser.ProtoAsCreateOpClassStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateOpClassStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the operator class name (qualified: schema.opclass_name)
@@ -1567,9 +1567,9 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 		ParseTree:	stmt:{create_op_family_stmt:{opfamilyname:{string:{sval:"sales"}} opfamilyname:{string:{sval:"abs_numeric_ops"}} amname:"btree"}}
 	*/
 	case queryparser.PG_QUERY_CREATE_OP_FAMILY_STMT_NODE:
-		cofs, err := mustProtoNode(queryparser.ProtoAsCreateOpFamilyStmtNode, msg, "CreateOpFamilyStmt")
-		if err != nil {
-			return err
+		cofs, ok := queryparser.ProtoAsCreateOpFamilyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateOpFamilyStmt, got %T", msg.Interface())
 		}
 
 		// Anonymize the operator family name (qualified: schema.opfamily_name)
