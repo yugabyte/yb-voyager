@@ -1,4 +1,4 @@
-name: "PG 13: Migration Tests"
+name: "PG 13: Migration Tests (CLI Workflow)"
 
 on:
   push:
