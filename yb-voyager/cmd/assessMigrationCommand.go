@@ -2005,3 +2005,46 @@ func validateSourceDBIOPSForAssessMigration() error {
 
 	return nil
 }
+
+// anonymizeIssueDetails anonymizes sensitive information in the details map
+// Currently handles FK_COLUMN_NAMES, can be extended for other sensitive keys
+func anonymizeIssueDetails(details map[string]interface{}) map[string]interface{} {
+	if details == nil {
+		return nil
+	}
+
+	anonymizedDetails := make(map[string]interface{})
+
+	for key, value := range details {
+		if key == queryissue.FK_COLUMN_NAMES {
+			if strValue, ok := value.(string); ok && strValue != "" {
+				// Split the string by comma to handle multiple FK columns
+				columnNames := strings.Split(strValue, ",")
+				var anonymizedColumns []string
+
+				for _, columnName := range columnNames {
+					columnName = strings.TrimSpace(columnName)
+					if columnName != "" {
+						anonymizedValue, err := anonymizer.AnonymizeColumnName(columnName)
+						if err != nil {
+							log.Warnf("failed to anonymize FK column name %s: %v", columnName, err)
+							anonymizedColumns = append(anonymizedColumns, constants.OBFUSCATE_STRING)
+						} else {
+							anonymizedColumns = append(anonymizedColumns, anonymizedValue)
+						}
+					}
+				}
+
+				// Join the anonymized column names back with comma
+				anonymizedDetails[key] = strings.Join(anonymizedColumns, ", ")
+			} else {
+				anonymizedDetails[key] = value
+			}
+		} else {
+			// Non-sensitive keys are kept as-is
+			anonymizedDetails[key] = value
+		}
+	}
+
+	return anonymizedDetails
+}
