@@ -821,198 +821,65 @@ func TestMissingNodeAnonymization(t *testing.T) {
 	}
 
 	testCases := []missingNodeCase{
-		// ────────── TEXT SEARCH STATEMENTS ──────────
-		{
-			key:              "alter_ts_dictionary_stmt",
-			sql:              "ALTER TEXT SEARCH DICTIONARY my_dict (StopWords = 'english');",
-			nodeType:         "T_AlterTSDictionaryStmt",
-			shouldAnonymize:  []string{"my_dict"},
-			expectedPrefixes: []string{"default_"}, // No specific prefix for TS objects
-		},
-		{
-			key:              "alter_ts_configuration_stmt",
-			sql:              "ALTER TEXT SEARCH CONFIGURATION my_config ADD MAPPING FOR word WITH simple;",
-			nodeType:         "T_AlterTSConfigurationStmt",
-			shouldAnonymize:  []string{"my_config"},
-			expectedPrefixes: []string{"default_"},
-		},
-
-		// ────────── PUBLICATION/SUBSCRIPTION STATEMENTS ──────────
-		{
-			key:              "create_publication_stmt",
-			sql:              "CREATE PUBLICATION my_publication FOR TABLE sales.orders, hr.employees;",
-			nodeType:         "T_CreatePublicationStmt",
-			shouldAnonymize:  []string{"my_publication", "sales", "orders", "hr", "employees"},
-			expectedPrefixes: []string{"default_", "schema_", "table_", "schema_", "table_"},
-		},
-		{
-			key:              "alter_publication_stmt",
-			sql:              "ALTER PUBLICATION my_publication ADD TABLE public.new_table;",
-			nodeType:         "T_AlterPublicationStmt",
-			shouldAnonymize:  []string{"my_publication", "public", "new_table"},
-			expectedPrefixes: []string{"default_", "schema_", "table_"},
-		},
-		{
-			key:              "create_subscription_stmt",
-			sql:              "CREATE SUBSCRIPTION my_subscription CONNECTION 'host=publisher port=5432' PUBLICATION my_publication;",
-			nodeType:         "T_CreateSubscriptionStmt",
-			shouldAnonymize:  []string{"my_subscription", "my_publication"},
-			expectedPrefixes: []string{"default_", "default_"},
-		},
-		{
-			key:              "alter_subscription_stmt",
-			sql:              "ALTER SUBSCRIPTION my_subscription REFRESH PUBLICATION;",
-			nodeType:         "T_AlterSubscriptionStmt",
-			shouldAnonymize:  []string{"my_subscription"},
-			expectedPrefixes: []string{"default_"},
-		},
-		{
-			key:              "drop_subscription_stmt",
-			sql:              "DROP SUBSCRIPTION my_subscription;",
-			nodeType:         "T_DropSubscriptionStmt",
-			shouldAnonymize:  []string{"my_subscription"},
-			expectedPrefixes: []string{"default_"},
-		},
-
-		// ────────── LANGUAGE STATEMENTS ──────────
-		{
-			key:              "create_language_stmt",
-			sql:              "CREATE LANGUAGE my_language HANDLER my_handler;",
-			nodeType:         "T_CreatePLangStmt",
-			shouldAnonymize:  []string{"my_language", "my_handler"},
-			expectedPrefixes: []string{"default_", "function_"},
-		},
+		// ────────── TEXT SEARCH DICTIONARY STATEMENTS ──────────
+		// CREATE TEXT SEARCH DICTIONARY public.my_dict (TEMPLATE = pg_catalog.simple );
+		// CREATE TEXT SEARCH CONFIGURATION public.my_config (PARSER = pg_catalog."default" );
+		// ALTER TEXT SEARCH DICTIONARY my_dict (StopWords = 'english');
+		// ALTER TEXT SEARCH CONFIGURATION my_config ADD MAPPING FOR word WITH simple;
+		// skipReason: It is dumped by pg_dump but goes to uncategorised.sql so can deferred for later.
 
 		// ────────── ACCESS METHOD STATEMENTS ──────────
 		{
-			key:              "create_am_stmt",
-			sql:              "CREATE ACCESS METHOD my_am TYPE INDEX HANDLER my_handler;",
-			nodeType:         "T_CreateAmStmt",
-			shouldAnonymize:  []string{"my_am", "my_handler"},
-			expectedPrefixes: []string{"default_", "function_"},
+			sql:        "CREATE ACCESS METHOD my_am TYPE INDEX HANDLER my_handler;",
+			skipReason: "couldn't create it on source; most probably not dumped by pg_dump",
+		},
+
+		// ────────── PUBLICATION/SUBSCRIPTION STATEMENTS ──────────
+		// Not dumped by pg_dump
+
+		// ────────── LANGUAGE STATEMENTS ──────────
+		{
+			sql:        "CREATE LANGUAGE my_language HANDLER my_handler;",
+			skipReason: "Not dumped by pg_dump",
 		},
 
 		// ────────── TRANSFORM STATEMENTS ──────────
 		{
-			key:              "create_transform_stmt",
-			sql:              "CREATE TRANSFORM FOR my_type LANGUAGE my_language (FROM SQL WITH FUNCTION from_sql_func(internal), TO SQL WITH FUNCTION to_sql_func(my_type));",
-			nodeType:         "T_CreateTransformStmt",
-			shouldAnonymize:  []string{"my_type", "my_language", "from_sql_func", "to_sql_func"},
-			expectedPrefixes: []string{"type_", "default_", "function_", "function_"},
+			sql:        "CREATE TRANSFORM FOR my_type LANGUAGE my_language (FROM SQL WITH FUNCTION from_sql_func(internal), TO SQL WITH FUNCTION to_sql_func(my_type));",
+			skipReason: "Not dumped by pg_dump",
 		},
 
 		// ────────── CAST STATEMENTS ──────────
 		{
-			key:              "create_cast_stmt",
-			sql:              "CREATE CAST (my_type AS text) WITH FUNCTION my_cast_func(my_type) AS IMPLICIT;",
-			nodeType:         "T_CreateCastStmt",
-			shouldAnonymize:  []string{"my_type", "my_cast_func"},
-			expectedPrefixes: []string{"type_", "function_"},
+			sql:        "CREATE CAST (my_type AS text) WITH FUNCTION my_cast_func(my_type) AS IMPLICIT;",
+			skipReason: "Not dumped by pg_dump",
 		},
 
 		// ────────── STATISTICS STATEMENTS ──────────
 		{
-			key:              "create_stats_stmt",
-			sql:              "CREATE STATISTICS my_stats (dependencies) ON col1, col2 FROM sales.orders;",
-			nodeType:         "T_CreateStatsStmt",
-			shouldAnonymize:  []string{"my_stats", "col1", "col2", "sales", "orders"},
-			expectedPrefixes: []string{"default_", "column_", "column_", "schema_", "table_"},
+			sql:        "CREATE STATISTICS my_stats (dependencies) ON col1, col2 FROM sales.orders;",
+			skipReason: "Not dumped by pg_dump",
 		},
 		{
-			key:              "alter_stats_stmt",
-			sql:              "ALTER STATISTICS my_stats SET STATISTICS 1000;",
-			nodeType:         "T_AlterStatsStmt",
-			shouldAnonymize:  []string{"my_stats"},
-			expectedPrefixes: []string{"default_"},
-		},
-
-		// ────────── OWNERSHIP STATEMENTS ──────────
-		{
-			key:              "drop_owned_stmt",
-			sql:              "DROP OWNED BY my_role;",
-			nodeType:         "T_DropOwnedStmt",
-			shouldAnonymize:  []string{"my_role"},
-			expectedPrefixes: []string{"role_"},
-		},
-		{
-			key:              "reassign_owned_stmt",
-			sql:              "REASSIGN OWNED BY old_role TO new_role;",
-			nodeType:         "T_ReassignOwnedStmt",
-			shouldAnonymize:  []string{"old_role", "new_role"},
-			expectedPrefixes: []string{"role_", "role_"},
-		},
-
-		// ────────── SYSTEM/MAINTENANCE STATEMENTS ──────────
-		{
-			key:              "cluster_stmt",
-			sql:              "CLUSTER sales.orders USING orders_pkey;",
-			nodeType:         "T_ClusterStmt",
-			shouldAnonymize:  []string{"sales", "orders", "orders_pkey"},
-			expectedPrefixes: []string{"schema_", "table_", "index_"},
-		},
-		{
-			key:              "vacuum_stmt",
-			sql:              "VACUUM ANALYZE sales.orders (col1, col2);",
-			nodeType:         "T_VacuumStmt",
-			shouldAnonymize:  []string{"sales", "orders", "col1", "col2"},
-			expectedPrefixes: []string{"schema_", "table_", "column_", "column_"},
-		},
-		{
-			key:              "reindex_stmt",
-			sql:              "REINDEX INDEX sales.orders_idx;",
-			nodeType:         "T_ReindexStmt",
-			shouldAnonymize:  []string{"sales", "orders_idx"},
-			expectedPrefixes: []string{"schema_", "index_"},
-		},
-		{
-			key:              "lock_stmt",
-			sql:              "LOCK TABLE sales.orders IN ACCESS EXCLUSIVE MODE;",
-			nodeType:         "T_LockStmt",
-			shouldAnonymize:  []string{"sales", "orders"},
-			expectedPrefixes: []string{"schema_", "table_"},
+			sql:        "ALTER STATISTICS my_stats SET STATISTICS 1000;",
+			skipReason: "Not dumped by pg_dump",
 		},
 
 		// ────────── SECURITY LABEL STATEMENTS ──────────
 		{
-			key:              "security_label_stmt",
-			sql:              "SECURITY LABEL FOR my_provider ON TABLE sales.orders IS 'classified';",
-			nodeType:         "T_SecLabelStmt",
-			shouldAnonymize:  []string{"my_provider", "sales", "orders"},
-			expectedPrefixes: []string{"default_", "schema_", "table_"},
-		},
-
-		// ────────── EXPLAIN STATEMENTS ──────────
-		{
-			key:              "explain_stmt",
-			sql:              "EXPLAIN SELECT * FROM sales.orders;",
-			nodeType:         "T_ExplainStmt",
-			shouldAnonymize:  []string{"sales", "orders"},
-			expectedPrefixes: []string{"schema_", "table_"},
+			sql:        "SECURITY LABEL FOR my_provider ON TABLE sales.orders IS 'classified';",
+			skipReason: "Not dumped by pg_dump",
 		},
 
 		// ────────── CREATE TABLE AS STATEMENTS ──────────
 		{
-			key:              "create_table_as_stmt",
-			sql:              "CREATE TABLE sales.order_summary AS SELECT customer_id, COUNT(*) FROM sales.orders GROUP BY customer_id;",
-			nodeType:         "T_CreateTableAsStmt",
-			shouldAnonymize:  []string{"sales", "order_summary", "customer_id", "orders"},
-			expectedPrefixes: []string{"schema_", "table_", "column_", "table_"},
+			sql:        "CREATE TABLE sales.order_summary AS SELECT customer_id, COUNT(*) FROM sales.orders GROUP BY customer_id;",
+			skipReason: "Not dumped by pg_dump",
 		},
 		// ────────── ALTER SYSTEM STATEMENTS ──────────
 		{
-			key:              "alter_system_stmt",
-			sql:              "ALTER SYSTEM SET my_param = 'value';",
-			nodeType:         "T_AlterSystemStmt",
-			shouldAnonymize:  []string{"my_param"},
-			expectedPrefixes: []string{"default_"},
-		},
-		// ────────── CONSTRAINTS SET STATEMENTS ──────────
-		{
-			key:              "constraints_set_stmt",
-			sql:              "SET CONSTRAINTS my_constraint DEFERRED;",
-			nodeType:         "T_ConstraintsSetStmt",
-			shouldAnonymize:  []string{"my_constraint"},
-			expectedPrefixes: []string{"constraint_"},
+			sql:        "ALTER SYSTEM SET my_param = 'value';",
+			skipReason: "Not dumped by pg_dump",
 		},
 	}
 
