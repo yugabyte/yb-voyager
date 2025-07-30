@@ -21,12 +21,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/sourcegraph/conc/pool"
 	"github.com/stretchr/testify/assert"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/importdata"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
 
@@ -346,19 +349,38 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
 
+	tgtVersion, err := testYugabyteDBTarget.TestContainer.GetVersion()
+	testutils.FatalIfError(t, err)
+	//11.2-YB-2024.2.1.0-b10
+	splits := strings.Split(tgtVersion, "-")
+	if len(splits) < 4 {
+		testutils.FatalIfError(t, fmt.Errorf("invalid target db version %q", tgtVersion))
+	}
+	tgtVersion = splits[2]
+	tgtYBVersion, err := ybversion.NewYBVersion(tgtVersion)
+	testutils.FatalIfError(t, err)
+
 	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
+	errorMsg := `ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`
+	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
+		errorMsg = `ERROR: invalid input syntax for type integer: "xyz" (SQLSTATE 22P02)`
+	}
 	assertBatchErrorFileContents(t, erroredBatches[1], lexportDir, state, task,
 		`id,val,not_null_col,num_col,fixed_col
 1,"hello","abc",10,"ab"
 2,"world","xyz","xyz","cd"`,
-		`ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`)
+		errorMsg)
 
 	assertBatchErrored(t, erroredBatches[2], 2, "batch::3.6.2.49.E")
+	errorMsg = `ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`
+	if tgtYBVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && tgtYBVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
+		errorMsg = `ERROR: null value in column "not_null_col" of relation "test_table_error" violates not-null constraint (SQLSTATE 23502)`
+	}
 	assertBatchErrorFileContents(t, erroredBatches[2], lexportDir, state, task,
 		`id,val,not_null_col,num_col,fixed_col
 5,"quux",NULL,40,"ij"
 6,"corge","grault",50,"mn"`,
-		`ERROR: null value in column "not_null_col" violates not-null constraint (SQLSTATE 23502)`)
+		errorMsg)
 
 	assertBatchErrored(t, erroredBatches[0], 2, "batch::0.10.2.57.E")
 	assertBatchErrorFileContents(t, erroredBatches[0], lexportDir, state, task,
