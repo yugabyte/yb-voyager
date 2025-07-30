@@ -1423,6 +1423,11 @@ func (a *SqlAnonymizer) handleOperatorObjectNodes(msg protoreflect.Message) (err
 					definition:{def_elem:{defname:"procedure" arg:{type_name:{names:{string:{sval:"int4_abs_eq"}} typemod:-1 location:71}} defaction:DEFELEM_UNSPEC location:59}}
 					definition:{def_elem:{defname:"commutator" arg:{type_name:{names:{string:{sval:"=#"}} typemod:-1 location:88}} defaction:DEFELEM_UNSPEC location:76}}}}
 	*/
+
+	if queryparser.GetMsgFullName(msg) != queryparser.PG_QUERY_DEFINE_STMT_NODE {
+		return nil
+	}
+
 	ds, err := a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_OPERATOR, OPERATOR_KIND_PREFIX)
 	if err != nil {
 		return fmt.Errorf("anon operator name: %w", err)
@@ -1587,9 +1592,10 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 // handleDefineStmtWithReturn is a common handler for DefineStmt nodes that can handle different object types
 // based on the provided object type and prefix. Returns the DefineStmt for additional processing if needed.
 func (a *SqlAnonymizer) handleDefineStmtWithReturn(msg protoreflect.Message, expectedObjectType pg_query.ObjectType, objectPrefix string) (*pg_query.DefineStmt, error) {
-	ds, err := mustProtoNode(queryparser.ProtoAsDefineStmtNode, msg, "DefineStmt")
-	if err != nil {
-		return nil, err
+	// caller should check this but adding it here for safety
+	ds, ok := queryparser.ProtoAsDefineStmtNode(msg)
+	if !ok {
+		return nil, fmt.Errorf("expected DefineStmt, got %T", msg.Interface())
 	}
 
 	if ds.Kind != expectedObjectType {
@@ -1597,7 +1603,7 @@ func (a *SqlAnonymizer) handleDefineStmtWithReturn(msg protoreflect.Message, exp
 	}
 
 	// Anonymize the object name
-	err = a.anonymizeStringNodes(ds.Defnames, objectPrefix)
+	err := a.anonymizeStringNodes(ds.Defnames, objectPrefix)
 	if err != nil {
 		return nil, fmt.Errorf("anon %s name: %w", expectedObjectType, err)
 	}
@@ -1702,14 +1708,4 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 		return fmt.Errorf("anon coldef: %w", err)
 	}
 	return nil
-}
-
-// mustProtoNode is a helper to check proto node extraction and return a clear error if the type is wrong.
-func mustProtoNode[T any](extractFunc func(protoreflect.Message) (T, bool), msg protoreflect.Message, expected string) (T, error) {
-	node, ok := extractFunc(msg)
-	if !ok {
-		var zero T
-		return zero, fmt.Errorf("expected %s, got %T", expected, msg.Interface())
-	}
-	return node, nil
 }
