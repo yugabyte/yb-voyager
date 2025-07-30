@@ -827,7 +827,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	testCases := []testPKandUKOnComplexDataTypeTests{
 		{
 			sql:        `CREATE TABLE citext_table_pk (id int, name CITEXT, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			errMsgBase: "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
 			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
 		},
 		{
@@ -1140,7 +1140,8 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		assert.NoError(t, err)
 
 		var errMsg string
-		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+		if (testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)) && testCase.errMsgv2_25_0_0 != "" {
 			errMsg = testCase.errMsgv2_25_0_0
 		} else {
 			errMsg = testCase.errMsgBase
