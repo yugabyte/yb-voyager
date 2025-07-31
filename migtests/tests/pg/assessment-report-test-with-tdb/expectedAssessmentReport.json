@@ -772,7 +772,9 @@
 			"ObjectName": "public.ordersentry_view",
 			"SqlStatement": "CREATE VIEW public.ordersentry_view AS\n SELECT order_id,\n    customer_name,\n    product_name,\n    quantity,\n    price,\n    XMLELEMENT(NAME \"OrderDetails\", XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name), XMLELEMENT(NAME \"Quantity\", quantity), XMLELEMENT(NAME \"TotalPrice\", (price * (quantity)::numeric))) AS order_xml,\n    XMLCONCAT(XMLELEMENT(NAME \"Customer\", customer_name), XMLELEMENT(NAME \"Product\", product_name)) AS summary_xml,\n    pg_try_advisory_lock((hashtext((customer_name || product_name)))::bigint) AS lock_acquired,\n    ctid AS row_ctid,\n    xmin AS transaction_id\n   FROM public.ordersentry;",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_features",
@@ -1081,7 +1083,9 @@
 			"ObjectName": "public.process_order",
 			"SqlStatement": "SELECT pg_advisory_unlock(orderid);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_plpgsql_objects",
@@ -1094,7 +1098,9 @@
 			"ObjectName": "schema2.process_order",
 			"SqlStatement": "SELECT pg_advisory_unlock(orderid);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",
@@ -1185,7 +1191,9 @@
 			"ObjectName": "",
 			"SqlStatement": "SELECT pg_advisory_lock($1,$2)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",
@@ -1211,7 +1219,9 @@
 			"ObjectName": "",
 			"SqlStatement": "SELECT pg_advisory_unlock($1,$2)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",
@@ -1276,7 +1286,9 @@
 			"ObjectName": "",
 			"SqlStatement": "SELECT pg_advisory_xact_lock($1,$2)",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",
@@ -1328,7 +1340,9 @@
 			"ObjectName": "",
 			"SqlStatement": "SELECT pg_advisory_unlock_all()",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#advisory-locks-is-not-yet-implemented",
-			"MinimumVersionsFixedIn": null
+			"MinimumVersionsFixedIn": {
+				"2025.1": "2025.1.0.0"
+			}
 		},
 		{
 			"Category": "unsupported_query_constructs",

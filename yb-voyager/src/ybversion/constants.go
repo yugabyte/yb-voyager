@@ -21,6 +21,7 @@ const (
 	SERIES_2_20   = "2.20"
 	SERIES_2024_1 = "2024.1"
 	SERIES_2024_2 = "2024.2"
+	SERIES_2025_1 = "2025.1"
 	SERIES_2_21   = "2.21"
 	SERIES_2_23   = "2.23"
 	SERIES_2_25   = "2.25"
@@ -37,7 +38,7 @@ var V2024_2_2_3 *YBVersion
 var V2024_2_3_0 *YBVersion
 var V2024_2_3_1 *YBVersion
 var V2024_2_4_0 *YBVersion
-
+var V2025_1_0_0 *YBVersion
 var V2_23_0_0 *YBVersion
 
 var V2_25_0_0 *YBVersion
@@ -102,7 +103,12 @@ func init() {
 		panic("could not create version 2.25.1.0")
 	}
 
+	V2025_1_0_0, err = NewYBVersion("2025.1.0.0")
+	if err != nil {
+		panic("could not create version 2025.1.0.0")
+	}
+
 	// Note: Whenever LatestStable is updated, modify in issues-test.yml as well
 	// And in the config file templates as well.
-	LatestStable = V2024_2_4_0
+	LatestStable = V2025_1_0_0
 }

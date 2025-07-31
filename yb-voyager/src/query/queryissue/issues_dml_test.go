@@ -51,7 +51,8 @@ func testAdvisoryLocks(t *testing.T) {
 	_, err = conn.Exec(ctx, "SELECT pg_advisory_unlock_shared(100);")
 
 	expectedMsg := "advisory locks are not yet implemented"
-	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) ||
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		expectedMsg = `advisory locks feature is currently in preview`
 	}
 	assertErrorCorrectlyThrownForIssueForYBVersion(t, err, expectedMsg, advisoryLocksIssue)
@@ -85,7 +86,8 @@ func testSystemColumns(t *testing.T) {
 			_, err := conn.Exec(ctx, query)
 
 			expectedMsg := fmt.Sprintf(`System column "%s" is not supported yet`, col)
-			if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+			if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) ||
+				testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 				expectedMsg = fmt.Sprintf(`system column "%s" is not supported yet`, col)
 			}
 
@@ -334,7 +336,8 @@ RETURNING merge_action(), w.*;
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
 		switch {
-		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 			errMsg = "This statement not supported yet"
 		default:
 			errMsg = `syntax error at or near "MERGE"`
@@ -421,7 +424,8 @@ func testNonDecimalIntegerLiteralIssue(t *testing.T) {
 		_, err = conn.Exec(ctx, sql)
 		var errMsg string
 		switch {
-		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 			errMsg = `trailing junk after numeric literal at or near`
 		default:
 			errMsg = `syntax error at or near "as"`

@@ -310,7 +310,8 @@ func testDeterministicCollationIssue(t *testing.T) {
 	CREATE COLLATION case_insensitive (provider = icu, locale = 'und-u-ks-level2', deterministic = true);`)
 
 	expectedMsg := `collation attribute "deterministic" not recognized`
-	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) {
+	if testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0) ||
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0) {
 		assert.NoError(t, err)
 		expectedMsg = ""
 	}
@@ -434,7 +435,8 @@ func testDatabaseOptions(t *testing.T) {
 		defer conn.Close(context.Background())
 		_, err = conn.Exec(ctx, sql)
 		switch {
-		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+		case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 			assert.NoError(t, err)
 			//Database options works on pg15 but not supported actually and hence not marking this as supported
 			assertErrorCorrectlyThrownForIssueForYBVersion(t, fmt.Errorf(""), "", databaseOptionsPG15Issue)
@@ -478,7 +480,8 @@ INSERT INTO collation_ex (name) VALUES
 ('andrÉ');
 	;`)
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_1_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_1_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		assertErrorCorrectlyThrownForIssueForYBVersion(t, err, `nondeterministic collation is not supported`, nonDeterministicCollationIssue)
 
 	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.Equal(ybversion.V2_25_0_0):
@@ -535,7 +538,8 @@ func testCompressionClauseIssue(t *testing.T) {
 
 	var errMsg string
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		assert.NoError(t, err)
 		err = fmt.Errorf("")
 		errMsg = ""
@@ -549,7 +553,8 @@ func testCompressionClauseIssue(t *testing.T) {
 	ALTER TABLE ONLY public.tbl_comp ALTER COLUMN v SET COMPRESSION pglz;`)
 	//ALTER not supported in 2.25
 	switch {
-	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0):
+	case testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0),
+		testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0):
 		errMsg = "ALTER TABLE command is not yet supported"
 	default:
 		errMsg = `syntax error at or near "COMPRESSION"`
@@ -572,11 +577,15 @@ func testIndexOnComplexDataType(t *testing.T) {
 
 	testCases := []testIndexOnComplexDataTypeTests{
 		testIndexOnComplexDataTypeTests{
-			sql: `CREATE TABLE citext_table (id int, name CITEXT);
-			CREATE INDEX citext_index ON citext_table (name);`,
-			errMsgBase:      "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			sql: `
+			CREATE EXTENSION IF NOT EXISTS citext;
+			CREATE TABLE citext_table (id int, name CITEXT);
+			CREATE INDEX citext_index ON citext_table (name);
+			`,
+			errMsgBase:      "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
 			errMsgv2_25_0_0: "",
-			Issue:           indexOnCitextDatatypeIssue,
+
+			Issue: indexOnCitextDatatypeIssue,
 		},
 		testIndexOnComplexDataTypeTests{
 			sql: `CREATE TABLE tsvector_table (id int, name TSVECTOR);
@@ -785,7 +794,8 @@ func testIndexOnComplexDataType(t *testing.T) {
 		assert.NoError(t, err)
 
 		var errMsg string
-		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+		if (testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)) && testCase.errMsgv2_25_0_0 != "" {
 			errMsg = testCase.errMsgv2_25_0_0
 		} else {
 			errMsg = testCase.errMsgBase
@@ -814,7 +824,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 	testCases := []testPKandUKOnComplexDataTypeTests{
 		{
 			sql:        `CREATE TABLE citext_table_pk (id int, name CITEXT, PRIMARY KEY (name));`,
-			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			errMsgBase: "ERROR: PRIMARY KEY containing column of type 'user_defined_type' not yet supported",
 			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
 		},
 		{
@@ -969,7 +979,7 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		// Now Unique Key
 		{
 			sql:        `CREATE TABLE citext_table_uk (id int, name CITEXT, UNIQUE (name));`,
-			errMsgBase: "ERROR: type \"citext\" does not exist (SQLSTATE 42704)",
+			errMsgBase: "ERROR: INDEX on column of type 'user_defined_type' not yet supported",
 			Issue:      primaryOrUniqueConstraintOnCitextDatatypeIssue,
 		},
 		{
@@ -1127,7 +1137,8 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		assert.NoError(t, err)
 
 		var errMsg string
-		if testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) && testCase.errMsgv2_25_0_0 != "" {
+		if (testYbVersion.ReleaseType() == ybversion.V2_25_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2_25_0_0) ||
+			testYbVersion.ReleaseType() == ybversion.V2025_1_0_0.ReleaseType() && testYbVersion.GreaterThanOrEqual(ybversion.V2025_1_0_0)) && testCase.errMsgv2_25_0_0 != "" {
 			errMsg = testCase.errMsgv2_25_0_0
 		} else {
 			errMsg = testCase.errMsgBase
@@ -1144,6 +1155,8 @@ func testPKandUKONComplexDataType(t *testing.T) {
 		conn.Close(ctx)
 	}
 }
+
+
 
 func testExtensionSupportList(t *testing.T) {
 	conn, err := getConn()
