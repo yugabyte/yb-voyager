@@ -196,7 +196,8 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 
 func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	// env var to enable sending anonymized DDLs to call home
-	if !utils.GetEnvAsBool("SEND_ANONYMIZED_DDLS", false) {
+	// Note: enabled by default
+	if !utils.GetEnvAsBool("SEND_ANONYMIZED_DDLS", true) {
 		return []string{}
 	}
 
