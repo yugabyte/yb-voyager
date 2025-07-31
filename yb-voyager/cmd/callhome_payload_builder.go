@@ -31,6 +31,24 @@ import (
 	"golang.org/x/exp/slices"
 )
 
+var (
+	// skipCategoriesForAnonymization contains issue categories that should be skipped during SQL anonymization
+	skipCategoriesForAnonymization = []string{
+		UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
+		UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
+		UNSUPPORTED_DATATYPES_CATEGORY,
+	}
+
+	// skipObjectTypesForAnonymization contains object types that should be skipped during SQL anonymization
+	skipObjectTypesForAnonymization = []string{
+		constants.VIEW,
+		constants.MATERIALIZED_VIEW,
+		constants.TRIGGER,
+		constants.FUNCTION,
+		constants.PROCEDURE,
+	}
+)
+
 func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	var err error
 	if !shouldSendCallhome() {
@@ -147,11 +165,8 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 			3. if sql statement is empty
 	*/
 	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
-		skipCategories := []string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY}
-		skipObjects := []string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}
-
-		return slices.Contains(skipCategories, issue.Category) ||
-			slices.Contains(skipObjects, issue.ObjectType) ||
+		return slices.Contains(skipCategoriesForAnonymization, issue.Category) ||
+			slices.Contains(skipObjectTypesForAnonymization, issue.ObjectType) ||
 			issue.SqlStatement == ""
 	}
 
@@ -189,8 +204,7 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 		return []string{}
 	}
 
-	skipObjectTypeList := []string{"PROCEDURE", "FUNCTION", "TRIGGER", "VIEW", "MVIEW"}
-	collectedDDLs := collectAllDDLs(sourceDBConf, skipObjectTypeList)
+	collectedDDLs := collectAllDDLs(sourceDBConf, skipObjectTypesForAnonymization)
 	if len(collectedDDLs) == 0 {
 		return []string{}
 	}
