@@ -162,12 +162,10 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 		Case to skip for sql statement anonymization:
 			1. if issue type is unsupported query construct or unsupported plpgsql object
 			2. if object type is view or materialized view
-			3. if sql statement is empty
 	*/
 	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
 		return slices.Contains(skipCategoriesForAnonymization, issue.Category) ||
-			slices.Contains(skipObjectTypesForAnonymization, issue.ObjectType) ||
-			issue.SqlStatement == ""
+			slices.Contains(skipObjectTypesForAnonymization, issue.ObjectType)
 	}
 
 	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
@@ -183,15 +181,65 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 			continue
 		}
 
-		var err error
-		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
-		if err != nil {
-			anonymizedIssues[i].SqlStatement = "" // set to empty string to avoid sending the sql statement (safety net)
-			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+		if issue.SqlStatement != "" {
+			var err error
+			anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
+			if err != nil {
+				anonymizedIssues[i].SqlStatement = "" // set to empty string to avoid sending the sql statement (safety net)
+				log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
+			}
+		}
+
+		// Anonymize details map
+		if issue.Details != nil {
+			anonymizedIssues[i].Details = anonymizeIssueDetailsForCallhome(anonymizedIssues[i].Details)
 		}
 	}
 
 	return anonymizedIssues
+}
+
+// anonymizeIssueDetailsForCallhome anonymizes sensitive information in the details map for callhome payload
+// Currently handles FK_COLUMN_NAMES, can be extended for other sensitive keys
+func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string]interface{} {
+	if details == nil {
+		return nil
+	}
+
+	anonymizedDetails := make(map[string]interface{})
+
+	for key, value := range details {
+		if key == queryissue.FK_COLUMN_NAMES {
+			if strValue, ok := value.(string); ok && strValue != "" {
+				// Split the comma-separated column names
+				columnNames := strings.Split(strValue, ", ") // TODO: We can probably store column names as a list of strings in the issue details map
+				var anonymizedColumns []string
+
+				for _, columnName := range columnNames {
+					columnName = strings.TrimSpace(columnName)
+					if columnName != "" {
+						anonymizedColumn, err := anonymizer.AnonymizeQualifiedColumnName(columnName)
+						if err != nil {
+							log.Warnf("failed to anonymize FK column name %s: %v", columnName, err)
+							anonymizedColumns = append(anonymizedColumns, "column_xxx")
+						} else {
+							anonymizedColumns = append(anonymizedColumns, anonymizedColumn)
+						}
+					}
+				}
+
+				// Join the anonymized column names back with comma
+				anonymizedDetails[key] = strings.Join(anonymizedColumns, ", ")
+			} else {
+				anonymizedDetails[key] = value
+			}
+		} else {
+			// Non-sensitive keys are kept as-is
+			anonymizedDetails[key] = value
+		}
+	}
+
+	return anonymizedDetails
 }
 
 func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {

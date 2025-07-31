@@ -498,12 +498,29 @@ func TestDDLIssues(t *testing.T) {
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
-		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		// Debug: Print all detected issues
+		fmt.Printf("\n=== Statement: %s ===\n", stmt)
+		fmt.Printf("Expected issues: %d, Actual issues: %d\n", len(expectedIssues), len(issues))
+		for i, issue := range issues {
+			fmt.Printf("Issue %d: %+v\n", i+1, issue)
+		}
+		if len(expectedIssues) > 0 {
+			fmt.Printf("Expected issues:\n")
+			for i, expectedIssue := range expectedIssues {
+				fmt.Printf("Expected %d: %+v\n", i+1, expectedIssue)
+			}
+		}
+
+		assert.Equal(t, len(expectedIssues), len(issues),
+			"Mismatch in issue count for statement: %s", stmt)
+
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s. \nFound: %v", expectedIssue, stmt, issues)
+			assert.True(t, found,
+				"Expected issue not found: %v in statement: %s. \nFound: %v",
+				expectedIssue, stmt, issues)
 		}
 	}
 }
@@ -1210,12 +1227,29 @@ REFERENCES schema1.abc (id);
 		issues, err := parserIssueDetector.GetDDLIssues(stmt, ybversion.V2024_2_3_1)
 		assert.NoError(t, err, "Error detecting issues for statement: %s", stmt)
 
-		assert.Equal(t, len(expectedIssues), len(issues), "Mismatch in issue count for statement: %s", stmt)
+		// Debug: Print all detected issues
+		fmt.Printf("\n=== Statement: %s ===\n", stmt)
+		fmt.Printf("Expected issues: %d, Actual issues: %d\n", len(expectedIssues), len(issues))
+		for i, issue := range issues {
+			fmt.Printf("Issue %d: %+v\n", i+1, issue)
+		}
+		if len(expectedIssues) > 0 {
+			fmt.Printf("Expected issues:\n")
+			for i, expectedIssue := range expectedIssues {
+				fmt.Printf("Expected %d: %+v\n", i+1, expectedIssue)
+			}
+		}
+
+		assert.Equal(t, len(expectedIssues), len(issues),
+			"Mismatch in issue count for statement: %s", stmt)
+
 		for _, expectedIssue := range expectedIssues {
 			found := slices.ContainsFunc(issues, func(queryIssue QueryIssue) bool {
 				return cmp.Equal(expectedIssue, queryIssue)
 			})
-			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
+			assert.True(t, found,
+				"Expected issue not found: %v in statement: %s. \nFound: %v",
+				expectedIssue, stmt, issues)
 		}
 	}
 }
@@ -1676,4 +1710,634 @@ func TestTimestampOrDateHotspotsIssues(t *testing.T) {
 			assert.True(t, found, "Expected issue not found: %v in statement: %s", expectedIssue, stmt)
 		}
 	}
+}
+
+// Test missing foreign key index detection
+func TestMissingForeignKeyIndexDetection(t *testing.T) {
+	// Helper function to set up a basic parent-child relationship
+	setupBasicFK := func(parentTable, childTable string) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(parentTable)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(childTable)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+		return detector
+	}
+
+	// Helper function to set up parent-child with index
+	setupBasicFKWithIndex := func(parentTable, childTable, indexStmt string) *ParserIssueDetector {
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(parentTable)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(childTable)
+		assert.NoError(t, err)
+		if indexStmt != "" {
+			err = detector.ParseAndProcessDDL(indexStmt)
+			assert.NoError(t, err)
+		}
+		detector.FinalizeColumnMetadata()
+		return detector
+	}
+
+	// Test Case 1: Basic FK in CREATE TABLE, no index
+	t.Run("Basic FK in CREATE TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_1 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_1 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_1(id)
+			);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.customers_1")
+
+		detector := setupBasicFK(stmt_parent, stmt_child)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 1: Basic FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 2: Basic FK in CREATE TABLE, with proper index
+	t.Run("Basic FK in CREATE TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_2 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_2 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_2(id)
+			);`
+			stmt_index = `CREATE INDEX idx_orders_2_customer ON public.orders_2(customer_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 3: Composite FK in CREATE TABLE, no index
+	t.Run("Composite FK in CREATE TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_3 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_3 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_3(id, product_id)
+			);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.orders_3")
+
+		detector := setupBasicFK(stmt_parent, stmt_child)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 3: Composite FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 4: Composite FK in CREATE TABLE, with proper index
+	t.Run("Composite FK in CREATE TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE orders_4 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE order_items_4 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES orders_4(id, product_id)
+			);`
+			stmt_index = `CREATE INDEX idx_order_items_4_fk ON order_items_4(order_id, product_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 5: FK via ALTER TABLE, no index
+	t.Run("FK via ALTER TABLE - No Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_5 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_5 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE
+			);`
+			stmt_alter = `ALTER TABLE public.orders_5 ADD CONSTRAINT fk_orders_5_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_5(id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.customers_5")
+
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(stmt_parent)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_child)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_alter)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 5: ALTER TABLE FK - No Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 6: FK via ALTER TABLE, with index
+	t.Run("FK via ALTER TABLE - With Index", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_6 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_6 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE
+			);`
+			stmt_index = `CREATE INDEX idx_orders_6_customer ON public.orders_6(customer_id);`
+			stmt_alter = `ALTER TABLE public.orders_6 ADD CONSTRAINT fk_orders_6_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_6(id);`
+		)
+
+		detector := NewParserIssueDetector()
+		err := detector.ParseAndProcessDDL(stmt_parent)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_child)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_index)
+		assert.NoError(t, err)
+		err = detector.ParseAndProcessDDL(stmt_alter)
+		assert.NoError(t, err)
+		detector.FinalizeColumnMetadata()
+
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 7: Index with FK columns in different order (should cover FK)
+	t.Run("Index with FK Columns in Different Order", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_7 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_7 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_7(id, product_id)
+			);`
+			stmt_different_order_index = `CREATE INDEX idx_order_items_7_diff_order ON public.order_items_7(product_id, order_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_different_order_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 8: Index with FK columns not as prefix (should NOT cover FK)
+	t.Run("Index with FK Columns Not as Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_8 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_8 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_8(id, product_id)
+			);`
+			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON public.order_items_8(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.orders_8")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 8: FK Columns Not as Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 9: Index with extra columns (superset index - should cover FK)
+	t.Run("Index with Extra Columns (Superset)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_9 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_9 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_9(id)
+			);`
+			stmt_superset_index = `CREATE INDEX idx_orders_9_superset ON public.orders_9(customer_id, order_date);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_superset_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 10: Expression index (should not cover FK)
+	t.Run("Expression Index (Should Not Cover FK)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_10 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_10 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_10(id)
+			);`
+			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON public.orders_10((customer_id + 1));`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.customers_10")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 10: Expression Index ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 11: Unique index (should cover FK)
+	t.Run("Unique Index (Should Cover FK)", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_11 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_11 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				FOREIGN KEY (customer_id) REFERENCES public.customers_11(id)
+			);`
+			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_11_unique ON public.orders_11(customer_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_unique_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 12: Index with FK columns in reverse order (should cover FK)
+	t.Run("Index with FK Columns in Reverse Order", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_12 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_12 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_12(id, product_id)
+			);`
+			stmt_reverse_index = `CREATE INDEX idx_order_items_12_reverse ON public.order_items_12(product_id, order_id);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_reverse_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 13: Index with FK columns as subset (should cover FK)
+	t.Run("Index with FK Columns as Subset", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_13 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_13 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_13(id, product_id)
+			);`
+			stmt_subset_index = `CREATE INDEX idx_order_items_13_subset ON public.order_items_13(order_id, product_id, quantity);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_subset_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 14: Index with FK columns in wrong position (should NOT cover FK)
+	t.Run("Index with FK Columns in Wrong Position", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_14 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_14 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_14(id, product_id)
+			);`
+			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON public.order_items_14(quantity, order_id, product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.orders_14")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 14: Wrong Position ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 15: Index missing one FK column (should NOT cover FK)
+	t.Run("Index Missing One FK Column", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_15 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_15 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_15(id, product_id)
+			);`
+			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON public.order_items_15(order_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.orders_15")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 15: Missing Column ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 16: Expression index with composite FK (expression in prefix - should NOT cover FK)
+	t.Run("Expression Index with Composite FK - Expression in Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_16 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_16 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_16(id, product_id)
+			);`
+			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON public.order_items_16((order_id + 1), product_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.orders_16")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_prefix_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 16: Expression in Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
+
+	// Test Case 17: Expression index with composite FK (expression after prefix - should cover FK)
+	t.Run("Expression Index with Composite FK - Expression After Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_17 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_17 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_17(id, product_id)
+			);`
+			stmt_expr_after_index = `CREATE INDEX idx_order_items_17_expr_after ON public.order_items_17(order_id, product_id, (quantity + 1));`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_after_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 18: No index but PK constraint on FK columns (should cover FK)
+	t.Run("No Index but PK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_18 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_18 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				PRIMARY KEY (customer_id),
+				FOREIGN KEY (customer_id) REFERENCES public.customers_18(id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 19: No index but UK constraint on FK columns (should cover FK)
+	t.Run("No Index but UK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.customers_19 (
+				id SERIAL PRIMARY KEY,
+				name VARCHAR(100)
+			);`
+			stmt_child = `CREATE TABLE public.orders_19 (
+				id SERIAL PRIMARY KEY,
+				customer_id SERIAL,
+				order_date DATE,
+				UNIQUE (customer_id),
+				FOREIGN KEY (customer_id) REFERENCES public.customers_19(id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 20: No index but composite PK constraint on FK columns (should cover FK)
+	t.Run("No Index but Composite PK Constraint on FK Columns", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_20 (
+				id SERIAL,
+				product_id INTEGER,
+				PRIMARY KEY (id, product_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_20 (
+				id SERIAL,
+				order_id SERIAL,
+				product_id INTEGER,
+				quantity INTEGER,
+				PRIMARY KEY (order_id, product_id),
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_20(id, product_id)
+			);`
+		)
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, "")
+		issues := detector.DetectMissingForeignKeyIndexes()
+		assert.Equal(t, 0, len(issues))
+	})
+
+	// Test Case 21: Expression index with expression in middle of prefix (should NOT cover FK)
+	t.Run("Expression Index with Expression in Middle of Prefix", func(t *testing.T) {
+		const (
+			stmt_parent = `CREATE TABLE public.orders_21 (
+				id SERIAL,
+				product_id INTEGER,
+				category_id INTEGER,
+				PRIMARY KEY (id, product_id, category_id)
+			);`
+			stmt_child = `CREATE TABLE public.order_items_21 (
+				id SERIAL PRIMARY KEY,
+				order_id SERIAL,
+				product_id INTEGER,
+				category_id INTEGER,
+				quantity INTEGER,
+				FOREIGN KEY (order_id, product_id, category_id) REFERENCES public.orders_21(id, product_id, category_id)
+			);`
+			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON public.order_items_21(order_id, (quantity + 1), product_id, category_id);`
+		)
+
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.orders_21")
+
+		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_middle_index)
+		issues := detector.DetectMissingForeignKeyIndexes()
+
+		// Debug: Print expected and actual issues
+		fmt.Printf("\n=== Test Case 21: Expression in Middle of Prefix ===\n")
+		fmt.Printf("Expected issue: %+v\n", expectedIssue)
+		if len(issues) > 0 {
+			fmt.Printf("Actual issue: %+v\n", issues[0])
+		} else {
+			fmt.Printf("No issues detected\n")
+		}
+
+		assert.Equal(t, 1, len(issues))
+		assert.True(t, cmp.Equal(expectedIssue, issues[0]), "Expected issue not found: %v\nFound: %v", expectedIssue, issues[0])
+	})
 }

@@ -1088,6 +1088,7 @@ func fetchUnsupportedPGFeaturesFromSchemaReport(schemaAnalysisReport utils.Schem
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_DATE_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_DATE_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK_ISSUE, "", queryissue.HOTSPOTS_ON_TIMESTAMP_PK_UK, schemaAnalysisReport, false))
 	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.FOREIGN_KEY_DATATYPE_MISMATCH_ISSUE_NAME, "", queryissue.FOREIGN_KEY_DATATYPE_MISMATCH, schemaAnalysisReport, false))
+	unsupportedFeatures = append(unsupportedFeatures, getUnsupportedFeaturesFromSchemaAnalysisReport(queryissue.MISSING_FOREIGN_KEY_INDEX_ISSUE_NAME, "", queryissue.MISSING_FOREIGN_KEY_INDEX, schemaAnalysisReport, false))
 
 	return lo.Filter(unsupportedFeatures, func(f UnsupportedFeature, _ int) bool {
 		return len(f.Objects) > 0

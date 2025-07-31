@@ -52,11 +52,11 @@ type ColumnMetadata struct {
 // foreignKeyConstraint represents a foreign key relationship defined in the schema.
 // It captures the child table and columns, and the corresponding referenced parent table and columns.
 // This structure is used to defer FK processing until all schema definitions are parsed.
-type foreignKeyConstraint struct {
-	tableName         string
-	columnNames       []string
-	referencedTable   string
-	referencedColumns []string
+type ForeignKeyConstraint struct {
+	TableName         string
+	ColumnNames       []string
+	ReferencedTable   string
+	ReferencedColumns []string
 }
 
 type ParserIssueDetector struct {
@@ -64,7 +64,7 @@ type ParserIssueDetector struct {
 	columnMetadata map[string]map[string]*ColumnMetadata
 
 	// list of foreign key constraints in the exported schema
-	foreignKeyConstraints []foreignKeyConstraint
+	foreignKeyConstraints []ForeignKeyConstraint
 
 	/*
 		this will contain the information in this format:
@@ -126,6 +126,10 @@ type ParserIssueDetector struct {
 
 	//column is the key (qualifiedTableName.column_name) -> column stats
 	columnStatistics map[string]utils.ColumnStatistics
+
+	// Indexes stored per table
+	// Key is table name, value is slice of indexes on that table.
+	tableIndexes map[string][]*queryparser.Index
 }
 
 func NewParserIssueDetector() *ParserIssueDetector {
@@ -136,12 +140,13 @@ func NewParserIssueDetector() *ParserIssueDetector {
 		partitionedTablesMap:                    make(map[string]bool),
 		primaryConsInAlter:                      make(map[string]*queryparser.AlterTable),
 		columnStatistics:                        make(map[string]utils.ColumnStatistics),
-		foreignKeyConstraints:                   make([]foreignKeyConstraint, 0),
+		foreignKeyConstraints:                   make([]ForeignKeyConstraint, 0),
 		inheritedFrom:                           make(map[string][]string),
 		partitionedFrom:                         make(map[string]string),
 		columnsWithUnsupportedIndexDatatypes:    make(map[string]map[string]string),
 		columnsWithHotspotRangeIndexesDatatypes: make(map[string]map[string]string),
 		jsonbColumns:                            make([]string, 0),
+		tableIndexes:                            make(map[string][]*queryparser.Index),
 	}
 }
 
@@ -404,30 +409,30 @@ func topoSort(dependencyMap map[string][]string) []string {
 // This is done after all DDL statements have been processed to ensure complete metadata is
 func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 	for _, fk := range p.foreignKeyConstraints {
-		for i, localCol := range fk.columnNames {
-			if _, ok := p.columnMetadata[fk.tableName]; !ok {
-				p.columnMetadata[fk.tableName] = make(map[string]*ColumnMetadata)
+		for i, localCol := range fk.ColumnNames {
+			if _, ok := p.columnMetadata[fk.TableName]; !ok {
+				p.columnMetadata[fk.TableName] = make(map[string]*ColumnMetadata)
 			}
-			meta, ok := p.columnMetadata[fk.tableName][localCol]
+			meta, ok := p.columnMetadata[fk.TableName][localCol]
 			if !ok {
 				meta = &ColumnMetadata{}
-				p.columnMetadata[fk.tableName][localCol] = meta
+				p.columnMetadata[fk.TableName][localCol] = meta
 			}
 
 			meta.IsForeignKey = true
-			meta.ReferencedTable = fk.referencedTable
-			if i < len(fk.referencedColumns) {
-				refCol := fk.referencedColumns[i]
+			meta.ReferencedTable = fk.ReferencedTable
+			if i < len(fk.ReferencedColumns) {
+				refCol := fk.ReferencedColumns[i]
 				meta.ReferencedColumn = refCol
 
-				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
+				if refMeta, ok := p.columnMetadata[fk.ReferencedTable][refCol]; ok {
 					// Store the referenced column type and modifiers separately for accurate comparison
 					meta.ReferencedColumnType = refMeta.DataType
 					meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
-					fk.tableName, fk.columnNames, fk.referencedColumns)
+					fk.TableName, fk.ColumnNames, fk.ReferencedColumns)
 			}
 		}
 	}
@@ -452,17 +457,29 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			//For the case ALTER and CREATE are not not is expected order where ALTER is before CREATE
 			alter.Query = query
 			p.primaryConsInAlter[alter.GetObjectName()] = alter
+
+			// Process primary key as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+			}
+		}
+
+		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Process unique constraint as index for foreign key detection
+			if len(alter.ConstraintColumns) > 0 {
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
+			}
 		}
 
 		if alter.ConstraintType == queryparser.FOREIGN_CONSTR_TYPE {
 			// Collect the foreign key constraint details from ALTER TABLE statement.
 			// These are stored temporarily and will be processed later in FinalizeColumnMetadata,
 			// once all tables and columns are parsed and available in columnMetadata.
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
-				tableName:         alter.GetObjectName(),
-				columnNames:       alter.ConstraintColumns,
-				referencedTable:   alter.ConstraintReferencedTable,
-				referencedColumns: alter.ConstraintReferencedColumns,
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         alter.GetObjectName(),
+				ColumnNames:       alter.ConstraintColumns,
+				ReferencedTable:   alter.ConstraintReferencedTable,
+				ReferencedColumns: alter.ConstraintReferencedColumns,
 			})
 		}
 
@@ -545,13 +562,16 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 			}
 
 			// Populate the foreign key constraints
-			p.foreignKeyConstraints = append(p.foreignKeyConstraints, foreignKeyConstraint{
-				tableName:         tableName,
-				columnNames:       constraint.Columns,
-				referencedTable:   constraint.ReferencedTable,
-				referencedColumns: constraint.ReferencedColumns,
+			p.foreignKeyConstraints = append(p.foreignKeyConstraints, ForeignKeyConstraint{
+				TableName:         tableName,
+				ColumnNames:       constraint.Columns,
+				ReferencedTable:   constraint.ReferencedTable,
+				ReferencedColumns: constraint.ReferencedColumns,
 			})
 		}
+
+		// Process primary keys and unique constraints as indexes for foreign key detection
+		p.processTableConstraintsAsIndexes(table)
 	case *queryparser.CreateType:
 		typeObj, _ := ddlObj.(*queryparser.CreateType)
 		if typeObj.IsEnum {
@@ -564,6 +584,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		if index.AccessMethod == GIN_ACCESS_METHOD {
 			p.isGinIndexPresentInSchema = true
 		}
+
+		// Process index for foreign key detection
+		p.addIndexToCoverage(index)
 	case *queryparser.Function:
 		fn, _ := ddlObj.(*queryparser.Function)
 		p.functionObjects = append(p.functionObjects, fn)
@@ -798,9 +821,158 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 	return p.isUnloggedTablesIssueFiltered
 }
 
+// DetectMissingForeignKeyIndexes detects missing foreign key indexes after all DDL has been processed
+// This method should be called after all DDL statements have been parsed to ensure complete metadata
+func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
+	var issues []QueryIssue
+
+	// Process all stored foreign key constraints
+	for _, fkConstraint := range p.foreignKeyConstraints {
+		// Check if this FK has proper index coverage using existing logic
+		if !p.hasProperIndexCoverage(fkConstraint) {
+			// Create and add the issue
+			issue := p.createMissingFKIndexIssue(fkConstraint)
+			issues = append(issues, issue)
+		}
+	}
+
+	return issues
+}
+
+// hasProperIndexCoverage checks if a foreign key has proper index coverage.
+// Detects exact matches, column permutations, and composite index prefixes.
+// Only considers FK columns as leading columns.
+//
+// Examples:
+// FK (x,y,z) → Index (x,y,z) ✓ (exact match)
+// FK (x,y,z) → Index (y,z,x) ✓ (permutation)
+// FK (x,y,z) → Index (x,y,z,other) ✓ (prefix)
+// FK (x,y,z) → Index (other,x,y,z) ✗ (FK not at start) → Detected as missing index
+// FK (x,y,z) → Index (x,y) ✗ (missing column) → Detected as missing index
+// FK (x,y,z) → No index ✗ → Detected as missing index
+func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bool {
+	indexes, exists := p.tableIndexes[fk.TableName]
+	if !exists {
+		return false
+	}
+
+	for _, index := range indexes {
+		if p.hasIndexCoverage(index, fk.ColumnNames) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// hasIndexCoverage checks if an index provides coverage for the given foreign key columns.
+// It checks if the FK columns exactly match the leading index columns (in any order).
+func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColumns []string) bool {
+	// Extract columns and check for expressions in the prefix
+	indexColumns := make([]string, 0)
+	for i, param := range index.Params {
+		// Check if expression exists in the prefix we need to check
+		if i < len(fkColumns) && param.IsExpression {
+			return false // Expression in the prefix disqualifies the index
+		}
+		indexColumns = append(indexColumns, param.ColName)
+	}
+
+	// Check if we have enough columns in the index
+	if len(indexColumns) < len(fkColumns) {
+		return false
+	}
+
+	// Check if the FK columns exactly match the leading index columns (in any order).
+	indexPrefix := indexColumns[:len(fkColumns)]
+	return utils.IsSetEqual(fkColumns, indexPrefix)
+}
+
+// createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
+func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint) QueryIssue {
+	// Create fully qualified column names
+	qualifiedColumnNames := make([]string, len(fk.ColumnNames))
+	for i, colName := range fk.ColumnNames {
+		qualifiedColumnNames[i] = fmt.Sprintf("%s.%s", fk.TableName, colName)
+	}
+
+	return NewMissingForeignKeyIndexIssue(
+		"TABLE",
+		fk.TableName,
+		"", // sqlStatement - we don't have this in stored constraint
+		strings.Join(qualifiedColumnNames, ", "),
+		fk.ReferencedTable,
+	)
+}
+
 func (p *ParserIssueDetector) SetColumnStatistics(columnStats []utils.ColumnStatistics) {
 	for _, stat := range columnStats {
 		p.columnStatistics[stat.GetQualifiedColumnName()] = stat
+	}
+}
+
+// addIndexToCoverage adds an index to the table indexes map for checking missing foreign key index issue
+func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
+	tableName := index.GetTableName()
+
+	// Add the index to the table's index list
+	if _, exists := p.tableIndexes[tableName]; !exists {
+		p.tableIndexes[tableName] = make([]*queryparser.Index, 0)
+	}
+	p.tableIndexes[tableName] = append(p.tableIndexes[tableName], index)
+}
+
+// addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
+// This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
+	// Create mock index parameters from columns
+	indexParams := make([]queryparser.IndexParam, len(columns))
+	for i, colName := range columns {
+		indexParams[i] = queryparser.IndexParam{
+			ColName:      colName,
+			IsExpression: false, // We can't create expressions in primary keys and unique constraints in PG/YB
+		}
+	}
+
+	// Create a mock index object
+	mockIndex := &queryparser.Index{
+		SchemaName: schemaName,
+		IndexName:  constraintName,
+		TableName:  tableName,
+		// Primary keys and unique constraints use btree by default.
+		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
+		AccessMethod: BTREE_ACCESS_METHOD,
+		Params:       indexParams,
+	}
+
+	// Add to table indexes
+	p.addIndexToCoverage(mockIndex)
+}
+
+// processTableConstraintsAsIndexes processes primary keys and unique constraints as indexes for foreign key detection.
+func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparser.Table) {
+	// Process primary keys
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
+			// Primary key constraints are also indexes for missing foreign key index detection
+			// We need to ensure the index is processed and covered
+			primaryKeyColumns := constraint.Columns
+			if len(primaryKeyColumns) > 0 {
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
+			}
+		}
+	}
+
+	// Process unique constraints
+	for _, constraint := range table.Constraints {
+		if constraint.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
+			// Unique constraints are also indexes for missing foreign key index detection
+			// We need to ensure the index is processed and covered
+			uniqueColumns := constraint.Columns
+			if len(uniqueColumns) > 0 {
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
+			}
+		}
 	}
 }
 
