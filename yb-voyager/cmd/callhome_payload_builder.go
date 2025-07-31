@@ -36,7 +36,7 @@ var (
 	skipCategoriesForAnonymization = []string{
 		UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY,
 		UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY,
-		UNSUPPORTED_DATATYPES_CATEGORY,
+		UNSUPPORTED_DATATYPES_CATEGORY, // TODO: add anonymization for unsupported datatypes
 	}
 
 	// skipObjectTypesForAnonymization contains object types that should be skipped during SQL anonymization
