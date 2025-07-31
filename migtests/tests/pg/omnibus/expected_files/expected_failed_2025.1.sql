@@ -54,12 +54,6 @@ CREATE OPERATOR public.<% (
 );
 
 /*
-ERROR: unrecognized parameter "fillfactor" (SQLSTATE 22023)
-File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
-*/
-CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');
-
-/*
 ERROR: access method "gist2" does not exist (SQLSTATE 42704)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql
 */
