@@ -348,7 +348,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
 
-	tgtYBVersion := testutils.GetYBVersionFromTargetDB(t, testYugabyteDBTarget.TestContainer)
+	tgtYBVersion := testutils.GetYBVersionFromTestContainer(t, testYugabyteDBTarget.TestContainer)
 
 	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
 	errorMsg := `ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`
