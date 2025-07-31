@@ -266,7 +266,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
-	cmd.Flags().MarkHidden("error-policy-snapshot")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
