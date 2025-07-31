@@ -212,7 +212,7 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 		if key == queryissue.FK_COLUMN_NAMES {
 			if strValue, ok := value.(string); ok && strValue != "" {
 				// Split the comma-separated column names
-				columnNames := strings.Split(strValue, ", ")
+				columnNames := strings.Split(strValue, ", ") // TODO: We can probably store column names as a list of strings in the issue details map
 				var anonymizedColumns []string
 
 				for _, columnName := range columnNames {
