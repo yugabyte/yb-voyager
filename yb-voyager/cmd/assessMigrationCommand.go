@@ -94,7 +94,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateOracleParams()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("failed to validate target db version: %v", err)
+			utils.ErrExit("failed to validate target db version: %w", err)
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
@@ -114,7 +114,7 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			utils.ErrExit("%s", err)
+			utils.ErrExit("%w", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
@@ -372,7 +372,7 @@ func assessMigration() (err error) {
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
-			return fmt.Errorf("failed to connect source db for assessing migration: %v", err)
+			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
 		// We will require source db connection for the below checks
@@ -721,7 +721,7 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 
 	tnsAdmin, err := getTNSAdmin(source)
 	if err != nil {
-		return fmt.Errorf("error getting tnsAdmin: %v", err)
+		return fmt.Errorf("error getting tnsAdmin: %w", err)
 	}
 	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
 		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
@@ -926,7 +926,7 @@ func generateAssessmentReport() (err error) {
 
 	err = addAssessmentIssuesForRedundantIndex()
 	if err != nil {
-		return fmt.Errorf("error in getting redundant index issues: %v", err)
+		return fmt.Errorf("error in getting redundant index issues: %w", err)
 	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
@@ -956,7 +956,7 @@ func generateAssessmentReport() (err error) {
 	return nil
 }
 
-func fetchRedundantIndexInfo() ([]utils.RedundantIndexesInfo, error) {
+func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, error) {
 	query := fmt.Sprintf(`SELECT redundant_schema_name,redundant_table_name,redundant_index_name,
 	existing_schema_name,existing_table_name,existing_index_name,
 	redundant_ddl,existing_ddl from %s`,
@@ -1022,7 +1022,7 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	//Fetching the column stats from assessment db
 	columnStats, err := fetchColumnStatisticsInfo()
 	if err != nil {
-		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
+		return fmt.Errorf("error fetching column stats from assessement db: %w", err)
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
@@ -1033,9 +1033,9 @@ func addAssessmentIssuesForRedundantIndex() error {
 	if source.DBType != POSTGRESQL {
 		return nil
 	}
-	redundantIndexesInfo, err := fetchRedundantIndexInfo()
+	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
 	if err != nil {
-		return fmt.Errorf("error fetching redundant index information: %v", err)
+		return fmt.Errorf("error fetching redundant index information: %w", err)
 	}
 
 	var redundantIssues []queryissue.QueryIssue
@@ -1055,7 +1055,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	//fetching column stats from assessment db and then passing it on to the parser issue detector for detecting issues
 	err = fetchAndSetColumnStatisticsForIndexIssues()
 	if err != nil {
-		return fmt.Errorf("error parsing column statistics information: %v", err)
+		return fmt.Errorf("error parsing column statistics information: %w", err)
 	}
 
 	/*

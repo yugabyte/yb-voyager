@@ -29,7 +29,7 @@ EXPECTED_INDEX_COUNT = {
 	'reviewtasktypes': 1,
 	'tags': 3,
 	'users': 6,
-	'usertagqa': 5,
+	'usertagqa': 4,
 	'votes': 4,
 	'votetypes': 1	
 }

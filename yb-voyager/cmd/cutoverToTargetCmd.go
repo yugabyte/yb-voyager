@@ -35,11 +35,11 @@ var cutoverToTargetCmd = &cobra.Command{
 		var err error
 		metaDB, err = metadb.NewMetaDB(exportDir)
 		if err != nil {
-			utils.ErrExit("Failed to initialize meta db: %s", err)
+			utils.ErrExit("Failed to initialize meta db: %w", err)
 		}
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			utils.ErrExit("get migration status record: %v", err)
+			utils.ErrExit("get migration status record: %w", err)
 		}
 		if msr == nil {
 			utils.ErrExit("migration status record not found")
@@ -78,7 +78,7 @@ var cutoverToTargetCmd = &cobra.Command{
 		}
 		err = InitiateCutover("target", bool(prepareForFallBack), bool(useYBgRPCConnector))
 		if err != nil {
-			utils.ErrExit("failed to initiate cutover: %v", err)
+			utils.ErrExit("failed to initiate cutover: %w", err)
 		}
 	},
 }

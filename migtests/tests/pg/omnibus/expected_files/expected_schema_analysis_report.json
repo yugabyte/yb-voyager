@@ -72,9 +72,9 @@
             },
             {
                 "ObjectType": "INDEX",
-                "TotalCount": 11,
-                "InvalidCount": 5,
-				"ObjectNames": "grect2ind2 ON am_examples.fast_emp4000, grect2ind3 ON am_examples.fast_emp4000, idx_1 ON composite_type_examples.ordinary_table, hidx ON extension_example.testhstore, gin_idx ON idx_ex.films, title_idx ON idx_ex.films, title_idx_lower ON idx_ex.films, title_idx_nulls_low ON idx_ex.films, title_idx_u1 ON idx_ex.films, title_idx_u2 ON idx_ex.films, title_idx_with_duplicates ON idx_ex.films",
+                "TotalCount": 7,
+                "InvalidCount": 3,
+				"ObjectNames": "grect2ind2 ON am_examples.fast_emp4000, idx_1 ON composite_type_examples.ordinary_table, hidx ON extension_example.testhstore, gin_idx ON idx_ex.films, title_idx_lower ON idx_ex.films, title_idx_nulls_low ON idx_ex.films, title_idx_u2 ON idx_ex.films",
                 "Details": "There are some GIN indexes present in the schema, but GIN indexes are partially supported in YugabyteDB as mentioned in (https://github.com/yugabyte/yugabyte-db/issues/7850) so take a look and modify them if not supported."
             },
             {
@@ -193,7 +193,7 @@
             "ObjectType": "INDEX",
             "ObjectName": "hidx ON extension_example.testhstore",
             "Reason": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops (siglen='32'));",
+            "SqlStatement": "CREATE INDEX hidx ON extension_example.testhstore USING gist (h extension_example.gist_hstore_ops(siglen='32'));",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "",
             "GH": "https://github.com/YugaByte/yugabyte-db/issues/1337",
@@ -218,18 +218,6 @@
             "ObjectName": "gin_idx ON idx_ex.films",
             "Reason": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB.",
             "SqlStatement": "CREATE INDEX gin_idx ON idx_ex.films USING gin (to_tsvector('english'::regconfig, title)) WITH (fastupdate=off);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "Remove the storage parameters from the DDL",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
-            "ObjectName": "title_idx ON idx_ex.films",
-            "Reason": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE UNIQUE INDEX title_idx ON idx_ex.films USING btree (title) WITH (fillfactor='70');",
             "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
             "Suggestion": "Remove the storage parameters from the DDL",
             "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
@@ -306,18 +294,6 @@
             "Suggestion": "",
             "GH": "https://github.com/yugabyte/yb-voyager/issues/1731",
             "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
-            "MinimumVersionsFixedIn": null
-        },
-        {
-            "IssueType": "unsupported_features",
-            "ObjectType": "INDEX",
-            "ObjectName": "title_idx_with_duplicates ON idx_ex.films",
-            "Reason": "Storage parameters in tables, indexes, and constraints are not yet supported in YugabyteDB.",
-            "SqlStatement": "CREATE INDEX title_idx_with_duplicates ON idx_ex.films USING btree (title) WITH (deduplicate_items=off);",
-            "FilePath": "/home/ubuntu/yb-voyager/migtests/tests/pg/omnibus/export-dir/schema/tables/INDEXES_table.sql",
-            "Suggestion": "Remove the storage parameters from the DDL",
-            "GH": "https://github.com/yugabyte/yugabyte-db/issues/23467",
-            "DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#storage-parameters-on-indexes-or-constraints-in-the-source-postgresql",
             "MinimumVersionsFixedIn": null
         },
         {

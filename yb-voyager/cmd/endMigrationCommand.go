@@ -71,7 +71,7 @@ func endMigrationCommandFn(cmd *cobra.Command, args []string) {
 
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("getting migration status record: %v", err)
+		utils.ErrExit("getting migration status record: %w", err)
 	} else if msr == nil {
 		utils.ErrExit("migration status record not found. Is the migration initialized?")
 	}
@@ -150,7 +150,7 @@ func backupSchemaFilesFn() {
 	cmd := exec.Command("mv", schemaDirPath, backupSchemaDirPath)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("moving schema files: %s: %v", string(output), err)
+		utils.ErrExit("moving schema files: %s: %w", string(output), err)
 	} else {
 		log.Infof("moved schema files from %q to %q", schemaDirPath, backupSchemaDirPath)
 	}
@@ -167,7 +167,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 	cmd := exec.Command("mv", errorsSrcDir, errorsDstDir)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("moving errors directory: %s: %v", string(output), err)
+		return fmt.Errorf("moving errors directory: %s: %w", string(output), err)
 	}
 	log.Infof("moved errors directory %q to %q", errorsSrcDir, errorsDstDir)
 
@@ -177,7 +177,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 	// They need to be resolved to the actual files in the export directory and moved to the backupDir.
 	tableDirs, err := os.ReadDir(errorsDstDir)
 	if err != nil {
-		return fmt.Errorf("reading table dirs in errors: %v", err)
+		return fmt.Errorf("reading table dirs in errors: %w", err)
 	}
 	for _, tableDir := range tableDirs {
 		if !tableDir.IsDir() {
@@ -186,7 +186,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 		tableDirPath := filepath.Join(errorsDstDir, tableDir.Name())
 		fileDirs, err := os.ReadDir(tableDirPath)
 		if err != nil {
-			return fmt.Errorf("reading file dirs in %q: %v", tableDirPath, err)
+			return fmt.Errorf("reading file dirs in %q: %w", tableDirPath, err)
 		}
 		for _, fileDir := range fileDirs {
 			if !fileDir.IsDir() {
@@ -195,7 +195,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 			fileDirPath := filepath.Join(tableDirPath, fileDir.Name())
 			entries, err := os.ReadDir(fileDirPath)
 			if err != nil {
-				return fmt.Errorf("reading entries in %q: %v", fileDirPath, err)
+				return fmt.Errorf("reading entries in %q: %w", fileDirPath, err)
 			}
 
 			log.Debugf("checking for symlinks in %q: %v", fileDirPath, entries)
@@ -203,12 +203,12 @@ func backupErrorsDir(exportDir, backupDir string) error {
 				entryPath := filepath.Join(fileDirPath, entry.Name())
 				info, err := os.Lstat(entryPath)
 				if err != nil {
-					return fmt.Errorf("lstat on %q: %v", entryPath, err)
+					return fmt.Errorf("lstat on %q: %w", entryPath, err)
 				}
 				if info.Mode()&os.ModeSymlink != 0 {
 					realFile, err := os.Readlink(entryPath)
 					if err != nil {
-						return fmt.Errorf("readlink on %q: %v", entryPath, err)
+						return fmt.Errorf("readlink on %q: %w", entryPath, err)
 					}
 					// os.Readlink can potentially return a relative path.
 					if !filepath.IsAbs(realFile) {
@@ -218,7 +218,7 @@ func backupErrorsDir(exportDir, backupDir string) error {
 					output, err := cmd.CombinedOutput()
 					log.Infof("moving real file for symlink %q to %q: output: %s", realFile, entryPath, string(output))
 					if err != nil {
-						return fmt.Errorf("moving real file for symlink from %q to %q: %s: %v", realFile, entryPath, string(output), err)
+						return fmt.Errorf("moving real file for symlink from %q to %q: %s: %w", realFile, entryPath, string(output), err)
 					}
 				}
 			}
@@ -235,12 +235,12 @@ func backupDataFilesFn() {
 	utils.PrintAndLog("backing up snapshot sql data files")
 	err := os.MkdirAll(filepath.Join(backupDir, "data"), 0755)
 	if err != nil {
-		utils.ErrExit("creating data directory for backup: %v", err)
+		utils.ErrExit("creating data directory for backup: %w", err)
 	}
 
 	files, err := os.ReadDir(filepath.Join(exportDir, "data"))
 	if err != nil {
-		utils.ErrExit("reading data directory: %v", err)
+		utils.ErrExit("reading data directory: %w", err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !strings.HasSuffix(file.Name(), ".sql") {
@@ -253,14 +253,14 @@ func backupDataFilesFn() {
 		cmd := exec.Command("mv", dataFilePath, backupFilePath)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving data files: %s: %v", string(output), err)
+			utils.ErrExit("moving data files: %s: %w", string(output), err)
 		} else {
 			log.Infof("moved data file %q to %q", dataFilePath, backupFilePath)
 		}
 	}
 
 	if err := backupErrorsDir(exportDir, backupDir); err != nil {
-		utils.ErrExit("%v", err)
+		utils.ErrExit("%w", err)
 	}
 }
 
@@ -271,7 +271,7 @@ func saveMigrationReportsFn(msr *metadb.MigrationStatusRecord) {
 
 	err := os.MkdirAll(filepath.Join(backupDir, "reports"), 0755)
 	if err != nil {
-		utils.ErrExit("creating reports directory for backup: %v", err)
+		utils.ErrExit("creating reports directory for backup: %w", err)
 	}
 
 	saveMigrationAssessmentReport()
@@ -291,7 +291,7 @@ func saveMigrationAssessmentReport() {
 	alreadyBackedUp := utils.FileOrFolderExistsWithGlobPattern(assessmentReportGlobPath)
 	migrationAssessmentDone, err := IsMigrationAssessmentDoneDirectly(metaDB)
 	if err != nil {
-		utils.ErrExit("checking if migration assessment is done: %v", err)
+		utils.ErrExit("checking if migration assessment is done: %w", err)
 	}
 	if alreadyBackedUp {
 		utils.PrintAndLog("assessment report is already present at %q", assessmentReportGlobPath)
@@ -303,7 +303,7 @@ func saveMigrationAssessmentReport() {
 	utils.PrintAndLog("saving assessment report...")
 	files, err := os.ReadDir(filepath.Join(exportDir, "assessment", "reports"))
 	if err != nil {
-		utils.ErrExit("reading assessment reports directory: %v", err)
+		utils.ErrExit("reading assessment reports directory: %w", err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", ASSESSMENT_FILE_NAME)) {
@@ -314,7 +314,7 @@ func saveMigrationAssessmentReport() {
 		cmd := exec.Command("mv", oldPath, newPath)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving assessment report: %s: %v", string(output), err)
+			utils.ErrExit("moving assessment report: %s: %w", string(output), err)
 		} else {
 			log.Infof("moved assessment report %q to %q", oldPath, newPath)
 		}
@@ -334,7 +334,7 @@ func saveSchemaAnalysisReport() {
 	utils.PrintAndLog("saving schema analysis report...")
 	files, err := os.ReadDir(filepath.Join(exportDir, "reports"))
 	if err != nil {
-		utils.ErrExit("reading reports directory: %v", err)
+		utils.ErrExit("reading reports directory: %w", err)
 	}
 	for _, file := range files {
 		if file.IsDir() || !strings.HasPrefix(file.Name(), fmt.Sprintf("%s.", ANALYSIS_REPORT_FILE_NAME)) {
@@ -346,7 +346,7 @@ func saveSchemaAnalysisReport() {
 		cmd := exec.Command("mv", oldPath, newPath)
 		output, err := cmd.CombinedOutput()
 		if err != nil {
-			utils.ErrExit("moving schema analysis report: %s: %v", string(output), err)
+			utils.ErrExit("moving schema analysis report: %s: %w", string(output), err)
 		} else {
 			log.Infof("moved schema analysis report %q to %q", oldPath, newPath)
 		}
@@ -414,8 +414,8 @@ func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFileP
 	cmd.Stderr = &errbuf
 	err := cmd.Run()
 	if err != nil {
-		log.Errorf("running %s command: %s: %v", cmdName, errbuf.String(), err)
-		utils.ErrExit("running %s command: %s: %v", cmdName, errbuf.String(), err)
+		log.Errorf("running %s command: %s: %s", cmdName, errbuf.String(), err)
+		utils.ErrExit("running %s command: %s: %w", cmdName, errbuf.String(), err)
 	}
 
 	outbufBytes := bytes.Trim(outbuf.Bytes(), " \n")
@@ -423,7 +423,7 @@ func saveCommandOutput(cmd *exec.Cmd, cmdName string, header string, reportFileP
 	if len(outbufBytes) > 0 && string(outbufBytes) != header {
 		err = os.WriteFile(reportFilePath, outbufBytes, 0644)
 		if err != nil {
-			utils.ErrExit("writing %s report: %v", cmdName, err)
+			utils.ErrExit("writing %s report: %w", cmdName, err)
 		}
 	} else {
 		utils.PrintAndLog("nothing to save for %s report", cmdName)
@@ -439,7 +439,7 @@ func backupLogFilesFn() {
 	backupLogDir := filepath.Join(backupDir, "logs")
 	err := os.MkdirAll(backupLogDir, 0755)
 	if err != nil {
-		utils.ErrExit("creating logs directory for backup: %v", err)
+		utils.ErrExit("creating logs directory for backup: %w", err)
 	}
 
 	utils.PrintAndLog("backing up log files")
@@ -447,7 +447,7 @@ func backupLogFilesFn() {
 	cmd := exec.Command("bash", "-c", cmdStr)
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		utils.ErrExit("moving log files: %s: %v", string(output), err)
+		utils.ErrExit("moving log files: %s: %w", string(output), err)
 	}
 }
 
@@ -456,19 +456,19 @@ func askAndStorePasswords(msr *metadb.MigrationStatusRecord) {
 	if msr.TargetDBConf != nil {
 		targetDBPassword, err = askPassword("target DB", "", "TARGET_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting target db password: %v", err)
+			utils.ErrExit("getting target db password: %w", err)
 		}
 	}
 	if msr.FallForwardEnabled {
 		sourceReplicaDBPassword, err = askPassword("source-replica DB", "", "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source-replica db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %w", err)
 		}
 	}
 	if msr.FallbackEnabled {
 		sourceDBPassword, err = askPassword("source DB", "", "SOURCE_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source password: %v", err)
+			utils.ErrExit("getting source password: %w", err)
 		}
 	}
 }
@@ -511,18 +511,18 @@ func cleanupSourceDB(msr *metadb.MigrationStatusRecord) {
 	if sourceDBPassword == "" {
 		sourceDBPassword, err = askPassword("source DB", source.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source db password: %v", err)
+			utils.ErrExit("getting source db password: %w", err)
 		}
 	}
 	source.Password = sourceDBPassword
 	err = source.DB().Connect()
 	if err != nil {
-		utils.ErrExit("connecting to source db: %v", err)
+		utils.ErrExit("connecting to source db: %w", err)
 	}
 	defer source.DB().Disconnect()
 	err = source.DB().ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from source db: %v", err)
+		utils.ErrExit("clearing migration state from source db: %w", err)
 	}
 
 	deletePGReplicationSlot(msr, source)
@@ -539,7 +539,7 @@ func deletePGReplicationSlot(msr *metadb.MigrationStatusRecord, source *srcdb.So
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropLogicalReplicationSlot(nil, msr.PGReplicationSlotName)
 	if err != nil {
-		utils.ErrExit("dropping PG replication slot name: %v", err)
+		utils.ErrExit("dropping PG replication slot name: %w", err)
 	}
 }
 
@@ -553,7 +553,7 @@ func deletePGPublication(msr *metadb.MigrationStatusRecord, source *srcdb.Source
 	pgDB := source.DB().(*srcdb.PostgreSQL)
 	err := pgDB.DropPublication(msr.PGPublicationName)
 	if err != nil {
-		utils.ErrExit("dropping PG publication name: %v", err)
+		utils.ErrExit("dropping PG publication name: %w", err)
 	}
 }
 
@@ -566,22 +566,26 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 
 	var err error
 	tconf := msr.TargetDBConf
+	if tconf == nil {
+		log.Info("target db conf is not set. skipping cleanup")
+		return
+	}
 	if targetDBPassword == "" {
 		targetDBPassword, err = askPassword("target DB", tconf.User, "TARGET_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting target db password: %v", err)
+			utils.ErrExit("getting target db password: %w", err)
 		}
 	}
 	tconf.Password = targetDBPassword
 	tdb := tgtdb.NewTargetDB(tconf)
 	err = tdb.Init()
 	if err != nil {
-		utils.ErrExit("initializing target db: %v", err)
+		utils.ErrExit("initializing target db: %w", err)
 	}
 	defer tdb.Finalize()
 	err = tdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from target db: %v", err)
+		utils.ErrExit("clearing migration state from target db: %w", err)
 	}
 
 	if msr.ExportFromTargetFallBackStarted || msr.ExportFromTargetFallForwardStarted {
@@ -604,12 +608,12 @@ func cleanupTargetDB(msr *metadb.MigrationStatusRecord) {
 		}
 		err = sourceYB.DB().Connect()
 		if err != nil {
-			utils.ErrExit("connecting to YB as source db for deleting replication slot and publication: %v", err)
+			utils.ErrExit("connecting to YB as source db for deleting replication slot and publication: %w", err)
 		}
 		defer sourceYB.DB().Disconnect()
 		err = deleteYBReplicationSlotAndPublication(msr.YBReplicationSlotName, msr.YBPublicationName, sourceYB)
 		if err != nil {
-			utils.ErrExit("deleting yb replication slot and publication: %v", err)
+			utils.ErrExit("deleting yb replication slot and publication: %w", err)
 		}
 	}
 
@@ -630,7 +634,7 @@ func deleteYBReplicationSlotAndPublication(replicationSlotName string, publicati
 		log.Info("deleting yb replication slot: ", replicationSlotName)
 		err = ybDB.DropLogicalReplicationSlot(nil, replicationSlotName)
 		if err != nil {
-			return fmt.Errorf("dropping YB replication slot name: %v", err)
+			return fmt.Errorf("dropping YB replication slot name: %w", err)
 		}
 	}
 
@@ -638,7 +642,7 @@ func deleteYBReplicationSlotAndPublication(replicationSlotName string, publicati
 		log.Info("deleting yb publication: ", publicationName)
 		err = ybDB.DropPublication(publicationName)
 		if err != nil {
-			return fmt.Errorf("dropping YB publication name: %v", err)
+			return fmt.Errorf("dropping YB publication name: %w", err)
 		}
 	}
 
@@ -665,7 +669,7 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 	}
 	err := source.DB().Connect()
 	if err != nil {
-		utils.ErrExit("connecting to YB as source db for deleting stream id: %v", err)
+		utils.ErrExit("connecting to YB as source db for deleting stream id: %w", err)
 	}
 	defer source.DB().Disconnect()
 
@@ -673,18 +677,18 @@ func deleteCDCStreamIDForEndMigration(tconf *tgtdb.TargetConf) {
 		source.SSLRootCert, source.DBName, strings.Split(source.TableList, ",")[0], metaDB)
 	err = ybCDCClient.Init()
 	if err != nil {
-		utils.ErrExit("initializing yugabytedb cdc client: %v", err)
+		utils.ErrExit("initializing yugabytedb cdc client: %w", err)
 	}
 
 	_, err = ybCDCClient.ListMastersNodes()
 	if err != nil {
-		utils.ErrExit("listing yugabytedb master nodes: %v", err)
+		utils.ErrExit("listing yugabytedb master nodes: %w", err)
 	}
 
 	// TODO: check the error once streamID is expirted and ignore it
 	err = ybCDCClient.DeleteStreamID()
 	if err != nil {
-		utils.ErrExit("deleting yugabytedb cdc stream id: %v", err)
+		utils.ErrExit("deleting yugabytedb cdc stream id: %w", err)
 	}
 }
 
@@ -696,22 +700,26 @@ func cleanupSourceReplicaDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source-replica db...")
 	var err error
 	sourceReplicaconf := msr.SourceReplicaDBConf
+	if sourceReplicaconf == nil {
+		log.Info("source replica db conf is not set. skipping cleanup")
+		return
+	}
 	if sourceReplicaDBPassword == "" {
 		sourceReplicaDBPassword, err = askPassword("source-replica DB", sourceReplicaconf.User, "SOURCE_REPLICA_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source-replica db password: %v", err)
+			utils.ErrExit("getting source-replica db password: %w", err)
 		}
 	}
 	sourceReplicaconf.Password = sourceReplicaDBPassword
 	sourceReplicaDB := tgtdb.NewTargetDB(sourceReplicaconf)
 	err = sourceReplicaDB.Init()
 	if err != nil {
-		utils.ErrExit("initializing source-replica db: %v", err)
+		utils.ErrExit("initializing source-replica db: %w", err)
 	}
 	defer sourceReplicaDB.Finalize()
 	err = sourceReplicaDB.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from source-replica db: %v", err)
+		utils.ErrExit("clearing migration state from source-replica db: %w", err)
 	}
 }
 
@@ -723,22 +731,28 @@ func cleanupFallBackDB(msr *metadb.MigrationStatusRecord) {
 	utils.PrintAndLog("cleaning up voyager state from source db(used for fall-back)...")
 	var err error
 	fbconf := msr.SourceDBAsTargetConf
+	if fbconf == nil {
+		//in case if sourceDBAsTargetConf is not initialized becasue of various like some guardrails failures etc..
+		//no need to run any clean up for source db as its not
+		log.Info("source db as target conf is not set. skipping cleanup")
+		return
+	}
 	if sourceDBPassword == "" {
 		sourceDBPassword, err = askPassword("source DB", fbconf.User, "SOURCE_DB_PASSWORD")
 		if err != nil {
-			utils.ErrExit("getting source db password: %v", err)
+			utils.ErrExit("getting source db password: %w", err)
 		}
 	}
 	fbconf.Password = sourceDBPassword
 	fbdb := tgtdb.NewTargetDB(fbconf)
 	err = fbdb.Init()
 	if err != nil {
-		utils.ErrExit("initializing source db: %v", err)
+		utils.ErrExit("initializing source db: %w", err)
 	}
 	defer fbdb.Finalize()
 	err = fbdb.ClearMigrationState(migrationUUID, exportDir)
 	if err != nil {
-		utils.ErrExit("clearing migration state from source db: %v", err)
+		utils.ErrExit("clearing migration state from source db: %w", err)
 	}
 }
 
@@ -748,7 +762,7 @@ func cleanupExportDir() {
 	for _, subdir := range subdirs {
 		err := os.RemoveAll(filepath.Join(exportDir, subdir))
 		if err != nil {
-			utils.ErrExit("removing directory: %q: %v", subdir, err)
+			utils.ErrExit("removing directory: %q: %w", subdir, err)
 		}
 	}
 }
@@ -771,7 +785,7 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 	// check if any ongoing voyager command
 	matches, err := filepath.Glob(filepath.Join(exportDir, ".*Lockfile.lck")) // we should stop the voyager commands only which are suffixed by .Lockfile.lck and not their child processes like debezium as now we also have lockfile of debezium exporter
 	if err != nil {
-		utils.ErrExit("checking for ongoing voyager commands: %v", err)
+		utils.ErrExit("checking for ongoing voyager commands: %w", err)
 	}
 	if len(matches) > 0 {
 		var lockFiles []*lockfile.Lockfile
@@ -813,12 +827,12 @@ func checkIfEndCommandCanBePerformed(msr *metadb.MigrationStatusRecord) {
 		// verify that the size of backup-data dir to be greater the export-dir/data dir
 		exportDirDataSize, err := calculateDirSizeWithPattern(exportDir, "data/*.sql")
 		if err != nil {
-			utils.ErrExit("calculating export dir data size: %v", err)
+			utils.ErrExit("calculating export dir data size: %w", err)
 		}
 
 		backupDirSize, err := getFreeDiskSpace(backupDir)
 		if err != nil {
-			utils.ErrExit("calculating backup dir size: %v", err)
+			utils.ErrExit("calculating backup dir size: %w", err)
 		}
 
 		if exportDirDataSize >= int64(backupDirSize) {
@@ -869,7 +883,7 @@ func stopVoyagerCommand(lockFile *lockfile.Lockfile, signal syscall.Signal) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %w", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
@@ -895,7 +909,7 @@ func stopDataExportCommand(lockFile *lockfile.Lockfile) {
 	ongoingCmd := lockFile.GetCmdName()
 	ongoingCmdPID, err := lockFile.GetCmdPID()
 	if err != nil {
-		utils.ErrExit("getting PID of ongoing voyager command: %q: %v", ongoingCmd, err)
+		utils.ErrExit("getting PID of ongoing voyager command: %q: %w", ongoingCmd, err)
 	}
 
 	fmt.Printf("stopping the ongoing command: %s\n", ongoingCmd)
