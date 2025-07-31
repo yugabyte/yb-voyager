@@ -171,6 +171,7 @@ func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIs
 		var err error
 		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
 		if err != nil {
+			anonymizedIssues[i].SqlStatement = "" // set to empty string to avoid sending the sql statement (safety net)
 			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
 		}
 	}
