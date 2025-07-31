@@ -260,7 +260,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, fmt.Errorf("%v\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
+			return nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 

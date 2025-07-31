@@ -422,6 +422,22 @@ func ProtoAsCreateExtensionStmt(msg protoreflect.Message) (*pg_query.CreateExten
 	return createExtStmtNode, true
 }
 
+func ProtoAsCreateConversionStmtNode(msg protoreflect.Message) (*pg_query.CreateConversionStmt, bool) {
+	createConvStmtNode, ok := msg.Interface().(*pg_query.CreateConversionStmt)
+	if !ok {
+		return nil, false
+	}
+	return createConvStmtNode, true
+}
+
+func ProtoAsRuleStmtNode(msg protoreflect.Message) (*pg_query.RuleStmt, bool) {
+	ruleStmtNode, ok := msg.Interface().(*pg_query.RuleStmt)
+	if !ok {
+		return nil, false
+	}
+	return ruleStmtNode, true
+}
+
 func ProtoAsCreateForeignTableStmt(msg protoreflect.Message) (*pg_query.CreateForeignTableStmt, bool) {
 	createForeignTableStmtNode, ok := msg.Interface().(*pg_query.CreateForeignTableStmt)
 	if !ok {
@@ -462,6 +478,24 @@ func ProtoAsIndexElemNode(msg protoreflect.Message) (*pg_query.IndexElem, bool) 
 	}
 
 	return indexElemNode, true
+}
+
+func ProtoAsCreatePolicyStmtNode(msg protoreflect.Message) (*pg_query.CreatePolicyStmt, bool) {
+	createPolicyStmtNode, ok := msg.Interface().(*pg_query.CreatePolicyStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return createPolicyStmtNode, true
+}
+
+func ProtoAsCommentStmtNode(msg protoreflect.Message) (*pg_query.CommentStmt, bool) {
+	commentStmtNode, ok := msg.Interface().(*pg_query.CommentStmt)
+	if !ok {
+		return nil, false
+	}
+
+	return commentStmtNode, true
 }
 
 func ProtoAsTableConstraintNode(msg protoreflect.Message) (*pg_query.Constraint, bool) {
@@ -694,6 +728,22 @@ func ProtoAsCreateStmtNode(msg protoreflect.Message) (*pg_query.CreateStmt, bool
 		return nil, false
 	}
 	return createStmtNode, true
+}
+
+func ProtoAsCreateOpClassStmtNode(msg protoreflect.Message) (*pg_query.CreateOpClassStmt, bool) {
+	createOpClassStmt, ok := msg.Interface().(*pg_query.CreateOpClassStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpClassStmt, ok
+}
+
+func ProtoAsCreateOpFamilyStmtNode(msg protoreflect.Message) (*pg_query.CreateOpFamilyStmt, bool) {
+	createOpFamilyStmt, ok := msg.Interface().(*pg_query.CreateOpFamilyStmt)
+	if !ok {
+		return nil, false
+	}
+	return createOpFamilyStmt, ok
 }
 
 /*

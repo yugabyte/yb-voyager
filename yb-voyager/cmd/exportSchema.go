@@ -61,7 +61,7 @@ var exportSchemaCmd = &cobra.Command{
 		setExportFlagsDefaults()
 		err := validateExportFlags(cmd, SOURCE_DB_EXPORTER_ROLE)
 		if err != nil {
-			utils.ErrExit("Error validating export schema flags: %s", err.Error())
+			utils.ErrExit("Error validating export schema flags: %w", err)
 		}
 		markFlagsRequired(cmd)
 	},
@@ -70,7 +70,7 @@ var exportSchemaCmd = &cobra.Command{
 		source.ApplyExportSchemaObjectListFilter()
 		err := exportSchema(cmd)
 		if err != nil {
-			utils.ErrExit("%v", err)
+			utils.ErrExit("%w", err)
 		}
 	},
 }
@@ -265,7 +265,7 @@ func runAssessMigrationCmdBeforExportSchemaIfRequired(exportSchemaCmd *cobra.Com
 	// locate voyager binary
 	voyagerExecutable, err := os.Executable()
 	if err != nil {
-		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %v", err)
+		return fmt.Errorf("cannot locate yb-voyager executable, skipping assessment: %w", err)
 	}
 
 	var stderrBuf, stdoutBuf bytes.Buffer
@@ -370,7 +370,7 @@ func schemaIsExported() bool {
 	}
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		utils.ErrExit("check if schema is exported: load migration status record: %s", err)
+		utils.ErrExit("check if schema is exported: load migration status record: %w", err)
 	}
 
 	return msr.ExportSchemaDone
@@ -381,7 +381,7 @@ func setSchemaIsExported() {
 		record.ExportSchemaDone = true
 	})
 	if err != nil {
-		utils.ErrExit("set schema is exported: update migration status record: %s", err)
+		utils.ErrExit("set schema is exported: update migration status record: %w", err)
 	}
 }
 
@@ -390,7 +390,7 @@ func clearSchemaIsExported() {
 		record.ExportSchemaDone = false
 	})
 	if err != nil {
-		utils.ErrExit("clear schema is exported: update migration status record: %s", err)
+		utils.ErrExit("clear schema is exported: update migration status record: %w", err)
 	}
 }
 
@@ -762,7 +762,7 @@ func clearAssessmentRecommendationsApplied() {
 		record.AssessmentRecommendationsApplied = false
 	})
 	if err != nil {
-		utils.ErrExit("clear assessment recommendations applied: update migration status record: %s", err)
+		utils.ErrExit("clear assessment recommendations applied: update migration status record: %w", err)
 	}
 }
 
