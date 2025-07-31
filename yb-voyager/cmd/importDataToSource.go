@@ -38,7 +38,7 @@ var importDataToSourceCmd = &cobra.Command{
 		importerRole = SOURCE_DB_IMPORTER_ROLE
 		err := initTargetConfFromSourceConf()
 		if err != nil {
-			utils.ErrExit("failed to setup target conf from source conf in MSR: %v", err)
+			utils.ErrExit("failed to setup target conf from source conf in MSR: %w", err)
 		}
 		tconf.EnableYBAdaptiveParallelism = false
 		importDataCmd.PreRun(cmd, args)
@@ -60,7 +60,7 @@ func init() {
 func initTargetConfFromSourceConf() error {
 	msr, err := metaDB.GetMigrationStatusRecord()
 	if err != nil {
-		return fmt.Errorf("get migration status record: %v", err)
+		return fmt.Errorf("get migration status record: %w", err)
 	}
 	sconf := msr.SourceDBConf
 	tconf.TargetDBType = sconf.DBType
