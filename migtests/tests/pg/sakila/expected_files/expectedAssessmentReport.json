@@ -37,7 +37,7 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 21,
-				"InvalidCount": 7,
+				"InvalidCount": 13,
 				"ObjectNames": "public.customer, public.actor, public.category, public.film, public.film_actor, public.film_category, public.address, public.city, public.country, public.inventory, public.language, public.payment, public.payment_p2007_01, public.payment_p2007_02, public.payment_p2007_03, public.payment_p2007_04, public.payment_p2007_05, public.payment_p2007_06, public.rental, public.staff, public.store"
 			},
 			{
@@ -235,6 +235,244 @@
 			"SqlStatement": "",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_01",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_01.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_06",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_06.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.film_category",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.film_category.category_id",
+				"ReferencedTableName": "public.category"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_02",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_02.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_03",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_03.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_04",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_04.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment_p2007_05",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment_p2007_05.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.inventory",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.inventory.film_id",
+				"ReferencedTableName": "public.film"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.payment",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.payment.rental_id",
+				"ReferencedTableName": "public.rental"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.rental",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.rental.customer_id",
+				"ReferencedTableName": "public.customer"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.rental",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.rental.staff_id",
+				"ReferencedTableName": "public.staff"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.staff",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.staff.address_id",
+				"ReferencedTableName": "public.address"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.staff",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.staff.store_id",
+				"ReferencedTableName": "public.store"
+			}
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.store",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.store.address_id",
+				"ReferencedTableName": "public.address"
+			}
 		}
 	],
 	"TableIndexStats": [
