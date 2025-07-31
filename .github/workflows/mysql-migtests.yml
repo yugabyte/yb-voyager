@@ -4,7 +4,7 @@ on:
   push:
     branches: ['main', '*.*-dev', '*.*.*-dev']
   pull_request:
-    branches: [priyanshi/remvoe-redundant-indexes]
+    branches: [main]
 
 jobs:
   run-mysql-migration-tests:
