@@ -1119,10 +1119,6 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detect
 		if detectIssues && len(sqlInfoArr) > 0 {
 			filePath := utils.GetObjectFilePath(schemaDir, objType)
 			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
-
-			if objType == "CONVERSION" {
-				checkConversions(sqlInfoArr, filePath)
-			}
 		}
 	}
 
