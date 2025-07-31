@@ -105,7 +105,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.RAHULB_S3_SECRET_ACCESS_KEY }}
         if: ${{ !cancelled() }}
         run: |
-          versions=("2024.2.4.0-b89" "2.20.10.0-b29" "2.25.2.0-b359" "2025.1.0.0-b168")
+          versions=("2024.2.4.0-b89" "2.20.10.0-b29" "2.25.2.0-b359" "2025.1.0.0-b168" "2024.1.6.1-b2")
           for version in "${versions[@]}"; do
             echo "Running tests on version $version"
 
