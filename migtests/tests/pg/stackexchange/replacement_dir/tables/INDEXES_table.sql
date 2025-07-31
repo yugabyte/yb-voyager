@@ -130,9 +130,6 @@ CREATE INDEX usertagqa_answers_idx ON public.usertagqa USING btree (answers);
 CREATE INDEX usertagqa_questions_answers_idx ON public.usertagqa USING btree (questions, answers);
 
 
-CREATE INDEX usertagqa_questions_idx ON public.usertagqa USING btree (questions);
-
-
 CREATE INDEX votes_creation_date_idx ON public.votes USING btree (creationdate);
 
 

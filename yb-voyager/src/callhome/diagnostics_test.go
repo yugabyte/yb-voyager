@@ -148,6 +148,8 @@ func TestCallhomeStructs(t *testing.T) {
 				AppliedRecommendations bool   `json:"applied_recommendations"`
 				UseOrafce              bool   `json:"use_orafce"`
 				CommentsOnObjects      bool   `json:"comments_on_objects"`
+				SkipRecommendations    bool   `json:"skip_recommendations"`
+				SkipPerfOptimizations  bool   `json:"skip_performance_optimizations"`
 				Error                  string `json:"error"`
 				ControlPlaneType       string `json:"control_plane_type"`
 			}{},
