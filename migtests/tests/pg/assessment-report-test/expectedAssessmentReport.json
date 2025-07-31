@@ -1704,6 +1704,23 @@
 			"SqlStatement": "",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#unsupported-datatypes-by-voyager-during-live-migration",
 			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "performance_optimizations",
+			"CategoryDescription": "Recommendations to source schema or queries to optimize performance on YugabyteDB.",
+			"Type": "MISSING_FOREIGN_KEY_INDEX",
+			"Name": "Missing index on foreign key columns",
+			"Description": "Foreign key columns do not have a proper index. The index must include all foreign key columns as leading columns (either in exact order, any permutation, or as a prefix of a composite index). This can cause performance issues during DML operations on the referenced table.",
+			"Impact": "LEVEL_1",
+			"ObjectType": "TABLE",
+			"ObjectName": "public.test_jsonb",
+			"SqlStatement": "",
+			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes",
+			"MinimumVersionsFixedIn": null,
+			"Details": {
+				"ForeignKeyColumnNames": "public.test_jsonb.id, public.test_jsonb.region",
+				"ReferencedTableName": "public.sales_region"
+			}
 		}
 	],
 	"TableIndexStats": [
