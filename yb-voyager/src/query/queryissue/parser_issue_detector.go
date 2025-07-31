@@ -460,14 +460,14 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 
 			// Process primary key as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.GetObjectName(), alter.ConstraintColumns, "PRIMARY KEY")
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
 			}
 		}
 
 		if alter.ConstraintType == queryparser.UNIQUE_CONSTR_TYPE {
 			// Process unique constraint as index for foreign key detection
 			if len(alter.ConstraintColumns) > 0 {
-				p.addConstraintAsIndex(alter.GetObjectName(), alter.ConstraintColumns, "UNIQUE")
+				p.addConstraintAsIndex(alter.SchemaName, alter.TableName, alter.ConstraintColumns, alter.ConstraintName)
 			}
 		}
 
@@ -876,14 +876,16 @@ func (p *ParserIssueDetector) hasProperIndexCoverage(fk ForeignKeyConstraint) bo
 }
 
 // hasIndexCoverage checks if an index provides coverage for the given foreign key columns.
-// It checks if the FK columns form a subset of the index columns (in any order) and are at the beginning.
+// It checks if the FK columns exactly match the leading index columns (in any order).
 func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColumns []string) bool {
-	// Extract non-expression columns from the index
+	// Extract columns and check for expressions in the prefix
 	indexColumns := make([]string, 0)
-	for _, param := range index.Params {
-		if !param.IsExpression {
-			indexColumns = append(indexColumns, param.ColName)
+	for i, param := range index.Params {
+		// Check if expression exists in the prefix we need to check
+		if i < len(fkColumns) && param.IsExpression {
+			return false // Expression in the prefix disqualifies the index
 		}
+		indexColumns = append(indexColumns, param.ColName)
 	}
 
 	// Check if we have enough columns in the index
@@ -891,8 +893,7 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 		return false
 	}
 
-	// Check if the FK columns are a subset of the first len(fkColumns) index columns
-	// This handles both exact order and permutation cases
+	// Check if the FK columns exactly match the leading index columns (in any order).
 	indexPrefix := indexColumns[:len(fkColumns)]
 	return utils.IsSetEqual(fkColumns, indexPrefix)
 }
@@ -928,31 +929,24 @@ func (p *ParserIssueDetector) addIndexToCoverage(index *queryparser.Index) {
 
 // addConstraintAsIndex creates a mock index object from a constraint and adds it to the table indexes map.
 // This is used for primary keys and unique constraints which are also indexes for missing foreign key index detection.
-func (p *ParserIssueDetector) addConstraintAsIndex(tableName string, columns []string, constraintType string) {
+func (p *ParserIssueDetector) addConstraintAsIndex(schemaName, tableName string, columns []string, constraintName string) {
 	// Create mock index parameters from columns
 	indexParams := make([]queryparser.IndexParam, len(columns))
 	for i, colName := range columns {
 		indexParams[i] = queryparser.IndexParam{
 			ColName:      colName,
-			IsExpression: false,
+			IsExpression: false, // We can't create expressions in primary keys and unique constraints in PG/YB
 		}
-	}
-
-	// Extract schema name from tableName (format: "schema.table")
-	schemaName := ""
-	tableNameOnly := tableName
-	if strings.Contains(tableName, ".") {
-		parts := strings.SplitN(tableName, ".", 2)
-		schemaName = parts[0]
-		tableNameOnly = parts[1]
 	}
 
 	// Create a mock index object
 	mockIndex := &queryparser.Index{
-		SchemaName:   schemaName,
-		IndexName:    fmt.Sprintf("%s_%s", strings.ToLower(constraintType), strings.Join(columns, "_")),
-		TableName:    tableNameOnly,
-		AccessMethod: BTREE_ACCESS_METHOD, // Primary keys and unique constraints use btree by default
+		SchemaName: schemaName,
+		IndexName:  constraintName,
+		TableName:  tableName,
+		// Primary keys and unique constraints use btree by default.
+		//  Mentioned in the docs here:https://www.postgresql.org/docs/current/sql-createtable.html#:~:text=Adding%20a%20PRIMARY%20KEY%20constraint%20will%20automatically%20create%20a%20unique%20btree%20index%20on%20the%20column%20or%20group%20of%20columns%20used%20in%20the%20constraint.%20That%20index%20has%20the%20same%20name%20as%20the%20primary%20key%20constraint
+		AccessMethod: BTREE_ACCESS_METHOD,
 		Params:       indexParams,
 	}
 
@@ -962,8 +956,6 @@ func (p *ParserIssueDetector) addConstraintAsIndex(tableName string, columns []s
 
 // processTableConstraintsAsIndexes processes primary keys and unique constraints as indexes for foreign key detection.
 func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparser.Table) {
-	tableName := table.GetObjectName()
-
 	// Process primary keys
 	for _, constraint := range table.Constraints {
 		if constraint.ConstraintType == queryparser.PRIMARY_CONSTR_TYPE {
@@ -971,7 +963,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			primaryKeyColumns := constraint.Columns
 			if len(primaryKeyColumns) > 0 {
-				p.addConstraintAsIndex(tableName, primaryKeyColumns, "PRIMARY KEY")
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, primaryKeyColumns, constraint.ConstraintName)
 			}
 		}
 	}
@@ -983,7 +975,7 @@ func (p *ParserIssueDetector) processTableConstraintsAsIndexes(table *queryparse
 			// We need to ensure the index is processed and covered
 			uniqueColumns := constraint.Columns
 			if len(uniqueColumns) > 0 {
-				p.addConstraintAsIndex(tableName, uniqueColumns, "UNIQUE")
+				p.addConstraintAsIndex(table.SchemaName, table.TableName, uniqueColumns, constraint.ConstraintName)
 			}
 		}
 	}

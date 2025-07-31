@@ -29,19 +29,20 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
+	mapset "github.com/deckarep/golang-set/v2"
 	"github.com/fatih/color"
 	"github.com/google/uuid"
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
-	"golang.org/x/exp/slices"
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 )
@@ -1004,20 +1005,10 @@ func GenerateAnonymisationSalt(n int) (string, error) {
 }
 
 // IsSetEqual checks if two string slices contain the same elements regardless of order.
-// It sorts both slices and compares them for equality.
+// It uses mapset for efficient comparison.
 func IsSetEqual(a, b []string) bool {
-	if len(a) != len(b) {
-		return false
-	}
+	setA := mapset.NewThreadUnsafeSet(a...)
+	setB := mapset.NewThreadUnsafeSet(b...)
 
-	// Sort both slices and compare (same pattern as AssertEqualStringSlices in test utils)
-	aSorted := make([]string, len(a))
-	bSorted := make([]string, len(b))
-	copy(aSorted, a)
-	copy(bSorted, b)
-
-	slices.Sort(aSorted)
-	slices.Sort(bSorted)
-
-	return slices.Equal(aSorted, bSorted)
+	return setA.Equal(setB)
 }

@@ -452,12 +452,6 @@ func TestDDLIssues(t *testing.T) {
 		},
 		stmt38: []QueryIssue{},
 		stmt41: []QueryIssue{},
-		stmt38: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
-		},
-		stmt41: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
-		},
 		stmt44: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
 		},
