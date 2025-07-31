@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 
 	"github.com/sourcegraph/conc/pool"
@@ -349,16 +348,7 @@ func TestTaskImportStachAndContinueErrorPolicy_MultipleBatchesWithDifferentError
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(erroredBatches), "Expected three errored batch")
 
-	tgtVersion, err := testYugabyteDBTarget.TestContainer.GetVersion()
-	testutils.FatalIfError(t, err)
-	//11.2-YB-2024.2.1.0-b10
-	splits := strings.Split(tgtVersion, "-")
-	if len(splits) < 4 {
-		testutils.FatalIfError(t, fmt.Errorf("invalid target db version %q", tgtVersion))
-	}
-	tgtVersion = splits[2]
-	tgtYBVersion, err := ybversion.NewYBVersion(tgtVersion)
-	testutils.FatalIfError(t, err)
+	tgtYBVersion := testutils.GetYBVersionFromTargetDB(t, testYugabyteDBTarget.TestContainer)
 
 	assertBatchErrored(t, erroredBatches[1], 2, "batch::1.2.2.89.E")
 	errorMsg := `ERROR: invalid input syntax for integer: "xyz" (SQLSTATE 22P02)`

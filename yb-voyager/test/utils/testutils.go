@@ -17,6 +17,8 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/ybversion"
+	testcontainers "github.com/yugabyte/yb-voyager/yb-voyager/test/containers"
 )
 
 type ColumnPropertiesSqlite struct {
@@ -544,4 +546,18 @@ func AssertFileContains(t *testing.T, filePath string, expectedContent string) {
 	}
 	assert.Containsf(t, string(content), expectedContent,
 		"File %s does not contain expected content: %s", filePath, expectedContent)
+}
+
+func GetYBVersionFromTestContainer(t *testing.T, ybContainer testcontainers.TestContainer) *ybversion.YBVersion {
+	tgtVersion, err := ybContainer.GetVersion()
+	FatalIfError(t, err)
+	//11.2-YB-2024.2.1.0-b10
+	splits := strings.Split(tgtVersion, "-")
+	if len(splits) < 4 {
+		FatalIfError(t, fmt.Errorf("invalid target db version %q", tgtVersion))
+	}
+	tgtVersion = splits[2]
+	tgtYBVersion, err := ybversion.NewYBVersion(tgtVersion)
+	FatalIfError(t, err)
+	return tgtYBVersion
 }
