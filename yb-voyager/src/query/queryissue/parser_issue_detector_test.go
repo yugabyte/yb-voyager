@@ -237,6 +237,62 @@ CHECK (xpath_exists('/invoice/customer', data));`
 	stmt60 = `CREATE TABLE schema2.departments (dept_id INTEGER PRIMARY KEY);`
 	stmt61 = `CREATE TABLE schema1.employees (emp_id SERIAL PRIMARY KEY, dept_id BIGINT);`
 	stmt62 = `ALTER TABLE schema1.employees ADD CONSTRAINT fk_dept FOREIGN KEY (dept_id) REFERENCES schema2.departments(dept_id);`
+
+	// Additional type mapping test cases
+	// Case 11: SMALLINT → INTEGER mismatch (testing int2 mapping)
+	stmt63 = `CREATE TABLE small_users (id SMALLINT PRIMARY KEY);`
+	stmt64 = `CREATE TABLE small_orders (order_id SERIAL PRIMARY KEY, user_id INTEGER);`
+	stmt65 = `ALTER TABLE small_orders ADD CONSTRAINT fk_small_user FOREIGN KEY (user_id) REFERENCES small_users(id);`
+
+	// Case 12: REAL → DOUBLE PRECISION mismatch (testing float4/float8 mapping)
+	stmt66 = `CREATE TABLE measurements (id SERIAL PRIMARY KEY, value REAL);`
+	stmt67 = `CREATE TABLE precise_measurements (id SERIAL PRIMARY KEY, value DOUBLE PRECISION);`
+	stmt68 = `ALTER TABLE precise_measurements ADD CONSTRAINT fk_measurement FOREIGN KEY (value) REFERENCES measurements(value);`
+
+	// Case 13: BOOLEAN → TEXT mismatch (testing bool mapping)
+	stmt69 = `CREATE TABLE flags (id SERIAL PRIMARY KEY, is_active BOOLEAN);`
+	stmt70 = `CREATE TABLE flag_logs (id SERIAL PRIMARY KEY, status TEXT);`
+	stmt71 = `ALTER TABLE flag_logs ADD CONSTRAINT fk_flag_status FOREIGN KEY (status) REFERENCES flags(is_active);`
+
+	// Case 14: SERIAL → BIGSERIAL mismatch (testing serial mapping)
+	stmt72 = `CREATE TABLE simple_items (id SERIAL PRIMARY KEY);`
+	stmt73 = `CREATE TABLE complex_items (id BIGSERIAL PRIMARY KEY);`
+	stmt74 = `ALTER TABLE complex_items ADD CONSTRAINT fk_simple_item FOREIGN KEY (id) REFERENCES simple_items(id);`
+
+	// Case 15: BIT(10) → BIT(8) mismatch
+	stmt75 = `CREATE TABLE bit_flags (id SERIAL PRIMARY KEY, flags BIT(10));`
+	stmt76 = `CREATE TABLE bit_logs (id SERIAL PRIMARY KEY, status_flags BIT(8));`
+	stmt77 = `ALTER TABLE bit_logs ADD CONSTRAINT fk_bit_flags FOREIGN KEY (status_flags) REFERENCES bit_flags(flags);`
+
+	// Case 16: TIMESTAMP(6) → TIMESTAMP(3) mismatch
+	stmt78 = `CREATE TABLE precise_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6));`
+	stmt79 = `CREATE TABLE event_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(3));`
+	stmt80 = `ALTER TABLE event_logs ADD CONSTRAINT fk_event_time FOREIGN KEY (log_time) REFERENCES precise_events(event_time);`
+
+	// Case 17: TIME(6) → TIME(3) mismatch
+	stmt81 = `CREATE TABLE precise_schedules (id SERIAL PRIMARY KEY, start_time TIME(6));`
+	stmt82 = `CREATE TABLE schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(3));`
+	stmt83 = `ALTER TABLE schedule_logs ADD CONSTRAINT fk_schedule_time FOREIGN KEY (log_time) REFERENCES precise_schedules(start_time);`
+
+	// Case 18: INTERVAL(6) → INTERVAL(3) mismatch
+	stmt84 = `CREATE TABLE precise_durations (id SERIAL PRIMARY KEY, duration INTERVAL(6));`
+	stmt85 = `CREATE TABLE duration_logs (id SERIAL PRIMARY KEY, log_duration INTERVAL(3));`
+	stmt86 = `ALTER TABLE duration_logs ADD CONSTRAINT fk_duration FOREIGN KEY (log_duration) REFERENCES precise_durations(duration);`
+
+	// Case 19: TIMESTAMP WITH TIME ZONE precision mismatch
+	stmt87 = `CREATE TABLE tz_events (id SERIAL PRIMARY KEY, event_time TIMESTAMP(6) WITH TIME ZONE);`
+	stmt88 = `CREATE TABLE tz_logs (id SERIAL PRIMARY KEY, log_time TIMESTAMP(0) WITH TIME ZONE);`
+	stmt89 = `ALTER TABLE tz_logs ADD CONSTRAINT fk_tz_event_time FOREIGN KEY (log_time) REFERENCES tz_events(event_time);`
+
+	// Case 20: TIME WITH TIME ZONE precision mismatch
+	stmt90 = `CREATE TABLE tz_schedules (id SERIAL PRIMARY KEY, start_time TIME(6) WITH TIME ZONE);`
+	stmt91 = `CREATE TABLE tz_schedule_logs (id SERIAL PRIMARY KEY, log_time TIME(0) WITH TIME ZONE);`
+	stmt92 = `ALTER TABLE tz_schedule_logs ADD CONSTRAINT fk_tz_schedule_time FOREIGN KEY (log_time) REFERENCES tz_schedules(start_time);`
+
+	// Case 21: VARBIT(10) → VARBIT(8) mismatch
+	stmt93 = `CREATE TABLE varbit_flags (id SERIAL PRIMARY KEY, flags VARBIT(10));`
+	stmt94 = `CREATE TABLE varbit_logs (id SERIAL PRIMARY KEY, status_flags VARBIT(8));`
+	stmt95 = `ALTER TABLE varbit_logs ADD CONSTRAINT fk_varbit_flags FOREIGN KEY (status_flags) REFERENCES varbit_flags(flags);`
 )
 
 func modifiedIssuesforPLPGSQL(issues []QueryIssue, objType string, objName string) []QueryIssue {
@@ -329,7 +385,7 @@ func TestAllIssues(t *testing.T) {
 }
 
 func TestDDLIssues(t *testing.T) {
-	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62}
+	requiredDDLs := []string{stmt16, stmt28, stmt29, stmt30, stmt31, stmt32, stmt33, stmt34, stmt35, stmt36, stmt37, stmt38, stmt39, stmt40, stmt41, stmt42, stmt43, stmt44, stmt45, stmt46, stmt47, stmt48, stmt49, stmt50, stmt51, stmt52, stmt53, stmt54, stmt55, stmt56, stmt57, stmt58, stmt59, stmt60, stmt61, stmt62, stmt63, stmt64, stmt65, stmt66, stmt67, stmt68, stmt69, stmt70, stmt71, stmt72, stmt73, stmt74, stmt75, stmt76, stmt77, stmt78, stmt79, stmt80, stmt81, stmt82, stmt83, stmt84, stmt85, stmt86, stmt87, stmt88, stmt89, stmt90, stmt91, stmt92, stmt93, stmt94, stmt95}
 	parserIssueDetector := NewParserIssueDetector()
 	stmtsWithExpectedIssues := map[string][]QueryIssue{
 		stmt14: []QueryIssue{
@@ -385,36 +441,51 @@ func TestDDLIssues(t *testing.T) {
 			NewUniqueNullsNotDistinctIssue("INDEX", "unique_email_idx ON users", stmt27),
 		},
 		stmt29: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders", stmt29, "orders.user_id", "users.id", "bigint", "integer"),
 		},
 		stmt32: []QueryIssue{
 			NewForeignKeyDatatypeMismatchIssue("TABLE", "invoices", stmt32, "invoices.payment_id", "payments.payment_id", "text", "uuid"),
 		},
 		stmt35: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "bpchar(5)"),
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.shipment_code", "shipments.shipment_code", "varchar(10)", "char(5)"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "delivery_tracking", stmt35, "delivery_tracking.country_code", "shipments.country_code", "text", "integer"),
 		},
-		stmt38: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders2", stmt38, "orders2.customer_code", "customers2.customer_code", "varchar(10)", "varchar(5)"),
-		},
-		stmt41: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders3", stmt41, "orders3.product_price", "products2.price", "numeric(8,2)", "numeric(10,2)"),
-		},
+		stmt38: []QueryIssue{},
+		stmt41: []QueryIssue{},
 		stmt44: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "Sessions", stmt44, "Sessions.UserID", "Accounts.UserID", "bigint", "integer"),
 		},
 		stmt48: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "orders_partitioned", stmt48, "orders_partitioned.customer_id", "customers_root.id", "bigint", "integer"),
 		},
 		stmt53: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "sales", stmt53, "sales.product_id", "products_root.id", "bigint", "integer"),
 		},
 		stmt57: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "derived_items_2", stmt57, "derived_items_2.item_id", "base_items.item_id", "bigint", "integer"),
 		},
 		stmt62: []QueryIssue{
-			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "int8", "int4"),
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "schema1.employees", stmt62, "schema1.employees.dept_id", "schema2.departments.dept_id", "bigint", "integer"),
 		},
+		stmt65: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "small_orders", stmt65, "small_orders.user_id", "small_users.id", "integer", "smallint"),
+		},
+		stmt68: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "precise_measurements", stmt68, "precise_measurements.value", "measurements.value", "double precision", "real"),
+		},
+		stmt71: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "flag_logs", stmt71, "flag_logs.status", "flags.is_active", "text", "boolean"),
+		},
+		stmt74: []QueryIssue{
+			NewForeignKeyDatatypeMismatchIssue("TABLE", "complex_items", stmt74, "complex_items.id", "simple_items.id", "bigserial", "serial"),
+		},
+		stmt77: []QueryIssue{},
+		stmt80: []QueryIssue{},
+		stmt83: []QueryIssue{},
+		stmt86: []QueryIssue{},
+		stmt89: []QueryIssue{},
+		stmt92: []QueryIssue{},
+		stmt95: []QueryIssue{},
 	}
 	for _, stmt := range requiredDDLs {
 		err := parserIssueDetector.ParseAndProcessDDL(stmt)

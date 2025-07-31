@@ -299,9 +299,22 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 			log.Warnf("Data type for column %s in table %s not found in column metadata", col, objectName)
 			continue
 		}
+
+		// For detection logic: compare internal types and modifiers for accurate detection
+		// For display: use SQL type names with modifiers for user-facing output
+
+		// Compare only the internal types
+		// Not comparing the modifiers here as in the testing, there were no issues with datatypes with mismatched modifiers
 		if colMetadata.DataType == colMetadata.ReferencedColumnType {
 			continue
 		}
+
+		// Generate user-facing display types for the issue
+		localSQLTypeName := utils.GetSQLTypeName(colMetadata.DataType)
+		localDatatypeWithModifiers := utils.ApplyModifiersToDatatype(localSQLTypeName, colMetadata.DataTypeMods)
+
+		referencedSQLTypeName := utils.GetSQLTypeName(colMetadata.ReferencedColumnType)
+		referencedDatatypeWithModifiers := utils.ApplyModifiersToDatatype(referencedSQLTypeName, colMetadata.ReferencedColumnTypeMods)
 
 		*issues = append(*issues, NewForeignKeyDatatypeMismatchIssue(
 			objectType,
@@ -309,8 +322,8 @@ func detectForeignKeyDatatypeMismatch(objectType string, objectName string, colu
 			"", // query string
 			objectName+"."+col,
 			colMetadata.ReferencedTable+"."+colMetadata.ReferencedColumn,
-			colMetadata.DataType,
-			colMetadata.ReferencedColumnType,
+			localDatatypeWithModifiers,
+			referencedDatatypeWithModifiers,
 		))
 	}
 }

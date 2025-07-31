@@ -35,16 +35,18 @@ import (
 // (e.g., JSONB, arrays), and foreign key relationships.
 type ColumnMetadata struct {
 	DataType               string
+	DataTypeMods           []int32
 	IsUnsupportedForIndex  bool
 	IsHotspotForRangeIndex bool
 	IsJsonb                bool
 	IsArray                bool
 	IsUserDefinedType      bool
 
-	IsForeignKey         bool
-	ReferencedTable      string
-	ReferencedColumn     string
-	ReferencedColumnType string
+	IsForeignKey             bool
+	ReferencedTable          string
+	ReferencedColumn         string
+	ReferencedColumnType     string  // Stores the base type (e.g., "varchar", "numeric")
+	ReferencedColumnTypeMods []int32 // Stores the type modifiers (e.g., [255] for varchar(255), [8,2] for numeric(8,2))
 }
 
 // foreignKeyConstraint represents a foreign key relationship defined in the schema.
@@ -419,7 +421,9 @@ func (p *ParserIssueDetector) finalizeForeignKeyConstraints() {
 				meta.ReferencedColumn = refCol
 
 				if refMeta, ok := p.columnMetadata[fk.referencedTable][refCol]; ok {
+					// Store the referenced column type and modifiers separately for accurate comparison
 					meta.ReferencedColumnType = refMeta.DataType
+					meta.ReferencedColumnTypeMods = refMeta.DataTypeMods
 				}
 			} else {
 				log.Warnf("Foreign key column count mismatch for table %s: localCols=%v, refCols=%v",
@@ -502,8 +506,9 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 				p.columnMetadata[tableName][col.ColumnName] = meta
 			}
 
-			// Always update the full type name
-			meta.DataType = p.getFullTypeName(col.TypeName, col.TypeMods)
+			// Store the original type name from parse tree
+			meta.DataType = col.TypeName
+			meta.DataTypeMods = col.TypeMods
 
 			isUnsupportedType := slices.Contains(UnsupportedIndexDatatypes, col.TypeName)
 			isUDTType := slices.Contains(p.compositeTypes, col.GetFullTypeName())
@@ -564,39 +569,6 @@ func (p *ParserIssueDetector) ParseAndProcessDDL(query string) error {
 		p.functionObjects = append(p.functionObjects, fn)
 	}
 	return nil
-}
-
-/*
-getFullTypeName constructs the full type name including type modifiers
-for supported PostgreSQL types.
-
-Examples:
-  - VARCHAR with typmods [10] becomes "varchar(10)"
-  - NUMERIC with typmods [8,2] becomes "numeric(8,2)"
-  - Types without relevant modifiers or unsupported formats return just the base type name.
-
-Currently supported:
-  - varchar(n)
-  - bpchar(n) (PostgreSQL's internal name for char(n))
-  - numeric(p, s)
-*/
-func (p *ParserIssueDetector) getFullTypeName(typeName string, typmods []int32) string {
-	switch typeName {
-	case "varchar", "bpchar": // varchar(n), char(n)
-		if len(typmods) == 1 {
-			return fmt.Sprintf("%s(%d)", typeName, typmods[0])
-		}
-		return typeName
-
-	case "numeric":
-		if len(typmods) == 2 {
-			return fmt.Sprintf("numeric(%d,%d)", typmods[0], typmods[1])
-		}
-		return typeName
-
-	default:
-		return typeName
-	}
 }
 
 func (p *ParserIssueDetector) GetDDLIssues(query string, targetDbVersion *ybversion.YBVersion) ([]QueryIssue, error) {
