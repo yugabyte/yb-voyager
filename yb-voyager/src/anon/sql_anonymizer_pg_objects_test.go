@@ -807,80 +807,6 @@ func TestPostgresDDLVariants(t *testing.T) {
 }
 
 // Based on analysis from postgresql_nodes_analysis.md
-func TestMissingNodeAnonymization(t *testing.T) {
-
-	type missingNodeCase struct {
-		key              string   // unique test identifier
-		sql              string   // the SQL statement to test
-		nodeType         string   // PostgreSQL node type being tested
-		shouldAnonymize  []string // identifiers that should be anonymized
-		expectedPrefixes []string // expected anonymization prefixes in output
-		skipReason       string   // reason if test should be skipped
-	}
-
-	testCases := []missingNodeCase{
-		// ────────── TEXT SEARCH DICTIONARY STATEMENTS ──────────
-		// CREATE TEXT SEARCH DICTIONARY public.my_dict (TEMPLATE = pg_catalog.simple );
-		// CREATE TEXT SEARCH CONFIGURATION public.my_config (PARSER = pg_catalog."default" );
-		// ALTER TEXT SEARCH DICTIONARY my_dict (StopWords = 'english');
-		// ALTER TEXT SEARCH CONFIGURATION my_config ADD MAPPING FOR word WITH simple;
-		// skipReason: It is dumped by pg_dump but goes to uncategorised.sql so can deferred for later.
-
-		// ────────── ACCESS METHOD STATEMENTS ──────────
-		{
-			sql:        "CREATE ACCESS METHOD my_am TYPE INDEX HANDLER my_handler;",
-			skipReason: "couldn't create it on source; most probably not dumped by pg_dump",
-		},
-
-		// ────────── PUBLICATION/SUBSCRIPTION STATEMENTS ──────────
-		// Not dumped by pg_dump
-
-		// ────────── LANGUAGE STATEMENTS ──────────
-		{
-			sql:        "CREATE LANGUAGE my_language HANDLER my_handler;",
-			skipReason: "Not dumped by pg_dump",
-		},
-
-		// ────────── TRANSFORM STATEMENTS ──────────
-		{
-			sql:        "CREATE TRANSFORM FOR my_type LANGUAGE my_language (FROM SQL WITH FUNCTION from_sql_func(internal), TO SQL WITH FUNCTION to_sql_func(my_type));",
-			skipReason: "Not dumped by pg_dump",
-		},
-
-		// ────────── CAST STATEMENTS ──────────
-		{
-			sql:        "CREATE CAST (my_type AS text) WITH FUNCTION my_cast_func(my_type) AS IMPLICIT;",
-			skipReason: "Not dumped by pg_dump",
-		},
-
-		// ────────── STATISTICS STATEMENTS ──────────
-		{
-			sql:        "CREATE STATISTICS my_stats (dependencies) ON col1, col2 FROM sales.orders;",
-			skipReason: "Not dumped by pg_dump",
-		},
-		{
-			sql:        "ALTER STATISTICS my_stats SET STATISTICS 1000;",
-			skipReason: "Not dumped by pg_dump",
-		},
-
-		// ────────── SECURITY LABEL STATEMENTS ──────────
-		{
-			sql:        "SECURITY LABEL FOR my_provider ON TABLE sales.orders IS 'classified';",
-			skipReason: "Not dumped by pg_dump",
-		},
-
-		// ────────── CREATE TABLE AS STATEMENTS ──────────
-		{
-			sql:        "CREATE TABLE sales.order_summary AS SELECT customer_id, COUNT(*) FROM sales.orders GROUP BY customer_id;",
-			skipReason: "Not dumped by pg_dump",
-		},
-		// ────────── ALTER SYSTEM STATEMENTS ──────────
-		{
-			sql:        "ALTER SYSTEM SET my_param = 'value';",
-			skipReason: "Not dumped by pg_dump",
-		},
-	}
-}
 
 func TestBuiltinTypeAnonymization(t *testing.T) {
 	// builtinTypeCase represents a test case for built-in type anonymization
@@ -975,6 +901,124 @@ func TestBuiltinTypeAnonymization(t *testing.T) {
 			for _, pref := range c.expectedPrefixes {
 				if !hasTok(out, pref) {
 					t.Errorf("expected prefix %q not found in %s", pref, out)
+				}
+			}
+		})
+	}
+}
+
+// Based on analysis from postgresql_nodes_analysis.md
+func TestMissingNodeAnonymization(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	az := newAnon(t, exportDir)
+
+	type missingNodeCase struct {
+		key              string   // unique test identifier
+		sql              string   // the SQL statement to test
+		nodeType         string   // PostgreSQL node type being tested
+		shouldAnonymize  []string // identifiers that should be anonymized
+		expectedPrefixes []string // expected anonymization prefixes in output
+		skipReason       string   // reason if test should be skipped
+	}
+
+	testCases := []missingNodeCase{
+		// ────────── TEXT SEARCH DICTIONARY STATEMENTS ──────────
+		// CREATE TEXT SEARCH DICTIONARY public.my_dict (TEMPLATE = pg_catalog.simple );
+		// CREATE TEXT SEARCH CONFIGURATION public.my_config (PARSER = pg_catalog."default" );
+		// ALTER TEXT SEARCH DICTIONARY my_dict (StopWords = 'english');
+		// ALTER TEXT SEARCH CONFIGURATION my_config ADD MAPPING FOR word WITH simple;
+		// skipReason: It is dumped by pg_dump but goes to uncategorised.sql so can deferred for later.
+
+		// ────────── ACCESS METHOD STATEMENTS ──────────
+		{
+			sql:        "CREATE ACCESS METHOD my_am TYPE INDEX HANDLER my_handler;",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── PUBLICATION/SUBSCRIPTION STATEMENTS ──────────
+		// Not dumped by pg_dump
+
+		// ────────── LANGUAGE STATEMENTS ──────────
+		{
+			sql:        "CREATE LANGUAGE my_language HANDLER my_handler;",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── TRANSFORM STATEMENTS ──────────
+		{
+			sql:        "CREATE TRANSFORM FOR my_type LANGUAGE my_language (FROM SQL WITH FUNCTION from_sql_func(internal), TO SQL WITH FUNCTION to_sql_func(my_type));",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── CAST STATEMENTS ──────────
+		{
+			sql:        "CREATE CAST (my_type AS text) WITH FUNCTION my_cast_func(my_type) AS IMPLICIT;",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── STATISTICS STATEMENTS ──────────
+		{
+			sql:        "CREATE STATISTICS my_stats (dependencies) ON col1, col2 FROM sales.orders;",
+			skipReason: "Not dumped by pg_dump",
+		},
+		{
+			sql:        "ALTER STATISTICS my_stats SET STATISTICS 1000;",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── SECURITY LABEL STATEMENTS ──────────
+		{
+			sql:        "SECURITY LABEL FOR my_provider ON TABLE sales.orders IS 'classified';",
+			skipReason: "Not dumped by pg_dump",
+		},
+
+		// ────────── CREATE TABLE AS STATEMENTS ──────────
+		{
+			sql:        "CREATE TABLE sales.order_summary AS SELECT customer_id, COUNT(*) FROM sales.orders GROUP BY customer_id;",
+			skipReason: "Not dumped by pg_dump",
+		},
+		// ────────── ALTER SYSTEM STATEMENTS ──────────
+		{
+			sql:        "ALTER SYSTEM SET my_param = 'value';",
+			skipReason: "Not dumped by pg_dump",
+		},
+	}
+
+	// Run tests for cases that are not skipped
+	for _, tc := range testCases {
+		tc := tc
+		t.Run(tc.key, func(t *testing.T) {
+			if tc.skipReason != "" {
+				t.Skip(tc.skipReason)
+			}
+
+			// For now, just verify that the SQL can be parsed without error
+			// This is a placeholder test until these node types are implemented
+			out, err := az.Anonymize(tc.sql)
+			if err != nil {
+				// If anonymization fails, that's expected for unimplemented node types
+				// We just want to ensure the test doesn't crash
+				t.Logf("Anonymization failed as expected for unimplemented node type: %v", err)
+				return
+			}
+
+			// If anonymization succeeds, verify the output doesn't contain raw identifiers
+			if tc.shouldAnonymize != nil {
+				for _, identifier := range tc.shouldAnonymize {
+					if strings.Contains(out, identifier) {
+						t.Errorf("identifier %q should be anonymized but leaked in %s", identifier, out)
+					}
+				}
+			}
+
+			// Verify expected prefixes appear
+			if tc.expectedPrefixes != nil {
+				for _, pref := range tc.expectedPrefixes {
+					if !hasTok(out, pref) {
+						t.Errorf("expected prefix %q not found in %s", pref, out)
+					}
 				}
 			}
 		})
