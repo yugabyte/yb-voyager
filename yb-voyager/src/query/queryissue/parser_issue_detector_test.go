@@ -1755,7 +1755,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.orders_1", "public.customers_1")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.customers_1")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1811,7 +1811,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.order_items_3", "public.orders_3")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.orders_3")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1868,7 +1868,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 				FOREIGN KEY (customer_id) REFERENCES public.customers_5(id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.orders_5", "public.customers_5")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.customers_5")
 
 		detector := NewParserIssueDetector()
 		err := detector.ParseAndProcessDDL(stmt_parent)
@@ -1967,7 +1967,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON public.order_items_8(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.order_items_8", "public.orders_8")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.orders_8")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2022,7 +2022,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON public.orders_10((customer_id + 1));`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.orders_10", "public.customers_10")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.customers_10")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2125,7 +2125,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON public.order_items_14(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.order_items_14", "public.orders_14")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.orders_14")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2161,7 +2161,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON public.order_items_15(order_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.order_items_15", "public.orders_15")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.orders_15")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2197,7 +2197,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON public.order_items_16((order_id + 1), product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.order_items_16", "public.orders_16")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.orders_16")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2323,7 +2323,7 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON public.order_items_21(order_id, (quantity + 1), product_id, category_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.order_items_21", "public.orders_21")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.orders_21")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_middle_index)
 		issues := detector.DetectMissingForeignKeyIndexes()

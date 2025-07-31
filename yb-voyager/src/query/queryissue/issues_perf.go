@@ -226,7 +226,7 @@ var missingForeignKeyIndexIssue = issue.Issue{
 	DocsLink:    "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#missing-foreign-key-indexes", // TODO add link to docs
 }
 
-func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, childTable string, referencedTable string) QueryIssue {
+func NewMissingForeignKeyIndexIssue(objectType string, objectName string, sqlStatement string, fkColumns string, referencedTable string) QueryIssue {
 	issue := missingForeignKeyIndexIssue
 
 	details := map[string]interface{}{

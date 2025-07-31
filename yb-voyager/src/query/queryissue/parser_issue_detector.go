@@ -901,7 +901,6 @@ func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint)
 		fk.TableName,
 		"", // sqlStatement - we don't have this in stored constraint
 		strings.Join(qualifiedColumnNames, ", "),
-		fk.TableName,
 		fk.ReferencedTable,
 	)
 }
