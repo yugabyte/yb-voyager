@@ -154,6 +154,13 @@ import-data-file:
   ### Default is to use all the nodes in the cluster.
   # target-endpoints: "host1:port1,host2:port2"
 
+  ### The desired behavior when there is an error while processing and importing rows to target YugabyteDB. 
+  ### The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.
+  ### Accepted values:
+  ###   abort   : immediately abort the process. (default)
+  ###   stash-and-continue: stash the errored rows to a file and continue with the import
+  # error-policy: abort
+
   ### Size of batches in the number of rows generated for ingestion during import. 
   ### Default - 20000
   # batch-size: 20000

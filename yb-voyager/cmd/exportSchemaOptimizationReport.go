@@ -24,10 +24,8 @@ import (
 	"text/template"
 
 	"github.com/fatih/color"
-	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
@@ -136,10 +134,10 @@ func NewAppliedShardingRecommendationChange(objectType string) *AppliedShardingR
 }
 
 type SecondaryIndexToRangeChange struct {
-	Title                    string   `json:"title"`
-	Description              string   `json:"description"`
-	ReferenceFile            string   `json:"reference_file"`
-	ReferenceFileDisplayName string   `json:"reference_file_display_name"`
+	Title                    string              `json:"title"`
+	Description              string              `json:"description"`
+	ReferenceFile            string              `json:"reference_file"`
+	ReferenceFileDisplayName string              `json:"reference_file_display_name"`
 	ModifiedIndexes          map[string][]string `json:"modified_indexes"`
 }
 
@@ -162,8 +160,7 @@ var optimizationChangesTemplate []byte
 //   - redundantIndexes: list of redundant index names that were removed.
 //   - tables: list of table names to which sharding recommendations were applied.
 //   - mviews: list of materialized view names to which sharding recommendations were applied.
-//   - modifiedIndexesToRange: list of secondary indexes that were converted to range-sharded indexes.
-func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, modifiedIndexesToRange []string) error {
+func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTables []string, shardedMviews []string, colocatedTables []string, colocatedMviews []string, modifiedIndexesToRange []string) error {
 
 	if source.DBType != POSTGRESQL {
 		//NOt generating the report in case other than PG
@@ -189,10 +186,7 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 			appliedRecommendationTable.ReferenceFile = tableFile
 			appliedRecommendationTable.ReferenceFileDisplayName = filepath.Base(tableFile)
 			appliedRecommendationTable.ShardedObjects = shardedTables
-			appliedRecommendationTable.CollocatedObjects, err = getColocatedObjects(tableFile, shardedTables, TABLE)
-			if err != nil {
-				return fmt.Errorf("error getting other objects: %w", err)
-			}
+			appliedRecommendationTable.CollocatedObjects = colocatedTables
 		}
 		mviewFile := utils.GetObjectFilePath(filepath.Join(exportDir, "schema"), MVIEW)
 		//To mviews then add that change separately
@@ -201,10 +195,7 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 			appliedRecommendationMview.ReferenceFile = mviewFile
 			appliedRecommendationMview.ReferenceFileDisplayName = filepath.Base(mviewFile)
 			appliedRecommendationMview.ShardedObjects = shardedMviews
-			appliedRecommendationMview.CollocatedObjects, err = getColocatedObjects(mviewFile, shardedMviews, MVIEW)
-			if err != nil {
-				return fmt.Errorf("error getting other objects: %w", err)
-			}
+			appliedRecommendationMview.CollocatedObjects = colocatedMviews
 		}
 	}
 
@@ -246,25 +237,6 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 	}
 
 	return nil
-}
-
-func getColocatedObjects(objectFile string, shardedObjects []string, objType string) ([]string, error) {
-	sqlInfoArr := parseSqlFileForObjectType(objectFile, objType)
-	allObject := make([]string, 0)
-	for _, sqlInfo := range sqlInfoArr {
-		sql := sqlInfo.formattedStmt
-		parseTree, err := queryparser.Parse(sql)
-		if err != nil {
-			return nil, fmt.Errorf("error parsing sql statement: %w", err)
-		}
-		objT, objectName := queryparser.GetObjectTypeAndObjectName(parseTree)
-		if objT != objType {
-			continue
-		}
-		allObject = append(allObject, objectName)
-	}
-	colocated, _ := lo.Difference(allObject, shardedObjects)
-	return colocated, nil
 }
 
 func GetTableToIndexMap(indexes []string) map[string][]string {

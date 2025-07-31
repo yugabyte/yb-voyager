@@ -54,6 +54,7 @@ assess-migration:
 
 export-data-from-source:
   export-type: snapshot-and-changes
+  disable-pb: true
   
   {% if EXPORT_TABLE_LIST is defined and EXPORT_TABLE_LIST != "" %}
   table-list: '{{ EXPORT_TABLE_LIST }}'
@@ -74,6 +75,7 @@ export-data-from-source:
 
 import-data-to-target:
   enable-adaptive-parallelism: {% if RUN_WITHOUT_ADAPTIVE_PARALLELISM is defined and RUN_WITHOUT_ADAPTIVE_PARALLELISM == "true" %}false{% else %}true{% endif %}
+  disable-pb: true
 
 archive-changes:
   delete-changes-without-archiving: true
@@ -84,6 +86,12 @@ finalize-schema-post-data-import:
 initiate-cutover-to-target:
   prepare-for-fall-back: true
   use-yb-grpc-connector: {% if USE_YB_LOGICAL_REPLICATION_CONNECTOR is defined and USE_YB_LOGICAL_REPLICATION_CONNECTOR == "true" %}false{% else %}true{% endif %}
+
+export-data-from-target:
+  disable-pb: true
+
+import-data-to-source:
+  disable-pb: true
 
 end-migration:
   backup-schema-files: false                                  

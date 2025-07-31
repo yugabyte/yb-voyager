@@ -19,13 +19,13 @@ const (
 	// Database Object types
 	TABLE             = "TABLE"
 	FUNCTION          = "FUNCTION"
-	PROCEDURE		  = "PROCEDURE"
+	PROCEDURE         = "PROCEDURE"
 	COLUMN            = "COLUMN"
 	INDEX             = "INDEX"
 	TYPE              = "TYPE"
 	VIEW              = "VIEW"
-	MATERIALIZED_VIEW = "MATERIALIZED VIEW"
-	TRIGGER 		= "TRIGGER"
+	MATERIALIZED_VIEW = "MVIEW"
+	TRIGGER           = "TRIGGER"
 
 	// Source DB Types
 	YUGABYTEDB = "yugabytedb"

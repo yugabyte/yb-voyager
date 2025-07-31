@@ -266,7 +266,6 @@ Note that for the cases where a table doesn't have a primary key, this may lead 
 		"The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.\n"+
 			"\tabort: immediately abort the process. (default)\n"+
 			"\tstash-and-continue: stash the errored rows to a file and continue with the import")
-	cmd.Flags().MarkHidden("error-policy-snapshot")
 }
 
 func registerImportSchemaFlags(cmd *cobra.Command) {
@@ -337,7 +336,7 @@ func getTargetPassword(cmd *cobra.Command) {
 	var err error
 	tconf.Password, err = getPassword(cmd, "target-db-password", "TARGET_DB_PASSWORD")
 	if err != nil {
-		utils.ErrExit("error in getting target-db-password: %v", err)
+		utils.ErrExit("error in getting target-db-password: %w", err)
 	}
 }
 
@@ -519,7 +518,7 @@ func validateOnPrimaryKeyConflictFlag() error {
 	if !bool(startClean) && metaDBIsCreated(exportDir) {
 		msr, err := metaDB.GetMigrationStatusRecord()
 		if err != nil {
-			return fmt.Errorf("error getting migration status record: %v", err)
+			return fmt.Errorf("error getting migration status record: %w", err)
 		} else if msr == nil {
 			return fmt.Errorf("migration status record is nil, cannot validate --on-primary-key-conflict flag")
 		}

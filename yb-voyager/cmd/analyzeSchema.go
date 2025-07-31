@@ -619,6 +619,11 @@ func checker(sqlInfoArr []sqlInfo, fpath string, objType string, detectPerfOptim
 	checkSql(sqlInfoArr, fpath)
 	checkDDL(sqlInfoArr, fpath, objType)
 	checkForeign(sqlInfoArr, fpath)
+
+	if objType == "CONVERSION" {
+		checkConversions(sqlInfoArr, fpath)
+	}
+
 	checkRemaining(sqlInfoArr, fpath)
 	checkStmtsUsingParser(sqlInfoArr, fpath, objType, detectPerfOptimizationIssues)
 	if utils.GetEnvAsBool("REPORT_UNSUPPORTED_PLPGSQL_OBJECTS", true) {
@@ -1109,23 +1114,11 @@ func analyzeSchemaInternal(sourceDBConf *srcdb.Source, detectIssues bool, detect
 	initializeSummaryMap()
 
 	for _, objType := range sourceObjList {
-		var sqlInfoArr []sqlInfo
-		filePath := utils.GetObjectFilePath(schemaDir, objType)
-		if objType != "INDEX" {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-		} else {
-			sqlInfoArr = parseSqlFileForObjectType(filePath, objType)
-			otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
-			otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
-			sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
-		}
-		if detectIssues {
-			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
+		sqlInfoArr := getSQLInfoArrayForObjectType(schemaDir, objType)
 
-			if objType == "CONVERSION" {
-				checkConversions(sqlInfoArr, filePath)
-			}
+		if detectIssues && len(sqlInfoArr) > 0 {
+			filePath := utils.GetObjectFilePath(schemaDir, objType)
+			checker(sqlInfoArr, filePath, objType, detectPerfOptimizationIssues)
 
 			// Ideally all filtering of issues should happen in queryissue pkg layer,
 			// but until we move all issue detection logic to queryissue pkg, we will filter issues here as well.
@@ -1394,4 +1387,51 @@ func createSchemaAnalysisIterationCompletedEvent(report utils.SchemaReport) cp.S
 	initBaseSourceEvent(&result.BaseEvent, "ANALYZE SCHEMA")
 	result.AnalysisReport = report
 	return result
+}
+
+// getSQLInfoArrayForObjectType extracts SQL info for a given object type, handling special cases like INDEX
+func getSQLInfoArrayForObjectType(schemaDir, objType string) []sqlInfo {
+	if objType != "INDEX" {
+		filePath := utils.GetObjectFilePath(schemaDir, objType)
+		return parseSqlFileForObjectType(filePath, objType)
+	}
+
+	// Special handling for INDEX - includes partition and FTS indexes
+	var sqlInfoArr []sqlInfo
+	filePath := utils.GetObjectFilePath(schemaDir, objType)
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(filePath, objType)...)
+
+	// Add partition indexes
+	otherFPaths := utils.GetObjectFilePath(schemaDir, "PARTITION_INDEX")
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "PARTITION_INDEX")...)
+
+	// Add FTS indexes
+	otherFPaths = utils.GetObjectFilePath(schemaDir, "FTS_INDEX")
+	sqlInfoArr = append(sqlInfoArr, parseSqlFileForObjectType(otherFPaths, "FTS_INDEX")...)
+
+	return sqlInfoArr
+}
+
+// collectAllDDLs collects all DDL statements from the schema without any issue detection
+func collectAllDDLs(sourceDBConf *srcdb.Source, skipList []string) []string {
+	sourceDBType = sourceDBConf.DBType
+	sourceObjList = utils.GetSchemaObjectList(sourceDBConf.DBType)
+
+	var collectedDDLs []string
+
+	for _, objType := range sourceObjList {
+		// Skip object types that are in the skip list
+		if slices.Contains(skipList, objType) {
+			continue
+		}
+
+		sqlInfoArr := getSQLInfoArrayForObjectType(schemaDir, objType)
+
+		// Collect DDLs without doing any issue detection
+		for _, sqlInfo := range sqlInfoArr {
+			collectedDDLs = append(collectedDDLs, sqlInfo.formattedStmt)
+		}
+	}
+
+	return collectedDDLs
 }

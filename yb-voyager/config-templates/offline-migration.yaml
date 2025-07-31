@@ -149,8 +149,8 @@ target:
 assess-migration:
 
   ### Target YugabyteDB version to assess migration for (in format A.B.C.D). 
-  ### Default - latest stable version i.e. 2024.2.3.1.
-  target-db-version: 2024.2.3.1
+  ### Default - latest stable version i.e. 2025.1.0.0
+  target-db-version: 2025.1.0.0
 
   ### Interval (in seconds) at which voyager will gather IOPS metadata from source database for the given schema(s). 
   ### Note: Only valid for PostgreSQL
@@ -205,7 +205,12 @@ export-schema:
   ### Disable applying recommendations in the exported schema suggested by the migration assessment report
   ### Accepted values (true, false, yes, no, 1, 0)  
   ### Default - false                                       
-  # skip-recommendations: false  
+  # skip-recommendations: false
+
+  ### Disable applying performance optimizations in the exported schema
+  ### Accepted values (true, false, yes, no, 1, 0)  
+  ### Default - true                                       
+  # skip-performance-optimizations: true   
 
   ### Path to the generated assessment report file(JSON format) to be used for applying recommendation to exported schema                       
   # assessment-report-path: <assessment-report-path>   
@@ -236,8 +241,8 @@ analyze-schema:
   # output-format: txt    
 
   ### Target YugabyteDB version to analyze schema for (in format A.B.C.D). 
-   ### Default - latest stable version i.e. 2024.2.3.1
-  target-db-version: 2024.2.3.1
+  ### Default - latest stable version i.e. 2025.1.0.0
+  target-db-version: 2025.1.0.0
 
   ### Log level for the command
   ### Note: This overrides the global log-level parameter for this command only.
@@ -427,6 +432,13 @@ import-data:
   ### Note - use-public-ip flag will be ignored if this is used.
   ### Default is to use all the nodes in the cluster
   # target-endpoints: "host1:port1,host2:port2"   
+
+  ### The desired behavior when there is an error while processing and importing rows to target YugabyteDB in the snapshot phase. 
+  ### The errors can be while reading from file, transforming rows, or ingesting rows into YugabyteDB.
+  ### Accepted values:
+  ###   abort   : immediately abort the process. (default)
+  ###   stash-and-continue: stash the errored rows to a file and continue with the import
+  # error-policy-snapshot: abort
 
   ### Enable UPSERT mode on target tables. WARNING: Ensure that tables on target YugabyteDB do not have secondary indexes. 
   ### If a table has secondary indexes, setting this flag to true may lead to corruption of the indexes. 

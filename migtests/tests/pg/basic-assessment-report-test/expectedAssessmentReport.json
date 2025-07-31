@@ -2,7 +2,7 @@
 	"VoyagerVersion": "main",
 	"TargetDBVersion": "2024.2.3.1",
 	"MigrationComplexity": "MEDIUM",
-	"MigrationComplexityExplanation": "Found 4 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
+	"MigrationComplexityExplanation": "Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity",
 	"SchemaSummary": {
 		"Description": "Objects that will be created on the target YugabyteDB.",
 		"DbName": "pg_basic_assessment_report",
@@ -33,7 +33,7 @@
 			{
 				"ObjectType": "TABLE",
 				"TotalCount": 5,
-				"InvalidCount": 3,
+				"InvalidCount": 2,
 				"ObjectNames": "public.parent_table, public.child_table, public.mixed_data_types_table1, schema1.employees2, schema1.test_hotspot_timestamp"
 			},
 			{
@@ -103,21 +103,6 @@
 			"SqlStatement": "CREATE TABLE public.child_table (\n    specific_column1 date\n)\nINHERITS (public.parent_table);",
 			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#table-inheritance-is-not-supported",
 			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "STORED_GENERATED_COLUMNS",
-			"Name": "Stored Generated Columns",
-			"Description": "Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue.",
-			"Impact": "LEVEL_1",
-			"ObjectType": "TABLE",
-			"ObjectName": "schema1.employees2",
-			"SqlStatement": "CREATE TABLE schema1.employees2 (\n    id integer NOT NULL,\n    first_name character varying(50) NOT NULL,\n    last_name character varying(50) NOT NULL,\n    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,\n    department character varying(50)\n);",
-			"DocsLink": "https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported",
-			"MinimumVersionsFixedIn": {
-				"2.25": "2.25.0.0"
-			}
 		},
 		{
 			"Category": "unsupported_query_constructs",

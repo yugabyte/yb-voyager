@@ -5,6 +5,32 @@ step() {
 	echo "==============================================================="
 }
 
+# Function to check if a YugabyteDB major version has PG15 merge
+# Takes major version like "2.25", "2025.1", "2024.2" etc.
+is_pg15_merge_major_version() {
+    local major_version="$1"
+    
+    if [ -z "$major_version" ]; then
+        return 1  # false
+    fi
+    
+    # Extract major and minor components
+    major=$(echo "$major_version" | cut -d'.' -f1)
+    minor=$(echo "$major_version" | cut -d'.' -f2)
+    
+    # Check for preview versions >= 2.25
+    if [ "$major" -eq 2 ] && [ "$minor" -ge 25 ]; then
+        return 0  # true
+    fi
+    
+    # Check for stable versions >= 2025.1
+    if [ "$major" -ge 2025 ] && [ "$minor" -ge 1 ]; then
+        return 0  # true
+    fi
+    
+    return 1  # false
+}
+
 print_env() {
 	echo "==============================================================="
 	echo "REPO_ROOT=${REPO_ROOT}"
@@ -250,6 +276,7 @@ export_schema() {
         --source-db-password ${SOURCE_DB_PASSWORD}
         --source-db-name ${SOURCE_DB_NAME}
         --send-diagnostics=false --yes
+        --skip-performance-optimizations false
     "
     # Use the resolved local variable which may override the default env var
     # Required for Bulk Assessment test
@@ -1004,6 +1031,7 @@ normalize_json() {
 compare_sql_files() {
     sql_file1="$1"
     sql_file2="$2"
+    yb_major_version="$3"  # Optional third parameter for YugabyteDB major version (e.g., "2.25", "2025.1")
 
     # Normalize the files by removing lines that start with "File :"
     normalized_file1=$(mktemp)
@@ -1023,14 +1051,15 @@ compare_sql_files() {
 	# Replace the PostGIS "extension not available" message with the "could not open control file" message for 2.25
 	sed -i -E 's#ERROR: extension "postgis" is not available \(SQLSTATE 0A000\)#ERROR: could not open extension control file "PATH_PLACEHOLDER/postgis.control": No such file or directory (SQLSTATE 58P01)#g' "$normalized_file1"
 
-	# Changes required for 2.25 in the mgi schema. We still run Jenkins tests on 2024.2
-	# Commented this for now so that we don't normalize unnecessarily. When we stich the version in Jenkins we can uncomment the below block.
+	# Changes required for PG15 merge versions (preview >= 2.25 or stable >= 2025.1) in the mgi schema
+	# Only apply this normalization for PG15 merge versions
+	if [ -n "$yb_major_version" ] && is_pg15_merge_major_version "$yb_major_version"; then
+		# Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
+		sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
 
-	# # Replace "syntax error at or near \"%\"" with "invalid type name \"PLACEHOLDER%TYPE\""
-	# sed -i -E 's#ERROR: syntax error at or near "%" \(SQLSTATE 42601\)#ERROR: invalid type name "PLACEHOLDER%TYPE" (SQLSTATE 42601)#g' "$normalized_file1" 
-
-	# # Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
-	# sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
+		# Normalize "invalid type name" errors in $normalized_file2 by replacing actual values with "PLACEHOLDER"
+		sed -i -E 's#ERROR: invalid type name "[^"]*%TYPE"#ERROR: invalid type name "PLACEHOLDER%TYPE"#g' "$normalized_file2"
+	fi
 
     # Compare the normalized files
     compare_files "$normalized_file1" "$normalized_file2"

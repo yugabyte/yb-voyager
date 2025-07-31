@@ -11,8 +11,9 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 const (
@@ -79,6 +80,7 @@ var allowedExportSchemaConfigKeys = mapset.NewThreadUnsafeSet[string](
 	"log-level", "run-guardrails-checks",
 	"use-orafce", "comments-on-objects", "object-type-list", "exclude-object-type-list",
 	"skip-recommendations", "assessment-report-path",
+	"skip-performance-optimizations",
 	"assess-schema-before-export",
 	// environment variables keys
 	"ybvoyager-skip-merge-constraints-transformation",
@@ -258,7 +260,7 @@ func initConfig(cmd *cobra.Command) ([]ConfigFlagOverride, []EnvVarSetViaConfig,
 		fmt.Println("Using config file:", color.BlueString(v.ConfigFileUsed()))
 	} else {
 		if _, ok := err.(viper.ConfigFileNotFoundError); !ok {
-			return nil, nil, nil, fmt.Errorf("%v\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
+			return nil, nil, nil, fmt.Errorf("%w\nHint: Check for YAML issues like missing colons, missing spaces after colons, or inconsistent indentation.", err)
 		}
 	}
 

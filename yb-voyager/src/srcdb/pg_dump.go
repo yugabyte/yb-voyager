@@ -62,25 +62,25 @@ func getPgDumpArgsFromFile(sectionToRead string) string {
 		log.Infof("Using base pg_dump arguments file: %s", basePgDumpArgsFilePath)
 		basePgDumpArgsFile, err := os.ReadFile(basePgDumpArgsFilePath)
 		if err != nil {
-			utils.ErrExit("Error while reading pg_dump arguments file: %v", err)
+			utils.ErrExit("Error while reading pg_dump arguments file: %w", err)
 		}
 		pgDumpArgsFile = string(basePgDumpArgsFile)
 	}
 
 	tmpl, err := template.New("pg_dump_args").Parse(string(pgDumpArgsFile))
 	if err != nil {
-		utils.ErrExit("Error while parsing pg_dump arguments: %v", err)
+		utils.ErrExit("Error while parsing pg_dump arguments: %w", err)
 	}
 
 	var output bytes.Buffer
 	err = tmpl.Execute(&output, pgDumpArgs)
 	if err != nil {
-		utils.ErrExit("Error while preparing pg_dump arguments: %v", err)
+		utils.ErrExit("Error while preparing pg_dump arguments: %w", err)
 	}
 
 	iniData, err := ini.LoadSources(ini.LoadOptions{PreserveSurroundedQuote: true}, output.Bytes())
 	if err != nil {
-		utils.ErrExit("Error while ini loading pg_dump arguments file: %v", err)
+		utils.ErrExit("Error while ini loading pg_dump arguments file: %w", err)
 	}
 	section := iniData.Section(sectionToRead)
 	var args strings.Builder

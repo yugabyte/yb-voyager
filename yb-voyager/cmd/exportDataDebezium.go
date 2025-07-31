@@ -50,7 +50,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	runId = time.Now().String()
 	absExportDir, err := filepath.Abs(exportDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to get absolute path for export dir: %v", err)
+		return nil, nil, fmt.Errorf("failed to get absolute path for export dir: %w", err)
 	}
 
 	var snapshotMode string
@@ -78,7 +78,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	if exporterRole == SOURCE_DB_EXPORTER_ROLE {
 		err = storeTableListInMSR(tableList)
 		if err != nil {
-			utils.ErrExit("error while storing the table-list in msr: %v", err)
+			utils.ErrExit("error while storing the table-list in msr: %w", err)
 		}
 	}
 
@@ -99,7 +99,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 	}
 	colToSeqMap, err := fetchOrRetrieveColToSeqMap(msr, tableList)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching or retrieving the column to sequence mapping: %v", err)
+		return nil, nil, fmt.Errorf("error fetching or retrieving the column to sequence mapping: %w", err)
 	}
 	columnSequenceMapping, err := getColumnToSequenceMapping(colToSeqMap)
 	if err != nil {
@@ -170,7 +170,7 @@ func prepareDebeziumConfig(partitionsToRootTableMap map[string]string, tableList
 		}
 		config.OracleJDBCWalletLocationSet, err = isOracleJDBCWalletLocationSet(source)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %v", err)
+			return nil, nil, fmt.Errorf("failed to determine if Oracle JDBC wallet location is set: %w", err)
 		}
 	} else if isTargetDBExporter(exporterRole) {
 		if !msr.UseYBgRPCConnector {
@@ -260,7 +260,7 @@ func fetchOrRetrieveColToSeqMap(msr *metadb.MigrationStatusRecord, tableList []s
 		}
 	})
 	if err != nil {
-		return nil, fmt.Errorf("error in updating migration status record: %v", err)
+		return nil, fmt.Errorf("error in updating migration status record: %w", err)
 	}
 	return colToSeqMap, nil
 }
@@ -543,7 +543,7 @@ func checkAndHandleSnapshotComplete(config *dbzm.Config, status *dbzm.ExportStat
 
 				})
 				if err != nil {
-					utils.ErrExit("failed to update migration status record for export data from target start: %v", err)
+					utils.ErrExit("failed to update migration status record for export data from target start: %w", err)
 				}
 			}
 		}
@@ -568,7 +568,7 @@ func writeDataFileDescriptor(exportDir string, status *dbzm.ExportStatus) error 
 		// TODO: TableName and FilePath must be quoted by debezium plugin.
 		tableNameTup, err := namereg.NameReg.LookupTableName(fmt.Sprintf("%s.%s", table.SchemaName, table.TableName))
 		if err != nil {
-			return fmt.Errorf("lookup for table name %s: %v", table.TableName, err)
+			return fmt.Errorf("lookup for table name %s: %w", table.TableName, err)
 		}
 		fileEntry := &datafile.FileEntry{
 			TableName: tableNameTup.ForKey(),
@@ -597,7 +597,7 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 	}
 	replicationConn, err := ybDB.GetReplicationConnection()
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication connection: %v", err)
+		return fmt.Errorf("export snapshot: failed to create replication connection: %w", err)
 	}
 
 	defer func() {
@@ -620,12 +620,12 @@ func createYBReplicationSlotAndPublication(tableList []sqlname.NameTuple, leafPa
 	publicationName := "voyager_dbz_publication_" + strings.ReplaceAll(migrationUUID.String(), "-", "_")
 	err = ybDB.CreatePublication(replicationConn, publicationName, finalTableList)
 	if err != nil {
-		return fmt.Errorf("create publication: %v", err)
+		return fmt.Errorf("create publication: %w", err)
 	}
 	replicationSlotName := fmt.Sprintf("voyager_%s", strings.ReplaceAll(migrationUUID.String(), "-", "_"))
 	slotName, err := ybDB.CreateOrGetLogicalReplicationSlot(replicationConn, replicationSlotName)
 	if err != nil {
-		return fmt.Errorf("export snapshot: failed to create replication slot: %v", err)
+		return fmt.Errorf("export snapshot: failed to create replication slot: %w", err)
 	}
 	yellowBold := color.New(color.FgYellow, color.Bold)
 	utils.PrintAndLog(yellowBold.Sprintf("Created replication slot '%s' on source YugabyteDB database. "+

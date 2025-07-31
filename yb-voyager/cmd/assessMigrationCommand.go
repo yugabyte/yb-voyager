@@ -37,7 +37,6 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/exp/slices"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
@@ -94,7 +93,7 @@ var assessMigrationCmd = &cobra.Command{
 		validateOracleParams()
 		err = validateAndSetTargetDbVersionFlag()
 		if err != nil {
-			utils.ErrExit("failed to validate target db version: %v", err)
+			utils.ErrExit("failed to validate target db version: %w", err)
 		}
 		if cmd.Flags().Changed("assessment-metadata-dir") {
 			validateAssessmentMetadataDirFlag()
@@ -114,156 +113,10 @@ var assessMigrationCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		err := assessMigration()
 		if err != nil {
-			utils.ErrExit("%s", err)
+			utils.ErrExit("%w", err)
 		}
 		packAndSendAssessMigrationPayload(COMPLETE, nil)
 	},
-}
-
-func packAndSendAssessMigrationPayload(status string, errMsg error) {
-	var err error
-	if !shouldSendCallhome() {
-		return
-	}
-
-	payload := createCallhomePayload()
-	payload.MigrationPhase = ASSESS_MIGRATION_PHASE
-	payload.Status = status
-	if assessmentMetadataDirFlag == "" {
-		sourceDBDetails := callhome.SourceDBDetails{
-			DBType:    source.DBType,
-			DBVersion: source.DBVersion,
-			DBSize:    source.DBSize,
-		}
-		payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
-	}
-
-	var tableSizingStats, indexSizingStats []callhome.ObjectSizingStats
-	if assessmentReport.TableIndexStats != nil {
-		for _, stat := range *assessmentReport.TableIndexStats {
-			newStat := callhome.ObjectSizingStats{
-				ReadsPerSecond:  utils.SafeDereferenceInt64(stat.ReadsPerSecond),
-				WritesPerSecond: utils.SafeDereferenceInt64(stat.WritesPerSecond),
-				SizeInBytes:     utils.SafeDereferenceInt64(stat.SizeInBytes),
-			}
-
-			// Anonymizing schema and object names
-			sname, err := anonymizer.AnonymizeSchemaName(stat.SchemaName)
-			if err != nil {
-				log.Warnf("failed to anonymize schema name %s: %v", stat.SchemaName, err)
-				newStat.SchemaName = constants.OBFUSCATE_STRING
-			} else {
-				newStat.SchemaName = sname
-			}
-
-			if stat.IsIndex {
-				iName, err := anonymizer.AnonymizeIndexName(stat.ObjectName)
-				if err != nil {
-					log.Warnf("failed to anonymize index name %s: %v", stat.ObjectName, err)
-					newStat.ObjectName = constants.OBFUSCATE_STRING
-				} else {
-					newStat.ObjectName = iName
-				}
-				indexSizingStats = append(indexSizingStats, newStat)
-			} else {
-				tName, err := anonymizer.AnonymizeTableName(stat.ObjectName)
-				if err != nil {
-					log.Warnf("failed to anonymize table name %s: %v", stat.ObjectName, err)
-					newStat.ObjectName = constants.OBFUSCATE_STRING
-				} else {
-					newStat.ObjectName = tName
-				}
-				tableSizingStats = append(tableSizingStats, newStat)
-			}
-		}
-	}
-	schemaSummaryCopy := utils.SchemaSummary{
-		Notes: assessmentReport.SchemaSummary.Notes,
-		DBObjects: lo.Map(schemaAnalysisReport.SchemaSummary.DBObjects, func(dbObject utils.DBObject, _ int) utils.DBObject {
-			dbObject.ObjectNames = ""
-			dbObject.Details = "" // not useful, either static or sometimes sensitive(oracle indexes) information
-			return dbObject
-		}),
-	}
-
-	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
-
-	var callhomeSizingAssessment callhome.SizingCallhome
-	if assessmentReport.Sizing != nil {
-		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
-		callhomeSizingAssessment = callhome.SizingCallhome{
-			NumColocatedTables:              len(sizingRecommedation.ColocatedTables),
-			ColocatedReasoning:              sizingRecommedation.ColocatedReasoning,
-			NumShardedTables:                len(sizingRecommedation.ShardedTables),
-			NumNodes:                        sizingRecommedation.NumNodes,
-			VCPUsPerInstance:                sizingRecommedation.VCPUsPerInstance,
-			MemoryPerInstance:               sizingRecommedation.MemoryPerInstance,
-			OptimalSelectConnectionsPerNode: sizingRecommedation.OptimalSelectConnectionsPerNode,
-			OptimalInsertConnectionsPerNode: sizingRecommedation.OptimalInsertConnectionsPerNode,
-			EstimatedTimeInMinForImport:     sizingRecommedation.EstimatedTimeInMinForImport,
-		}
-	}
-
-	assessPayload := callhome.AssessMigrationPhasePayload{
-		PayloadVersion:                 callhome.ASSESS_MIGRATION_CALLHOME_PAYLOAD_VERSION,
-		TargetDBVersion:                assessmentReport.TargetDBVersion,
-		Sizing:                         &callhomeSizingAssessment,
-		MigrationComplexity:            assessmentReport.MigrationComplexity,
-		MigrationComplexityExplanation: assessmentReport.MigrationComplexityExplanation,
-		SchemaSummary:                  callhome.MarshalledJsonString(schemaSummaryCopy),
-		Issues:                         anonymizedIssues,
-		Error:                          callhome.SanitizeErrorMsg(errMsg),
-		TableSizingStats:               callhome.MarshalledJsonString(tableSizingStats),
-		IndexSizingStats:               callhome.MarshalledJsonString(indexSizingStats),
-		SourceConnectivity:             assessmentMetadataDirFlag == "",
-		IopsInterval:                   intervalForCapturingIOPS,
-		ControlPlaneType:               getControlPlaneType(),
-	}
-
-	payload.PhasePayload = callhome.MarshalledJsonString(assessPayload)
-	err = callhome.SendPayload(&payload)
-	if err == nil && (status == COMPLETE || status == ERROR) {
-		callHomeErrorOrCompletePayloadSent = true
-	}
-}
-
-func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
-	/*
-		Case to skip for sql statement anonymization:
-			1. if issue type is unsupported query construct or unsupported plpgsql object
-			2. if object type is view or materialized view
-			3. if sql statement is empty
-	*/
-	shouldSkipAnonymization := func(issue AssessmentIssue) bool {
-		skipCategories := []string{UNSUPPORTED_QUERY_CONSTRUCTS_CATEGORY, UNSUPPORTED_PLPGSQL_OBJECTS_CATEGORY, UNSUPPORTED_DATATYPES_CATEGORY}
-		skipObjects := []string{constants.VIEW, constants.MATERIALIZED_VIEW, constants.TRIGGER, constants.FUNCTION, constants.PROCEDURE}
-
-		return slices.Contains(skipCategories, issue.Category) ||
-			slices.Contains(skipObjects, issue.ObjectType) ||
-			issue.SqlStatement == ""
-	}
-
-	anonymizedIssues := make([]callhome.AssessmentIssueCallhome, len(assessmentIssues))
-	for i, issue := range assessmentIssues {
-		anonymizedIssues[i] = callhome.NewAssessmentIssueCallhome(issue.Category, issue.CategoryDescription, issue.Type, issue.Name, issue.Impact, issue.ObjectType, issue.Details)
-
-		// special handling for extensions issue: adding extname to issue.Name
-		if issue.Type == queryissue.UNSUPPORTED_EXTENSION {
-			anonymizedIssues[i].Name = queryissue.AppendObjectNameToIssueName(issue.Name, issue.ObjectName)
-		}
-
-		if shouldSkipAnonymization(issue) {
-			continue
-		}
-
-		var err error
-		anonymizedIssues[i].SqlStatement, err = anonymizer.AnonymizeSql(issue.SqlStatement)
-		if err != nil {
-			log.Warnf("failed to anonymize sql statement for issue %s: %v", issue.Name, err)
-		}
-	}
-
-	return anonymizedIssues
 }
 
 func registerSourceDBConnFlagsForAM(cmd *cobra.Command) {
@@ -372,7 +225,7 @@ func assessMigration() (err error) {
 	if assessmentMetadataDirFlag == "" { // only in case of source connectivity
 		err := source.DB().Connect()
 		if err != nil {
-			return fmt.Errorf("failed to connect source db for assessing migration: %v", err)
+			return fmt.Errorf("failed to connect source db for assessing migration: %w", err)
 		}
 
 		// We will require source db connection for the below checks
@@ -721,7 +574,7 @@ func gatherAssessmentMetadataFromOracle() (err error) {
 
 	tnsAdmin, err := getTNSAdmin(source)
 	if err != nil {
-		return fmt.Errorf("error getting tnsAdmin: %v", err)
+		return fmt.Errorf("error getting tnsAdmin: %w", err)
 	}
 	envVars := []string{fmt.Sprintf("ORACLE_PASSWORD=%s", source.Password),
 		fmt.Sprintf("TNS_ADMIN=%s", tnsAdmin),
@@ -926,7 +779,7 @@ func generateAssessmentReport() (err error) {
 
 	err = addAssessmentIssuesForRedundantIndex()
 	if err != nil {
-		return fmt.Errorf("error in getting redundant index issues: %v", err)
+		return fmt.Errorf("error in getting redundant index issues: %w", err)
 	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
@@ -1022,7 +875,7 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	//Fetching the column stats from assessment db
 	columnStats, err := fetchColumnStatisticsInfo()
 	if err != nil {
-		return fmt.Errorf("error fetching column stats from assessement db: %v", err)
+		return fmt.Errorf("error fetching column stats from assessement db: %w", err)
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
@@ -1035,7 +888,7 @@ func addAssessmentIssuesForRedundantIndex() error {
 	}
 	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
 	if err != nil {
-		return fmt.Errorf("error fetching redundant index information: %v", err)
+		return fmt.Errorf("error fetching redundant index information: %w", err)
 	}
 
 	var redundantIssues []queryissue.QueryIssue
@@ -1055,7 +908,7 @@ func getAssessmentReportContentFromAnalyzeSchema() error {
 	//fetching column stats from assessment db and then passing it on to the parser issue detector for detecting issues
 	err = fetchAndSetColumnStatisticsForIndexIssues()
 	if err != nil {
-		return fmt.Errorf("error parsing column statistics information: %v", err)
+		return fmt.Errorf("error parsing column statistics information: %w", err)
 	}
 
 	/*

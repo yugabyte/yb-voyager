@@ -619,10 +619,10 @@
                         
                             <tr>
                                 <td class="centered-cell">Unsupported Features</td>
-                                <td class="centered-cell">1</td>
+                                <td class="centered-cell">0</td>
                                 <td class="centered-cell">0</td>
                                 <td class="centered-cell">1</td>
-                                <td class="centered-cell">2</td>
+                                <td class="centered-cell">1</td>
                             </tr>
                         
                             <tr>
@@ -647,7 +647,7 @@
 
             <p>
                 <strong>Complexity:</strong> MEDIUM<br>
-                <strong>Reasoning:</strong> Found 4 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
+                <strong>Reasoning:</strong> Found 3 Level 1 issue(s), 6 Level 2 issue(s) and 2 Level 3 issue(s), resulting in MEDIUM migration complexity
             </p>
 
             <p>
@@ -677,7 +677,7 @@
             <div class="assessment-issues-header">
                 <!-- Left area: text about total issues -->
                 <div>
-                    <p><strong>Total issues:</strong> 10</p>
+                    <p><strong>Total issues:</strong> 9</p>
                     <p>Below is a detailed breakdown of each issue.</p>
                 </div>
                 <!-- Right area: buttons -->
@@ -931,118 +931,6 @@ INHERITS (public.parent_table);</pre>
                     
                     
                     
-                    <tbody class="issue-summary-detail-pair"
-                        data-category="unsupported_features"
-                        data-name="Stored Generated Columns"
-                        data-impact="LEVEL_1">
-                        
-                        <!-- Summary Row -->
-                        <tr class="summary-row" onclick="toggleDetails('details-2', 'arrow-2', false)">
-                            
-                                <td class="centered-cell">
-                                    <div class="category-cell-flex">
-                                        <div class="arrow-container">
-                                            <span id="arrow-2">&#9654;</span>
-                                        </div>
-                                        <span style="word-break: break-word;">Unsupported Features</span>
-                                    </div>
-                                </td>
-                            
-                            <td class="centered-cell">
-                                <div class="category-cell-flex">
-                                    
-                                    Stored Generated Columns
-                                </div>
-                            </td>
-                            <td class="centered-cell">
-                                
-                                    schema1.employees2
-                                
-                            </td>
-                            <td class="centered-cell" style="text-align: center;">Level 1</td>
-                        </tr>
-
-                        <!-- Hidden Details of the Row -->
-                        <tr id="details-2" class="details-row">
-                            <td colspan="4">
-                                <div class="details-content-wrapper">
-                                    <div class="details-content">
-                                        <table class="formatted_table" style="width: 100%; border: 1px solid #ddd; margin-top: 5px;">
-                                            <colgroup>
-                                                <col style="width: 25%;">
-                                                <col style="width: 75%;">
-                                            </colgroup>
-                                            <tbody>
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Category Description</th>
-                                                        <td>
-                                                            <div style="max-height:150px; overflow-y:auto; border:1px solid #ccc; padding:5px;">
-                                                                Features of the source database that are not supported on the target YugabyteDB.
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                
-
-                                                <!-- Only show if ObjectType is present -->
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Type</th>
-                                                        <td>TABLE</td>
-                                                    </tr>
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Object Name</th>
-                                                        <td>schema1.employees2</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">SQL Statement</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">CREATE TABLE schema1.employees2 (
-    id integer NOT NULL,
-    first_name character varying(50) NOT NULL,
-    last_name character varying(50) NOT NULL,
-    full_name character varying(101) GENERATED ALWAYS AS ((((first_name)::text || ' '::text) || (last_name)::text)) STORED,
-    department character varying(50)
-);</pre>
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-
-                                                <!-- Only show if there is a supported version -->
-                                                
-                                                
-                                                    <tr>
-                                                        <th class="centered-cell">Supported In (versions)</th>
-                                                        <td>>=2.25.0.0 (2.25 series)</td>
-                                                    </tr>
-                                                
-                                                <tr>
-                                                    <th class="centered-cell">Description</th>
-                                                    <td>
-                                                        
-                                                            <div style="max-width: 100%; width: 100%; overflow-x: auto; overflow-y: auto; border: 1px solid #ccc;">
-                                                                <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Stored generated columns are not supported in YugabyteDB. Detected columns are (full_name). Using Triggers to update the generated columns is one way to work around this issue.</pre>
-                                                                
-                                                                    <pre style="font-size: 1em; white-space: pre-wrap; word-break: break-word; overflow-wrap: break-word; margin: 0; padding: 8px; color: #000; font-family: Arial, sans-serif;">Refer to the <a href="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported" target="_blank" title="https://docs.yugabyte.com/preview/yugabyte-voyager/known-issues/postgresql/#generated-always-as-stored-type-column-is-not-supported">docs</a> for more details.</pre>
-                                                                
-                                                            </div>
-                                                        
-                                                    </td>
-                                                </tr>
-                                               
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </td>
-                        </tr>
-                    </tbody>
                 
                     
                     
