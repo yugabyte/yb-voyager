@@ -821,16 +821,6 @@ func (p *ParserIssueDetector) IsUnloggedTablesIssueFiltered() bool {
 	return p.isUnloggedTablesIssueFiltered
 }
 
-// GetForeignKeyConstraints returns all foreign key constraints
-func (p *ParserIssueDetector) GetForeignKeyConstraints() []ForeignKeyConstraint {
-	return p.foreignKeyConstraints
-}
-
-// GetTableIndexes returns the table indexes map
-func (p *ParserIssueDetector) GetTableIndexes() map[string][]*queryparser.Index {
-	return p.tableIndexes
-}
-
 // DetectMissingForeignKeyIndexes detects missing foreign key indexes after all DDL has been processed
 // This method should be called after all DDL statements have been parsed to ensure complete metadata
 func (p *ParserIssueDetector) DetectMissingForeignKeyIndexes() []QueryIssue {
