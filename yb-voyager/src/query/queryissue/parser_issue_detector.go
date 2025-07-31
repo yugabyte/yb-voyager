@@ -900,11 +900,17 @@ func (p *ParserIssueDetector) hasIndexCoverage(index *queryparser.Index, fkColum
 
 // createMissingFKIndexIssue creates a QueryIssue from a foreign key constraint
 func (p *ParserIssueDetector) createMissingFKIndexIssue(fk ForeignKeyConstraint) QueryIssue {
+	// Create fully qualified column names
+	qualifiedColumnNames := make([]string, len(fk.ColumnNames))
+	for i, colName := range fk.ColumnNames {
+		qualifiedColumnNames[i] = fmt.Sprintf("%s.%s", fk.TableName, colName)
+	}
+
 	return NewMissingForeignKeyIndexIssue(
 		"TABLE",
 		fk.TableName,
 		"", // sqlStatement - we don't have this in stored constraint
-		strings.Join(fk.ColumnNames, ", "),
+		strings.Join(qualifiedColumnNames, ", "),
 		fk.TableName,
 		fk.ReferencedTable,
 	)

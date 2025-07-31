@@ -1743,19 +1743,19 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 1: Basic FK in CREATE TABLE, no index
 	t.Run("Basic FK in CREATE TABLE - No Index", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_1 (
+			stmt_parent = `CREATE TABLE public.customers_1 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_1 (
+			stmt_child = `CREATE TABLE public.orders_1 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_1(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_1(id)
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_1", "", "customer_id", "orders_1", "customers_1")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_1", "", "public.orders_1.customer_id", "public.orders_1", "public.customers_1")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1776,17 +1776,17 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 2: Basic FK in CREATE TABLE, with proper index
 	t.Run("Basic FK in CREATE TABLE - With Index", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_2 (
+			stmt_parent = `CREATE TABLE public.customers_2 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_2 (
+			stmt_child = `CREATE TABLE public.orders_2 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_2(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_2(id)
 			);`
-			stmt_index = `CREATE INDEX idx_orders_2_customer ON orders_2(customer_id);`
+			stmt_index = `CREATE INDEX idx_orders_2_customer ON public.orders_2(customer_id);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_index)
@@ -1797,21 +1797,21 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 3: Composite FK in CREATE TABLE, no index
 	t.Run("Composite FK in CREATE TABLE - No Index", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_3 (
+			stmt_parent = `CREATE TABLE public.orders_3 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_3 (
+			stmt_child = `CREATE TABLE public.order_items_3 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_3(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_3(id, product_id)
 			);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_3", "", "order_id, product_id", "order_items_3", "orders_3")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_3", "", "public.order_items_3.order_id, public.order_items_3.product_id", "public.order_items_3", "public.orders_3")
 
 		detector := setupBasicFK(stmt_parent, stmt_child)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1855,20 +1855,20 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 5: FK via ALTER TABLE, no index
 	t.Run("FK via ALTER TABLE - No Index", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_5 (
+			stmt_parent = `CREATE TABLE public.customers_5 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_5 (
+			stmt_child = `CREATE TABLE public.orders_5 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE
 			);`
-			stmt_alter = `ALTER TABLE orders_5 ADD CONSTRAINT fk_orders_5_customer 
-				FOREIGN KEY (customer_id) REFERENCES customers_5(id);`
+			stmt_alter = `ALTER TABLE public.orders_5 ADD CONSTRAINT fk_orders_5_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_5(id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_5", "", "customer_id", "orders_5", "customers_5")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_5", "", "public.orders_5.customer_id", "public.orders_5", "public.customers_5")
 
 		detector := NewParserIssueDetector()
 		err := detector.ParseAndProcessDDL(stmt_parent)
@@ -1897,18 +1897,18 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 6: FK via ALTER TABLE, with index
 	t.Run("FK via ALTER TABLE - With Index", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_6 (
+			stmt_parent = `CREATE TABLE public.customers_6 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_6 (
+			stmt_child = `CREATE TABLE public.orders_6 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE
 			);`
-			stmt_index = `CREATE INDEX idx_orders_6_customer ON orders_6(customer_id);`
-			stmt_alter = `ALTER TABLE orders_6 ADD CONSTRAINT fk_orders_6_customer 
-				FOREIGN KEY (customer_id) REFERENCES customers_6(id);`
+			stmt_index = `CREATE INDEX idx_orders_6_customer ON public.orders_6(customer_id);`
+			stmt_alter = `ALTER TABLE public.orders_6 ADD CONSTRAINT fk_orders_6_customer 
+				FOREIGN KEY (customer_id) REFERENCES public.customers_6(id);`
 		)
 
 		detector := NewParserIssueDetector()
@@ -1929,19 +1929,19 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 7: Index with FK columns in different order (should cover FK)
 	t.Run("Index with FK Columns in Different Order", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_7 (
+			stmt_parent = `CREATE TABLE public.orders_7 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_7 (
+			stmt_child = `CREATE TABLE public.order_items_7 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_7(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_7(id, product_id)
 			);`
-			stmt_different_order_index = `CREATE INDEX idx_order_items_7_diff_order ON order_items_7(product_id, order_id);`
+			stmt_different_order_index = `CREATE INDEX idx_order_items_7_diff_order ON public.order_items_7(product_id, order_id);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_different_order_index)
@@ -1952,22 +1952,22 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 8: Index with FK columns not as prefix (should NOT cover FK)
 	t.Run("Index with FK Columns Not as Prefix", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_8 (
+			stmt_parent = `CREATE TABLE public.orders_8 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_8 (
+			stmt_child = `CREATE TABLE public.order_items_8 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_8(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_8(id, product_id)
 			);`
-			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON order_items_8(quantity, order_id, product_id);`
+			stmt_wrong_prefix_index = `CREATE INDEX idx_order_items_8_wrong_prefix ON public.order_items_8(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_8", "", "order_id, product_id", "order_items_8", "orders_8")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_8", "", "public.order_items_8.order_id, public.order_items_8.product_id", "public.order_items_8", "public.orders_8")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -1988,17 +1988,17 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 9: Index with extra columns (superset index - should cover FK)
 	t.Run("Index with Extra Columns (Superset)", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_9 (
+			stmt_parent = `CREATE TABLE public.customers_9 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_9 (
+			stmt_child = `CREATE TABLE public.orders_9 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_9(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_9(id)
 			);`
-			stmt_superset_index = `CREATE INDEX idx_orders_9_superset ON orders_9(customer_id, order_date);`
+			stmt_superset_index = `CREATE INDEX idx_orders_9_superset ON public.orders_9(customer_id, order_date);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_superset_index)
@@ -2009,20 +2009,20 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 10: Expression index (should not cover FK)
 	t.Run("Expression Index (Should Not Cover FK)", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_10 (
+			stmt_parent = `CREATE TABLE public.customers_10 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_10 (
+			stmt_child = `CREATE TABLE public.orders_10 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_10(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_10(id)
 			);`
-			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON orders_10((customer_id + 1));`
+			stmt_expr_index = `CREATE INDEX idx_orders_10_expr ON public.orders_10((customer_id + 1));`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "orders_10", "", "customer_id", "orders_10", "customers_10")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.orders_10", "", "public.orders_10.customer_id", "public.orders_10", "public.customers_10")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2043,17 +2043,17 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 11: Unique index (should cover FK)
 	t.Run("Unique Index (Should Cover FK)", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_11 (
+			stmt_parent = `CREATE TABLE public.customers_11 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_11 (
+			stmt_child = `CREATE TABLE public.orders_11 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
-				FOREIGN KEY (customer_id) REFERENCES customers_11(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_11(id)
 			);`
-			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_11_unique ON orders_11(customer_id);`
+			stmt_unique_index = `CREATE UNIQUE INDEX idx_orders_11_unique ON public.orders_11(customer_id);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_unique_index)
@@ -2064,19 +2064,19 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 12: Index with FK columns in reverse order (should cover FK)
 	t.Run("Index with FK Columns in Reverse Order", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_12 (
+			stmt_parent = `CREATE TABLE public.orders_12 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_12 (
+			stmt_child = `CREATE TABLE public.order_items_12 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_12(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_12(id, product_id)
 			);`
-			stmt_reverse_index = `CREATE INDEX idx_order_items_12_reverse ON order_items_12(product_id, order_id);`
+			stmt_reverse_index = `CREATE INDEX idx_order_items_12_reverse ON public.order_items_12(product_id, order_id);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_reverse_index)
@@ -2087,19 +2087,19 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 13: Index with FK columns as subset (should cover FK)
 	t.Run("Index with FK Columns as Subset", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_13 (
+			stmt_parent = `CREATE TABLE public.orders_13 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_13 (
+			stmt_child = `CREATE TABLE public.order_items_13 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_13(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_13(id, product_id)
 			);`
-			stmt_subset_index = `CREATE INDEX idx_order_items_13_subset ON order_items_13(order_id, product_id, quantity);`
+			stmt_subset_index = `CREATE INDEX idx_order_items_13_subset ON public.order_items_13(order_id, product_id, quantity);`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_subset_index)
@@ -2110,22 +2110,22 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 14: Index with FK columns in wrong position (should NOT cover FK)
 	t.Run("Index with FK Columns in Wrong Position", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_14 (
+			stmt_parent = `CREATE TABLE public.orders_14 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_14 (
+			stmt_child = `CREATE TABLE public.order_items_14 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_14(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_14(id, product_id)
 			);`
-			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON order_items_14(quantity, order_id, product_id);`
+			stmt_wrong_pos_index = `CREATE INDEX idx_order_items_14_wrong_pos ON public.order_items_14(quantity, order_id, product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_14", "", "order_id, product_id", "order_items_14", "orders_14")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_14", "", "public.order_items_14.order_id, public.order_items_14.product_id", "public.order_items_14", "public.orders_14")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_wrong_pos_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2146,22 +2146,22 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 15: Index missing one FK column (should NOT cover FK)
 	t.Run("Index Missing One FK Column", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_15 (
+			stmt_parent = `CREATE TABLE public.orders_15 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_15 (
+			stmt_child = `CREATE TABLE public.order_items_15 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_15(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_15(id, product_id)
 			);`
-			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON order_items_15(order_id);`
+			stmt_missing_col_index = `CREATE INDEX idx_order_items_15_missing ON public.order_items_15(order_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_15", "", "order_id, product_id", "order_items_15", "orders_15")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_15", "", "public.order_items_15.order_id, public.order_items_15.product_id", "public.order_items_15", "public.orders_15")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_missing_col_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2182,22 +2182,22 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 16: Expression index with composite FK (expression in prefix - should NOT cover FK)
 	t.Run("Expression Index with Composite FK - Expression in Prefix", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_16 (
+			stmt_parent = `CREATE TABLE public.orders_16 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_16 (
+			stmt_child = `CREATE TABLE public.order_items_16 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_16(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_16(id, product_id)
 			);`
-			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON order_items_16((order_id + 1), product_id);`
+			stmt_expr_prefix_index = `CREATE INDEX idx_order_items_16_expr_prefix ON public.order_items_16((order_id + 1), product_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_16", "", "order_id, product_id", "order_items_16", "orders_16")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_16", "", "public.order_items_16.order_id, public.order_items_16.product_id", "public.order_items_16", "public.orders_16")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_prefix_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
@@ -2218,19 +2218,19 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 17: Expression index with composite FK (expression after prefix - should cover FK)
 	t.Run("Expression Index with Composite FK - Expression After Prefix", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_17 (
+			stmt_parent = `CREATE TABLE public.orders_17 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_17 (
+			stmt_child = `CREATE TABLE public.order_items_17 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_17(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_17(id, product_id)
 			);`
-			stmt_expr_after_index = `CREATE INDEX idx_order_items_17_expr_after ON order_items_17(order_id, product_id, (quantity + 1));`
+			stmt_expr_after_index = `CREATE INDEX idx_order_items_17_expr_after ON public.order_items_17(order_id, product_id, (quantity + 1));`
 		)
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_after_index)
@@ -2241,16 +2241,16 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 18: No index but PK constraint on FK columns (should cover FK)
 	t.Run("No Index but PK Constraint on FK Columns", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_18 (
+			stmt_parent = `CREATE TABLE public.customers_18 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_18 (
+			stmt_child = `CREATE TABLE public.orders_18 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
 				PRIMARY KEY (customer_id),
-				FOREIGN KEY (customer_id) REFERENCES customers_18(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_18(id)
 			);`
 		)
 
@@ -2262,16 +2262,16 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 19: No index but UK constraint on FK columns (should cover FK)
 	t.Run("No Index but UK Constraint on FK Columns", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE customers_19 (
+			stmt_parent = `CREATE TABLE public.customers_19 (
 				id SERIAL PRIMARY KEY,
 				name VARCHAR(100)
 			);`
-			stmt_child = `CREATE TABLE orders_19 (
+			stmt_child = `CREATE TABLE public.orders_19 (
 				id SERIAL PRIMARY KEY,
 				customer_id SERIAL,
 				order_date DATE,
 				UNIQUE (customer_id),
-				FOREIGN KEY (customer_id) REFERENCES customers_19(id)
+				FOREIGN KEY (customer_id) REFERENCES public.customers_19(id)
 			);`
 		)
 
@@ -2283,18 +2283,18 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 20: No index but composite PK constraint on FK columns (should cover FK)
 	t.Run("No Index but Composite PK Constraint on FK Columns", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_20 (
+			stmt_parent = `CREATE TABLE public.orders_20 (
 				id SERIAL,
 				product_id INTEGER,
 				PRIMARY KEY (id, product_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_20 (
+			stmt_child = `CREATE TABLE public.order_items_20 (
 				id SERIAL,
 				order_id SERIAL,
 				product_id INTEGER,
 				quantity INTEGER,
 				PRIMARY KEY (order_id, product_id),
-				FOREIGN KEY (order_id, product_id) REFERENCES orders_20(id, product_id)
+				FOREIGN KEY (order_id, product_id) REFERENCES public.orders_20(id, product_id)
 			);`
 		)
 
@@ -2306,24 +2306,24 @@ func TestMissingForeignKeyIndexDetection(t *testing.T) {
 	// Test Case 21: Expression index with expression in middle of prefix (should NOT cover FK)
 	t.Run("Expression Index with Expression in Middle of Prefix", func(t *testing.T) {
 		const (
-			stmt_parent = `CREATE TABLE orders_21 (
+			stmt_parent = `CREATE TABLE public.orders_21 (
 				id SERIAL,
 				product_id INTEGER,
 				category_id INTEGER,
 				PRIMARY KEY (id, product_id, category_id)
 			);`
-			stmt_child = `CREATE TABLE order_items_21 (
+			stmt_child = `CREATE TABLE public.order_items_21 (
 				id SERIAL PRIMARY KEY,
 				order_id SERIAL,
 				product_id INTEGER,
 				category_id INTEGER,
 				quantity INTEGER,
-				FOREIGN KEY (order_id, product_id, category_id) REFERENCES orders_21(id, product_id, category_id)
+				FOREIGN KEY (order_id, product_id, category_id) REFERENCES public.orders_21(id, product_id, category_id)
 			);`
-			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON order_items_21(order_id, (quantity + 1), product_id, category_id);`
+			stmt_expr_middle_index = `CREATE INDEX idx_order_items_21_expr_middle ON public.order_items_21(order_id, (quantity + 1), product_id, category_id);`
 		)
 
-		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "order_items_21", "", "order_id, product_id, category_id", "order_items_21", "orders_21")
+		expectedIssue := NewMissingForeignKeyIndexIssue("TABLE", "public.order_items_21", "", "public.order_items_21.order_id, public.order_items_21.product_id, public.order_items_21.category_id", "public.order_items_21", "public.orders_21")
 
 		detector := setupBasicFKWithIndex(stmt_parent, stmt_child, stmt_expr_middle_index)
 		issues := detector.DetectMissingForeignKeyIndexes()
