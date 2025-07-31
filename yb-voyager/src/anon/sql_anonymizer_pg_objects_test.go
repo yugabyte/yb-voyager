@@ -806,8 +806,6 @@ func TestPostgresDDLVariants(t *testing.T) {
 	}
 }
 
-// Based on analysis from postgresql_nodes_analysis.md
-
 func TestBuiltinTypeAnonymization(t *testing.T) {
 	// builtinTypeCase represents a test case for built-in type anonymization
 	type builtinTypeCase struct {
