@@ -1058,13 +1058,13 @@ CREATE INDEX "xref_p10_not_deleted$last" ON rnacen.xref_p10_not_deleted USING bt
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p10_not_deleted$taxid" ON rnacen.xref_p10_not_deleted USING btree (taxid);
+CREATE INDEX "xref_p10_not_deleted$taxid" ON rnacen.xref_p10_not_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p10_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p10_not_deleted$upi" ON rnacen.xref_p10_not_deleted USING btree (upi);
+CREATE INDEX "xref_p10_not_deleted$upi" ON rnacen.xref_p10_not_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p11_deleted" does not exist (SQLSTATE 42P01)
@@ -1238,13 +1238,13 @@ CREATE INDEX "xref_p13_deleted$last" ON rnacen.xref_p13_deleted USING btree (las
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p13_deleted$taxid" ON rnacen.xref_p13_deleted USING btree (taxid);
+CREATE INDEX "xref_p13_deleted$taxid" ON rnacen.xref_p13_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p13_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p13_deleted$upi" ON rnacen.xref_p13_deleted USING btree (upi);
+CREATE INDEX "xref_p13_deleted$upi" ON rnacen.xref_p13_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
@@ -1274,13 +1274,13 @@ CREATE INDEX "xref_p13_not_deleted$last" ON rnacen.xref_p13_not_deleted USING bt
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p13_not_deleted$taxid" ON rnacen.xref_p13_not_deleted USING btree (taxid);
+CREATE INDEX "xref_p13_not_deleted$taxid" ON rnacen.xref_p13_not_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p13_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p13_not_deleted$upi" ON rnacen.xref_p13_not_deleted USING btree (upi);
+CREATE INDEX "xref_p13_not_deleted$upi" ON rnacen.xref_p13_not_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p14_deleted" does not exist (SQLSTATE 42P01)
@@ -1670,13 +1670,13 @@ CREATE INDEX "xref_p19_deleted$last" ON rnacen.xref_p19_deleted USING btree (las
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p19_deleted$taxid" ON rnacen.xref_p19_deleted USING btree (taxid);
+CREATE INDEX "xref_p19_deleted$taxid" ON rnacen.xref_p19_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p19_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p19_deleted$upi" ON rnacen.xref_p19_deleted USING btree (upi);
+CREATE INDEX "xref_p19_deleted$upi" ON rnacen.xref_p19_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
@@ -1706,13 +1706,13 @@ CREATE INDEX "xref_p19_not_deleted$last" ON rnacen.xref_p19_not_deleted USING bt
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p19_not_deleted$taxid" ON rnacen.xref_p19_not_deleted USING btree (taxid);
+CREATE INDEX "xref_p19_not_deleted$taxid" ON rnacen.xref_p19_not_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p19_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p19_not_deleted$upi" ON rnacen.xref_p19_not_deleted USING btree (upi);
+CREATE INDEX "xref_p19_not_deleted$upi" ON rnacen.xref_p19_not_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p1_deleted" does not exist (SQLSTATE 42P01)
@@ -1886,13 +1886,13 @@ CREATE INDEX "xref_p21_deleted$last" ON rnacen.xref_p21_deleted USING btree (las
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p21_deleted$taxid" ON rnacen.xref_p21_deleted USING btree (taxid);
+CREATE INDEX "xref_p21_deleted$taxid" ON rnacen.xref_p21_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p21_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p21_deleted$upi" ON rnacen.xref_p21_deleted USING btree (upi);
+CREATE INDEX "xref_p21_deleted$upi" ON rnacen.xref_p21_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
@@ -1922,13 +1922,13 @@ CREATE INDEX "xref_p21_not_deleted$last" ON rnacen.xref_p21_not_deleted USING bt
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p21_not_deleted$taxid" ON rnacen.xref_p21_not_deleted USING btree (taxid);
+CREATE INDEX "xref_p21_not_deleted$taxid" ON rnacen.xref_p21_not_deleted USING btree (taxid ASC);
 
 /*
 ERROR: relation "rnacen.xref_p21_not_deleted" does not exist (SQLSTATE 42P01)
 File :/home/ubuntu/yb-voyager/migtests/tests/pg/rna/export-dir/schema/tables/INDEXES_table.sql
 */
-CREATE INDEX "xref_p21_not_deleted$upi" ON rnacen.xref_p21_not_deleted USING btree (upi);
+CREATE INDEX "xref_p21_not_deleted$upi" ON rnacen.xref_p21_not_deleted USING btree (upi ASC);
 
 /*
 ERROR: relation "rnacen.xref_p22_deleted" does not exist (SQLSTATE 42P01)
