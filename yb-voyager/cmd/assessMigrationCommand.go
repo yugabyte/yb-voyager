@@ -923,11 +923,6 @@ func generateAssessmentReport() (err error) {
 	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
-
-	err = addAssessmentIssuesForRedundantIndex()
-	if err != nil {
-		return fmt.Errorf("error in getting redundant index issues: %v", err)
-	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -1026,26 +1021,6 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
-	return nil
-}
-
-func addAssessmentIssuesForRedundantIndex() error {
-	if source.DBType != POSTGRESQL {
-		return nil
-	}
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
-	if err != nil {
-		return fmt.Errorf("error fetching redundant index information: %v", err)
-	}
-
-	var redundantIssues []queryissue.QueryIssue
-	redundantIssues = append(redundantIssues, queryissue.GetRedundantIndexIssues(redundantIndexesInfo)...)
-	for _, issue := range redundantIssues {
-
-		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
-		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
-		assessmentReport.AppendIssues(convertedIssue)
-	}
 	return nil
 }
 

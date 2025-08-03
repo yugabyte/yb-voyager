@@ -36,7 +36,6 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
@@ -476,7 +475,7 @@ func applyMergeConstraintsTransformations() error {
 	}
 
 	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
-	transformer := sqltransformer.NewTransformer()
+	transformer := sqltransformer.NewTransformer(source.DBType)
 
 	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
 	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
@@ -835,18 +834,14 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
 	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
 	//TODO: revisit this index object name check to properly done on each item of index qualified name instead of some formatted string.
-	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
+	resolvedRedundantIndexes := utils.GetResolvedRedundantIndexes(redundantIndexesInfo)
 	//Find the resolved Existing index DDL from the redundant issues
-	for _, issue := range redundantIssues {
-		for _, info := range redundantIndexesInfo {
-			if issue.ObjectName == info.GetRedundantIndexObjectName() {
-				redundantIndexToResolvedExistingIndex[info.GetRedundantIndexCatalogObjectName()] = issue.Details[queryissue.EXISTING_INDEX_SQL_STATEMENT].(string)
-				break
-			}
-		}
+	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
+		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
+		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
 	}
 
-	transformer := sqltransformer.NewTransformer()
+	transformer := sqltransformer.NewTransformer(source.DBType)
 
 	rawStmts, err := queryparser.ParseSqlFile(fileName)
 	if err != nil {

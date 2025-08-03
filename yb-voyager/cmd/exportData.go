@@ -623,6 +623,7 @@ func addLeafPartitionsInTableList(tableList []sqlname.NameTuple, addAllLeafParti
 			modifiedTableList = append(modifiedTableList, rootTable)
 		}
 	}
+	log.Infof("partitions of all root table being exported: %v", partitionsToRootTableMap)
 	return partitionsToRootTableMap, lo.UniqBy(modifiedTableList, func(table sqlname.NameTuple) string {
 		return table.ForKey()
 	}), nil
