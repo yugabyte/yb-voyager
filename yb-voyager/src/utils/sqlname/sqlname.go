@@ -20,8 +20,10 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
+	"github.com/samber/lo"
 	"golang.org/x/exp/slices"
+
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 )
 
 var (
@@ -310,4 +312,40 @@ func IsReservedKeywordPG(word string) bool {
 
 func IsReservedKeywordOracle(word string) bool {
 	return slices.Contains(OracleReservedKeywords, word)
+}
+
+type ObjectNameQualifiedWithTableName struct {
+	SchemaName        string
+	TableName         string
+	ObjectName        string
+	FromDefaultSchema bool
+
+	Qualified    identifier
+	Unqualified  identifier
+	MinQualified identifier
+}
+
+func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName string, schemaName, tableName string) *ObjectNameQualifiedWithTableName {
+	result := &ObjectNameQualifiedWithTableName{
+		SchemaName:        schemaName,
+		FromDefaultSchema: schemaName == defaultSchemaName,
+		TableName:         tableName,
+		ObjectName:        objectName,
+		Qualified: identifier{
+			Quoted:    quote2(dbType, objectName) + " ON " + schemaName + "." + quote2(dbType, tableName),
+			Unquoted:  unquote(objectName, dbType) + " ON " + schemaName + "." + unquote(tableName, dbType),
+			MinQuoted: minQuote2(objectName, dbType) + " ON " + schemaName + "." + minQuote2(tableName, dbType),
+		},
+		Unqualified: identifier{
+			Quoted:    quote2(dbType, objectName) + " ON " + quote2(dbType, tableName),
+			Unquoted:  unquote(objectName, dbType) + " ON " + unquote(tableName, dbType),
+			MinQuoted: minQuote2(objectName, dbType) + " ON " + minQuote2(tableName, dbType),
+		},
+	}
+	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
+	return result
+}
+
+func (o *ObjectNameQualifiedWithTableName) CatalogName() string {
+	return o.Qualified.Unquoted
 }
