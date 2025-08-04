@@ -11,15 +11,15 @@ SET row_security = off;
 
 
 
-CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at);
+CREATE INDEX created_idx ON public.osm_changeset USING btree (created_at ASC);
 
 
 CREATE INDEX tags_idx ON public.osm_changeset USING gin (tags);
 
 
-CREATE INDEX user_id_idx ON public.osm_changeset USING btree (user_id);
+CREATE INDEX user_id_idx ON public.osm_changeset USING btree (user_id ASC);
 
 
-CREATE INDEX user_name_idx ON public.osm_changeset USING btree (user_name);
+CREATE INDEX user_name_idx ON public.osm_changeset USING btree (user_name ASC);
 
 
