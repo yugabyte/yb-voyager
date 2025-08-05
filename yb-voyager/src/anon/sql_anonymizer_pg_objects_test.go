@@ -33,12 +33,13 @@ var enabled = map[string]bool{
 	"TYPE-CREATE-ENUM":          true,
 	"TYPE-ALTER-ENUM-ADD-VALUE": true,
 	"TYPE-CREATE-COMPOSITE":     true,
-	// "TYPE-CREATE-BASE":       true,
-	// "TYPE-CREATE-RANGE":      true,
-	"TYPE-RENAME":   true,
-	"DOMAIN-CREATE": true,
-	"DOMAIN-RENAME": true,
-	"DOMAIN-DROP":   true,
+	"TYPE-CREATE-BASE":          true,
+	"TYPE-CREATE-RANGE":         true,
+	"TYPE-RENAME":               true,
+	"TYPE-CREATE-BASIC":         true,
+	"DOMAIN-CREATE":             true,
+	"DOMAIN-RENAME":             true,
+	"DOMAIN-DROP":               true,
 
 	"TABLE-CREATE":             true,
 	"TABLE-CREATE-AS":          true,
@@ -261,6 +262,17 @@ func TestPostgresDDLVariants(t *testing.T) {
 			[]string{TYPE_KIND_PREFIX, ENUM_KIND_PREFIX}},
 
 		// ─── TYPE (composite, base, range) ─────────────────────
+		{
+			"TYPE-CREATE-BASIC",
+			`CREATE TYPE base_type_examples.base_type (
+				INTERNALLENGTH = variable,
+				INPUT = base_type_examples.base_fn_in,
+				OUTPUT = base_type_examples.base_fn_out,
+				ALIGNMENT = int4,
+				STORAGE = plain
+			);`,
+			[]string{"base_type_examples", "base_type", "base_fn_in", "base_fn_out"},
+			[]string{SCHEMA_KIND_PREFIX, TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 		{"TYPE-CREATE-COMPOSITE",
 			`CREATE TYPE dbname.schema1.mycomposit AS (col1 int, col2 text);`,
 			[]string{"dbname", "schema1", "mycomposit", "col1", "col2"},
