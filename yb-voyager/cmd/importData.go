@@ -574,6 +574,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 	}
 
+	// Initialize metrics collector for the current import run
+	callhomeMetricsCollector := callhome.NewImportDataMetricsCollector()
+
 	exportDirDataDir := filepath.Join(exportDir, "data")
 	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
 	if err != nil {
@@ -704,7 +707,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 				maxColocatedBatchesInProgress := utils.GetEnvAsInt("YBVOYAGER_MAX_COLOCATED_BATCHES_IN_PROGRESS", 3)
 				err := importTasksViaTaskPicker(pendingTasks, state, progressReporter,
 					maxParallelConns, maxParallelConns, maxColocatedBatchesInProgress,
-					errorHandler)
+					errorHandler, callhomeMetricsCollector)
 				if err != nil {
 					utils.ErrExit("Failed to import tasks via task picker. %s", err)
 				}
@@ -716,7 +719,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 					batchImportPool = pool.New().WithMaxGoroutines(poolSize)
 					log.Infof("created batch import pool of size: %d", poolSize)
 
-					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+					taskImporter, err := NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 					if err != nil {
 						utils.ErrExit("Failed to create file task importer: %s", err)
 					}
@@ -913,7 +916,7 @@ func getMaxParallelConnections() (int, error) {
   - If task is done, mark it as done in the task picker.
 */
 func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataState, progressReporter *ImportDataProgressReporter, maxParallelConns int,
-	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler) error {
+	maxShardedTasksInProgress int, maxColocatedBatchesInProgress int, errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) error {
 
 	var err error
 
@@ -953,7 +956,7 @@ func importTasksViaTaskPicker(pendingTasks []*ImportFileTask, state *ImportDataS
 		var ok bool
 		taskImporter, ok = taskImporters[task.ID]
 		if !ok {
-			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler)
+			taskImporter, err = createFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableTypes, errorHandler, callhomeMetricsCollector)
 			if err != nil {
 				return fmt.Errorf("create file task importer: %w", err)
 			}
@@ -1065,7 +1068,7 @@ and colocated table batches to the colocatedBatchImportQueue.
 Otherwise, we simply pass the batchImportPool to the FileTaskImporter.
 */
 func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchImportPool *pool.Pool, progressReporter *ImportDataProgressReporter, colocatedBatchImportQueue chan func(),
-	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	tableTypes *utils.StructMap[sqlname.NameTuple, string], errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	var taskImporter *FileTaskImporter
 	var err error
 	if importerRole == TARGET_DB_IMPORTER_ROLE || importerRole == IMPORT_FILE_ROLE {
@@ -1074,12 +1077,12 @@ func createFileTaskImporter(task *ImportFileTask, state *ImportDataState, batchI
 			return nil, fmt.Errorf("table type not found for table: %s", task.TableNameTup.ForOutput())
 		}
 
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, colocatedBatchImportQueue, tableType == COLOCATED, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}
 	} else {
-		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler)
+		taskImporter, err = NewFileTaskImporter(task, state, batchImportPool, progressReporter, nil, false, errorHandler, callhomeMetricsCollector)
 		if err != nil {
 			return nil, fmt.Errorf("create file task importer: %w", err)
 		}

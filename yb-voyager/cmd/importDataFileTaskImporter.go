@@ -24,6 +24,7 @@ import (
 	"github.com/davecgh/go-spew/spew"
 	log "github.com/sirupsen/logrus"
 	"github.com/sourcegraph/conc/pool"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/datafile"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/errs"
@@ -58,12 +59,13 @@ type FileTaskImporter struct {
 	currentProgressAmount int64
 	progressReporter      *ImportDataProgressReporter
 
-	errorHandler importdata.ImportDataErrorHandler
+	errorHandler             importdata.ImportDataErrorHandler
+	callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 }
 
 func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPool *pool.Pool,
 	progressReporter *ImportDataProgressReporter, colocatedImportBatchQueue chan func(), isTableColocated bool,
-	errorHandler importdata.ImportDataErrorHandler) (*FileTaskImporter, error) {
+	errorHandler importdata.ImportDataErrorHandler, callhomeMetricsCollector *callhome.ImportDataMetricsCollector) (*FileTaskImporter, error) {
 	batchProducer, err := NewFileBatchProducer(task, state, errorHandler)
 	if err != nil {
 		return nil, fmt.Errorf("creating file batch producer: %s", err)
@@ -85,6 +87,7 @@ func NewFileTaskImporter(task *ImportFileTask, state *ImportDataState, workerPoo
 		totalProgressAmount:       totalProgressAmount,
 		currentProgressAmount:     currentProgressAmount,
 		errorHandler:              errorHandler,
+		callhomeMetricsCollector:  callhomeMetricsCollector,
 	}
 	state.RegisterFileTaskImporter(fti)
 	return fti, nil
