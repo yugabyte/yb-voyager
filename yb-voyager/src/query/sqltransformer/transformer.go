@@ -20,9 +20,11 @@ import (
 	"slices"
 
 	pg_query "github.com/pganalyze/pg_query_go/v6"
+	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 )
 
 /*
@@ -65,6 +67,7 @@ Note: Need to keep the relative ordering of statements(tables) intact.
 Because there can be cases like Foreign Key constraints that depend on the order of tables.
 */
 func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.RawStmt, error) {
+	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
 	createStmtMap := make(map[string]*pg_query.RawStmt)
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
@@ -156,10 +159,10 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	return result, nil
 }
 
-func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, map[string]*pg_query.RawStmt, error) {
-
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, []string, []string, error) {
+	log.Infof("removing redundant indexes from the schema")
 	var sqlStmts []*pg_query.RawStmt
-	removedIndexToStmt := make(map[string]*pg_query.RawStmt) // index object name to raw stmt
+	removedIndexToStmtMap := make(map[string]*pg_query.RawStmt) // index object name to raw stmt
 	for _, stmt := range stmts {
 		stmtType := queryparser.GetStatementType(stmt.Stmt.ProtoReflect())
 		if stmtType != queryparser.PG_QUERY_INDEX_STMT {
@@ -169,12 +172,26 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 		objectName := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
 		if _, ok := redundantIndexesMap[objectName]; ok {
 			log.Infof("removing redundant index %s from the schema", objectName)
-			removedIndexToStmt[objectName] = stmt
+			removedIndexToStmtMap[objectName] = stmt
 		} else {
 			sqlStmts = append(sqlStmts, stmt)
 		}
 
 	}
 
-	return sqlStmts, removedIndexToStmt, nil
+	var removedSqlStmts []string
+	for indexName, stmt := range removedIndexToStmtMap {
+		//Add the existing index ddl in the comments for the individual redundant index
+		stmtStr, err := queryparser.DeparseRawStmt(stmt)
+		if err != nil {
+			return nil, nil, nil, fmt.Errorf("failed to deparse removed index stmt: %w", err)
+		}
+		if existingIndex, ok := redundantIndexesMap[indexName]; ok {
+			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
+				existingIndex, stmtStr)
+		}
+		removedSqlStmts = append(removedSqlStmts, stmtStr)
+	}
+
+	return sqlStmts, removedSqlStmts, lo.Keys(removedIndexToStmtMap), nil
 }
