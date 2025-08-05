@@ -127,11 +127,7 @@ func (fti *FileTaskImporter) submitBatch(batch *Batch) error {
 		// But the `connPool` will allow only `parallelism` number of connections to be
 		// used at a time. Thus limiting the number of concurrent COPYs to `parallelism`.
 		fti.importBatch(batch)
-		if reportProgressInBytes {
-			fti.updateProgress(batch.ByteCount)
-		} else {
-			fti.updateProgress(batch.RecordCount)
-		}
+		fti.updateProgressForCompletedBatch(batch)
 	}
 	if fti.colocatedImportBatchQueue != nil && fti.isTableColocated {
 		fti.colocatedImportBatchQueue <- importBatchFunc
@@ -233,14 +229,25 @@ func (fti *FileTaskImporter) importBatch(batch *Batch) {
 	}
 }
 
-func (fti *FileTaskImporter) updateProgress(progressAmount int64) {
+func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
+	// Update basic progress update for progress bar and control plane.
+	var progressAmount int64
+	if reportProgressInBytes {
+		progressAmount = batch.ByteCount
+	} else {
+		progressAmount = batch.RecordCount
+	}
+
 	fti.currentProgressAmount += progressAmount
-	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
+	fti.progressReporter.AddProgressAmount(fti.task, progressAmount) // TODO: remove this
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
 		fti.updateProgressInControlPlane(ROW_UPDATE_STATUS_IN_PROGRESS)
 	}
+
+	// update callhome metrics collector
+	fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
 }
 
 func (fti *FileTaskImporter) PostProcess() {
