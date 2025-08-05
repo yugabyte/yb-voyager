@@ -75,6 +75,7 @@ var skipReplicationChecks utils.BoolStr
 var skipNodeHealthChecks utils.BoolStr
 var skipDiskUsageHealthChecks utils.BoolStr
 var progressReporter *ImportDataProgressReporter
+var callhomeMetricsCollector *callhome.ImportDataMetricsCollector
 
 // Error policy
 var errorPolicySnapshotFlag importdata.ErrorPolicy = importdata.AbortErrorPolicy
@@ -575,7 +576,7 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 	}
 
 	// Initialize metrics collector for the current import run
-	callhomeMetricsCollector := callhome.NewImportDataMetricsCollector()
+	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
 
 	exportDirDataDir := filepath.Join(exportDir, "data")
 	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
@@ -1204,6 +1205,33 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 	}
 	payload.TargetDBDetails = callhome.MarshalledJsonString(targetDBDetails)
 	payload.MigrationPhase = IMPORT_DATA_PHASE
+
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.RunSnapshotTotalRows = callhomeMetricsCollector.GetRunSnapshotTotalRows()
+		dataMetrics.RunSnapshotTotalBytes = callhomeMetricsCollector.GetRunSnapshotTotalBytes()
+	}
+
+	// Get phase-related metrics from existing logic
+	importRowsMap, err := getImportedSnapshotRowsMap("target")
+	if err != nil {
+		log.Infof("callhome: error in getting the import data: %v", err)
+	} else {
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+			dataMetrics.PhaseSnapshotTotalRows += value.Imported
+			if value.Imported > dataMetrics.PhaseSnapshotLargestTableRows {
+				dataMetrics.PhaseSnapshotLargestTableRows = value.Imported
+			}
+			return true, nil
+		})
+	}
+
+	// Set live migration metrics if applicable
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		dataMetrics.PhaseLiveTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.PhaseLiveEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:              callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:                int64(tconf.Parallelism),
@@ -1216,33 +1244,14 @@ func packAndSendImportDataToTargetPayload(status string, errorMsg error) {
 		EnableYBAdaptiveParallelism: bool(tconf.EnableYBAdaptiveParallelism),
 		AdaptiveParallelismMax:      int64(tconf.MaxParallelism),
 		ErrorPolicySnapshot:         errorPolicySnapshotFlag.String(),
+		DataMetrics:                 dataMetrics,
+		Phase:                       importPhase,
 	}
 
-	var err error
-	importDataPayload.YBClusterMetrics, err = BuildCallhomeYBClusterMetrics()
-	if err != nil {
-		log.Infof("callhome: error in getting the YB cluster metrics: %v", err)
-	}
-
-	//Getting the imported snapshot details
-	importRowsMap, err := getImportedSnapshotRowsMap("target")
-	if err != nil {
-		log.Infof("callhome: error in getting the import data: %v", err)
-	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
-			importDataPayload.TotalRows += value.Imported
-			if value.Imported > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value.Imported
-			}
-			return true, nil
-		})
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+	var err2 error
+	importDataPayload.YBClusterMetrics, err2 = BuildCallhomeYBClusterMetrics()
+	if err2 != nil {
+		log.Infof("callhome: error in getting the YB cluster metrics: %v", err2)
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)

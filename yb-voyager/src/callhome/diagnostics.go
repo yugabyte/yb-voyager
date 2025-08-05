@@ -253,25 +253,22 @@ Version History:
 var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.1"
 
 type ImportDataPhasePayload struct {
-	PayloadVersion              string           `json:"payload_version"`
-	BatchSize                   int64            `json:"batch_size"`
-	ParallelJobs                int64            `json:"parallel_jobs"`
-	TotalRows                   int64            `json:"total_rows_imported"`         // data metrics
-	LargestTableRows            int64            `json:"largest_table_rows_imported"` // data metrics
-	OnPrimaryKeyConflictAction  string           `json:"on_primary_key_conflict_action"`
-	EnableYBAdaptiveParallelism bool             `json:"enable_yb_adaptive_parallelism"`
-	AdaptiveParallelismMax      int64            `json:"adaptive_parallelism_max"`
-	ErrorPolicySnapshot         string           `json:"error_policy_snapshot"`
-	StartClean                  bool             `json:"start_clean"`
-	YBClusterMetrics            YBClusterMetrics `json:"yb_cluster_metrics"`
+	PayloadVersion              string            `json:"payload_version"`
+	BatchSize                   int64             `json:"batch_size"`
+	ParallelJobs                int64             `json:"parallel_jobs"`
+	OnPrimaryKeyConflictAction  string            `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool              `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64             `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string            `json:"error_policy_snapshot"`
+	StartClean                  bool              `json:"start_clean"`
+	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
+	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase               string `json:"phase,omitempty"`
-	TotalImportedEvents int64  `json:"total_imported_events,omitempty"` // data metrics
-	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"` // data metrics
-	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	EnableUpsert        bool   `json:"enable_upsert"`
-	Error               string `json:"error"`
-	ControlPlaneType    string `json:"control_plane_type"`
+	Phase            string `json:"phase,omitempty"`
+	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool   `json:"enable_upsert"`
+	Error            string `json:"error"`
+	ControlPlaneType string `json:"control_plane_type"`
 }
 
 type ImportDataMetrics struct {
