@@ -117,6 +117,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 
 	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
+	// replacing anonymized sql statements in the issues with empty string for now, till existing issues are fixed
+	for _, issue := range anonymizedIssues {
+		issue.SqlStatement = ""
+	}
+
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
