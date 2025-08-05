@@ -105,6 +105,19 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_PHASE
+	// Create ImportDataMetrics struct
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.RunSnapshotTotalRows = callhomeMetricsCollector.GetRunSnapshotTotalRows()
+		dataMetrics.RunSnapshotTotalBytes = callhomeMetricsCollector.GetRunSnapshotTotalBytes()
+	}
+
+	// Set live migration metrics if applicable
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		dataMetrics.PhaseLiveTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.PhaseLiveEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(tconf.Parallelism),
@@ -112,13 +125,8 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 		LiveWorkflowType: FALL_BACK,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
 		ControlPlaneType: getControlPlaneType(),
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+		DataMetrics:      dataMetrics,
+		Phase:            importPhase,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
