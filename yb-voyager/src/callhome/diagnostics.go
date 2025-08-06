@@ -283,6 +283,16 @@ type ImportDataMetrics struct {
 	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
 }
 
+type ImportDataFileMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
+	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
+}
+
 type YBClusterMetrics struct {
 	Timestamp time.Time    `json:"timestamp"`   // time when the metrics were collected
 	AvgCpuPct float64      `json:"avg_cpu_pct"` // mean of node CPU% across all nodes
@@ -303,14 +313,13 @@ type NodeMetric struct {
 }
 
 type ImportDataFilePhasePayload struct {
-	ParallelJobs       int64  `json:"parallel_jobs"`
-	TotalSize          int64  `json:"total_size_imported"`
-	LargestTableSize   int64  `json:"largest_table_size_imported"`
-	FileStorageType    string `json:"file_storage_type"`
-	StartClean         bool   `json:"start_clean"`
-	DataFileParameters string `json:"data_file_parameters"`
-	Error              string `json:"error"`
-	ControlPlaneType   string `json:"control_plane_type"`
+	ParallelJobs       int64                 `json:"parallel_jobs"`
+	FileStorageType    string                `json:"file_storage_type"`
+	StartClean         bool                  `json:"start_clean"`
+	DataFileParameters string                `json:"data_file_parameters"`
+	DataMetrics        ImportDataFileMetrics `json:"data_metrics"`
+	Error              string                `json:"error"`
+	ControlPlaneType   string                `json:"control_plane_type"`
 }
 
 type DataFileParameters struct {
