@@ -738,6 +738,12 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 }
 
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
+
+	if bool(skipPerfOptimizations) || source.DBType != constants.POSTGRESQL {
+		log.Infof("skipping performance optimizations for index file transformations")
+		return nil, nil
+	}
+
 	//fetching redundanant indexes from assessment db
 	//assuming that assessment is run and fetched the redundant indexes
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
