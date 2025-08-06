@@ -1,4 +1,4 @@
-//go:build unit
+//go:build integration
 
 /*
 Copyright (c) YugabyteDB, Inc.
@@ -302,39 +302,46 @@ type testCase struct {
 func createTestCases() []testCase {
 	return []testCase{
 		{
-			name:              "numeric_field_overflow",
+			name:              "numeric_value_out_of_range",
 			errorType:         "22003",
 			expectedRetryable: false,
-			description:       "Should not retry numeric overflow errors",
-			dataGenerator:     createNumericOverflowData,
+			description:       "Should not retry numeric value out of range errors",
+			dataGenerator:     createNumericValueOutOfRangeData,
 		},
 		{
 			name:              "string_data_right_truncation",
 			errorType:         "22001",
 			expectedRetryable: false,
-			description:       "Should not retry string truncation errors",
-			dataGenerator:     createStringTruncationData,
+			description:       "Should not retry string data right truncation errors",
+			dataGenerator:     createStringDataRightTruncationData,
 		},
 		{
-			name:              "unique_constraint_violation",
+			name:              "unique_violation",
 			errorType:         "23505",
 			expectedRetryable: false,
-			description:       "Should not retry unique constraint violations",
-			dataGenerator:     createUniqueConstraintViolationData,
+			description:       "Should not retry unique violation errors",
+			dataGenerator:     createUniqueViolationData,
 		},
 		{
-			name:              "not_null_violation",
-			errorType:         "23502",
-			expectedRetryable: false,
-			description:       "Should not retry not null violations",
-			dataGenerator:     createNotNullViolationData,
-		},
-		{
-			name:              "check_constraint_violation",
+			name:              "check_violation",
 			errorType:         "23514",
 			expectedRetryable: false,
-			description:       "Should not retry check constraint violations",
-			dataGenerator:     createCorruptedCopyData,
+			description:       "Should not retry check violation errors",
+			dataGenerator:     createCheckViolationData,
+		},
+		{
+			name:              "invalid_text_representation",
+			errorType:         "22P02",
+			expectedRetryable: false,
+			description:       "Should not retry invalid text representation errors",
+			dataGenerator:     createInvalidTextRepresentationData,
+		},
+		{
+			name:              "bad_copy_file_format",
+			errorType:         "22P04",
+			expectedRetryable: false,
+			description:       "Should not retry bad copy file format errors",
+			dataGenerator:     createBadCopyFileFormatData,
 		},
 		{
 			name:              "valid_data",
@@ -352,44 +359,54 @@ func createTestTableWithConstraints(t *testing.T, container testcontainers.TestC
 	createTableSQL := `
 	CREATE TABLE test_schema.error_test_table (
 		id SERIAL PRIMARY KEY,
-		small_int_col SMALLINT,           -- For numeric overflow (22003)
-		varchar_col VARCHAR(10),          -- For string truncation (22001)
-		unique_col VARCHAR(50) UNIQUE,    -- For unique constraint (23505)
-		not_null_col VARCHAR(50) NOT NULL, -- For not null violation (23502)
-		check_col INTEGER CHECK (check_col > 0) -- For check constraint (23514)
+		small_int_col SMALLINT,           
+		varchar_col VARCHAR(10),          
+		unique_col VARCHAR(50) UNIQUE,    
+		not_null_col VARCHAR(50) NOT NULL, 
+		check_col INTEGER CHECK (check_col > 0),
+		array_col INTEGER[],             
+		date_col DATE,                    
+		numeric_col NUMERIC(5,2)         
 	);`
 
 	container.ExecuteSqls(createSchemaSQL, createTableSQL)
 }
 
-func createNumericOverflowData() string {
-	// Data that will cause SMALLINT overflow (max 32767)
-	return "101\t99999\ttest\tunique101\ttest\t100\n" // 99999 > 32767
+func createNumericValueOutOfRangeData() string {
+	// Data that will cause numeric value out of range error (SQLSTATE 22003)
+	return "101\t99999\ttest\tunique101\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\n" // 99999 exceeds SMALLINT range
 }
 
-func createStringTruncationData() string {
-	// Data that will cause VARCHAR(10) truncation
-	return "102\t100\tvery_long_string_that_exceeds_ten_characters\tunique102\ttest\t100\n"
+func createStringDataRightTruncationData() string {
+	// Data that will cause string data right truncation error (SQLSTATE 22001)
+	return "102\t100\tvery_long_string_that_exceeds_ten_characters\tunique102\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\n" // String too long for VARCHAR(10)
 }
 
-func createUniqueConstraintViolationData() string {
-	// Data with duplicate unique values
-	return "103\t100\ttest\tduplicate_value\ttest\t100\n104\t200\ttest2\tduplicate_value\ttest2\t200\n"
+func createUniqueViolationData() string {
+	// Data that will cause unique violation (SQLSTATE 23505)
+	return "103\t100\ttest\tduplicate_value\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\n104\t200\ttest2\tduplicate_value\ttest2\t200\t{4,5,6}\t2023-01-02\t234.56\n" // Duplicate unique value
 }
 
-func createNotNullViolationData() string {
-	// Data with NULL in not null column
-	return "105\t100\ttest\tunique105\t\ttest\t100\n" // Empty string for not_null_col
-}
-
-func createCorruptedCopyData() string {
-	// Create data that will cause a check constraint violation (SQLSTATE 23514)
-	return "106\t100\ttest\tunique106\ttest\t-100\n" // -100 violates CHECK (check_col > 0)
+func createCheckViolationData() string {
+	// Create data that will cause a check violation (SQLSTATE 23514)
+	return "106\t100\ttest\tunique106\ttest\t-100\t{1,2,3}\t2023-01-01\t123.45\n" // -100 violates CHECK (check_col > 0)
 }
 
 func createValidData() string {
 	// Valid data that should import successfully
-	return "999\t100\ttest\tunique999\ttest\t100\n"
+	return "999\t100\ttest\tunique999\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\n"
+}
+
+func createInvalidTextRepresentationData() string {
+	// Data that will cause invalid text representation error (SQLSTATE 22P02)
+	// Using malformed array literal that can't be parsed
+	return "107\t100\ttest\tunique107\ttest\t100\t[invalid_array_syntax]\t2023-01-01\t123.45\n"
+}
+
+func createBadCopyFileFormatData() string {
+	// Data that will cause bad copy file format error (SQLSTATE 22P04)
+	// Use malformed COPY data with extra columns that don't match the table schema
+	return "108\t100\ttest\tunique108\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\textra_column_data\n"
 }
 
 func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple) *Batch {
@@ -452,13 +469,13 @@ func testErrorDetection(t *testing.T, targetDB *tgtdb.TargetYugabyteDB, tc testC
 	// Create import batch args
 	args := &tgtdb.ImportBatchArgs{
 		TableNameTup:       tableName,
-		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col"},
+		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "array_col", "date_col", "numeric_col"},
 		PrimaryKeyColumns:  []string{"id"},
 		PKConflictAction:   "ERROR",
 		FileFormat:         "csv",
 		HasHeader:          false,
 		Delimiter:          "\t",
-		NullString:         "",
+		NullString:         "\\N",
 		RowsPerTransaction: 1000,
 	}
 
@@ -475,28 +492,38 @@ func testErrorDetection(t *testing.T, targetDB *tgtdb.TargetYugabyteDB, tc testC
 	isRetryable := !targetDB.IsNonRetryableCopyError(err)
 
 	// Debug output
-	t.Logf("=== DEBUG: %s ===", tc.name)
-	t.Logf("Expected retryable: %v", tc.expectedRetryable)
-	t.Logf("Actual retryable: %v", isRetryable)
-	t.Logf("Expected SQLSTATE: %s", tc.errorType)
-	if err != nil {
-		t.Logf("Actual error: %v", err)
-		// Try to extract SQLSTATE code from error
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			t.Logf("SQLSTATE code: %s", pgErr.Code)
-			t.Logf("SQLSTATE message: %s", pgErr.Message)
-		} else {
-			t.Logf("Error is not a pgconn.PgError, type: %T", err)
-		}
-	} else {
-		t.Logf("No error returned (this should not happen for error test cases)")
-	}
-	t.Logf("IsNonRetryableCopyError result: %v", !isRetryable)
-	t.Logf("==================")
+	// t.Logf("=== DEBUG: %s ===", tc.name)
+	// t.Logf("Expected retryable: %v", tc.expectedRetryable)
+	// t.Logf("Actual retryable: %v", isRetryable)
+	// t.Logf("Expected SQLSTATE: %s", tc.errorType)
+	// if err != nil {
+	// 	t.Logf("Actual error: %v", err)
+	// 	// Try to extract SQLSTATE code from error
+	// 	var pgErr *pgconn.PgError
+	// 	if errors.As(err, &pgErr) {
+	// 		t.Logf("SQLSTATE code: %s", pgErr.Code)
+	// 		t.Logf("SQLSTATE message: %s", pgErr.Message)
+	// 	} else {
+	// 		t.Logf("Error is not a pgconn.PgError, type: %T", err)
+	// 	}
+	// } else {
+	// 	t.Logf("No error returned (this should not happen for error test cases)")
+	// }
+	// t.Logf("IsNonRetryableCopyError result: %v", !isRetryable)
+	// t.Logf("==================")
 
 	// Assert expected behavior
 	assert.Equal(t, tc.expectedRetryable, isRetryable, tc.description)
+
+	// For error cases, also assert the SQLSTATE code
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			assert.Equal(t, tc.errorType, pgErr.Code, "SQLSTATE code should match expected value")
+		} else {
+			t.Errorf("Expected pgconn.PgError but got error type: %T", err)
+		}
+	}
 }
 
 func TestImportBatchErrorDetection_YugabyteDB(t *testing.T) {
@@ -593,13 +620,13 @@ func testErrorDetectionPG(t *testing.T, targetDB *tgtdb.TargetPostgreSQL, tc tes
 	// Create import batch args
 	args := &tgtdb.ImportBatchArgs{
 		TableNameTup:       tableName,
-		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col"},
+		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "array_col", "date_col", "numeric_col"},
 		PrimaryKeyColumns:  []string{"id"},
 		PKConflictAction:   "ERROR",
 		FileFormat:         "csv",
 		HasHeader:          false,
 		Delimiter:          "\t",
-		NullString:         "",
+		NullString:         "\\N",
 		RowsPerTransaction: 1000,
 	}
 
@@ -616,26 +643,36 @@ func testErrorDetectionPG(t *testing.T, targetDB *tgtdb.TargetPostgreSQL, tc tes
 	isRetryable := !targetDB.IsNonRetryableCopyError(err)
 
 	// Debug output
-	t.Logf("=== DEBUG: %s ===", tc.name)
-	t.Logf("Expected retryable: %v", tc.expectedRetryable)
-	t.Logf("Actual retryable: %v", isRetryable)
-	t.Logf("Expected SQLSTATE: %s", tc.errorType)
-	if err != nil {
-		t.Logf("Actual error: %v", err)
-		// Try to extract SQLSTATE code from error
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			t.Logf("SQLSTATE code: %s", pgErr.Code)
-			t.Logf("SQLSTATE message: %s", pgErr.Message)
-		} else {
-			t.Logf("Error is not a pgconn.PgError, type: %T", err)
-		}
-	} else {
-		t.Logf("No error returned (this should not happen for error test cases)")
-	}
-	t.Logf("IsNonRetryableCopyError result: %v", !isRetryable)
-	t.Logf("==================")
+	// t.Logf("=== DEBUG: %s ===", tc.name)
+	// t.Logf("Expected retryable: %v", tc.expectedRetryable)
+	// t.Logf("Actual retryable: %v", isRetryable)
+	// t.Logf("Expected SQLSTATE: %s", tc.errorType)
+	// if err != nil {
+	// 	t.Logf("Actual error: %v", err)
+	// 	// Try to extract SQLSTATE code from error
+	// 	var pgErr *pgconn.PgError
+	// 	if errors.As(err, &pgErr) {
+	// 		t.Logf("SQLSTATE code: %s", pgErr.Code)
+	// 		t.Logf("SQLSTATE message: %s", pgErr.Message)
+	// 	} else {
+	// 		t.Logf("Error is not a pgconn.PgError, type: %T", err)
+	// 	}
+	// } else {
+	// 	t.Logf("No error returned (this should not happen for error test cases)")
+	// }
+	// t.Logf("IsNonRetryableCopyError result: %v", !isRetryable)
+	// t.Logf("==================")
 
 	// Assert expected behavior
 	assert.Equal(t, tc.expectedRetryable, isRetryable, tc.description)
+
+	// For error cases, also assert the SQLSTATE code
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			assert.Equal(t, tc.errorType, pgErr.Code, "SQLSTATE code should match expected value")
+		} else {
+			t.Errorf("Expected pgconn.PgError but got error type: %T", err)
+		}
+	}
 }

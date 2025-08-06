@@ -305,7 +305,6 @@ var NonRetryCopyErrors = []string{
 //
 // SQLSTATE Class 22: Data Exception (e.g., 22003=numeric overflow, 22P02=invalid syntax)
 // SQLSTATE Class 23: Integrity Constraint Violation (e.g., 23502=not null, 23505=unique)
-// SQLSTATE Class 42: Syntax Error or Access Rule Violation (e.g., 42601=syntax error)
 // Postgres Error Codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
 func isDataIntegrityOrConstraintError(err error) bool {
 	if err == nil {
@@ -317,18 +316,7 @@ func isDataIntegrityOrConstraintError(err error) bool {
 	if errors.As(err, &pgErr) {
 		code := pgErr.Code
 
-		// Class 22: Data Exception
-		if strings.HasPrefix(code, "22") {
-			return true
-		}
-
-		// Class 23: Integrity Constraint Violation
-		if strings.HasPrefix(code, "23") {
-			return true
-		}
-
-		// Class 42: Syntax Error or Access Rule Violation
-		if strings.HasPrefix(code, "42") {
+		if strings.HasPrefix(code, "22") || strings.HasPrefix(code, "23") {
 			return true
 		}
 	}
