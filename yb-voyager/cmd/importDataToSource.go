@@ -108,14 +108,14 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 	// Create ImportDataMetrics struct
 	dataMetrics := callhome.ImportDataMetrics{}
 	if callhomeMetricsCollector != nil {
-		dataMetrics.RunSnapshotTotalRows = callhomeMetricsCollector.GetRunSnapshotTotalRows()
-		dataMetrics.RunSnapshotTotalBytes = callhomeMetricsCollector.GetRunSnapshotTotalBytes()
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
 	}
 
 	// Set live migration metrics if applicable
 	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.PhaseLiveTotalImportedEvents = statsReporter.TotalEventsImported
-		dataMetrics.PhaseLiveEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+		dataMetrics.MigrationLiveTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
 
 	importDataPayload := callhome.ImportDataPhasePayload{

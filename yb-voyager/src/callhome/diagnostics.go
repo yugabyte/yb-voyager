@@ -272,15 +272,15 @@ type ImportDataPhasePayload struct {
 }
 
 type ImportDataMetrics struct {
-	// phase related metrics; for the entire phase, across command runs.
-	PhaseSnapshotTotalRows        int64 `json:"phase_snapshot_total_rows"`
-	PhaseSnapshotLargestTableRows int64 `json:"phase_snapshot_largest_table_rows"`
-	PhaseLiveTotalImportedEvents  int64 `json:"phase_live_total_imported_events"`
-	PhaseLiveEventsImportRate3min int64 `json:"phase_live_events_import_rate_3min"`
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
+	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
+	MigrationLiveTotalImportedEvents  int64 `json:"migration_live_total_imported_events"`
 
 	// command run related metrics; for the current command run.
-	RunSnapshotTotalRows  int64 `json:"run_snapshot_total_rows"`
-	RunSnapshotTotalBytes int64 `json:"run_snapshot_total_bytes"`
+	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
+	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
 }
 
 type YBClusterMetrics struct {

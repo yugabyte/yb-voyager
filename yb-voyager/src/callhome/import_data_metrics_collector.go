@@ -22,33 +22,33 @@ import (
 // ImportDataMetricsCollector is responsible for collecting metrics about the current import run.
 // It provides thread-safe access to increment and retrieve snapshot progress metrics.
 type ImportDataMetricsCollector struct {
-	sync.RWMutex          // embedded for thread-safe access
-	runSnapshotTotalRows  int64
-	runSnapshotTotalBytes int64
+	sync.RWMutex       // embedded for thread-safe access
+	snapshotTotalRows  int64
+	snapshotTotalBytes int64
 }
 
 func NewImportDataMetricsCollector() *ImportDataMetricsCollector {
 	return &ImportDataMetricsCollector{
-		runSnapshotTotalRows:  0,
-		runSnapshotTotalBytes: 0,
+		snapshotTotalRows:  0,
+		snapshotTotalBytes: 0,
 	}
 }
 
 func (c *ImportDataMetricsCollector) IncrementSnapshotProgress(rows int64, bytes int64) {
 	c.Lock()
 	defer c.Unlock()
-	c.runSnapshotTotalRows += rows
-	c.runSnapshotTotalBytes += bytes
+	c.snapshotTotalRows += rows
+	c.snapshotTotalBytes += bytes
 }
 
-func (c *ImportDataMetricsCollector) GetRunSnapshotTotalRows() int64 {
+func (c *ImportDataMetricsCollector) GetSnapshotTotalRows() int64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.runSnapshotTotalRows
+	return c.snapshotTotalRows
 }
 
-func (c *ImportDataMetricsCollector) GetRunSnapshotTotalBytes() int64 {
+func (c *ImportDataMetricsCollector) GetSnapshotTotalBytes() int64 {
 	c.RLock()
 	defer c.RUnlock()
-	return c.runSnapshotTotalBytes
+	return c.snapshotTotalBytes
 }

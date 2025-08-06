@@ -112,8 +112,8 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	// Create ImportDataMetrics struct
 	dataMetrics := callhome.ImportDataMetrics{}
 	if callhomeMetricsCollector != nil {
-		dataMetrics.RunSnapshotTotalRows = callhomeMetricsCollector.GetRunSnapshotTotalRows()
-		dataMetrics.RunSnapshotTotalBytes = callhomeMetricsCollector.GetRunSnapshotTotalBytes()
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
 	}
 
 	// Get phase-related metrics from existing logic
@@ -122,9 +122,9 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		log.Infof("callhome: error in getting the import data: %v", err)
 	} else {
 		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
-			dataMetrics.PhaseSnapshotTotalRows += value.Imported
-			if value.Imported > dataMetrics.PhaseSnapshotLargestTableRows {
-				dataMetrics.PhaseSnapshotLargestTableRows = value.Imported
+			dataMetrics.MigrationSnapshotTotalRows += value.Imported
+			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
+				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
 			}
 			return true, nil
 		})
@@ -132,8 +132,8 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 
 	// Set live migration metrics if applicable
 	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.PhaseLiveTotalImportedEvents = statsReporter.TotalEventsImported
-		dataMetrics.PhaseLiveEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+		dataMetrics.MigrationLiveTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
 
 	importDataPayload := callhome.ImportDataPhasePayload{
