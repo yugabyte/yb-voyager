@@ -462,7 +462,7 @@ func (pg *TargetPostgreSQL) importBatch(conn *pgx.Conn, batch Batch, args *Impor
 	if err != nil {
 		var pgerr *pgconn.PgError
 		if errors.As(err, &pgerr) {
-			err = fmt.Errorf("%s, %s in %s", err.Error(), pgerr.Where, batch.GetFilePath())
+			err = fmt.Errorf("%w, %s in %s", err, pgerr.Where, batch.GetFilePath())
 		}
 		return res.RowsAffected(), err
 	}
@@ -497,7 +497,19 @@ func (pg *TargetPostgreSQL) GetListOfTableAttributes(nt sqlname.NameTuple) ([]st
 }
 
 func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
-	return err != nil && utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error()) // not retrying atleast on the syntax errors and unique constraint
+	if err == nil {
+		return false
+	}
+
+	// SQLSTATE-based filtering for non-retryable errors
+	// This should ideally cover all the non-retryable errors
+	if isDataIntegrityOrConstraintError(err) {
+		return true
+	}
+
+	// String pattern matching for non-retryable errors
+	// Kepts this for safety so that we dont disrupt the already existing checks
+	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 
 func (pg *TargetPostgreSQL) RestoreSequences(sequencesLastVal map[string]int64) error {
