@@ -247,7 +247,9 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	}
 
 	// update callhome metrics collector
-	fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
+	if fti.callhomeMetricsCollector != nil {
+		fti.callhomeMetricsCollector.IncrementSnapshotProgress(batch.RecordCount, batch.ByteCount)
+	}
 }
 
 func (fti *FileTaskImporter) PostProcess() {
