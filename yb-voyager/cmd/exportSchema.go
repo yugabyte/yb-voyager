@@ -202,8 +202,11 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-
-	err = generatePerformanceOptimizationReport(indexTransformer.RemovedRedundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+	var redundantIndexes []string
+	if indexTransformer != nil {
+		redundantIndexes = indexTransformer.RemovedRedundantIndexes
+	}
+	err = generatePerformanceOptimizationReport(redundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
