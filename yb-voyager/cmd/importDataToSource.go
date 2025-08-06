@@ -114,7 +114,7 @@ func packAndSendImportDataToSourcePayload(status string, errorMsg error) {
 
 	// Set live migration metrics if applicable
 	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		dataMetrics.MigrationLiveTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
 		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
 	}
 

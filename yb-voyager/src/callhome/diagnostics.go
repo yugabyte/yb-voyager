@@ -275,22 +275,12 @@ type ImportDataMetrics struct {
 	// for the entire migration, across command runs. would be sensitive to start-clean.
 	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
 	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
-	MigrationLiveTotalImportedEvents  int64 `json:"migration_live_total_imported_events"`
+	MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
 
 	// command run related metrics; for the current command run.
 	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
 	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
 	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
-}
-
-type ImportDataFileMetrics struct {
-	// for the entire migration, across command runs. would be sensitive to start-clean.
-	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
-	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
-
-	// command run related metrics; for the current command run.
-	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
-	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
 }
 
 type YBClusterMetrics struct {
@@ -320,6 +310,16 @@ type ImportDataFilePhasePayload struct {
 	DataMetrics        ImportDataFileMetrics `json:"data_metrics"`
 	Error              string                `json:"error"`
 	ControlPlaneType   string                `json:"control_plane_type"`
+}
+
+type ImportDataFileMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
+	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
 }
 
 type DataFileParameters struct {
