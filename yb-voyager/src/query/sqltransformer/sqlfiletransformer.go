@@ -61,15 +61,16 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
 	backUpFile := fmt.Sprintf("%s.orig", file)
-	//copy files
-	err = utils.CopyFile(file, backUpFile)
-	if err != nil {
-		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
-	}
 
 	if !utils.FileOrFolderExists(file) {
 		log.Infof("%s file doesn't exists, skipping any transformations", file)
 		return "", nil
+	}
+
+	//copy files
+	err = utils.CopyFile(file, backUpFile)
+	if err != nil {
+		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
 	}
 
 	parseTree, err = queryparser.ParseSqlFile(file)
@@ -133,18 +134,18 @@ func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string) *Ta
 func (t *TableFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
+
+	if !utils.FileOrFolderExists(file) {
+		log.Infof("%s file doesn't exists, skipping any transformations", file)
+		return "", nil
+	}
 	//TODO: Keep the format of backup file as <file>.orig but for now making it
-	// after merging the sharding changes in this transformer 
+	// after merging the sharding changes in this transformer
 	backUpFile := filepath.Join(filepath.Dir(file), "table_before_merge_constraints.sql")
 	//copy files
 	err = utils.CopyFile(file, backUpFile)
 	if err != nil {
 		return "", fmt.Errorf("failed to copy %s to %s: %w", file, backUpFile, err)
-	}
-
-	if !utils.FileOrFolderExists(file) {
-		log.Infof("%s file doesn't exists, skipping any transformations", file)
-		return "", nil
 	}
 
 	parseTree, err = queryparser.ParseSqlFile(file)
