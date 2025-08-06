@@ -508,7 +508,7 @@ func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 	}
 
 	// String pattern matching for non-retryable errors
-	// Kepts this for safety so that we dont disrupt the already existing checks
+	// Kept this for safety so that we dont disrupt the already existing checks
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrors, err.Error())
 }
 

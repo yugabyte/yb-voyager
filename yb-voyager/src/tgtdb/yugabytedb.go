@@ -336,7 +336,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 	}
 
 	// String pattern matching for non-retryable errors
-	// Kepts this for safety so that we dont disrupt the already existing checks
+	// Kept this for safety so that we dont disrupt the already existing checks
 	NonRetryCopyErrorsYB := NonRetryCopyErrors
 	NonRetryCopyErrorsYB = append(NonRetryCopyErrorsYB, RPC_MSG_LIMIT_ERROR)
 	return utils.ContainsAnySubstringFromSlice(NonRetryCopyErrorsYB, err.Error())
