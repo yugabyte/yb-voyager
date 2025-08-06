@@ -739,7 +739,7 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
 
-	if bool(skipPerfOptimizations) || source.DBType != constants.POSTGRESQL {
+	if bool(skipPerfOptimizations) || source.DBType != POSTGRESQL {
 		log.Infof("skipping performance optimizations for index file transformations")
 		return nil, nil
 	}
