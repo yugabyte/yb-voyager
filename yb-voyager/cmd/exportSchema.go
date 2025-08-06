@@ -475,7 +475,7 @@ func applyMergeConstraintsTransformations() error {
 	}
 
 	utils.PrintAndLog("Applying merge constraints transformation to the exported schema")
-	transformer := sqltransformer.NewTransformer(source.DBType)
+	transformer := sqltransformer.NewTransformer()
 
 	fileName := utils.GetObjectFilePath(schemaDir, TABLE)
 	if !utils.FileOrFolderExists(fileName) { // there are no tables in exported schema
@@ -820,28 +820,22 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}
 
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
+	resolvedRedundantIndexes, err := fetchRedundantIndexInfoFromAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
 	}
-	if len(redundantIndexesInfo) == 0 {
+	if len(resolvedRedundantIndexes) == 0 {
 		log.Infof("no redundant indexes found, skipping applying performance optimizations")
 		return nil, nil
 	}
 
-	redundantIndexToResolvedExistingIndex := make(map[string]string)
-
-	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
-	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
-	//TODO: revisit this index object name check to properly done on each item of index qualified name instead of some formatted string.
-	resolvedRedundantIndexes := utils.GetResolvedRedundantIndexes(redundantIndexesInfo)
-	//Find the resolved Existing index DDL from the redundant issues
+	redundantIndexToResolvedExistingIndex := make(map[string]string) //Find the resolved Existing index DDL from the redundant issues
 	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
 		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
 		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
 	}
 
-	transformer := sqltransformer.NewTransformer(source.DBType)
+	transformer := sqltransformer.NewTransformer()
 
 	rawStmts, err := queryparser.ParseSqlFile(fileName)
 	if err != nil {

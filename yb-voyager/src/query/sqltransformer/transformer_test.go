@@ -23,7 +23,6 @@ import (
 
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )
@@ -82,7 +81,7 @@ func TestMergeConstraints_Basic(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -151,7 +150,7 @@ func TestMergeConstraints_AllSupportedConstraintTypes(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -181,7 +180,7 @@ func TestMergeConstraints_DifferentCasing(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -215,7 +214,7 @@ func TestMergeConstraints_MultipleConstraintsInSingleStmt(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -257,7 +256,7 @@ func TestMergeConstraints_CircularDependencyWithSeparateFK(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -288,7 +287,7 @@ func TestMergeConstraints_QuotedColumnNames(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -315,7 +314,7 @@ func TestMergeConstraints_AlterWithoutCreateTableError(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	_, transformErr := transformer.MergeConstraints(stmts.Stmts)
 	if transformErr == nil {
 		t.Fatalf("expected an error because CREATE TABLE is missing, but got no error")
@@ -363,7 +362,7 @@ func TestMergeConstraints_ExcludeConstraintType(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 
@@ -405,7 +404,7 @@ func Test_RemovalOfDefaultValuesByParser(t *testing.T) {
 	stmts, err := queryparser.ParseSqlFile(tempFilePath)
 	testutils.FatalIfError(t, err)
 
-	transformer := NewTransformer(constants.POSTGRESQL)
+	transformer := NewTransformer()
 	transformedStmts, err := transformer.MergeConstraints(stmts.Stmts)
 	testutils.FatalIfError(t, err)
 

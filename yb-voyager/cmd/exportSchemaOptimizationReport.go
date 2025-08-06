@@ -158,13 +158,13 @@ func generatePerformanceOptimizationReport(redundantIndexes []string, shardedTab
 
 		tableToIndexMap := make(map[string][]string)
 		for _, index := range redundantIndexes {
-			splits := strings.Split(index, " ON ")
-			if len(splits) != 2 {
-				log.Warnf("Redundant index is not in correct format (idx ON tbl) - %v", index)
+			splits := strings.Split(index, ".")
+			if len(splits) != 3 {
+				log.Warnf("Redundant index is not in correct format (schema.table.index) - %v", index)
 				continue
 			}
-			indexName := splits[0]
-			tableName := splits[1]
+			indexName := splits[2]
+			tableName := fmt.Sprintf("%s.%s", splits[0], splits[1])
 			tableToIndexMap[tableName] = append(tableToIndexMap[tableName], indexName)
 		}
 		redundantIndexChange.TableToRemovedIndexesMap = tableToIndexMap

@@ -316,7 +316,7 @@ func IsReservedKeywordOracle(word string) bool {
 
 type ObjectNameQualifiedWithTableName struct {
 	SchemaName        string
-	TableName         string
+	TableName         *ObjectName
 	ObjectName        string
 	FromDefaultSchema bool
 
@@ -329,17 +329,17 @@ func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName s
 	result := &ObjectNameQualifiedWithTableName{
 		SchemaName:        schemaName,
 		FromDefaultSchema: schemaName == defaultSchemaName,
-		TableName:         tableName,
+		TableName:         NewObjectName(dbType, defaultSchemaName, schemaName, tableName),
 		ObjectName:        objectName,
 		Qualified: identifier{
-			Quoted:    quote2(dbType, objectName) + " ON " + schemaName + "." + quote2(dbType, tableName),
-			Unquoted:  unquote(objectName, dbType) + " ON " + schemaName + "." + unquote(tableName, dbType),
-			MinQuoted: minQuote2(objectName, dbType) + " ON " + schemaName + "." + minQuote2(tableName, dbType),
+			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 		Unqualified: identifier{
-			Quoted:    quote2(dbType, objectName) + " ON " + quote2(dbType, tableName),
-			Unquoted:  unquote(objectName, dbType) + " ON " + unquote(tableName, dbType),
-			MinQuoted: minQuote2(objectName, dbType) + " ON " + minQuote2(tableName, dbType),
+			Quoted:    schemaName + "." + quote2(dbType, tableName) + "." + quote2(dbType, objectName),
+			Unquoted:  schemaName + "." + unquote(tableName, dbType) + "." + unquote(objectName, dbType),
+			MinQuoted: schemaName + "." + minQuote2(tableName, dbType) + "." + minQuote2(objectName, dbType),
 		},
 	}
 	result.MinQualified = lo.Ternary(result.FromDefaultSchema, result.Unqualified, result.Qualified)
@@ -348,4 +348,8 @@ func NewObjectNameQualifiedWithTableName(dbType, defaultSchemaName, objectName s
 
 func (o *ObjectNameQualifiedWithTableName) CatalogName() string {
 	return o.Qualified.Unquoted
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetObjectONTableFormatString() string {
+	return fmt.Sprintf("%s ON %s", o.ObjectName, o.TableName.Qualified.MinQuoted)
 }

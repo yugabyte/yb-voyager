@@ -42,11 +42,10 @@ import (
 // In future we can convert this to interface and have separate implementations for each transformation.
 // But for now, kept it simple as a struct with methods
 type Transformer struct {
-	dbType string
 }
 
-func NewTransformer(dbType string) *Transformer {
-	return &Transformer{dbType: dbType}
+func NewTransformer() *Transformer {
+	return &Transformer{}
 }
 
 var constraintTypesToMerge = []pg_query.ConstrType{
@@ -167,7 +166,7 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 			sqlStmts = append(sqlStmts, stmt)
 			continue
 		}
-		objectNameWithTable := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt(), t.dbType)
+		objectNameWithTable := queryparser.GetIndexObjectNameFromIndexStmt(stmt.Stmt.GetIndexStmt())
 		if _, ok := redundantIndexesMap[objectNameWithTable.CatalogName()]; ok {
 			log.Infof("removing redundant index %s from the schema", objectNameWithTable.CatalogName())
 			removedIndexToStmt[objectNameWithTable.CatalogName()] = stmt

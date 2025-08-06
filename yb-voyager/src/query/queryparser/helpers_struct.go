@@ -24,6 +24,7 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
@@ -60,11 +61,11 @@ func IsCollationObject(parseTree *pg_query.ParseResult) bool {
 	return ok && collation.Kind == pg_query.ObjectType_OBJECT_COLLATION
 }
 
-func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt, dbType string) *sqlname.ObjectNameQualifiedWithTableName {
+func GetIndexObjectNameFromIndexStmt(stmt *pg_query.IndexStmt) *sqlname.ObjectNameQualifiedWithTableName {
 	indexName := stmt.Idxname
 	schemaName := stmt.Relation.GetSchemaname()
 	tableName := stmt.Relation.GetRelname()
-	sqlName := sqlname.NewObjectNameQualifiedWithTableName(dbType, "", indexName, schemaName, tableName)
+	sqlName := sqlname.NewObjectNameQualifiedWithTableName(constants.POSTGRESQL, "", indexName, schemaName, tableName)
 	return sqlName
 }
 
