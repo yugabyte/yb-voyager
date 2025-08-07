@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"s3_text\"",
+      "file_name": "text_test.text",
+      "status": "DONE",
+      "total_count": 19,
+      "imported_count": 19,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

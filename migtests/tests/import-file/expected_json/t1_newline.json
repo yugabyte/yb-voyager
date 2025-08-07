@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_newline\"",
+      "file_name": "t1_newline.csv",
+      "status": "DONE",
+      "total_count": 85,
+      "imported_count": 85,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

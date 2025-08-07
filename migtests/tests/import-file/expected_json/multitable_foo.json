@@ -1,0 +1,30 @@
+[
+    {
+      "table_name": "public.\"foo\"",
+      "file_name": "foo1.text",
+      "status": "DONE",
+      "total_count": 15,
+      "imported_count": 15,
+      "errored_count": 0,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"foo\"",
+      "file_name": "foo2.text",
+      "status": "DONE",
+      "total_count": 19,
+      "imported_count": 19,
+      "errored_count": 0,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"foo\"",
+      "file_name": "foo3.text",
+      "status": "DONE",
+      "total_count": 11,
+      "imported_count": 11,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  
