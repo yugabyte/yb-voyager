@@ -109,6 +109,33 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 
 	payload.MigrationPhase = IMPORT_DATA_SOURCE_REPLICA_PHASE
+	// Create ImportDataMetrics struct
+	dataMetrics := callhome.ImportDataMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+	}
+
+	// Get phase-related metrics from existing logic
+	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
+	if err != nil {
+		log.Infof("callhome: error in getting the import data: %v", err)
+	} else {
+		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
+			dataMetrics.MigrationSnapshotTotalRows += value.Imported
+			if value.Imported > dataMetrics.MigrationSnapshotLargestTableRows {
+				dataMetrics.MigrationSnapshotLargestTableRows = value.Imported
+			}
+			return true, nil
+		})
+	}
+
+	// Set live migration metrics if applicable
+	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
+		dataMetrics.MigrationCdcTotalImportedEvents = statsReporter.TotalEventsImported
+		dataMetrics.CdcEventsImportRate3min = statsReporter.EventsImportRateLast3Min
+	}
+
 	importDataPayload := callhome.ImportDataPhasePayload{
 		PayloadVersion:   callhome.IMPORT_DATA_CALLHOME_PAYLOAD_VERSION,
 		ParallelJobs:     int64(tconf.Parallelism),
@@ -116,25 +143,8 @@ func packAndSendImportDataToSrcReplicaPayload(status string, errorMsg error) {
 		LiveWorkflowType: FALL_FORWARD,
 		Error:            callhome.SanitizeErrorMsg(errorMsg),
 		ControlPlaneType: getControlPlaneType(),
-	}
-	importRowsMap, err := getImportedSnapshotRowsMap("source-replica")
-	if err != nil {
-		log.Infof("callhome: error in getting the import data: %v", err)
-	} else {
-		importRowsMap.IterKV(func(key sqlname.NameTuple, value RowCountPair) (bool, error) {
-			importDataPayload.TotalRows += value.Imported
-			if value.Imported > importDataPayload.LargestTableRows {
-				importDataPayload.LargestTableRows = value.Imported
-			}
-			return true, nil
-		})
-	}
-
-	importDataPayload.Phase = importPhase
-
-	if importPhase != dbzm.MODE_SNAPSHOT && statsReporter != nil {
-		importDataPayload.EventsImportRate = statsReporter.EventsImportRateLast3Min
-		importDataPayload.TotalImportedEvents = statsReporter.TotalEventsImported
+		DataMetrics:      dataMetrics,
+		Phase:            importPhase,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataPayload)
