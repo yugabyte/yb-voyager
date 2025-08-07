@@ -353,3 +353,15 @@ func (o *ObjectNameQualifiedWithTableName) CatalogName() string {
 func (o *ObjectNameQualifiedWithTableName) GetObjectONTableFormatString() string {
 	return fmt.Sprintf("%s ON %s", o.ObjectName, o.TableName.Qualified.MinQuoted)
 }
+
+func (o *ObjectNameQualifiedWithTableName) Key() string {
+	return o.CatalogName()
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetQualifiedTableName() string {
+	return o.TableName.Qualified.MinQuoted
+}
+
+func (o *ObjectNameQualifiedWithTableName) GetObjectName() string {
+	return o.ObjectName
+}

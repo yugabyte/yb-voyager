@@ -39,6 +39,7 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
@@ -765,7 +766,7 @@ func clearAssessmentRecommendationsApplied() {
 	}
 }
 
-func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
+func applyPerformanceOptimizationsAndGenerateReport() ([]*sqlname.ObjectNameQualifiedWithTableName, error) {
 	if skipPerfOptimizations {
 		log.Infof("not applying performance optimizations due to flag --skip-performance-optimizations=true")
 		return nil, nil
@@ -808,7 +809,7 @@ func applyPerformanceOptimizationsAndGenerateReport() ([]string, error) {
 	return redundantIndexes, nil
 }
 
-func removeRedundantIndexes(fileName string) ([]string, error) {
+func removeRedundantIndexes(fileName string) ([]*sqlname.ObjectNameQualifiedWithTableName, error) {
 	//fetching redundanant indexes from assessment db
 	//assuming that assessment is run and fetched the redundant indexes
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
@@ -853,18 +854,21 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	}
 
 	var removedSqlStmts []string
-	for indexName, stmt := range removedIndexToStmtMap {
+	var removedIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
 		//Add the existing index ddl in the comments for the individual redundant index
-		stmtStr, err := queryparser.DeparseRawStmt(stmt)
+		stmtStr, err := queryparser.DeparseRawStmt(value)
 		if err != nil {
-			return nil, fmt.Errorf("failed to deparse removed index stmt: %w", err)
+			return false, fmt.Errorf("failed to deparse removed index stmt: %w", err)
 		}
-		if existingIndex, ok := redundantIndexToResolvedExistingIndex[indexName]; ok {
+		if existingIndex, ok := redundantIndexToResolvedExistingIndex[key.CatalogName()]; ok {
 			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
 				existingIndex, stmtStr)
 		}
 		removedSqlStmts = append(removedSqlStmts, stmtStr)
-	}
+		removedIndexes = append(removedIndexes, key)
+		return true, nil
+	})
 
 	// Write the removed indexes to a file
 	reundantIndexesFileName := filepath.Join(filepath.Dir(fileName), "redundant_indexes.sql")
@@ -884,5 +888,5 @@ func removeRedundantIndexes(fileName string) ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to write transformed table.sql file: %w", err)
 	}
-	return lo.Keys(removedIndexToStmtMap), nil
+	return removedIndexes, nil
 }
