@@ -1157,14 +1157,14 @@ Returns:
 func getExpDataNumNodesImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
 	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeNumNodesImpact, error) {
 	selectQuery := fmt.Sprintf(`
-		SELECT num_nodes, 
+		SELECT number_of_nodes, 
 			   multiplication_factor_sharded,
 			   multiplication_factor_colocated
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
 		AND yb_version_id = ? 
-		ORDER BY num_nodes;
+		ORDER BY number_of_nodes;
 	`, LOAD_TIME_NUM_NODES_IMPACT_TABLE)
 	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
 
