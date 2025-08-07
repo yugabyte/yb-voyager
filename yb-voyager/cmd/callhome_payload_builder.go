@@ -117,6 +117,11 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 
 	anonymizedIssues := anonymizeAssessmentIssuesForCallhomePayload(assessmentReport.Issues)
 
+	// replacing anonymized sql statements in the issues with empty string for now, till existing issues are fixed
+	for i := 0; i < len(anonymizedIssues); i++ {
+		anonymizedIssues[i].SqlStatement = ""
+	}
+
 	var callhomeSizingAssessment callhome.SizingCallhome
 	if assessmentReport.Sizing != nil {
 		sizingRecommedation := &assessmentReport.Sizing.SizingRecommendation
@@ -242,10 +247,13 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 	return anonymizedDetails
 }
 
+var DDL_ANONYMIZATION_FEATURE_ENABLED = false
+
 func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	// env var to enable sending anonymized DDLs to call home
 	// Note: enabled by default
-	if !utils.GetEnvAsBool("SEND_ANONYMIZED_DDLS", true) {
+	if !utils.GetEnvAsBool("SEND_ANONYMIZED_DDLS", DDL_ANONYMIZATION_FEATURE_ENABLED) {
+		log.Infof("DDL anonymization feature is disabled")
 		return []string{}
 	}
 

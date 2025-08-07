@@ -351,7 +351,7 @@ func init() {
 	BoolVar(exportSchemaCmd.Flags(), &skipRecommendations, "skip-recommendations", false,
 		"disable applying recommendations in the exported schema suggested by the migration assessment report")
 
-	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", true, // TODO: change it to false after QA
+	BoolVar(exportSchemaCmd.Flags(), &skipPerfOptimizations, "skip-performance-optimizations", false,
 		"disable automatically applying performance optimizations in the exported schema.")
 
 	exportSchemaCmd.Flags().StringVar(&assessmentReportPath, "assessment-report-path", "",
