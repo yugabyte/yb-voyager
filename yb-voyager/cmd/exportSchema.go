@@ -726,12 +726,16 @@ func clearAssessmentRecommendationsApplied() {
 }
 
 func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, error) {
+	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
+	if !utils.FileOrFolderExists(tableFilePath) {
+		log.Infof("TABLE file doesn't exists, skipping table file transformations")
+		return nil, nil
+	}
 
 	skipMergeConstraints := utils.GetEnvAsBool("YB_VOYAGER_SKIP_MERGE_CONSTRAINTS_TRANSFORMATIONS", false)
 
 	tableTransformer := sqltransformer.NewTableFileTransformer(skipMergeConstraints, source.DBType)
 
-	tableFilePath := utils.GetObjectFilePath(schemaDir, TABLE)
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform table file: %w", err)
@@ -742,8 +746,14 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, error) {
 
-	if bool(skipPerfOptimizations) || source.DBType != POSTGRESQL {
-		log.Infof("skipping performance optimizations for index file transformations")
+	if source.DBType != POSTGRESQL {
+		log.Infof("skipping index file transformations for source db type %s", source.DBType)
+		return nil, nil
+	}
+
+	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
+	if !utils.FileOrFolderExists(indexFilePath) {
+		log.Infof("INDEX file doesn't exists, skipping index file transformations")
 		return nil, nil
 	}
 
@@ -758,7 +768,6 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
 
-	indexFilePath := utils.GetObjectFilePath(schemaDir, INDEX)
 	backUpFile, err := indexTransformer.Transform(indexFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to transform index file: %w", err)

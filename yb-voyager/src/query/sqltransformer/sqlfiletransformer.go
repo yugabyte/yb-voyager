@@ -62,12 +62,6 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
 	backUpFile := fmt.Sprintf("%s.orig", file)
-
-	if !utils.FileOrFolderExists(file) {
-		log.Infof("%s file doesn't exists, skipping any transformations", file)
-		return "", nil
-	}
-
 	//copy files
 	err = utils.CopyFile(file, backUpFile)
 	if err != nil {
@@ -135,11 +129,6 @@ func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string) *Ta
 func (t *TableFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
-
-	if !utils.FileOrFolderExists(file) {
-		log.Infof("%s file doesn't exists, skipping any transformations", file)
-		return "", nil
-	}
 	//TODO: Keep the format of backup file as <file>.orig but for now making it
 	// after merging the sharding changes in this transformer
 	backUpFile := filepath.Join(filepath.Dir(file), "table_before_merge_constraints.sql")
@@ -183,36 +172,3 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 
 	return backUpFile, nil
 }
-
-/*
-File transformer
-	Index sql file transformer
-		skipPerformanceOptimizations
-		sourceDBType
-		redundantIndexesToRemove
-		removedRedundantIndexes
-		modifiedIndexesToRange
-
-		Transform(file) backupfile
-			stmt = parse(file)
-			removedRedundantIndexes, stmts = sqlTransformer.RemoveRedundantIndexes(stmts)
-			stmts = sqlTransformer.ModifyIndexesToRange(stmts)
-			..
-			create backup file
-			sqlTransformer.WriteToFile(file, stmts)
-
-	Table sql file transformer
-
-	Mview
-
-
-
-	TransformIndexFile(file, inputArgs) (backupfile, outputArgs)
-			stmt = parse(file)
-			removedRedundantIndexes, stmts = sqlTransformer.RemoveRedundantIndexes(stmts)
-			stmts = sqlTransformer.ModifyIndexesToRange(stmts)
-			..
-			create backup file
-			sqlTransformer.WriteToFile(file, stmts)
-
-*/
