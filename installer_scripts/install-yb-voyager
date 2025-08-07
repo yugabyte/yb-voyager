@@ -29,9 +29,10 @@ DEBEZIUM_LOCAL_VERSION="2.5.2"
 DEBEZIUM_LOCAL_VERSION_1X="1.9.5"
 DEBEZIUM_LOCAL_POM_FILE="pom.xml"
 DEBEZIUM_LOCAL_POM_FILE_1X="195pom.xml"
-DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"2b5eb9f485d6a0e54c9af4e6a99d3abaa6839a95"}
-DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"1b9f1a87c35bc111ac44f875024c8068efe43e51"}
-DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"78ff67c054bec08bcad060968b24bfc9ba8b2112"}
+# DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"2b5eb9f485d6a0e54c9af4e6a99d3abaa6839a95"}
+DEBEZIUM_LOCAL_REF=${DEBEZIUM_LOCAL_REF:-"94b30fa9409ee75818e5ef338098dc5a8ce66353"}
+DEBEZIUM_LOCAL_SERVER_REF=${DEBEZIUM_LOCAL_SERVER_REF:-"d514acaa3da0b24bf9c8c395e314a1aff124c827"}
+DEBEZIUM_LOCAL_REF_1X=${DEBEZIUM_LOCAL_REF_1X:-"3b101d509e652b08f795cd5fe7e0d6432778f35a"}
 DEBEZIUM_LOCAL_INSTALLATION_DESTINATION=${DEBEZIUM_LOCAL_INSTALLATION_DESTINATION:-"/opt/yb-voyager"}
 DEBEZIUM_YUGABYTE_CONNECTOR_URL="https://github.com/yugabyte/debezium-connector-yugabytedb/releases/download/vdz.1.9.5.yb.grpc.2024.2.3/debezium-connector-yugabytedb-dz.1.9.5.yb.grpc.2024.2.3.jar"
 DEBEZIUM_YUGABYTE_LOGICAL_REPLICATOR_CONNECTOR_URL="https://github.com/yugabyte/debezium/releases/download/dz.2.5.2.yb.2024.2.3/debezium-connector-yugabytedb-dz.2.5.2.yb.2024.2.3-jar-with-dependencies.jar"
@@ -411,7 +412,7 @@ install_debezium_local() {
 	tar -xzvf debezium.tar.gz 1>&2
 	# build
 	cd "debezium-$1"
-	mvn -ntp clean install -Dquick  1>&2
+	mvn -ntp clean install -Dquick -Dmaven.test.skip=true 1>&2
 
 	# cleanup
 	cd ..
@@ -426,7 +427,7 @@ install_debezium_server_local() {
 	tar -xzvf debezium-server.tar.gz 1>&2
 	# build
 	cd "debezium-server-$1"
-	mvn -ntp clean install -Dquick  1>&2
+	mvn -ntp clean install -Dquick -Dmaven.test.skip=true 1>&2
 
 	# cleanup
 	cd ..
@@ -463,7 +464,7 @@ assemble_debezium_server_voyager_local() {
 	fi
 	pushd $REPO_ROOT/debezium-server-voyager/debezium-server-voyager-dist > /dev/null
 	mvn -ntp clean install -Dquick -f ${pom}  1>&2
-	mvn -ntp package -Passembly -Dquick -f ${pom}  1>&2
+	mvn -ntp package -Passembly -Dquick -DskipNonCore -f ${pom}  1>&2
 
 	mkdir -p $REPO_ROOT/debezium-server-voyager/target
 	cp "target/debezium-server-voyager-dist-${dbzm_version}.Final.tar.gz" $REPO_ROOT/debezium-server-voyager/target/
