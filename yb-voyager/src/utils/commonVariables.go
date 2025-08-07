@@ -175,23 +175,29 @@ type RedundantIndexesInfo struct {
 }
 
 func (r *RedundantIndexesInfo) GetRedundantIndexObjectName() string {
-	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
-	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+	sqlName := r.GetRedundantIndexObjectNameWithTableName()
+	return sqlName.MinQualified.MinQuoted
 }
 
 func (r *RedundantIndexesInfo) GetExistingIndexObjectName() string {
-	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingTableName)
-	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.ExistingSchemaName, r.ExistingIndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.MinQuoted, tableObjectName.MinQualified.MinQuoted)
+	sqlName := r.GetExistingIndexObjectNameWithTableName()
+	return sqlName.MinQualified.MinQuoted
 }
 
 func (r *RedundantIndexesInfo) GetRedundantIndexCatalogObjectName() string {
-	tableObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantTableName)
-	indexSQlObjectName := sqlname.NewObjectName(r.DBType, "", r.RedundantSchemaName, r.RedundantIndexName)
-	return fmt.Sprintf("%s ON %s", indexSQlObjectName.Unqualified.Unquoted, tableObjectName.Qualified.Unquoted)
+	sqlName := r.GetRedundantIndexObjectNameWithTableName()
+	return sqlName.Qualified.Unquoted
 }
 
+func (r *RedundantIndexesInfo) GetRedundantIndexObjectNameWithTableName() *sqlname.ObjectNameQualifiedWithTableName {
+	objectNameWithTableName := sqlname.NewObjectNameQualifiedWithTableName(r.DBType, "", r.RedundantIndexName, r.RedundantSchemaName, r.RedundantTableName)
+	return objectNameWithTableName
+}
+
+func (r *RedundantIndexesInfo) GetExistingIndexObjectNameWithTableName() *sqlname.ObjectNameQualifiedWithTableName {
+	objectNameWithTableName := sqlname.NewObjectNameQualifiedWithTableName(r.DBType, "", r.ExistingIndexName, r.ExistingSchemaName, r.ExistingTableName)
+	return objectNameWithTableName
+}
 type ColumnStatistics struct {
 	DBType              string
 	SchemaName          string
