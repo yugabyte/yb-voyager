@@ -27,13 +27,14 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 type IndexFileTransformer struct {
 	skipPerformanceOptimizations bool
 	sourceDBType                 string
 	redundantIndexesToRemove     map[string]string
-	RemovedRedundantIndexes      []string
+	RemovedRedundantIndexes      []*sqlname.ObjectNameQualifiedWithTableName
 	ModifiedIndexesToRange       []string
 	RedundantIndexesFileName     string
 }
@@ -41,7 +42,7 @@ type IndexFileTransformer struct {
 func NewIndexFileTransformer(redundantIndexesToRemove map[string]string, skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
 	return &IndexFileTransformer{
 		redundantIndexesToRemove:     redundantIndexesToRemove,
-		RemovedRedundantIndexes:      make([]string, 0),
+		RemovedRedundantIndexes:      make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
 		ModifiedIndexesToRange:       make([]string, 0),
 		skipPerformanceOptimizations: skipPerformanceOptimizations,
 		sourceDBType:                 sourceDBType,

@@ -776,11 +776,6 @@ func generateAssessmentReport() (err error) {
 	addAssessmentIssuesForUnsupportedDatatypes(unsupportedDataTypes)
 
 	addMigrationCaveatsToAssessmentReport(unsupportedDataTypesForLiveMigration, unsupportedDataTypesForLiveMigrationWithFForFB)
-
-	err = addAssessmentIssuesForRedundantIndex()
-	if err != nil {
-		return fmt.Errorf("error in getting redundant index issues: %w", err)
-	}
 	// calculating migration complexity after collecting all assessment issues
 	complexity, explanation := calculateMigrationComplexityAndExplanation(source.DBType, schemaDir, assessmentReport)
 	log.Infof("migration complexity: %q and explanation: %q", complexity, explanation)
@@ -837,7 +832,58 @@ func fetchRedundantIndexInfoFromAssessmentDB() ([]utils.RedundantIndexesInfo, er
 		redundantIndex.DBType = source.DBType
 		redundantIndexesInfo = append(redundantIndexesInfo, redundantIndex)
 	}
-	return redundantIndexesInfo, nil
+
+	resolvedRedundantIndexes := getResolvedRedundantIndexes(redundantIndexesInfo)
+
+	return resolvedRedundantIndexes, nil
+}
+
+func getResolvedRedundantIndexes(redundantIndexes []utils.RedundantIndexesInfo) []utils.RedundantIndexesInfo {
+
+	redundantIndexToInfo := make(map[string]utils.RedundantIndexesInfo)
+
+	//This function helps in resolving the existing index in cases where existing index is also a redundant index on some other index
+	//So in such cases we need to report the main existing index.
+	/*
+		e.g. INDEX idx1 on t(id); INDEX idx2 on t(id, id1); INDEX idx3 on t(id, id1,id2);
+		redundant index coming from the script can have
+		Redundant - idx1, Existing idx2
+		Redundant - idx2, Existing idx3
+		So in this case we need to report it like
+		Redundant - idx1, Existing idx3
+		Redundant - idx2, Existing idx3
+	*/
+	getRootRedundantIndexInfo := func(currRedundantIndexInfo utils.RedundantIndexesInfo) utils.RedundantIndexesInfo {
+		for {
+			existingIndexOfCurrRedundant := currRedundantIndexInfo.GetExistingIndexObjectName()
+			nextRedundantIndexInfo, ok := redundantIndexToInfo[existingIndexOfCurrRedundant]
+			if !ok {
+				return currRedundantIndexInfo
+			}
+			currRedundantIndexInfo = nextRedundantIndexInfo
+		}
+	}
+	for _, redundantIndex := range redundantIndexes {
+		redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+	}
+	for _, redundantIndex := range redundantIndexes {
+		rootIndexInfo := getRootRedundantIndexInfo(redundantIndex)
+		rootExistingIndex := rootIndexInfo.GetExistingIndexObjectName()
+		currentExistingIndex := redundantIndex.GetExistingIndexObjectName()
+		if rootExistingIndex != currentExistingIndex {
+			//If existing index was redundant index then after figuring out the actual existing index use that to report existing index
+			redundantIndex.ExistingIndexName = rootIndexInfo.ExistingIndexName
+			redundantIndex.ExistingSchemaName = rootIndexInfo.ExistingSchemaName
+			redundantIndex.ExistingTableName = rootIndexInfo.ExistingTableName
+			redundantIndex.ExistingIndexDDL = rootIndexInfo.ExistingIndexDDL
+			redundantIndexToInfo[redundantIndex.GetRedundantIndexObjectName()] = redundantIndex
+		}
+	}
+	var redundantIndexesRes []utils.RedundantIndexesInfo
+	for _, redundantIndexInfo := range redundantIndexToInfo {
+		redundantIndexesRes = append(redundantIndexesRes, redundantIndexInfo)
+	}
+	return redundantIndexesRes
 }
 
 func fetchColumnStatisticsInfo() ([]utils.ColumnStatistics, error) {
@@ -879,26 +925,6 @@ func fetchAndSetColumnStatisticsForIndexIssues() error {
 	}
 	//passing it on to the parser issue detector to enable it for detecting issues using this.
 	parserIssueDetector.SetColumnStatistics(columnStats)
-	return nil
-}
-
-func addAssessmentIssuesForRedundantIndex() error {
-	if source.DBType != POSTGRESQL {
-		return nil
-	}
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
-	if err != nil {
-		return fmt.Errorf("error fetching redundant index information: %w", err)
-	}
-
-	var redundantIssues []queryissue.QueryIssue
-	redundantIssues = append(redundantIssues, queryissue.GetRedundantIndexIssues(redundantIndexesInfo)...)
-	for _, issue := range redundantIssues {
-
-		convertedAnalyzeIssue := convertIssueInstanceToAnalyzeIssue(issue, "", false, false)
-		convertedIssue := convertAnalyzeSchemaIssueToAssessmentIssue(convertedAnalyzeIssue, issue.MinimumVersionsFixedIn)
-		assessmentReport.AppendIssues(convertedIssue)
-	}
 	return nil
 }
 

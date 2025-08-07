@@ -22,6 +22,7 @@ import (
 	"testing"
 
 	log "github.com/sirupsen/logrus"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	testutils "github.com/yugabyte/yb-voyager/yb-voyager/test/utils"
 )

@@ -36,9 +36,9 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/sqltransformer"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
 var skipRecommendations utils.BoolStr
@@ -202,7 +202,7 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	var redundantIndexes []string
+	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
 	if indexTransformer != nil {
 		redundantIndexes = indexTransformer.RemovedRedundantIndexes
 	}
@@ -777,28 +777,18 @@ func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
 		return nil, fmt.Errorf("failed to create assessment db: %w", err)
 	}
 
-	redundantIndexesInfo, err := fetchRedundantIndexInfoFromAssessmentDB()
+	resolvedRedundantIndexes, err := fetchRedundantIndexInfoFromAssessmentDB()
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch redundant index info from assessment db: %w", err)
 	}
-	if len(redundantIndexesInfo) == 0 {
+	if len(resolvedRedundantIndexes) == 0 {
 		log.Infof("no redundant indexes found, skipping applying performance optimizations")
 	}
 
-	redundantIndexToResolvedExistingIndex := make(map[string]string)
-
-	//using issues here as this GetRedundantIndexIssues already resolves the existing index to the correct final one so using it right now
-	//but once we remvoe the reporting of issues we can modify this function to resolve that and give a required map directly
-	//TODO: revisit this index object name check to properly done on each item of index qualified name instead of some formatted string.
-	redundantIssues := queryissue.GetRedundantIndexIssues(redundantIndexesInfo)
-	//Find the resolved Existing index DDL from the redundant issues
-	for _, issue := range redundantIssues {
-		for _, info := range redundantIndexesInfo {
-			if issue.ObjectName == info.GetRedundantIndexObjectName() {
-				redundantIndexToResolvedExistingIndex[info.GetRedundantIndexCatalogObjectName()] = issue.Details[queryissue.EXISTING_INDEX_SQL_STATEMENT].(string)
-				break
-			}
-		}
+	redundantIndexToResolvedExistingIndex := make(map[string]string) //Find the resolved Existing index DDL from the redundant issues
+	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
+		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
+		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
 	}
 	return redundantIndexToResolvedExistingIndex, nil
 }
