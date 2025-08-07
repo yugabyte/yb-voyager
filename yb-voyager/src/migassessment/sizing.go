@@ -90,6 +90,12 @@ type ExpDataLoadTimeColumnsImpact struct {
 	multiplicationFactorColocated sql.NullFloat64 `db:"multiplication_factor_colocated,string"`
 }
 
+type ExpDataLoadTimeNumNodesImpact struct {
+	numNodes                      sql.NullInt64   `db:"num_nodes,string"`
+	multiplicationFactorSharded   sql.NullFloat64 `db:"multiplication_factor_sharded,string"`
+	multiplicationFactorColocated sql.NullFloat64 `db:"multiplication_factor_colocated,string"`
+}
+
 type IntermediateRecommendation struct {
 	ColocatedTables                 []SourceDBMetadata
 	ShardedTables                   []SourceDBMetadata
@@ -112,13 +118,14 @@ type ExperimentDataAvailableYbVersion struct {
 }
 
 const (
-	COLOCATED_LIMITS_TABLE         = "colocated_limits"
-	COLOCATED_SIZING_TABLE         = "colocated_sizing"
-	SHARDED_SIZING_TABLE           = "sharded_sizing"
-	COLOCATED_LOAD_TIME_TABLE      = "colocated_load_time"
-	SHARDED_LOAD_TIME_TABLE        = "sharded_load_time"
-	LOAD_TIME_INDEX_IMPACT_TABLE   = "load_time_index_impact"
-	LOAD_TIME_COLUMNS_IMPACT_TABLE = "load_time_columns_impact"
+	COLOCATED_LIMITS_TABLE           = "colocated_limits"
+	COLOCATED_SIZING_TABLE           = "colocated_sizing"
+	SHARDED_SIZING_TABLE             = "sharded_sizing"
+	COLOCATED_LOAD_TIME_TABLE        = "colocated_load_time"
+	SHARDED_LOAD_TIME_TABLE          = "sharded_load_time"
+	LOAD_TIME_INDEX_IMPACT_TABLE     = "load_time_index_impact"
+	LOAD_TIME_COLUMNS_IMPACT_TABLE   = "load_time_columns_impact"
+	LOAD_TIME_NUM_NODES_IMPACT_TABLE = "load_time_num_nodes_impact"
 	// GITHUB_RAW_LINK use raw github link to fetch the file from repository using the api:
 	// https://raw.githubusercontent.com/{username-or-organization}/{repository}/{branch}/{path-to-file}
 	GITHUB_RAW_LINK                 = "https://raw.githubusercontent.com/yugabyte/yb-voyager/main/yb-voyager/src/migassessment/resources"
@@ -257,10 +264,18 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 		return fmt.Errorf("error while fetching experiment data for impact of number of columns on load time: %w", err)
 	}
 
+	// get experimental data for impact of number of nodes on import time
+	numNodesImpactOnLoadTimeCommon, err := getExpDataNumNodesImpactOnLoadTime(experimentDB,
+		finalSizingRecommendation.VCPUsPerInstance, finalSizingRecommendation.MemoryPerCore, ybVersionIdToUse)
+	if err != nil {
+		return fmt.Errorf("error while fetching experiment data for impact of number of nodes on load time: %w", err)
+	}
+
 	// calculate time taken for colocated import
 	importTimeForColocatedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ColocatedTables, sourceIndexMetadata, colocatedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, COLOCATED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, numNodesImpactOnLoadTimeCommon,
+		finalSizingRecommendation.NumNodes, COLOCATED)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for colocated data import: %v", err)
 		return fmt.Errorf("calculate time taken for colocated data import: %w", err)
@@ -269,7 +284,8 @@ func SizingAssessment(targetDbVersion *ybversion.YBVersion) error {
 	// calculate time taken for sharded import
 	importTimeForShardedObjects, err := calculateTimeTakenForImport(
 		finalSizingRecommendation.ShardedTables, sourceIndexMetadata, shardedLoadTimes,
-		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, SHARDED)
+		indexImpactOnLoadTimeCommon, columnsImpactOnLoadTimeCommon, numNodesImpactOnLoadTimeCommon,
+		finalSizingRecommendation.NumNodes, SHARDED)
 	if err != nil {
 		SizingReport.FailureReasoning = fmt.Sprintf("calculate time taken for sharded data import: %v", err)
 		return fmt.Errorf("calculate time taken for sharded data import: %w", err)
@@ -924,7 +940,7 @@ func createSizingRecommendationStructure(colocatedLimits []ExpDataColocatedLimit
 calculateTimeTakenForImport estimates the time taken for import of tables.
 It queries experimental data to find import time estimates for similar object sizes and configurations. For every table
 , it tries to find out how much time it would table for importing that table. The function adjusts the
-import time on that table by multiplying it by factor based on the indexes. The import time is also converted to
+import time on that table by multiplying it by factor based on the indexes, columns, and number of nodes. The import time is also converted to
 minutes and returned.
 Parameters:
 
@@ -932,6 +948,9 @@ Parameters:
 	sourceIndexMetadata: A slice containing metadata for the indexes of the database objects to be migrated.
 	loadTimes: Experiment data for impact of load times on tables
 	indexImpacts: Data containing impact of indexes on load time.
+	numColumnImpactData: Data containing impact of number of columns on load time.
+	numNodesImpactData: Data containing impact of number of nodes on load time.
+	numNodes: The number of nodes in the cluster.
 	objectType: COLOCATED or SHARDED
 
 Returns:
@@ -942,6 +961,7 @@ Returns:
 func calculateTimeTakenForImport(tables []SourceDBMetadata,
 	sourceIndexMetadata []SourceDBMetadata, loadTimes []ExpDataLoadTime,
 	indexImpactData []ExpDataLoadTimeIndexImpact, numColumnImpactData []ExpDataLoadTimeColumnsImpact,
+	numNodesImpactData []ExpDataLoadTimeNumNodesImpact, numNodes float64,
 	objectType string) (float64, error) {
 	var importTime float64
 
@@ -959,10 +979,13 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 		// get multiplication factor for every table based on the number of columns in the table
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
 			numColumnImpactData, objectType)
+		// get multiplication factor for every table based on the number of nodes in the cluster
+		loadTimeMultiplicationFactorWrtNumNodes := getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes,
+			numNodesImpactData, objectType)
 
 		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// add maximum import time to total import time by converting it to minutes
-		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * tableImportTimeSec) / 60
+		importTime += (loadTimeMultiplicationFactorWrtIndexes * loadTimeMultiplicationFactorWrtNumColumns * loadTimeMultiplicationFactorWrtNumNodes * tableImportTimeSec) / 60
 	}
 
 	return math.Ceil(importTime), nil
@@ -1117,6 +1140,56 @@ func getExpDataNumColumnsImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance 
 }
 
 /*
+getExpDataNumNodesImpactOnLoadTime fetches data for impact of number of nodes on load time from the experiment
+data table.
+Parameters:
+
+	experimentDB: Connection to the experiment database
+	vCPUPerInstance: Number of virtual CPUs per instance.
+	memPerCore: Memory per core.
+	ybVersionIdToUse: yb version id to use w.r.t. given target yb version.
+
+Returns:
+
+	[]ExpDataLoadTimeNumNodesImpact: A slice containing the fetched load time information based on number of nodes.
+	error: Error if any.
+*/
+func getExpDataNumNodesImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
+	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeNumNodesImpact, error) {
+	selectQuery := fmt.Sprintf(`
+		SELECT num_nodes, 
+			   multiplication_factor_sharded,
+			   multiplication_factor_colocated
+		FROM %v 
+		WHERE num_cores = ? 
+			AND mem_per_core = ?
+		AND yb_version_id = ? 
+		ORDER BY num_nodes;
+	`, LOAD_TIME_NUM_NODES_IMPACT_TABLE)
+	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
+
+	if err != nil {
+		return nil, fmt.Errorf("error while fetching num nodes impact info with query [%s]: %w", selectQuery, err)
+	}
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			log.Warnf("failed to close result set for query: [%s]", selectQuery)
+		}
+	}()
+
+	var loadTimeNumNodesImpacts []ExpDataLoadTimeNumNodesImpact
+	for rows.Next() {
+		var loadTimeNumNodesImpact ExpDataLoadTimeNumNodesImpact
+		if err = rows.Scan(&loadTimeNumNodesImpact.numNodes, &loadTimeNumNodesImpact.multiplicationFactorSharded,
+			&loadTimeNumNodesImpact.multiplicationFactorColocated); err != nil {
+			return nil, fmt.Errorf("cannot fetch data from experiment data table with query [%s]: %w", selectQuery, err)
+		}
+		loadTimeNumNodesImpacts = append(loadTimeNumNodesImpacts, loadTimeNumNodesImpact)
+	}
+	return loadTimeNumNodesImpacts, nil
+}
+
+/*
 findImportTimeFromExpDataLoadTime finds the closest record from the experiment data based on row count or size
 of the table. Out of objects close in terms of size and rows, prefer object having number of rows.
 Parameters:
@@ -1259,6 +1332,76 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 	} else if objectType == SHARDED {
 		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorSharded.Float64,
 			(selectedImpact.multiplicationFactorSharded.Float64/float64(selectedImpact.numColumns.Int64))*float64(numOfColumnsInTable))
+	}
+
+	return multiplicationFactor
+}
+
+/*
+getMultiplicationFactorForImportTimeBasedOnNumNodes calculates the multiplication factor for import time based on
+number of nodes in the cluster.
+
+NOTE: For COLOCATED tables, the number of nodes does not impact load time as colocated tables are not distributed
+across nodes. Therefore, this function always returns 1.0 for COLOCATED object types.
+
+Parameters:
+
+	numNodes: The number of nodes in the cluster.
+	numNodesImpacts: A slice containing experimental data for the impact of number of nodes on load time.
+	objectType: COLOCATED or SHARDED
+
+Returns:
+
+	float64: The multiplication factor for import time based on the number of nodes in the cluster.
+*/
+func getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes float64,
+	numNodesImpacts []ExpDataLoadTimeNumNodesImpact, objectType string) float64 {
+	// For colocated tables, number of nodes does not impact load time since colocated tables
+	// are not distributed across nodes
+	if objectType == COLOCATED {
+		return 1.0
+	}
+
+	if len(numNodesImpacts) == 0 {
+		// if there are no experiment data records for num nodes impact, return 1
+		return 1
+	}
+
+	// Initialize the selectedImpact as nil and minDiff with a high value
+	var selectedImpact ExpDataLoadTimeNumNodesImpact
+	minDiff := float64(math.MaxFloat64)
+	found := false
+
+	for _, numNodesImpactData := range numNodesImpacts {
+		if float64(numNodesImpactData.numNodes.Int64) >= numNodes {
+			diff := float64(numNodesImpactData.numNodes.Int64) - numNodes
+			if diff < minDiff {
+				minDiff = diff
+				selectedImpact = numNodesImpactData
+				found = true
+			}
+		}
+	}
+
+	// If no suitable impact is found, use the one with the maximum NumNodes
+	if !found {
+		for _, numNodesImpactData := range numNodesImpacts {
+			if numNodesImpactData.numNodes.Int64 > selectedImpact.numNodes.Int64 {
+				selectedImpact = numNodesImpactData
+			}
+		}
+	}
+
+	var multiplicationFactor float64
+	// multiplication factor is different for colocated and sharded tables.
+	// multiplication factor would be maximum of the two:
+	//	max of (mf of selected entry from experiment data, mf for cluster wrt selected entry)
+	if objectType == COLOCATED {
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
+			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numNodes.Int64))*numNodes)
+	} else if objectType == SHARDED {
+		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorSharded.Float64,
+			(selectedImpact.multiplicationFactorSharded.Float64/float64(selectedImpact.numNodes.Int64))*numNodes)
 	}
 
 	return multiplicationFactor
