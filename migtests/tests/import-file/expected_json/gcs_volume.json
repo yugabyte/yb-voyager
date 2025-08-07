@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"gcs_volume\"",
+      "file_name": "volume1.csv",
+      "status": "DONE",
+      "total_count": 85083271,
+      "imported_count": 85083271,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

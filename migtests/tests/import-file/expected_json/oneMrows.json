@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"one_m_rows\"",
+      "file_name": "OneMRows.text",
+      "status": "DONE",
+      "total_count": 352299369,
+      "imported_count": 352299369,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

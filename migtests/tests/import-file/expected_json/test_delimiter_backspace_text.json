@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"test_delimiter_backspace_text\"",
+      "file_name": "test_delimiter_backspace_text.txt",
+      "status": "DONE",
+      "total_count": 73,
+      "imported_count": 73,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

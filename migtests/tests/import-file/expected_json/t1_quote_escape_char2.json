@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_quote_escape_char2\"",
+      "file_name": "t1_quote_escape_char2.csv",
+      "status": "DONE",
+      "total_count": 65,
+      "imported_count": 65,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

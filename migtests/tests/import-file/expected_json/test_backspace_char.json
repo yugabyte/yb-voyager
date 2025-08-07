@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"test_backspace_char\"",
+      "file_name": "test_backspace_char.csv",
+      "status": "DONE",
+      "total_count": 101,
+      "imported_count": 101,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"gcs_csv_with_header\"",
+      "file_name": "csv_with_header_test.csv",
+      "status": "DONE",
+      "total_count": 24,
+      "imported_count": 24,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

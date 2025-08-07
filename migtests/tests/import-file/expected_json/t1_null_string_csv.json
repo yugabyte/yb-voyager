@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_null_string_csv\"",
+      "file_name": "t1_null_string_csv.csv",
+      "status": "DONE",
+      "total_count": 71,
+      "imported_count": 71,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_escape_backslash\"",
+      "file_name": "t1_escape_backslash.csv",
+      "status": "DONE",
+      "total_count": 73,
+      "imported_count": 73,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

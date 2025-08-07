@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"survey\"",
+      "file_name": "FY2021_Survey.csv",
+      "status": "DONE",
+      "total_count": 6575476,
+      "imported_count": 6575476,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

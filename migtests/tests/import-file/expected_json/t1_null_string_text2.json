@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_null_string_text2\"",
+      "file_name": "t1_null_string_text2.txt",
+      "status": "DONE",
+      "total_count": 60,
+      "imported_count": 60,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

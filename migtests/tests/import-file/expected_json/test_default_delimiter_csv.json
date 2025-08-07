@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"test_default_delimiter_csv\"",
+      "file_name": "test_default_delimiter_csv.csv",
+      "status": "DONE",
+      "total_count": 36,
+      "imported_count": 36,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

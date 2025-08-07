@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "non_public.\"smsa\"",
+      "file_name": "SMSA.txt",
+      "status": "DONE",
+      "total_count": 4929,
+      "imported_count": 4929,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

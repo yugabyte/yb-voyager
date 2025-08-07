@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"t1_quote_char\"",
+      "file_name": "t1_quote_char.csv",
+      "status": "DONE",
+      "total_count": 65,
+      "imported_count": 65,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  

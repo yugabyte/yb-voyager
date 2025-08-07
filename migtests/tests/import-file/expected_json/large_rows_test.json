@@ -1,0 +1,12 @@
+[
+    {
+      "table_name": "public.\"large_rows_test\"",
+      "file_name": "large_rows_test.txt",
+      "status": "DONE",
+      "total_count": 48036235,
+      "imported_count": 48036235,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  
