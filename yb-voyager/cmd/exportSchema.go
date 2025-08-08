@@ -739,13 +739,11 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
-		// In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		errMsg := fmt.Errorf("failed to transform file %s: %w", tableFilePath, err)
-		if source.DBType != constants.POSTGRESQL {
-			log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
-			errMsg = nil
-		}
-		return nil, errMsg
+		//Skipping error in the case table file transformation errors out as for other DBTypes then PG it can fail to parse file sometimes
+		//And for PG the error scenario is rare so keeping the behavior same earlier Merge constraints transformation code path
+		//TODO: revisit this once we have more transformations - like PRIMARY KEY HASH performance optimization, sharded/colocated recommendations, etc..
+		log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
+		return nil, nil
 	}
 	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
 	return tableTransformer, nil
