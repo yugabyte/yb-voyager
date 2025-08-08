@@ -771,7 +771,7 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	var redundantIndexToResolvedExistingIndex map[string]string
 	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
 	if err != nil {
-		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w", err)
+		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
 
