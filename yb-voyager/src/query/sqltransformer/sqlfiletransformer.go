@@ -29,6 +29,11 @@ import (
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+const (
+	REMOVED_REDUNDANT_INDEXES_FILE_NAME = "redundant_indexes.sql"
+	SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG = "Use --skip-performance-optimizations true flag to skip applying performance optimizations to the index file"
+)
+
 // =========================INDEX FILE TRANSFORMER=====================================
 type IndexFileTransformer struct {
 	//skipping the performance optimizations with this parameter
@@ -87,12 +92,12 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 		var removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]
 		parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToExistingIndexToRemove)
 		if err != nil {
-			return "", fmt.Errorf("failed to remove redundant indexes: %w", err)
+			return "", fmt.Errorf("failed to remove redundant indexes: %w\n%s", err, SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		}
-		t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), "redundant_indexes.sql")
+		t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), REMOVED_REDUNDANT_INDEXES_FILE_NAME)
 		err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
 		if err != nil {
-			return "", fmt.Errorf("failed to write removed redundant indexes to file: %w", err)
+			return "", fmt.Errorf("failed to write removed redundant indexes to file: %w\n%s", err, SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		}
 
 	} else {

@@ -791,6 +791,11 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 }
 
 func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
+	if skipPerfOptimizations {
+		log.Infof("skipping fetching redundant index map from assessment db")
+		return nil, nil
+	}
+
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
 
