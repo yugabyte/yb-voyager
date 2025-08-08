@@ -300,13 +300,15 @@ var NonRetryCopyErrors = []string{
 	SYNTAX_ERROR,
 }
 
-// isDataIntegrityOrConstraintError checks if an error is a data integrity or constraint violation or syntax error
+// IsPgErrorCodeNonRetryable checks if an error is a data integrity or constraint violation or syntax error
 // by examining the SQLSTATE code.
 //
 // SQLSTATE Class 22: Data Exception (e.g., 22003=numeric overflow, 22P02=invalid syntax)
 // SQLSTATE Class 23: Integrity Constraint Violation (e.g., 23502=not null, 23505=unique)
+// SQLSTATE Class 42: Syntax Error or Access Rule Violation (e.g., 42601=syntax error, 42501=insufficient privilege, 42P01=undefined table, 42703=undefined column)
+//
 // Postgres Error Codes: https://www.postgresql.org/docs/current/errcodes-appendix.html
-func isDataIntegrityOrConstraintError(err error) bool {
+func IsPgErrorCodeNonRetryable(err error) bool {
 	if err == nil {
 		return false
 	}
@@ -316,7 +318,7 @@ func isDataIntegrityOrConstraintError(err error) bool {
 	if errors.As(err, &pgErr) {
 		code := pgErr.Code
 
-		if strings.HasPrefix(code, "22") || strings.HasPrefix(code, "23") {
+		if strings.HasPrefix(code, "22") || strings.HasPrefix(code, "23") || strings.HasPrefix(code, "42") {
 			return true
 		}
 	}
@@ -331,7 +333,7 @@ func (yb *TargetYugabyteDB) IsNonRetryableCopyError(err error) bool {
 
 	// SQLSTATE-based filtering for non-retryable errors
 	// This should ideally cover all the non-retryable errors
-	if isDataIntegrityOrConstraintError(err) {
+	if IsPgErrorCodeNonRetryable(err) {
 		return true
 	}
 

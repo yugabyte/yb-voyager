@@ -503,7 +503,7 @@ func (pg *TargetPostgreSQL) IsNonRetryableCopyError(err error) bool {
 
 	// SQLSTATE-based filtering for non-retryable errors
 	// This should ideally cover all the non-retryable errors
-	if isDataIntegrityOrConstraintError(err) {
+	if IsPgErrorCodeNonRetryable(err) {
 		return true
 	}
 

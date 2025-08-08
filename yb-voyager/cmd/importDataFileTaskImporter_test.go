@@ -297,6 +297,7 @@ type testCase struct {
 	expectedRetryable bool
 	description       string
 	dataGenerator     func() string
+	columnsOverride   []string
 }
 
 func createTestCases() []testCase {
@@ -342,6 +343,22 @@ func createTestCases() []testCase {
 			expectedRetryable: false,
 			description:       "Should not retry bad copy file format errors",
 			dataGenerator:     createBadCopyFileFormatData,
+		},
+		{
+			name:              "plpgsql_raise_exception_p0001",
+			errorType:         "P0001",
+			expectedRetryable: true,
+			description:       "User-defined PL/pgSQL exception (class P0) should be treated as retryable",
+			dataGenerator:     createRaiseP0001Data,
+		},
+		{
+			name:              "undefined_column_non_22_23",
+			errorType:         "42703",
+			expectedRetryable: false,
+			description:       "Undefined column (class 42) should be treated as non-retryable",
+			dataGenerator:     createValidData,
+			// keep number of columns same as data; replace one valid column with a non-existing one to trigger 42703
+			columnsOverride: []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "non_existing_col", "date_col", "numeric_col"},
 		},
 		{
 			name:              "valid_data",
@@ -409,7 +426,53 @@ func createBadCopyFileFormatData() string {
 	return "108\t100\ttest\tunique108\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\textra_column_data\n"
 }
 
-func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple) *Batch {
+func ensureRaiseP0001ConstraintYB(t *testing.T, targetDB *tgtdb.TargetYugabyteDB) {
+	// Create function that raises P0001 when id=777 and add a CHECK constraint using it
+	ddl := []string{
+		`CREATE OR REPLACE FUNCTION test_schema.voyager_raise_on_777(cond boolean)
+RETURNS boolean AS $$
+BEGIN
+  IF cond THEN
+    RAISE EXCEPTION 'forced error' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;`,
+		`ALTER TABLE test_schema.error_test_table DROP CONSTRAINT IF EXISTS voyager_chk_raise_on_777;`,
+		`ALTER TABLE test_schema.error_test_table ADD CONSTRAINT voyager_chk_raise_on_777 CHECK (test_schema.voyager_raise_on_777(id=777));`,
+	}
+	for _, stmt := range ddl {
+		_, err := targetDB.Exec(stmt)
+		require.NoError(t, err, "failed to set up P0001 constraint: %s", stmt)
+	}
+}
+
+func ensureRaiseP0001ConstraintPG(t *testing.T, targetDB *tgtdb.TargetPostgreSQL) {
+	ddl := []string{
+		`CREATE OR REPLACE FUNCTION test_schema.voyager_raise_on_777(cond boolean)
+RETURNS boolean AS $$
+BEGIN
+  IF cond THEN
+    RAISE EXCEPTION 'forced error' USING ERRCODE = 'P0001';
+  END IF;
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql IMMUTABLE;`,
+		`ALTER TABLE test_schema.error_test_table DROP CONSTRAINT IF EXISTS voyager_chk_raise_on_777;`,
+		`ALTER TABLE test_schema.error_test_table ADD CONSTRAINT voyager_chk_raise_on_777 CHECK (test_schema.voyager_raise_on_777(id=777));`,
+	}
+	for _, stmt := range ddl {
+		_, err := targetDB.Exec(stmt)
+		require.NoError(t, err, "failed to set up P0001 constraint: %s", stmt)
+	}
+}
+
+func createRaiseP0001Data() string {
+	// Row with id=777 will trigger the plpgsql function to raise P0001
+	return "777\t100\ttest\tunique777\ttest\t100\t{1,2,3}\t2023-01-01\t123.45\n"
+}
+
+func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple) (*Batch, *tgtdb.ImportBatchArgs) {
 	// Create temporary batch file
 	tempDir := t.TempDir()
 	batchFilePath := filepath.Join(tempDir, "test_batch.sql")
@@ -417,7 +480,7 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 	err := os.WriteFile(batchFilePath, []byte(data), 0644)
 	require.NoError(t, err, "Failed to create batch file")
 
-	return &Batch{
+	batch := &Batch{
 		Number:       1,
 		TableNameTup: tableName,
 		SchemaName:   tableName.CurrentName.SchemaName,
@@ -429,6 +492,20 @@ func createBatchFromData(t *testing.T, data string, tableName sqlname.NameTuple)
 		ByteCount:    int64(len(data)),
 		Interrupted:  false,
 	}
+
+	args := &tgtdb.ImportBatchArgs{
+		TableNameTup:       tableName,
+		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "array_col", "date_col", "numeric_col"},
+		PrimaryKeyColumns:  []string{"id"},
+		PKConflictAction:   "ERROR",
+		FileFormat:         "csv",
+		HasHeader:          false,
+		Delimiter:          "\t",
+		NullString:         "\\N",
+		RowsPerTransaction: 1000,
+	}
+
+	return batch, args
 }
 
 func createTargetYugabyteDB(t *testing.T, container testcontainers.TestContainer) *tgtdb.TargetYugabyteDB {
@@ -462,21 +539,12 @@ func createTargetYugabyteDB(t *testing.T, container testcontainers.TestContainer
 }
 
 func testErrorDetection(t *testing.T, targetDB *tgtdb.TargetYugabyteDB, tc testCase) {
-	// Create batch with erroneous data
+	// Create batch and default args with erroneous data
 	tableName := sqlname.NameTuple{CurrentName: sqlname.NewObjectName(tgtdb.YUGABYTEDB, "test_schema", "test_schema", "error_test_table")}
-	batch := createBatchFromData(t, tc.dataGenerator(), tableName)
+	batch, args := createBatchFromData(t, tc.dataGenerator(), tableName)
 
-	// Create import batch args
-	args := &tgtdb.ImportBatchArgs{
-		TableNameTup:       tableName,
-		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "array_col", "date_col", "numeric_col"},
-		PrimaryKeyColumns:  []string{"id"},
-		PKConflictAction:   "ERROR",
-		FileFormat:         "csv",
-		HasHeader:          false,
-		Delimiter:          "\t",
-		NullString:         "\\N",
-		RowsPerTransaction: 1000,
+	if tc.columnsOverride != nil {
+		args.Columns = tc.columnsOverride
 	}
 
 	// Call ImportBatch method
@@ -545,6 +613,9 @@ func TestImportBatchErrorDetection_YugabyteDB(t *testing.T) {
 	// Create test table
 	createTestTableWithConstraints(t, ybContainer)
 
+	// Ensure P0001 constraint exists for the P0 class test
+	ensureRaiseP0001ConstraintYB(t, targetDB)
+
 	// Run test cases
 	testCases := createTestCases()
 	for _, tc := range testCases {
@@ -572,6 +643,9 @@ func TestImportBatchErrorDetection_PostgreSQL(t *testing.T) {
 
 	// Create test table
 	createTestTableWithConstraints(t, pgContainer)
+
+	// Ensure P0001 constraint exists for the P0 class test
+	ensureRaiseP0001ConstraintPG(t, targetDB)
 
 	// Run test cases
 	testCases := createTestCases()
@@ -613,21 +687,12 @@ func createTargetPostgreSQL(t *testing.T, container testcontainers.TestContainer
 }
 
 func testErrorDetectionPG(t *testing.T, targetDB *tgtdb.TargetPostgreSQL, tc testCase) {
-	// Create batch with erroneous data
+	// Create batch and default args with erroneous data
 	tableName := sqlname.NameTuple{CurrentName: sqlname.NewObjectName(tgtdb.POSTGRESQL, "test_schema", "test_schema", "error_test_table")}
-	batch := createBatchFromData(t, tc.dataGenerator(), tableName)
+	batch, args := createBatchFromData(t, tc.dataGenerator(), tableName)
 
-	// Create import batch args
-	args := &tgtdb.ImportBatchArgs{
-		TableNameTup:       tableName,
-		Columns:            []string{"id", "small_int_col", "varchar_col", "unique_col", "not_null_col", "check_col", "array_col", "date_col", "numeric_col"},
-		PrimaryKeyColumns:  []string{"id"},
-		PKConflictAction:   "ERROR",
-		FileFormat:         "csv",
-		HasHeader:          false,
-		Delimiter:          "\t",
-		NullString:         "\\N",
-		RowsPerTransaction: 1000,
+	if tc.columnsOverride != nil {
+		args.Columns = tc.columnsOverride
 	}
 
 	// Call ImportBatch method
