@@ -33,6 +33,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
+	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/cp"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/metadb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/migassessment"
@@ -738,7 +739,13 @@ func applyTableFileTransformations() (*sqltransformer.TableFileTransformer, erro
 
 	backUpFile, err := tableTransformer.Transform(tableFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform table file: %w", err)
+		// In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
+		errMsg := fmt.Errorf("failed to transform file %s: %w", tableFilePath, err)
+		if source.DBType != constants.POSTGRESQL {
+			log.Infof("skipping error while transforming file %s: %v", tableFilePath, err)
+			errMsg = nil
+		}
+		return nil, errMsg
 	}
 	log.Infof("Schema modifications are applied to TABLE DDLs and the original DDLs are backed up to %s", backUpFile)
 	return tableTransformer, nil
@@ -770,7 +777,13 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 
 	backUpFile, err := indexTransformer.Transform(indexFilePath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to transform index file: %w", err)
+		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
+		errMsg := fmt.Errorf("failed to transform file %s: %w", indexFilePath, err)
+		if source.DBType != constants.POSTGRESQL {
+			log.Infof("skipping error while transforming file %s: %v", indexFilePath, err)
+			errMsg = nil
+		}
+		return nil, errMsg
 	}
 	log.Infof("Schema modifications are applied to INDEX DDLs and the original file is backed up to %s", backUpFile)
 

@@ -159,7 +159,7 @@ func (t *Transformer) MergeConstraints(stmts []*pg_query.RawStmt) ([]*pg_query.R
 	return result, nil
 }
 
-func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, []string, []*sqlname.ObjectNameQualifiedWithTableName, error) {
+func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundantIndexesMap map[string]string) ([]*pg_query.RawStmt, *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt], error) {
 	log.Infof("removing redundant indexes from the schema")
 	var sqlStmts []*pg_query.RawStmt
 	removedIndexToStmtMap := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]()
@@ -179,22 +179,5 @@ func (t *Transformer) RemoveRedundantIndexes(stmts []*pg_query.RawStmt, redundan
 
 	}
 
-	var removedSqlStmts []string
-	var removedIndexes []*sqlname.ObjectNameQualifiedWithTableName
-	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
-		//Add the existing index ddl in the comments for the individual redundant index
-		stmtStr, err := queryparser.DeparseRawStmt(value)
-		if err != nil {
-			return false, fmt.Errorf("failed to deparse removed index stmt: %w", err)
-		}
-		if existingIndex, ok := redundantIndexesMap[key.CatalogName()]; ok {
-			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
-				existingIndex, stmtStr)
-		}
-		removedSqlStmts = append(removedSqlStmts, stmtStr)
-		removedIndexes = append(removedIndexes, key)
-		return true, nil
-	})
-
-	return sqlStmts, removedSqlStmts, removedIndexes, nil
+	return sqlStmts, removedIndexToStmtMap, nil
 }

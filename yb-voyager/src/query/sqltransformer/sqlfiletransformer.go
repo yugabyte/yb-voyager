@@ -24,28 +24,35 @@ import (
 	pg_query "github.com/pganalyze/pg_query_go/v6"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryparser"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils/sqlname"
 )
 
+// =========================INDEX FILE TRANSFORMER=====================================
 type IndexFileTransformer struct {
+	//skipping the performance optimizations with this parameter
 	skipPerformanceOptimizations bool
 	sourceDBType                 string
-	redundantIndexesToRemove     map[string]string
-	RemovedRedundantIndexes      []*sqlname.ObjectNameQualifiedWithTableName
-	ModifiedIndexesToRange       []string
-	RedundantIndexesFileName     string
+
+	//map of redundant index name to the existing index name to remove
+	redundantIndexesToExistingIndexToRemove map[string]string
+	//list of redundant indexes removed
+	RemovedRedundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	//file name of the backup of the redundant indexes DDL
+	RedundantIndexesFileName string
+
+	//list of modified secondary indexes to range-sharded indexes
+	ModifiedIndexesToRange []string
 }
 
 func NewIndexFileTransformer(redundantIndexesToRemove map[string]string, skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
 	return &IndexFileTransformer{
-		redundantIndexesToRemove:     redundantIndexesToRemove,
-		RemovedRedundantIndexes:      make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
-		ModifiedIndexesToRange:       make([]string, 0),
-		skipPerformanceOptimizations: skipPerformanceOptimizations,
-		sourceDBType:                 sourceDBType,
+		redundantIndexesToExistingIndexToRemove: redundantIndexesToRemove,
+		RemovedRedundantIndexes:                 make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
+		ModifiedIndexesToRange:                  make([]string, 0),
+		skipPerformanceOptimizations:            skipPerformanceOptimizations,
+		sourceDBType:                            sourceDBType,
 	}
 }
 
@@ -61,7 +68,7 @@ Output:
 func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
-	backUpFile := fmt.Sprintf("%s.orig", file)
+	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
 	//copy files
 	err = utils.CopyFile(file, backUpFile)
 	if err != nil {
@@ -70,32 +77,24 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 
 	parseTree, err = queryparser.ParseSqlFile(file)
 	if err != nil {
-		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		errMsg := fmt.Errorf("failed to parse %s: %w", file, err)
-		if t.sourceDBType != constants.POSTGRESQL {
-			log.Infof("skipping error while parsing %s: %v", file, err)
-			errMsg = nil
-		}
-		return "", errMsg
+		return "", fmt.Errorf("failed to parse %s: %w", file, err)
 	}
 
 	transformer := NewTransformer()
+	if !t.skipPerformanceOptimizations {
 
-	var removedSqlStmts []string
-	if !t.skipPerformanceOptimizations && t.sourceDBType == constants.POSTGRESQL {
-		parseTree.Stmts, removedSqlStmts, t.RemovedRedundantIndexes, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToRemove)
+		//remove redundant indexes
+		var removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]
+		parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToExistingIndexToRemove)
 		if err != nil {
 			return "", fmt.Errorf("failed to remove redundant indexes: %w", err)
 		}
-		if len(removedSqlStmts) > 0 {
-			// Write the removed indexes to a file
-			t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), "redundant_indexes.sql")
-			redundantIndexContent := strings.Join(removedSqlStmts, "\n\n")
-			err = os.WriteFile(t.RedundantIndexesFileName, []byte(redundantIndexContent), 0644)
-			if err != nil {
-				return "", fmt.Errorf("failed to write redundant indexes file: %w", err)
-			}
+		t.RedundantIndexesFileName = filepath.Join(filepath.Dir(file), "redundant_indexes.sql")
+		err = t.writeRemovedRedundantIndexesToFile(removedIndexToStmtMap)
+		if err != nil {
+			return "", fmt.Errorf("failed to write removed redundant indexes to file: %w", err)
 		}
+
 	} else {
 		log.Infof("skipping performance optimizations for %s", file)
 	}
@@ -114,7 +113,42 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 	return backUpFile, nil
 }
 
+func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]) error {
+	var removedSqlStmts []string
+	var err error
+	var removedIndexes []*sqlname.ObjectNameQualifiedWithTableName
+	removedIndexToStmtMap.IterKV(func(key *sqlname.ObjectNameQualifiedWithTableName, value *pg_query.RawStmt) (bool, error) {
+		//Add the existing index ddl in the comments for the individual redundant index
+		stmtStr, err := queryparser.DeparseRawStmt(value)
+		if err != nil {
+			return false, fmt.Errorf("failed to deparse removed index stmt: %w", err)
+		}
+		if existingIndex, ok := t.redundantIndexesToExistingIndexToRemove[key.CatalogName()]; ok {
+			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
+				existingIndex, stmtStr)
+		}
+		removedSqlStmts = append(removedSqlStmts, stmtStr)
+		removedIndexes = append(removedIndexes, key)
+		return true, nil
+	})
+	t.RemovedRedundantIndexes = removedIndexes
+
+	if len(removedSqlStmts) > 0 {
+		// Write the removed indexes to a file
+		redundantIndexContent := strings.Join(removedSqlStmts, "\n\n")
+		err = os.WriteFile(t.RedundantIndexesFileName, []byte(redundantIndexContent), 0644)
+		if err != nil {
+			return fmt.Errorf("failed to write redundant indexes file: %w", err)
+		}
+	}
+	return nil
+}
+
+//=========================TABLE FILE TRANSFORMER=====================================
+
+// TODO: merge the sharding/colocated recommendation changes with this Table file transformation
 type TableFileTransformer struct {
+	//skipping the merge constraints with this parameter
 	skipMergeConstraints bool
 	sourceDBType         string
 }
@@ -129,9 +163,7 @@ func NewTableFileTransformer(skipMergeConstraints bool, sourceDBType string) *Ta
 func (t *TableFileTransformer) Transform(file string) (string, error) {
 	var err error
 	var parseTree *pg_query.ParseResult
-	//TODO: Keep the format of backup file as <file>.orig but for now making it
-	// after merging the sharding changes in this transformer
-	backUpFile := filepath.Join(filepath.Dir(file), "table_before_merge_constraints.sql")
+	backUpFile := filepath.Join(filepath.Dir(file), fmt.Sprintf("backup_%s", filepath.Base(file)))
 	//copy files
 	err = utils.CopyFile(file, backUpFile)
 	if err != nil {
@@ -140,13 +172,7 @@ func (t *TableFileTransformer) Transform(file string) (string, error) {
 
 	parseTree, err = queryparser.ParseSqlFile(file)
 	if err != nil {
-		//In case of PG we should return error but for other SourceDBTypes we should return nil as the parser can fail
-		errMsg := fmt.Errorf("failed to parse %s: %w", file, err)
-		if t.sourceDBType != constants.POSTGRESQL {
-			log.Infof("skipping error while parsing %s: %v", file, err)
-			errMsg = nil
-		}
-		return "", errMsg
+		return "", fmt.Errorf("failed to parse %s: %w", file, err)
 	}
 
 	transformer := NewTransformer()
