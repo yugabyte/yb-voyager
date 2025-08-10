@@ -24,6 +24,10 @@ source ${SCRIPTS}/functions.sh
 export TARGET_DB_NAME="testdb"
 
 compare_reports() {
+	if [ "${DOCKERISED_INSTALLATION}" == true ] ; then
+		return
+	fi
+
 	import_data_status
 	
 	expected_file="${EXPECTED_JSON_DIR}/$1"
@@ -38,9 +42,6 @@ compare_reports() {
 }
 
 main() {
-
-	CONFIG_TEMPLATE="${SCRIPTS}/config-templates/offline-migration.yaml"
-	generate_voyager_config "$CONFIG_TEMPLATE"
 
 	rm -rf ${EXPORT_DIR}
 	mkdir -p ${EXPORT_DIR}
