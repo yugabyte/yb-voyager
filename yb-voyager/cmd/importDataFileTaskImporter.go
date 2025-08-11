@@ -239,7 +239,7 @@ func (fti *FileTaskImporter) updateProgressForCompletedBatch(batch *Batch) {
 	}
 
 	fti.currentProgressAmount += progressAmount
-	fti.progressReporter.AddProgressAmount(fti.task, progressAmount) // TODO: remove this
+	fti.progressReporter.AddProgressAmount(fti.task, progressAmount)
 
 	// The metrics are sent after evry 5 secs in implementation of UpdateImportedRowCount
 	if fti.totalProgressAmount > fti.currentProgressAmount {
