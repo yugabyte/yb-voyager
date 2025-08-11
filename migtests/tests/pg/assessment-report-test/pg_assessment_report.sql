@@ -55,9 +55,10 @@ CREATE TABLE date_multirange_table (
 );
 
 -- Unsupported Extensions
-CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS citus;
-CREATE EXTENSION IF NOT EXISTS pg_repack;
+CREATE EXTENSION IF NOT EXISTS plpython3u;
+CREATE EXTENSION IF NOT EXISTS plperl;
+CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pglogical;
 
 -- GIST Index on point_data column

@@ -61,13 +61,13 @@ jobs:
 
           docker exec $CONTAINER_ID apt-get update
 
-          docker exec $CONTAINER_ID apt-get install -y postgresql-17-postgis postgresql-17-postgis-3
-
           docker exec $CONTAINER_ID apt-get install -y \
-            postgresql-17-citus \
-            postgresql-17-cstore-fdw \
-            postgresql-17-pgrepack \
-            postgresql-17-pglogical
+            postgresql-17-citus-13.0 \
+            postgresql-plpython3-17 \
+            postgresql-plperl-17 \
+            postgresql-17-postgis \
+            postgresql-17-postgis-3 \
+            postgresql-17-pglogical \ 
 
           docker restart $CONTAINER_ID
 
