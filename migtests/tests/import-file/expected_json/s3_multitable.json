@@ -1,0 +1,21 @@
+[
+    {
+      "table_name": "public.\"s3_multitable_t1\"",
+      "file_name": "t1.text",
+      "status": "DONE",
+      "total_count": 19,
+      "imported_count": 19,
+      "errored_count": 0,
+      "percentage_complete": 100
+    },
+    {
+      "table_name": "public.\"s3_multitable_t2\"",
+      "file_name": "t2.text",
+      "status": "DONE",
+      "total_count": 19,
+      "imported_count": 19,
+      "errored_count": 0,
+      "percentage_complete": 100
+    }
+  ]
+  
