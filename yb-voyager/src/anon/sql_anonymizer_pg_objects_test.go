@@ -962,3 +962,158 @@ func TestMissingNodeAnonymization(t *testing.T) {
 //  MVIEW                 ...                                            | [ ]
 //  FUNCTION / PROCEDURE  ...                                            | [ ]
 // ============================================================================
+
+// TestPostgresDDLCornerCases tests edge cases and corner cases for PostgreSQL DDL statements
+// that may not be covered by the standard test cases above
+func TestPostgresDDLCornerCases(t *testing.T) {
+	log.SetLevel(log.WarnLevel)
+	exportDir := testutils.CreateTempExportDir()
+	defer testutils.RemoveTempExportDir(exportDir)
+	az := newAnon(t, exportDir)
+
+	cases := []ddlCase{
+		// ─── CORNER CASE: TABLE WITH DEFAULT VALUES ─────────────────────────────────────────────
+		{
+			"TABLE-CREATE-WITH-DEFAULT-INT",
+			`CREATE TABLE sales.products (product_id int DEFAULT 1)`,
+			[]string{"sales", "products", "product_id"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-STRING",
+			`CREATE TABLE sales.products (product_name text DEFAULT 'default_name')`,
+			[]string{"sales", "products", "product_name", "default_name"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-FLOAT",
+			`CREATE TABLE sales.products (price numeric DEFAULT 99.99)`,
+			[]string{"sales", "products", "price"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-BOOLEAN",
+			`CREATE TABLE sales.products (is_active boolean DEFAULT true)`,
+			[]string{"sales", "products", "is_active"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-DEFAULT-NULL",
+			`CREATE TABLE sales.products (description text DEFAULT NULL)`,
+			[]string{"sales", "products", "description"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+		{
+			"TABLE-CREATE-WITH-MULTIPLE-DEFAULTS",
+			`CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product', price numeric DEFAULT 0.00, active boolean DEFAULT true)`,
+			[]string{"sales", "products", "id", "name", "product", "price", "active"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, CONST_KIND_PREFIX},
+		},
+
+		// ─── PARTITIONING STRATEGIES ─────────────────────────────────────────────────────────────
+		// LIST Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-LIST",
+			`CREATE TABLE sales.orders (order_id int NOT NULL, customer_id int, order_status text, region text NOT NULL) PARTITION BY LIST(region)`,
+			[]string{"sales", "orders", "order_id", "customer_id", "order_status", "region"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// RANGE Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-RANGE",
+			`CREATE TABLE sales.orders_by_date (order_id int, order_date date, amount numeric) PARTITION BY RANGE(order_date)`,
+			[]string{"sales", "orders_by_date", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// HASH Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-HASH",
+			`CREATE TABLE sales.orders_by_hash (order_id int, customer_id int, amount numeric) PARTITION BY HASH(customer_id)`,
+			[]string{"sales", "orders_by_hash", "order_id", "customer_id", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Multiple Column Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-MULTI-COLUMN",
+			`CREATE TABLE sales.orders_multi (order_id int, region text, order_date date, amount numeric) PARTITION BY RANGE(region, order_date)`,
+			[]string{"sales", "orders_multi", "order_id", "region", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Expression-based Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-EXPRESSION",
+			`CREATE TABLE sales.orders_expr (order_id int, order_date timestamp, amount numeric) PARTITION BY RANGE(EXTRACT(YEAR FROM order_date))`,
+			[]string{"sales", "orders_expr", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Function-based Partitioning
+		{
+			"TABLE-CREATE-PARTITIONED-FUNCTION",
+			`CREATE TABLE sales.orders_func (order_id int, order_date timestamp, amount numeric) PARTITION BY RANGE(date_trunc('month', order_date))`,
+			[]string{"sales", "orders_func", "order_id", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Partitioning with Subpartitioning (using proper PostgreSQL syntax)
+		{
+			"TABLE-CREATE-PARTITIONED-SUBPARTITION",
+			`CREATE TABLE sales.orders_sub (order_id int, region text, order_date date, amount numeric) PARTITION BY LIST(region)`,
+			[]string{"sales", "orders_sub", "order_id", "region", "order_date", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Partitioning with Complex Column Types
+		{
+			"TABLE-CREATE-PARTITIONED-COMPLEX-TYPES",
+			`CREATE TABLE sales.orders_complex (order_id int, metadata jsonb, created_at timestamptz) PARTITION BY HASH(order_id)`,
+			[]string{"sales", "orders_complex", "order_id", "metadata", "created_at"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Partitioning with Constraints
+		{
+			"TABLE-CREATE-PARTITIONED-WITH-CONSTRAINTS",
+			`CREATE TABLE sales.orders_constrained (order_id int PRIMARY KEY, region text NOT NULL, amount numeric CHECK (amount > 0)) PARTITION BY LIST(region)`,
+			[]string{"sales", "orders_constrained", "order_id", "region", "amount"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+
+		// Partitioning with Indexes
+		{
+			"TABLE-CREATE-PARTITIONED-WITH-INDEXES",
+			`CREATE TABLE sales.orders_indexed (order_id int, region text, order_date date) PARTITION BY RANGE(order_date)`,
+			[]string{"sales", "orders_indexed", "order_id", "region", "order_date"},
+			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
+		},
+	}
+
+	for _, c := range cases {
+		c := c
+		t.Run(c.key, func(t *testing.T) {
+			out, err := az.Anonymize(c.sql)
+			if err != nil {
+				t.Fatalf("anonymize: %v", err)
+			}
+			fmt.Printf("Test Name: %s\nIN: %s\nOUT: %s\n\n", c.key, c.sql, out)
+
+			// Check that raw identifiers are anonymized
+			for _, raw := range c.raw {
+				if strings.Contains(out, raw) {
+					t.Errorf("raw identifier %q leaked in %s", raw, out)
+				}
+			}
+
+			// Check that expected prefixes appear
+			for _, pref := range c.prefixes {
+				if !hasTok(out, pref) {
+					t.Errorf("expected prefix %q not found in %s", pref, out)
+				}
+			}
+		})
+	}
+}

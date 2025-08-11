@@ -1831,5 +1831,87 @@ func (a *SqlAnonymizer) anonymizeColumnDefNode(cd *pg_query.ColumnDef) (err erro
 	if err != nil {
 		return fmt.Errorf("anon coldef: %w", err)
 	}
+
+	// Handle constraints in ColumnDef (like CONSTR_DEFAULT)
+	// Examples of default values for columns:
+	// 1. CREATE TABLE sales.products (id int DEFAULT 1)
+	// 2. CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product')
+	// 3. CREATE TABLE sales.products (id int DEFAULT 1, name text DEFAULT 'product', price numeric DEFAULT 0.00, active boolean DEFAULT true)
+	if cd.Constraints == nil {
+		return nil
+	}
+
+	for _, constraintNode := range cd.Constraints {
+		if constraintNode == nil {
+			continue
+		}
+
+		// Get the constraint from the node
+		constraint := constraintNode.GetConstraint()
+		if constraint == nil || constraint.Contype != pg_query.ConstrType_CONSTR_DEFAULT || constraint.RawExpr == nil {
+			continue
+		}
+
+		// Handle A_Const nodes (literal values)
+		aConst := constraint.RawExpr.GetAConst()
+		if aConst == nil || aConst.Val == nil {
+			continue
+		}
+
+		// Handle string literals in default values
+		if sval := aConst.GetSval(); sval != nil {
+			sval.Sval, err = a.registry.GetHash(CONST_KIND_PREFIX, sval.Sval)
+			if err != nil {
+				return fmt.Errorf("anon coldef default string value: %w", err)
+			}
+			continue
+		}
+
+		// Handle integer literals in default values
+		if ival := aConst.GetIval(); ival != nil {
+			// Convert integer to string for hashing
+			intVal := fmt.Sprintf("%d", ival.Ival)
+			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, intVal)
+			if err != nil {
+				return fmt.Errorf("anon coldef default int value: %w", err)
+			}
+			// Replace the integer value node with the string node for anonymized value
+			aConst.Val = &pg_query.A_Const_Sval{
+				Sval: &pg_query.String{Sval: hashedVal},
+			}
+			continue
+		}
+
+		// Handle float literals in default values
+		if fval := aConst.GetFval(); fval != nil {
+			// Get the float value as string and hash it
+			floatVal := fval.Fval
+			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, floatVal)
+			if err != nil {
+				return fmt.Errorf("anon coldef default float value: %w", err)
+			}
+			// Replace the float value node with the string node for anonymized value
+			aConst.Val = &pg_query.A_Const_Sval{
+				Sval: &pg_query.String{Sval: hashedVal},
+			}
+			continue
+		}
+
+		// Handle boolean literals in default values
+		if boolval := aConst.GetBoolval(); boolval != nil {
+			// Get the boolean value as string and hash it
+			boolVal := boolval.String()
+			hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, boolVal)
+			if err != nil {
+				return fmt.Errorf("anon coldef default boolean value: %w", err)
+			}
+			// Replace the boolean value node with the string node for anonymized value
+			aConst.Val = &pg_query.A_Const_Sval{
+				Sval: &pg_query.String{Sval: hashedVal},
+			}
+			continue
+		}
+	}
+
 	return nil
 }
