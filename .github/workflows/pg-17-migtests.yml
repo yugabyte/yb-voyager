@@ -62,7 +62,7 @@ jobs:
           docker exec $CONTAINER_ID apt-get update
 
           docker exec $CONTAINER_ID apt-get install -y \
-            postgresql-17-citus-13.1 \
+            postgresql-contrib-17 \
             postgresql-plpython3-17 \
             postgresql-plperl-17 \
             postgresql-17-postgis \

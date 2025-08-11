@@ -55,11 +55,12 @@ CREATE TABLE date_multirange_table (
 );
 
 -- Unsupported Extensions
-CREATE EXTENSION IF NOT EXISTS citus;
 CREATE EXTENSION IF NOT EXISTS plpython3u;
 CREATE EXTENSION IF NOT EXISTS plperl;
 CREATE EXTENSION IF NOT EXISTS postgis;
 CREATE EXTENSION IF NOT EXISTS pglogical;
+CREATE EXTENSION IF NOT EXISTS pg_qualstats;
+
 
 -- GIST Index on point_data column
 CREATE INDEX idx_point_data ON Mixed_Data_Types_Table1 USING GIST (point_data);
