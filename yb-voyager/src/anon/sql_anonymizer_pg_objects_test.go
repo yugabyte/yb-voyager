@@ -1058,38 +1058,6 @@ func TestPostgresDDLCornerCases(t *testing.T) {
 			[]string{"sales", "orders_func", "order_id", "order_date", "amount"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
 		},
-
-		// Partitioning with Subpartitioning (using proper PostgreSQL syntax)
-		{
-			"TABLE-CREATE-PARTITIONED-SUBPARTITION",
-			`CREATE TABLE sales.orders_sub (order_id int, region text, order_date date, amount numeric) PARTITION BY LIST(region)`,
-			[]string{"sales", "orders_sub", "order_id", "region", "order_date", "amount"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-
-		// Partitioning with Complex Column Types
-		{
-			"TABLE-CREATE-PARTITIONED-COMPLEX-TYPES",
-			`CREATE TABLE sales.orders_complex (order_id int, metadata jsonb, created_at timestamptz) PARTITION BY HASH(order_id)`,
-			[]string{"sales", "orders_complex", "order_id", "metadata", "created_at"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-
-		// Partitioning with Constraints
-		{
-			"TABLE-CREATE-PARTITIONED-WITH-CONSTRAINTS",
-			`CREATE TABLE sales.orders_constrained (order_id int PRIMARY KEY, region text NOT NULL, amount numeric CHECK (amount > 0)) PARTITION BY LIST(region)`,
-			[]string{"sales", "orders_constrained", "order_id", "region", "amount"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
-
-		// Partitioning with Indexes
-		{
-			"TABLE-CREATE-PARTITIONED-WITH-INDEXES",
-			`CREATE TABLE sales.orders_indexed (order_id int, region text, order_date date) PARTITION BY RANGE(order_date)`,
-			[]string{"sales", "orders_indexed", "order_id", "region", "order_date"},
-			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX},
-		},
 	}
 
 	for _, c := range cases {

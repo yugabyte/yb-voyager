@@ -900,6 +900,20 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 		// RangeVar node in CREATE TABLE is handled by common anonymizeRangeVarNode() processor
 		// columnDef nodes in CREATE TABLE are handled by common anonymizeColumnDefNode() processor
 
+		// To Handle partitioning specification if present
+		cs, ok := queryparser.ProtoAsCreateStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateStmt, got %T", msg.Interface())
+		}
+
+		// Handle partitioning if present
+		if cs.Partspec != nil {
+			err = a.handlePartitionSpec(cs.Partspec)
+			if err != nil {
+				return fmt.Errorf("anon partition spec: %w", err)
+			}
+		}
+
 	/*
 		SQL:		ALTER TABLE sales.orders ADD COLUMN note text;
 		ParseTree:	stmt:{alter_table_stmt:{relation:{schemaname:"sales"  relname:"orders"  inh:true  relpersistence:"p"  location:12}
@@ -992,6 +1006,42 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// - AT_DropOf, AT_ReAddComment, AT_SetAccessMethod
 		}
 	}
+	return nil
+}
+
+// handlePartitionSpec processes the partitioning specification in CREATE TABLE statements
+/*
+	SQL:		CREATE TABLE sales.orders (id int PRIMARY KEY, amt numeric) PARTITION BY LIST(region);
+	ParseTree:	stmt:{create_stmt:{relation:{schemaname:"sales" relname:"orders" inh:true relpersistence:"p" location:13}
+				table_elts:{column_def:{colname:"id" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"int4"}} ...} is_local:true constraints:{constraint:{contype:CONSTR_PRIMARY ...}} }}
+				table_elts:{column_def:{colname:"amt" type_name:{names:{string:{sval:"pg_catalog"}} names:{string:{sval:"numeric"}} ...} is_local:true location:47}}
+				partspec:{partparams:{partelem:{name:"region" ...}} ...}}} oncommit:ONCOMMIT_NOOP}}
+*/
+func (a *SqlAnonymizer) handlePartitionSpec(partspec *pg_query.PartitionSpec) error {
+	if partspec == nil || partspec.PartParams == nil {
+		return nil
+	}
+
+	for _, partParam := range partspec.PartParams {
+		if partParam == nil {
+			continue
+		}
+
+		// Extract the partition element
+		partElem := partParam.GetPartitionElem()
+		if partElem == nil || partElem.Name == "" {
+			continue
+		}
+
+		// Anonymize the column name used in partitioning
+		// Note: it will always be column name, not qualified name here
+		hashedName, err := a.registry.GetHash(COLUMN_KIND_PREFIX, partElem.Name)
+		if err != nil {
+			return fmt.Errorf("anon partition column: %w", err)
+		}
+		partElem.Name = hashedName
+	}
+
 	return nil
 }
 
