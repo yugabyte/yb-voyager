@@ -53,26 +53,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: "Enable postgres with wal_level=logical and install extensions"
+      - name: "Enable postgres with wal_level as logical and install postgis"
         run: |
-          CONTAINER_ID=${{ job.services.postgres.id }}
-          
-          docker exec $CONTAINER_ID sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis postgresql-17-postgis-3"
 
-          docker exec $CONTAINER_ID apt-get update
-
-          docker exec $CONTAINER_ID apt-get install -y \
+          docker exec ${{ job.services.postgres.id }} apt-get install -y \
             postgresql-contrib-17 \
             postgresql-plpython3-17 \
             postgresql-plperl-17 \
-            postgresql-17-postgis \
-            postgresql-17-postgis-3 \
-            postgresql-17-pglogical \ 
+            postgresql-17-pglogical
 
-          docker restart $CONTAINER_ID
-
+          docker restart ${{ job.services.postgres.id }}
           sleep 10
-
 
       - name: Install python3 and psycopg2
         run: |
