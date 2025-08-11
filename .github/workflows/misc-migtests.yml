@@ -48,6 +48,9 @@ jobs:
 
       - name: "Enable postgres with pg_stat_statements loaded via shared_preload_libraries"
         run: |
+          docker exec ${{ job.services.postgres.id }} sh -c "echo 'wal_level=logical' >> /var/lib/postgresql/data/postgresql.conf"
+          docker exec ${{ job.services.postgres.id }} sh -c "apt-get update && apt-get install -y postgresql-17-postgis postgresql-17-postgis-3"
+
           docker exec ${{ job.services.postgres.id }} apt-get install -y \
             postgresql-contrib-17 \
             postgresql-plpython3-17 \
