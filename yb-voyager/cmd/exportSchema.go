@@ -203,11 +203,8 @@ func exportSchema(cmd *cobra.Command) error {
 	if err != nil {
 		return fmt.Errorf("failed to apply index file transformations: %w", err)
 	}
-	var redundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
-	if indexTransformer != nil {
-		redundantIndexes = indexTransformer.RemovedRedundantIndexes
-	}
-	err = generatePerformanceOptimizationReport(redundantIndexes, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
+
+	err = generatePerformanceOptimizationReport(indexTransformer, modifiedTables, modifiedMviews, colocatedTables, colocatedMviews)
 	if err != nil {
 		return fmt.Errorf("failed to generate performance optimization %w", err)
 	}
@@ -321,16 +318,19 @@ func packAndSendExportSchemaPayload(status string, errorMsg error) {
 		DBVersion: source.DBVersion,
 		DBSize:    source.DBSize,
 	}
+	schemaOptimizationChanges := buildCallhomeSchemaOptimizationChanges()
+
 	payload.SourceDBDetails = callhome.MarshalledJsonString(sourceDBDetails)
 	exportSchemaPayload := callhome.ExportSchemaPhasePayload{
-		StartClean:             bool(startClean),
-		AppliedRecommendations: assessmentRecommendationsApplied,
-		UseOrafce:              bool(source.UseOrafce),
-		CommentsOnObjects:      bool(source.CommentsOnObjects),
-		Error:                  callhome.SanitizeErrorMsg(errorMsg),
-		SkipRecommendations:    bool(skipRecommendations),
-		SkipPerfOptimizations:  bool(skipPerfOptimizations),
-		ControlPlaneType:       getControlPlaneType(),
+		StartClean:                bool(startClean),
+		AppliedRecommendations:    assessmentRecommendationsApplied,
+		UseOrafce:                 bool(source.UseOrafce),
+		CommentsOnObjects:         bool(source.CommentsOnObjects),
+		Error:                     callhome.SanitizeErrorMsg(errorMsg),
+		SkipRecommendations:       bool(skipRecommendations),
+		SkipPerfOptimizations:     bool(skipPerfOptimizations),
+		ControlPlaneType:          getControlPlaneType(),
+		SchemaOptimizationChanges: schemaOptimizationChanges,
 	}
 
 	payload.PhasePayload = callhome.MarshalledJsonString(exportSchemaPayload)
@@ -766,9 +766,13 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	//assuming that assessment is run and fetched the redundant indexes
 	//TODO: see if we need to take care of the scenario where assessment is unable to fetch these
 	var err error
-	var redundantIndexToResolvedExistingIndex map[string]string
+	var redundantIndexToResolvedExistingIndex *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string]
 	redundantIndexToResolvedExistingIndex, err = fetchRedundantIndexMapFromAssessmentDB()
 	if err != nil {
+		if skipPerfOptimizations {
+			log.Infof("skipping error while fetching redundant index map from assessment db: %v", err)
+			return nil, nil
+		}
 		return nil, fmt.Errorf("failed to fetch redundant index map from assessment db: %w\n%s", err, sqltransformer.SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 	}
 	indexTransformer := sqltransformer.NewIndexFileTransformer(redundantIndexToResolvedExistingIndex, bool(skipPerfOptimizations), source.DBType)
@@ -788,11 +792,7 @@ func applyIndexFileTransformations() (*sqltransformer.IndexFileTransformer, erro
 	return indexTransformer, nil
 }
 
-func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
-	if skipPerfOptimizations {
-		log.Infof("skipping fetching redundant index map from assessment db")
-		return nil, nil
-	}
+func fetchRedundantIndexMapFromAssessmentDB() (*utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], error) {
 
 	var err error
 	migassessment.AssessmentDir = filepath.Join(exportDir, "assessment")
@@ -810,10 +810,10 @@ func fetchRedundantIndexMapFromAssessmentDB() (map[string]string, error) {
 		log.Infof("no redundant indexes found, skipping applying performance optimizations")
 	}
 
-	redundantIndexToResolvedExistingIndex := make(map[string]string) //Find the resolved Existing index DDL from the redundant issues
+	redundantIndexToResolvedExistingIndex := utils.NewStructMap[*sqlname.ObjectNameQualifiedWithTableName, string]() //Find the resolved Existing index DDL from the redundant issues
 	for _, resolvedRedundantIndex := range resolvedRedundantIndexes {
-		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName().CatalogName()
-		redundantIndexToResolvedExistingIndex[redundantIndexCatalogName] = resolvedRedundantIndex.ExistingIndexDDL
+		redundantIndexCatalogName := resolvedRedundantIndex.GetRedundantIndexObjectNameWithTableName()
+		redundantIndexToResolvedExistingIndex.Put(redundantIndexCatalogName, resolvedRedundantIndex.ExistingIndexDDL)
 	}
 	return redundantIndexToResolvedExistingIndex, nil
 }

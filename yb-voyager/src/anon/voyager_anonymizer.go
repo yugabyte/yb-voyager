@@ -17,6 +17,7 @@ type VoyagerAnonymizer struct {
 	tableNameAnonymizer  Anonymizer
 	columnNameAnonymizer Anonymizer
 	indexNameAnonymizer  Anonymizer
+	mviewNameAnonymizer  Anonymizer
 }
 
 func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) {
@@ -32,6 +33,7 @@ func NewVoyagerAnonymizer(anonymizationSalt string) (*VoyagerAnonymizer, error) 
 		tableNameAnonymizer:    NewIdentifierAnonymizer(registry, TABLE_KIND_PREFIX),
 		columnNameAnonymizer:   NewIdentifierAnonymizer(registry, COLUMN_KIND_PREFIX),
 		indexNameAnonymizer:    NewIdentifierAnonymizer(registry, INDEX_KIND_PREFIX),
+		mviewNameAnonymizer:    NewIdentifierAnonymizer(registry, MVIEW_KIND_PREFIX),
 	}, nil
 }
 
@@ -45,6 +47,10 @@ func (s *VoyagerAnonymizer) AnonymizeSchemaName(schemaName string) (string, erro
 
 func (s *VoyagerAnonymizer) AnonymizeTableName(tableName string) (string, error) {
 	return s.tableNameAnonymizer.Anonymize(tableName)
+}
+
+func (s *VoyagerAnonymizer) AnonymizeMviewName(mviewName string) (string, error) {
+	return s.mviewNameAnonymizer.Anonymize(mviewName)
 }
 
 func (s *VoyagerAnonymizer) AnonymizeColumnName(columnName string) (string, error) {

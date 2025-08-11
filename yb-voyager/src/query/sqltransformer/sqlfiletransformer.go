@@ -41,7 +41,7 @@ type IndexFileTransformer struct {
 	sourceDBType                 string
 
 	//map of redundant index name to the existing index name to remove
-	redundantIndexesToExistingIndexToRemove map[string]string
+	RedundantIndexesToExistingIndexToRemove *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string]
 	//list of redundant indexes removed
 	RemovedRedundantIndexes []*sqlname.ObjectNameQualifiedWithTableName
 	//file name of the backup of the redundant indexes DDL
@@ -51,9 +51,9 @@ type IndexFileTransformer struct {
 	ModifiedIndexesToRange []string
 }
 
-func NewIndexFileTransformer(redundantIndexesToRemove map[string]string, skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
+func NewIndexFileTransformer(redundantIndexesToRemove *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, string], skipPerformanceOptimizations bool, sourceDBType string) *IndexFileTransformer {
 	return &IndexFileTransformer{
-		redundantIndexesToExistingIndexToRemove: redundantIndexesToRemove,
+		RedundantIndexesToExistingIndexToRemove: redundantIndexesToRemove,
 		RemovedRedundantIndexes:                 make([]*sqlname.ObjectNameQualifiedWithTableName, 0),
 		ModifiedIndexesToRange:                  make([]string, 0),
 		skipPerformanceOptimizations:            skipPerformanceOptimizations,
@@ -90,7 +90,7 @@ func (t *IndexFileTransformer) Transform(file string) (string, error) {
 
 		//remove redundant indexes
 		var removedIndexToStmtMap *utils.StructMap[*sqlname.ObjectNameQualifiedWithTableName, *pg_query.RawStmt]
-		parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.redundantIndexesToExistingIndexToRemove)
+		parseTree.Stmts, removedIndexToStmtMap, err = transformer.RemoveRedundantIndexes(parseTree.Stmts, t.RedundantIndexesToExistingIndexToRemove)
 		if err != nil {
 			return "", fmt.Errorf("failed to remove redundant indexes: %w\n%s", err, SUGGESTION_TO_USE_SKIP_PERF_OPTIMIZATIONS_FLAG)
 		}
@@ -128,7 +128,7 @@ func (t *IndexFileTransformer) writeRemovedRedundantIndexesToFile(removedIndexTo
 		if err != nil {
 			return false, fmt.Errorf("failed to deparse removed index stmt: %w", err)
 		}
-		if existingIndex, ok := t.redundantIndexesToExistingIndexToRemove[key.CatalogName()]; ok {
+		if existingIndex, ok := t.RedundantIndexesToExistingIndexToRemove.Get(key); ok {
 			stmtStr = fmt.Sprintf("/*\n Existing index: %s\n*/\n\n%s",
 				existingIndex, stmtStr)
 		}

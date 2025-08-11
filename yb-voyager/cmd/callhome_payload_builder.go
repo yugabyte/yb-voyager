@@ -17,18 +17,20 @@ limitations under the License.
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/samber/lo"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/callhome"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/constants"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/query/queryissue"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/srcdb"
 	"github.com/yugabyte/yb-voyager/yb-voyager/src/utils"
-	"golang.org/x/exp/slices"
 )
 
 var (
@@ -162,6 +164,8 @@ func packAndSendAssessMigrationPayload(status string, errMsg error) {
 	}
 }
 
+// ============================assess migration callhome payload information============================
+
 func anonymizeAssessmentIssuesForCallhomePayload(assessmentIssues []AssessmentIssue) []callhome.AssessmentIssueCallhome {
 	/*
 		Case to skip for sql statement anonymization:
@@ -288,4 +292,71 @@ func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	}
 
 	return anonymizedDDLs
+}
+
+
+// ============================export schema callhome payload information============================
+
+func buildCallhomeSchemaOptimizationChanges() []callhome.SchemaOptimizationChange {
+	if schemaOptimizationReport == nil {
+		return nil
+	}
+
+	schemaOptimizationChanges := make([]callhome.SchemaOptimizationChange, 0)
+	if schemaOptimizationReport.RedundantIndexChange != nil {
+		objects := make([]string, 0)
+		for tbl, indexes := range schemaOptimizationReport.RedundantIndexChange.TableToRemovedIndexesMap {
+			for _, index := range indexes {
+				anonymizedInd, err := anonymizer.AnonymizeIndexName(index)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise index-%s: %v", index, err)
+					continue
+				}
+				anonymizedTbl, err := anonymizer.AnonymizeTableName(tbl)
+				if err != nil {
+					log.Errorf("callhome: failed to anonymise table-%s: %v", tbl, err)
+					continue
+				}
+				objects = append(objects, fmt.Sprintf("%s ON %s", anonymizedInd, anonymizedTbl))
+			}
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			ChangeType: "redundant_index_change",
+			IsApplied:  schemaOptimizationReport.RedundantIndexChange.IsApplied,
+			Objects:    objects,
+		})
+	}
+	if schemaOptimizationReport.TableShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.TableShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeTableName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise table-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			ChangeType: "table_sharding_recommendation",
+			IsApplied:  schemaOptimizationReport.TableShardingRecommendation.IsApplied,
+			Objects:    objects,
+		})
+	}
+	if schemaOptimizationReport.MviewShardingRecommendation != nil {
+		objects := make([]string, 0)
+		for _, obj := range schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects {
+			anonymizedObj, err := anonymizer.AnonymizeMviewName(obj)
+			if err != nil {
+				log.Errorf("callhome: failed to anonymise mview-%s: %v", obj, err)
+				continue
+			}
+			objects = append(objects, anonymizedObj)
+		}
+		schemaOptimizationChanges = append(schemaOptimizationChanges, callhome.SchemaOptimizationChange{
+			ChangeType: "mview_sharding_recommendation",
+			IsApplied:  schemaOptimizationReport.MviewShardingRecommendation.IsApplied,
+			Objects:    schemaOptimizationReport.MviewShardingRecommendation.ShardedObjects,
+		})
+	}
+	return schemaOptimizationChanges
 }
