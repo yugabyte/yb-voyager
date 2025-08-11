@@ -64,6 +64,8 @@ jobs:
             postgresql-plperl-17 \
             postgresql-17-pglogical
 
+          docker exec ${{ job.services.postgres.id }} sh -c "echo \"shared_preload_libraries = 'pg_stat_statements, pglogical'\" >> /var/lib/postgresql/data/postgresql.conf"
+
           docker restart ${{ job.services.postgres.id }}
           sleep 10
 

@@ -27,9 +27,9 @@
 			},
 			{
 				"ObjectType": "EXTENSION",
-				"TotalCount": 11,
-				"InvalidCount": 6,
-				"ObjectNames": "timescaledb, citus, citus_columnar, pg_repack, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis"
+				"TotalCount": 9,
+				"InvalidCount": 4,
+				"ObjectNames": "plperl, plpython3u, citext, hstore, lo, pg_stat_statements, pgcrypto, pglogical, postgis"
 			},
 			{
 				"ObjectType": "TYPE",
@@ -253,19 +253,6 @@
 		{
 			"Category": "unsupported_features",
 			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_EXTENSION",
-			"Name": "Unsupported Extension",
-			"Description": "This extension is not supported in YugabyteDB by default.",
-			"Impact": "LEVEL_3",
-			"ObjectType": "EXTENSION",
-			"ObjectName": "postgis",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
-			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
 			"Type": "UNSUPPORTED_GIST_INDEX_METHOD",
 			"Name": "Index with GIST access method",
 			"Description": "The schema contains an index with an access method 'GIST' which is not supported in YugabyteDB.",
@@ -362,8 +349,8 @@
 			"Description": "This extension is not supported in YugabyteDB by default.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "EXTENSION",
-			"ObjectName": "timescaledb",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS timescaledb WITH SCHEMA public;",
+			"ObjectName": "plperl",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plperl WITH SCHEMA pg_catalog;",
 			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
 			"MinimumVersionsFixedIn": null
 		},
@@ -375,34 +362,8 @@
 			"Description": "This extension is not supported in YugabyteDB by default.",
 			"Impact": "LEVEL_3",
 			"ObjectType": "EXTENSION",
-			"ObjectName": "citus",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS citus WITH SCHEMA pg_catalog;",
-			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_EXTENSION",
-			"Name": "Unsupported Extension",
-			"Description": "This extension is not supported in YugabyteDB by default.",
-			"Impact": "LEVEL_3",
-			"ObjectType": "EXTENSION",
-			"ObjectName": "citus_columnar",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS citus_columnar WITH SCHEMA pg_catalog;",
-			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
-			"MinimumVersionsFixedIn": null
-		},
-		{
-			"Category": "unsupported_features",
-			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
-			"Type": "UNSUPPORTED_EXTENSION",
-			"Name": "Unsupported Extension",
-			"Description": "This extension is not supported in YugabyteDB by default.",
-			"Impact": "LEVEL_3",
-			"ObjectType": "EXTENSION",
-			"ObjectName": "pg_repack",
-			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS pg_repack WITH SCHEMA public;",
+			"ObjectName": "plpython3u",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS plpython3u WITH SCHEMA pg_catalog;",
 			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
 			"MinimumVersionsFixedIn": null
 		},
@@ -416,6 +377,19 @@
 			"ObjectType": "EXTENSION",
 			"ObjectName": "pglogical",
 			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS pglogical WITH SCHEMA pglogical;",
+			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
+			"MinimumVersionsFixedIn": null
+		},
+		{
+			"Category": "unsupported_features",
+			"CategoryDescription": "Features of the source database that are not supported on the target YugabyteDB.",
+			"Type": "UNSUPPORTED_EXTENSION",
+			"Name": "Unsupported Extension",
+			"Description": "This extension is not supported in YugabyteDB by default.",
+			"Impact": "LEVEL_3",
+			"ObjectType": "EXTENSION",
+			"ObjectName": "postgis",
+			"SqlStatement": "CREATE EXTENSION IF NOT EXISTS postgis WITH SCHEMA public;",
 			"DocsLink": "https://docs.yugabyte.com/preview/explore/ysql-language-features/pg-extensions/",
 			"MinimumVersionsFixedIn": null
 		},
