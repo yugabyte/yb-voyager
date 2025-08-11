@@ -980,6 +980,33 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// - Constraint definitions handled by CONSTRAINT_NODE processor
 			// - Index definitions handled by IndexStmt processor
 
+		case pg_query.AlterTableType_AT_AddIdentity:
+			// Handle sequence name in identity options if present
+			if atc.Def == nil {
+				break
+			}
+
+			constraint := atc.Def.GetConstraint()
+			if constraint == nil || constraint.Options == nil {
+				break
+			}
+
+			for _, opt := range constraint.Options {
+				if opt == nil || opt.GetDefElem() == nil {
+					continue
+				}
+
+				defElem := opt.GetDefElem()
+				if defElem.Defname != "sequence_name" || defElem.Arg == nil || defElem.Arg.GetList() == nil {
+					continue
+				}
+
+				err = a.anonymizeStringNodes(defElem.Arg.GetList().Items, SEQUENCE_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon identity sequence name: %w", err)
+				}
+			}
+
 		case pg_query.AlterTableType_AT_ChangeOwner:
 			// OWNER TO role_name
 			// The role is in atc.Newowner, handled by RoleSpec processor
@@ -994,9 +1021,62 @@ func (a *SqlAnonymizer) handleTableObjectNodes(msg protoreflect.Message) (err er
 			// OF type_name
 			// Type name is in atc.Def as TypeName, handled by TypeName processor
 
+		/*
+			SQL: ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM (55) TO (56)
+			ParseTree: stmt:{alter_table_stmt:{relation:{schemaname:"sales"  relname:"orders"  relpersistence:"p"  }
+						cmds:{alter_table_cmd:{subtype:AT_AttachPartition  def:{partition_cmd:{name:{schemaname:"sales"  relname:"orders_2024"  inh:true  relpersistence:"p"  }
+						bound:{strategy:"r"  lowerdatums:{a_const:{ival:{ival:55}  }}  upperdatums:{a_const:{ival:{ival:56}  }}  }}}  behavior:DROP_RESTRICT}}  objtype:OBJECT_TABLE}}
+		*/
 		case pg_query.AlterTableType_AT_AttachPartition:
 			// ATTACH PARTITION partition_table FOR VALUES ...
 			// Partition table name is in atc.Def as PartitionCmd, which contains RangeVar
+			if atc.Def == nil {
+				break
+			}
+
+			partitionCmd := atc.Def.GetPartitionCmd()
+			if partitionCmd == nil {
+				return fmt.Errorf("expected PartitionCmd for AT_AttachPartition")
+			}
+
+			// Anonymize the partition table name (RangeVar)
+			if partitionCmd.Name != nil {
+				err = a.anonymizeRangeVarNode(partitionCmd.Name, TABLE_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon attach partition table name: %w", err)
+				}
+			}
+
+			// Anonymize the bound values as constants
+			if partitionCmd.Bound == nil {
+				break
+			}
+
+			// Handle lower bound
+			if partitionCmd.Bound.Lowerdatums != nil {
+				for _, datum := range partitionCmd.Bound.Lowerdatums {
+					if datum == nil {
+						continue
+					}
+					err = a.anonymizePartitionBoundValue(datum)
+					if err != nil {
+						return fmt.Errorf("anon partition lower bound: %w", err)
+					}
+				}
+			}
+
+			// Handle upper bound
+			if partitionCmd.Bound.Upperdatums != nil {
+				for _, datum := range partitionCmd.Bound.Upperdatums {
+					if datum == nil {
+						continue
+					}
+					err = a.anonymizePartitionBoundValue(datum)
+					if err != nil {
+						return fmt.Errorf("anon partition upper bound: %w", err)
+					}
+				}
+			}
 
 			// All other cases that don't contain sensitive information are intentionally omitted:
 			// - AT_DropCluster, AT_SetLogged, AT_SetUnLogged, AT_DropOids
@@ -1040,6 +1120,46 @@ func (a *SqlAnonymizer) handlePartitionSpec(partspec *pg_query.PartitionSpec) er
 			return fmt.Errorf("anon partition column: %w", err)
 		}
 		partElem.Name = hashedName
+	}
+
+	return nil
+}
+
+// anonymizePartitionBoundValue anonymizes partition bound values (constants) in partition commands
+func (a *SqlAnonymizer) anonymizePartitionBoundValue(datum *pg_query.Node) error {
+	if datum == nil {
+		return nil
+	}
+
+	// Handle constants
+	aConst := datum.GetAConst()
+	if aConst == nil {
+		return nil
+	}
+
+	// Handle integer constants
+	if ival := aConst.GetIval(); ival != nil {
+		// Convert integer to string for hashing
+		intVal := fmt.Sprintf("%d", ival.Ival)
+		hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, intVal)
+		if err != nil {
+			return fmt.Errorf("anon partition bound int value: %w", err)
+		}
+		// Replace the integer value node with the string node for anonymized value
+		aConst.Val = &pg_query.A_Const_Sval{
+			Sval: &pg_query.String{Sval: hashedVal},
+		}
+		return nil
+	}
+
+	// Handle string constants
+	if sval := aConst.GetSval(); sval != nil {
+		hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, sval.Sval)
+		if err != nil {
+			return fmt.Errorf("anon partition bound string value: %w", err)
+		}
+		sval.Sval = hashedVal
+		return nil
 	}
 
 	return nil
