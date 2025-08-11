@@ -39,8 +39,9 @@ var schemaOptimizationReport *SchemaOptimizationReport
 const (
 	RedundantIndexesFileName                        = "redundant_indexes.sql"
 	SchemaOptimizationReportFileName                = "schema_optimization_report"
+	REDUNDANT_INDEXES_DESCRIPTION                   = "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary."
 	APPLIED_RECOMMENDATIONS_NOT_APPLIED_DESCRIPTION = "Sharding recommendations were not applied due to the skip-recommendations flag. Modify the schema manually as per the recommendations in assessment report"
-	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = "Redundant indexes were not remove due to the skip-performance-optimizations flag. Remove the following indexes manually from the schema."
+	REDUNDANT_INDEXES_NOT_APPLIED_DESCRIPTION       = REDUNDANT_INDEXES_DESCRIPTION + " These indexes were not remove due to the skip-performance-optimizations flag. Remove the following indexes manually from the schema."
 )
 
 // RedundantIndexChange represents the removal of redundant indexes that are fully
@@ -102,7 +103,7 @@ func (s *SchemaOptimizationReport) HasOptimizations() bool {
 func NewRedundantIndexChange() *RedundantIndexChange {
 	return &RedundantIndexChange{
 		Title:                    "Removed Redundant Indexes",
-		Description:              "The following indexes were identified as redundant and removed. These indexes were fully covered by stronger indexes—indexes that share the same leading key columns (in order) and potentially include additional columns, making the redundant ones unnecessary.",
+		Description:              REDUNDANT_INDEXES_DESCRIPTION,
 		TableToRemovedIndexesMap: make(map[string][]string),
 		IsApplied:                true,
 	}
