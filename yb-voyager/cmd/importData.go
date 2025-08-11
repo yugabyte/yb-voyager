@@ -575,8 +575,9 @@ func importData(importFileTasks []*ImportFileTask, errorPolicy importdata.ErrorP
 		}
 	}
 
-	// Initialize metrics collector for the current import run
-	callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+	if callhome.SendDiagnostics {
+		callhomeMetricsCollector = callhome.NewImportDataMetricsCollector()
+	}
 
 	exportDirDataDir := filepath.Join(exportDir, "data")
 	errorHandler, err := importdata.GetImportDataErrorHandler(errorPolicy, exportDirDataDir)
