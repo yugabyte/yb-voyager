@@ -74,6 +74,7 @@ const (
 	PG_QUERY_CREATE_ENUM_TYPE_STMT_NODE      = "pg_query.CreateEnumStmt"
 	PG_QUERY_ALTER_ENUM_TYPE_STMT_NODE       = "pg_query.AlterEnumStmt"
 	PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE = "pg_query.CompositeTypeStmt"
+	PG_QUERY_CREATE_RANGE_STMT_NODE          = "pg_query.CreateRangeStmt"
 
 	PG_QUERY_NODE_NODE           = "pg_query.Node"
 	PG_QUERY_ALIAS_NODE          = "pg_query.Alias"

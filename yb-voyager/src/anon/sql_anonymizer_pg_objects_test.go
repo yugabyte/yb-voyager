@@ -283,7 +283,7 @@ func TestPostgresDDLVariants(t *testing.T) {
 			[]string{TYPE_KIND_PREFIX, FUNCTION_KIND_PREFIX}},
 		{"TYPE-CREATE-RANGE",
 			`CREATE TYPE myrange AS RANGE (subtype = int4);`,
-			[]string{"myrange", "int4"},
+			[]string{"myrange"},
 			[]string{TYPE_KIND_PREFIX, TYPE_KIND_PREFIX}},
 		{"TYPE-RENAME",
 			`ALTER TYPE mycomposit RENAME TO mycomposit2;`,

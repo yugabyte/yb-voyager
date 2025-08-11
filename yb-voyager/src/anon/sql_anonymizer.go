@@ -628,7 +628,6 @@ func (a *SqlAnonymizer) handleSequenceObjectNodes(msg protoreflect.Message) (err
 
 // this has processors for TYPE(user defined types i.e. COMPOSITE), ENUM, and DOMAIN
 func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Message) (err error) {
-	fmt.Printf("reached handleUserDefinedTypeObjectNodes: %s\n", queryparser.GetMsgFullName(msg))
 	switch queryparser.GetMsgFullName(msg) {
 	/*
 		SQL:		CREATE TYPE db.schema1.status AS ENUM ('new','proc','done');
@@ -689,7 +688,6 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 					coldeflist:{column_def:{colname:"b" type_name:{names:{string:{sval:"text"}} ... } }}}}
 	*/
 	case queryparser.PG_QUERY_CREATE_COMPOSITE_TYPE_STMT_NODE:
-		fmt.Printf("reached create composite type\n")
 		ct, ok := queryparser.ProtoAsCompositeTypeStmtNode(msg)
 		if !ok {
 			return fmt.Errorf("expected CreateTypeStmt, got %T", msg.Interface())
@@ -701,20 +699,75 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 			return fmt.Errorf("anon composite type: %w", err)
 		}
 
-		fmt.Printf("anonymized type name: %s\n", ct.Typevar.Relname)
-
 		// Anonymize the column names in columndeflist in column_def node
 		// Already covered by ColumnDef processor
 
+	/*
+		SQL:		CREATE TYPE myrange AS RANGE (subtype = int4);
+		ParseTree:	stmt:{create_range_stmt:{type_name:{string:{sval:"myrange"}} params:{def_elem:{defname:"subtype"
+					arg:{type_name:{names:{string:{sval:"int4"}} }} defaction:DEFELEM_UNSPEC }}}}
+	*/
+	case queryparser.PG_QUERY_CREATE_RANGE_STMT_NODE:
+		crs, ok := queryparser.ProtoAsCreateRangeStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected CreateRangeStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the range type name
+		err = a.anonymizeStringNodes(crs.GetTypeName(), TYPE_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon range type name: %w", err)
+		}
+
+		// Anonymize subtype which can be a user defined type or a built-in type
+		for _, defElem := range crs.Params {
+			defElemNode := defElem.GetDefElem()
+			if defElemNode == nil || defElemNode.Defname == "" {
+				continue
+			}
+			switch defElemNode.Defname {
+			case "subtype":
+				// For range types, subtype should be anonymized as TYPE
+				if defElemNode.Arg == nil {
+					continue
+				}
+				typeName := defElemNode.Arg.GetTypeName()
+				if typeName == nil || IsBuiltinType(typeName) {
+					continue
+				}
+				if err := a.anonymizeStringNodes(typeName.Names, TYPE_KIND_PREFIX); err != nil {
+					return fmt.Errorf("anon range subtype: %w", err)
+				}
+			}
+		}
+
+	/*
+		CREATE TYPE base_type_examples.base_type (
+				INTERNALLENGTH = variable, -- anonymized as constant
+				INPUT = base_type_examples.base_fn_in, -- anonymized as function
+				OUTPUT = base_type_examples.base_fn_out, -- anonymized as function
+				ALIGNMENT = int4, -- anonymized as constant
+				STORAGE = plain -- anonymized as constant
+		);
+		ParseTree: stmt:{define_stmt:{kind:OBJECT_TYPE defnames:{string:{sval:"base_type_examples"}} defnames:{string:{sval:"base_type"}}
+		definition:{def_elem:{defname:"internallength" arg:{type_name:{names:{string:{sval:"variable"}} }} defaction:DEFELEM_UNSPEC }}
+		definition:{def_elem:{defname:"input" arg:{type_name:{names:{string:{sval:"base_type_examples"}} names:{string:{sval:"base_fn_in"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"output" arg:{type_name:{names:{string:{sval:"base_type_examples"}} names:{string:{sval:"base_fn_out"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"alignment" arg:{type_name:{names:{string:{sval:"int4"}} }}
+		defaction:DEFELEM_UNSPEC }} definition:{def_elem:{defname:"storage" arg:{type_name:{names:{string:{sval:"plain"}} }}
+		defaction:DEFELEM_UNSPEC }}}}
+	*/
 	case queryparser.PG_QUERY_DEFINE_STMT_NODE:
 		ds, err := a.handleDefineStmtWithReturn(msg, pg_query.ObjectType_OBJECT_TYPE, TYPE_KIND_PREFIX)
 		if err != nil {
 			return fmt.Errorf("anon create type define: %w", err)
 		}
+
 		// If this is not a TYPE DefineStmt, skip
 		if ds == nil {
 			return nil
 		}
+
 		// Additional processing to anonymize function names in definitions
 		// For base types: input/output functions, for range types: subtype references
 		for _, defElem := range ds.Definition {
@@ -724,28 +777,45 @@ func (a *SqlAnonymizer) handleUserDefinedTypeObjectNodes(msg protoreflect.Messag
 			}
 			switch defElemNode.Defname {
 			case "input", "output":
-				// Handle function names in base type definitions
-				if defElemNode.Arg != nil && defElemNode.Arg.GetList() != nil {
-					err = a.anonymizeStringNodes(defElemNode.Arg.GetList().Items, FUNCTION_KIND_PREFIX)
-					if err != nil {
-						return fmt.Errorf("anon type %s function: %w", defElemNode.Defname, err)
-					}
+				// For base types, input/output functions are stored as TypeName nodes
+				if defElemNode.Arg == nil {
+					continue
+				}
+				typeName := defElemNode.Arg.GetTypeName()
+				if typeName == nil {
+					continue
+				}
+				if err := a.anonymizeStringNodes(typeName.Names, FUNCTION_KIND_PREFIX); err != nil {
+					return fmt.Errorf("anon type %s function: %w", defElemNode.Defname, err)
 				}
 			case "subtype":
-				// Handle subtype references in range type definitions
-				if defElemNode.Arg != nil && defElemNode.Arg.GetTypeName() != nil {
-					if !IsBuiltinType(defElemNode.Arg.GetTypeName()) {
-						for i, node := range defElemNode.Arg.GetTypeName().Names {
-							str := node.GetString_()
-							if str == nil || str.Sval == "" {
-								continue
-							}
-							str.Sval, err = a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
-							if err != nil {
-								return fmt.Errorf("anon subtype[%d]=%q lookup: %w", i, str.Sval, err)
-							}
-						}
+				tn := defElemNode.Arg.GetTypeName()
+				if tn == nil || IsBuiltinType(tn) {
+					continue
+				}
+				for i, node := range tn.Names {
+					str := node.GetString_()
+					if str == nil || str.Sval == "" {
+						continue
 					}
+					hashed, err := a.registry.GetHash(TYPE_KIND_PREFIX, str.Sval)
+					if err != nil {
+						return fmt.Errorf("anon subtype[%d]=%q lookup: %w", i, str.Sval, err)
+					}
+					str.Sval = hashed
+				}
+			case "internallength", "alignment", "storage":
+				// These values should be treated as constants, not types
+				// Even though they're stored as TypeName nodes in the parse tree
+				if defElemNode.Arg == nil {
+					continue
+				}
+				typeName := defElemNode.Arg.GetTypeName()
+				if typeName == nil {
+					continue
+				}
+				if err := a.anonymizeStringNodes(typeName.Names, CONST_KIND_PREFIX); err != nil {
+					return fmt.Errorf("anon type %s value: %w", defElemNode.Defname, err)
 				}
 			}
 		}
