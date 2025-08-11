@@ -1070,8 +1070,8 @@ func TestPostgresDDLCornerCases(t *testing.T) {
 		// ─── ALTER TABLE PARTITION OPERATIONS ─────────────────────────────────────────────
 		{
 			"TABLE-ALTER-ATTACH-PARTITION",
-			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM (55) TO (56)`,
-			[]string{"sales", "orders", "orders_2024", "55", "56"},
+			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_2024 FOR VALUES FROM (5545) TO (5612)`,
+			[]string{"sales", "orders", "orders_2024", "5545", "5612"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
 		},
 		{
@@ -1085,6 +1085,14 @@ func TestPostgresDDLCornerCases(t *testing.T) {
 			`ALTER TABLE ONLY sales.orders ATTACH PARTITION sales.orders_region_a FOR VALUES FROM ('US') TO ('CA')`,
 			[]string{"sales", "orders", "orders_region_a", "US", "CA"},
 			[]string{SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX},
+		},
+
+		// ─── INDEX WITH OPERATOR CLASS AND OPTIONS ─────────────────────────────────────────────
+		{
+			"INDEX-CREATE-WITH-OPERATOR-CLASS-OPTIONS",
+			`CREATE INDEX idx_orders_location ON sales.orders USING gist (location postgis.gist_geometry_ops(siglen='1232'))`,
+			[]string{"idx_orders_location", "sales", "orders", "location", "postgis", "gist_geometry_ops", "siglen", "1232"},
+			[]string{INDEX_KIND_PREFIX, SCHEMA_KIND_PREFIX, TABLE_KIND_PREFIX, COLUMN_KIND_PREFIX, SCHEMA_KIND_PREFIX, OPCLASS_KIND_PREFIX, PARAMETER_KIND_PREFIX, CONST_KIND_PREFIX},
 		},
 	}
 
