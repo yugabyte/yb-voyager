@@ -55,7 +55,7 @@ main() {
 
 	step "Unzip the data file."
 	[ -f OneMRows.text ] || gunzip -c OneMRows.text.gz > OneMRows.text
-	[ -f accounts_data.csv ] || unzip -p accounts.zip > accounts_data.csv
+	[ -f accounts_data.csv ] || gunzip -c accounts.zip > accounts_data.csv
 
 	step "Create target table."
 	ysql_import_file ${TARGET_DB_NAME} schema.sql
