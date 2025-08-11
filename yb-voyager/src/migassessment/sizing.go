@@ -965,6 +965,11 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 	objectType string) (float64, error) {
 	var importTime float64
 
+	// get multiplication factor based on the number of nodes in the cluster
+	// For colocated tables, multiplication factor is always 1.0 regardless of node count
+	loadTimeMultiplicationFactorWrtNumNodes := lo.Ternary(objectType == COLOCATED, 1.0,
+		getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes, numNodesImpactData))
+
 	// we need to calculate the time taken for import for every table.
 	// For every index, the time taken for import increases.
 	// find the rows in experiment data about the approx row matching the size
@@ -979,9 +984,6 @@ func calculateTimeTakenForImport(tables []SourceDBMetadata,
 		// get multiplication factor for every table based on the number of columns in the table
 		loadTimeMultiplicationFactorWrtNumColumns := getMultiplicationFactorForImportTimeBasedOnNumColumns(table,
 			numColumnImpactData, objectType)
-		// get multiplication factor for every table based on the number of nodes in the cluster
-		loadTimeMultiplicationFactorWrtNumNodes := getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes,
-			numNodesImpactData, objectType)
 
 		tableImportTimeSec := findImportTimeFromExpDataLoadTime(loadTimes, tableSize, rowsInTable)
 		// add maximum import time to total import time by converting it to minutes
@@ -1157,14 +1159,14 @@ Returns:
 func getExpDataNumNodesImpactOnLoadTime(experimentDB *sql.DB, vCPUPerInstance int,
 	memPerCore int, ybVersionIdToUse int64) ([]ExpDataLoadTimeNumNodesImpact, error) {
 	selectQuery := fmt.Sprintf(`
-		SELECT num_nodes, 
+		SELECT number_of_nodes, 
 			   multiplication_factor_sharded,
 			   multiplication_factor_colocated
 		FROM %v 
 		WHERE num_cores = ? 
 			AND mem_per_core = ?
 		AND yb_version_id = ? 
-		ORDER BY num_nodes;
+		ORDER BY number_of_nodes;
 	`, LOAD_TIME_NUM_NODES_IMPACT_TABLE)
 	rows, err := experimentDB.Query(selectQuery, vCPUPerInstance, memPerCore, ybVersionIdToUse)
 
@@ -1339,70 +1341,68 @@ func getMultiplicationFactorForImportTimeBasedOnNumColumns(table SourceDBMetadat
 
 /*
 getMultiplicationFactorForImportTimeBasedOnNumNodes calculates the multiplication factor for import time based on
-number of nodes in the cluster.
+number of nodes in the cluster for SHARDED tables.
 
-NOTE: For COLOCATED tables, the number of nodes does not impact load time as colocated tables are not distributed
-across nodes. Therefore, this function always returns 1.0 for COLOCATED object types.
+NOTE: This function is only called for SHARDED tables. COLOCATED tables always use a multiplication factor of 1.0
+and are handled by the calling code before this function is invoked.
 
 Parameters:
 
 	numNodes: The number of nodes in the cluster.
 	numNodesImpacts: A slice containing experimental data for the impact of number of nodes on load time.
-	objectType: COLOCATED or SHARDED
 
 Returns:
 
 	float64: The multiplication factor for import time based on the number of nodes in the cluster.
 */
 func getMultiplicationFactorForImportTimeBasedOnNumNodes(numNodes float64,
-	numNodesImpacts []ExpDataLoadTimeNumNodesImpact, objectType string) float64 {
-	// For colocated tables, number of nodes does not impact load time since colocated tables
-	// are not distributed across nodes
-	if objectType == COLOCATED {
-		return 1.0
-	}
+	numNodesImpacts []ExpDataLoadTimeNumNodesImpact) float64 {
+	// numNodesImpacts is guaranteed to contain data points for 3, 6, and 9 nodes
 
-	if len(numNodesImpacts) == 0 {
-		// if there are no experiment data records for num nodes impact, return 1
-		return 1
-	}
+	// Sort the experimental data by number of nodes to ensure proper interpolation
+	sort.Slice(numNodesImpacts, func(i, j int) bool {
+		return numNodesImpacts[i].numNodes.Int64 < numNodesImpacts[j].numNodes.Int64
+	})
 
-	// Initialize the selectedImpact as nil and minDiff with a high value
-	var selectedImpact ExpDataLoadTimeNumNodesImpact
-	minDiff := float64(math.MaxFloat64)
-	found := false
-
-	for _, numNodesImpactData := range numNodesImpacts {
-		if float64(numNodesImpactData.numNodes.Int64) >= numNodes {
-			diff := float64(numNodesImpactData.numNodes.Int64) - numNodes
-			if diff < minDiff {
-				minDiff = diff
-				selectedImpact = numNodesImpactData
-				found = true
-			}
+	// Check if numNodes matches exactly with any experimental data point
+	for _, data := range numNodesImpacts {
+		if float64(data.numNodes.Int64) == numNodes {
+			return data.multiplicationFactorSharded.Float64
 		}
 	}
 
-	// If no suitable impact is found, use the one with the maximum NumNodes
-	if !found {
-		for _, numNodesImpactData := range numNodesImpacts {
-			if numNodesImpactData.numNodes.Int64 > selectedImpact.numNodes.Int64 {
-				selectedImpact = numNodesImpactData
-			}
+	// Find the appropriate data points for interpolation/extrapolation
+	var lowerData, upperData ExpDataLoadTimeNumNodesImpact
+	var hasUpper bool
+
+	// Find the ceiling value (next higher experimental data point)
+	for _, data := range numNodesImpacts {
+		if float64(data.numNodes.Int64) > numNodes {
+			upperData = data
+			hasUpper = true
+			break
 		}
+		lowerData = data
 	}
 
-	var multiplicationFactor float64
-	// multiplication factor is different for colocated and sharded tables.
-	// multiplication factor would be maximum of the two:
-	//	max of (mf of selected entry from experiment data, mf for cluster wrt selected entry)
-	if objectType == COLOCATED {
-		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorColocated.Float64,
-			(selectedImpact.multiplicationFactorColocated.Float64/float64(selectedImpact.numNodes.Int64))*numNodes)
-	} else if objectType == SHARDED {
-		multiplicationFactor = math.Max(selectedImpact.multiplicationFactorSharded.Float64,
-			(selectedImpact.multiplicationFactorSharded.Float64/float64(selectedImpact.numNodes.Int64))*numNodes)
+	// If no ceiling found, we need to extrapolate beyond the highest data point
+	// For extrapolation, always use 3 nodes as baseline since experimental data multiplication factors
+	// are calculated with 3 nodes as the baseline in mind
+	if !hasUpper {
+		// Use 3 nodes (baseline) and the highest available data point for extrapolation
+		lowerData = numNodesImpacts[0]                      // First element is 3 nodes (after sorting)
+		upperData = numNodesImpacts[len(numNodesImpacts)-1] // Highest available data point
 	}
+
+	// Perform linear interpolation/extrapolation between lower and upper data points
+	lowerNodes := float64(lowerData.numNodes.Int64)
+	upperNodes := float64(upperData.numNodes.Int64)
+	lowerFactor := lowerData.multiplicationFactorSharded.Float64
+	upperFactor := upperData.multiplicationFactorSharded.Float64
+
+	// Linear interpolation/extrapolation formula: y = y1 + (x - x1) * (y2 - y1) / (x2 - x1)
+	ratio := (numNodes - lowerNodes) / (upperNodes - lowerNodes)
+	multiplicationFactor := lowerFactor + ratio*(upperFactor-lowerFactor)
 
 	return multiplicationFactor
 }

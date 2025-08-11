@@ -992,7 +992,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Colocat
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1047,7 +1063,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Colocat
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1103,7 +1135,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Colo
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1150,7 +1198,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex_Sharded
 		},
 	}
 	// Call the function
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	estimatedTime, err := calculateTimeTakenForImport(shardedTables, sourceIndexMetadata,
 		shardedLoadTimes, indexImpacts, columnsImpact, numNodesImpacts, 3.0, SHARDED)
@@ -1199,7 +1263,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithOneIndex_Sharded
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err :=
@@ -1257,7 +1337,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithFiveIndexes_Shar
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err :=
@@ -1305,7 +1401,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex5Columns
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1357,7 +1469,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex40Column
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.45},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1409,7 +1537,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex100Colum
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 4.36},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1462,7 +1606,23 @@ func TestCalculateTimeTakenForImport_ValidateImportTimeTableWithoutIndex250Colum
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 4.36},
 		},
 	}
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact // doesn't have any impact as no nodes impact data
+	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{ // Standard guaranteed data for 3, 6, 9 nodes
+		{
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+	}
 
 	// Call the function
 	estimatedTime, err := calculateTimeTakenForImport(colocatedTables,
@@ -1746,32 +1906,58 @@ func createMockDB(t *testing.T) (*sql.DB, sqlmock.Sqlmock) {
 ===== 	Test functions to test num nodes multiplication factor functionality	=====
 */
 
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function for colocated (should always return 1.0)
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_AlwaysOne_Colocated(t *testing.T) {
+// NOTE: COLOCATED table behavior is now handled by the calling code with a ternary operation
+// that returns 1.0 immediately. The getMultiplicationFactorForImportTimeBasedOnNumNodes function
+// is now only called for SHARDED tables.
+
+// Test comprehensive scenarios for getMultiplicationFactorForImportTimeBasedOnNumNodes with realistic data
+func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_ComprehensiveScenarios_Sharded(t *testing.T) {
+	// Realistic experimental data: 3, 6, 9 nodes with decreasing multiplication factors
 	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{
 		{
-			numNodes:                      sql.NullInt64{Int64: 1, Valid: true},
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
 			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
 		},
 		{
-			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.5, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 2.0, Valid: true},
+			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
 		},
 		{
-			numNodes:                      sql.NullInt64{Int64: 5, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 2.5, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 3.5, Valid: true},
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
 		},
 	}
 
-	// For colocated tables, should always return 1.0 regardless of num nodes or experiment data
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(3.0, numNodesImpacts, COLOCATED)
-	expected := 1.0
+	testCases := []struct {
+		numNodes float64
+		expected float64
+		name     string
+	}{
+		{3.0, 1.0, "3 nodes - exact match"},
+		{4.0, 0.966667, "4 nodes - interpolation between 3 and 6"},
+		{5.0, 0.933333, "5 nodes - interpolation between 3 and 6"},
+		{6.0, 0.9, "6 nodes - exact match"},
+		{8.0, 0.833333, "8 nodes - interpolation between 6 and 9"},
+		{9.0, 0.8, "9 nodes - exact match"},
+		{12.0, 0.7, "12 nodes - extrapolation using 3-9 nodes baseline"},
+		{17.0, 0.533333, "17 nodes - extrapolation using 3-9 nodes baseline"},
+		{20.0, 0.433333, "20 nodes - extrapolation using 3-9 nodes baseline"},
+	}
 
-	if result != expected {
-		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			result := getMultiplicationFactorForImportTimeBasedOnNumNodes(tc.numNodes, numNodesImpacts)
+
+			// Allow for small floating point precision differences
+			tolerance := 0.000001
+			if math.Abs(result-tc.expected) > tolerance {
+				t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes(%v) = %v, want %v",
+					tc.numNodes, result, tc.expected)
+			}
+		})
 	}
 }
 
@@ -1779,47 +1965,18 @@ func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_AlwaysOne_Colocated
 func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_ExactMatch_Sharded(t *testing.T) {
 	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{
 		{
-			numNodes:                      sql.NullInt64{Int64: 1, Valid: true},
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
 			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
 			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
 		},
 		{
-			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.5, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 2.0, Valid: true},
-		},
-		{
-			numNodes:                      sql.NullInt64{Int64: 5, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 2.5, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 3.5, Valid: true},
-		},
-	}
-
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(3.0, numNodesImpacts, SHARDED)
-	expected := 2.0
-
-	if result != expected {
-		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
-	}
-}
-
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with colocated (always 1.0)
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_AlwaysOne_Colocated_AnyNodes(t *testing.T) {
-	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{
-		{
-			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 3.0, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 4.0, Valid: true},
-		},
-		{
 			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 6.0, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 8.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
 		},
 	}
 
-	// Test with any number of nodes for colocated - should always return 1.0
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(2.0, numNodesImpacts, COLOCATED)
+	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(3.0, numNodesImpacts)
 	expected := 1.0
 
 	if result != expected {
@@ -1827,71 +1984,54 @@ func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_AlwaysOne_Colocated
 	}
 }
 
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with interpolation for higher value
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_InterpolationHigher_Sharded(t *testing.T) {
+// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with interpolation scenarios
+func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_Interpolation_Sharded(t *testing.T) {
 	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{
 		{
 			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 3.0, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 4.5, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
 		},
 		{
 			numNodes:                      sql.NullInt64{Int64: 6, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 6.0, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 9.0, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.9, Valid: true},
 		},
 	}
 
-	// Test with 4 nodes (should use closest which is 6 nodes)
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(4.0, numNodesImpacts, SHARDED)
-	// Expected: max(9.0, (9.0/6) * 4) = max(9.0, 6.0) = 9.0
-	expected := 9.0
+	// Test interpolation between 3 and 6 nodes
+	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(4.0, numNodesImpacts)
+	// Linear interpolation: 1.0 + (4-3)/(6-3) * (0.9-1.0) = 1.0 + (1/3) * (-0.1) = 0.966667
+	expected := 0.966667
 
-	if result != expected {
+	tolerance := 0.000001
+	if math.Abs(result-expected) > tolerance {
 		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
 	}
 }
 
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with no data for colocated (should still return 1.0)
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_NoData_Colocated(t *testing.T) {
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact
-
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(3.0, numNodesImpacts, COLOCATED)
-	expected := 1.0 // Should always return 1 for colocated, even with no data
-
-	if result != expected {
-		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
-	}
-}
-
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with no data for sharded
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_NoData_Sharded(t *testing.T) {
-	var numNodesImpacts []ExpDataLoadTimeNumNodesImpact
-
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(3.0, numNodesImpacts, SHARDED)
-	expected := 1.0 // Should return 1 when no data is available
-
-	if result != expected {
-		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
-	}
-}
-
-// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with single node greater than input for sharded
-func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_SingleNodeGreater_Sharded(t *testing.T) {
+// Test getMultiplicationFactorForImportTimeBasedOnNumNodes function with extrapolation scenarios
+func TestGetMultiplicationFactorForImportTimeBasedOnNumNodes_Extrapolation_Sharded(t *testing.T) {
 	numNodesImpacts := []ExpDataLoadTimeNumNodesImpact{
 		{
-			numNodes:                      sql.NullInt64{Int64: 10, Valid: true},
-			multiplicationFactorColocated: sql.NullFloat64{Float64: 5.0, Valid: true},
-			multiplicationFactorSharded:   sql.NullFloat64{Float64: 7.0, Valid: true},
+			numNodes:                      sql.NullInt64{Int64: 3, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 1.0, Valid: true},
+		},
+		{
+			numNodes:                      sql.NullInt64{Int64: 9, Valid: true},
+			multiplicationFactorColocated: sql.NullFloat64{Float64: 1.0, Valid: true},
+			multiplicationFactorSharded:   sql.NullFloat64{Float64: 0.8, Valid: true},
 		},
 	}
 
-	// Test with 5 nodes (should use the only available entry and interpolate)
-	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(5.0, numNodesImpacts, SHARDED)
-	// Expected: max(7.0, (7.0/10) * 5) = max(7.0, 3.5) = 7.0
-	expected := 7.0
+	// Test extrapolation beyond 9 nodes (18 nodes) using 3 nodes as baseline
+	result := getMultiplicationFactorForImportTimeBasedOnNumNodes(18.0, numNodesImpacts)
+	// Linear extrapolation using 3-9 baseline: 1.0 + (18-3)/(9-3) * (0.8-1.0) = 1.0 + (15/6) * (-0.2) = 1.0 - 0.5 = 0.5
+	expected := 0.5
 
-	if result != expected {
+	tolerance := 0.000001
+	if math.Abs(result-expected) > tolerance {
 		t.Errorf("getMultiplicationFactorForImportTimeBasedOnNumNodes() = %v, want %v", result, expected)
 	}
 }
