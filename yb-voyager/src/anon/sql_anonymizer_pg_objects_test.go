@@ -613,6 +613,10 @@ func TestPostgresDDLVariants(t *testing.T) {
 			`CREATE OPERATOR FAMILY sales.abs_numeric_ops USING btree;`,
 			[]string{"sales", "abs_numeric_ops"},
 			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX}},
+		{"OPERATOR-FAMILY-ALTER",
+			`ALTER OPERATOR FAMILY am_examples.box_ops USING gist2 ADD OPERATOR 1 <<(box, box), OPERATOR 2 &<(box, box), OPERATOR 3 &&(box, box), OPERATOR 4 &>(box, box), OPERATOR 5 >>(box, box), OPERATOR 6 ~=(box, box), OPERATOR 7 @>(box, box), OPERATOR 8 <@(box, box), OPERATOR 9 &<|(box, box), OPERATOR 10 <<|(box, box), OPERATOR 11 |>>(box, box), OPERATOR 12 |&>(box, box)`,
+			[]string{"am_examples", "box_ops", "<<", "&<", "&&", "&>", ">>", "~=", "@>", "<@", "&<|", "<<|", "|>>", "|&>"},
+			[]string{SCHEMA_KIND_PREFIX, OPFAMILY_KIND_PREFIX, OPERATOR_KIND_PREFIX}},
 
 		// ─── OPERATOR ─────────────────────────────────────────────
 		{"OPERATOR-CREATE",

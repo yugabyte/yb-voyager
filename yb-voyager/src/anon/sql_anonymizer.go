@@ -1957,6 +1957,47 @@ func (a *SqlAnonymizer) handleOperatorClassAndFamilyObjectNodes(msg protoreflect
 		if err != nil {
 			return fmt.Errorf("anon operator family name: %w", err)
 		}
+
+	/*
+		SQL:		ALTER OPERATOR FAMILY am_examples.box_ops USING gist2 ADD OPERATOR 1 <<(box, box), OPERATOR 2 &<(box, box);
+		ParseTree:	stmt:{alter_op_family_stmt:{opfamilyname:{string:{sval:"am_examples"}} opfamilyname:{string:{sval:"box_ops"}}
+					amname:"gist2" items:{create_op_class_item:{itemtype:1 name:{objname:{string:{sval:"<<"}} objargs:{type_name:{names:{string:{sval:"box"}} }}
+					objargs:{type_name:{names:{string:{sval:"box"}} }}} number:1}}}}
+	*/
+	case queryparser.PG_QUERY_ALTER_OP_FAMILY_STMT_NODE:
+		aofs, ok := queryparser.ProtoAsAlterOpFamilyStmtNode(msg)
+		if !ok {
+			return fmt.Errorf("expected AlterOpFamilyStmt, got %T", msg.Interface())
+		}
+
+		// Anonymize the operator family name (qualified: schema.opfamily_name)
+		err = a.anonymizeStringNodes(aofs.GetOpfamilyname(), OPFAMILY_KIND_PREFIX)
+		if err != nil {
+			return fmt.Errorf("anon alter operator family name: %w", err)
+		}
+
+		// Anonymize operators in the items
+		if aofs.Items == nil {
+			return nil
+		}
+
+		for _, item := range aofs.Items {
+			itemNode := item.GetCreateOpClassItem()
+			if itemNode == nil {
+				continue
+			}
+
+			// Anonymize operator symbol
+			if itemNode.Name != nil && itemNode.Name.Objname != nil {
+				err = a.anonymizeStringNodes(itemNode.Name.Objname, OPERATOR_KIND_PREFIX)
+				if err != nil {
+					return fmt.Errorf("anon alter operator family operator: %w", err)
+				}
+			}
+
+			// TODO: Type arguments in operator family items need to be handled for anonymization.
+			// Skipped for now due to complex logic and not a common case.
+		}
 	}
 
 	return nil
