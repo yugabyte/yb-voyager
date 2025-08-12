@@ -263,6 +263,22 @@ func TestSameTokenForSameObjectName(t *testing.T) {
 			sql1: "SELECT password FROM accounts",
 			sql2: "UPDATE accounts SET password = 'constant1'",
 		},
+		{
+			name: "consistent schema token across type definition and usage",
+			identifiers: []struct{ kind, raw string }{
+				{SCHEMA_KIND_PREFIX, "public"},
+				{TYPE_KIND_PREFIX, "address_type"},
+				{TABLE_KIND_PREFIX, "combined_tbl"},
+				{COLUMN_KIND_PREFIX, "id"},
+				{COLUMN_KIND_PREFIX, "address"},
+				{COLUMN_KIND_PREFIX, "street"},
+				{COLUMN_KIND_PREFIX, "city"},
+				{COLUMN_KIND_PREFIX, "state"},
+				{COLUMN_KIND_PREFIX, "zip_code"},
+			},
+			sql1: `CREATE TYPE public.address_type AS (street varchar, city varchar, state varchar, zip_code varchar)`,
+			sql2: `CREATE TABLE public.combined_tbl (id int NOT NULL, address public.address_type)`,
+		},
 	}
 
 	for _, tc := range cases {
