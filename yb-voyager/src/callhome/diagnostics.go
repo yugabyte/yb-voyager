@@ -263,29 +263,39 @@ type ImportSchemaPhasePayload struct {
 Version History:
 1.0: Added fields for BatchSize, OnPrimaryKeyConflictAction, EnableYBAdaptiveParallelism, AdaptiveParallelismMax
 1.1: Added YBClusterMetrics field, and corresponding struct - YBClusterMetrics, NodeMetric
+1.2: Split out the data metrics into a separate struct - ImportDataMetrics
 */
-var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.1"
+var IMPORT_DATA_CALLHOME_PAYLOAD_VERSION = "1.2"
 
 type ImportDataPhasePayload struct {
-	PayloadVersion              string           `json:"payload_version"`
-	BatchSize                   int64            `json:"batch_size"`
-	ParallelJobs                int64            `json:"parallel_jobs"`
-	TotalRows                   int64            `json:"total_rows_imported"`
-	LargestTableRows            int64            `json:"largest_table_rows_imported"`
-	OnPrimaryKeyConflictAction  string           `json:"on_primary_key_conflict_action"`
-	EnableYBAdaptiveParallelism bool             `json:"enable_yb_adaptive_parallelism"`
-	AdaptiveParallelismMax      int64            `json:"adaptive_parallelism_max"`
-	ErrorPolicySnapshot         string           `json:"error_policy_snapshot"`
-	StartClean                  bool             `json:"start_clean"`
-	YBClusterMetrics            YBClusterMetrics `json:"yb_cluster_metrics"`
+	PayloadVersion              string            `json:"payload_version"`
+	BatchSize                   int64             `json:"batch_size"`
+	ParallelJobs                int64             `json:"parallel_jobs"`
+	OnPrimaryKeyConflictAction  string            `json:"on_primary_key_conflict_action"`
+	EnableYBAdaptiveParallelism bool              `json:"enable_yb_adaptive_parallelism"`
+	AdaptiveParallelismMax      int64             `json:"adaptive_parallelism_max"`
+	ErrorPolicySnapshot         string            `json:"error_policy_snapshot"`
+	StartClean                  bool              `json:"start_clean"`
+	YBClusterMetrics            YBClusterMetrics  `json:"yb_cluster_metrics"`
+	DataMetrics                 ImportDataMetrics `json:"data_metrics"`
 	//TODO: see if these three can be changed to not use omitempty to put the data for 0 rate or total events
-	Phase               string `json:"phase,omitempty"`
-	TotalImportedEvents int64  `json:"total_imported_events,omitempty"`
-	EventsImportRate    int64  `json:"events_import_rate_3m,omitempty"`
-	LiveWorkflowType    string `json:"live_workflow_type,omitempty"`
-	EnableUpsert        bool   `json:"enable_upsert"`
-	Error               string `json:"error"`
-	ControlPlaneType    string `json:"control_plane_type"`
+	Phase            string `json:"phase,omitempty"`
+	LiveWorkflowType string `json:"live_workflow_type,omitempty"`
+	EnableUpsert     bool   `json:"enable_upsert"`
+	Error            string `json:"error"`
+	ControlPlaneType string `json:"control_plane_type"`
+}
+
+type ImportDataMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalRows        int64 `json:"migration_snapshot_total_rows"`
+	MigrationSnapshotLargestTableRows int64 `json:"migration_snapshot_largest_table_rows"`
+	MigrationCdcTotalImportedEvents   int64 `json:"migration_cdc_total_imported_events"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows       int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes      int64 `json:"snapshot_total_bytes"`
+	CdcEventsImportRate3min int64 `json:"cdc_events_import_rate_3min"`
 }
 
 type YBClusterMetrics struct {
@@ -308,14 +318,23 @@ type NodeMetric struct {
 }
 
 type ImportDataFilePhasePayload struct {
-	ParallelJobs       int64  `json:"parallel_jobs"`
-	TotalSize          int64  `json:"total_size_imported"`
-	LargestTableSize   int64  `json:"largest_table_size_imported"`
-	FileStorageType    string `json:"file_storage_type"`
-	StartClean         bool   `json:"start_clean"`
-	DataFileParameters string `json:"data_file_parameters"`
-	Error              string `json:"error"`
-	ControlPlaneType   string `json:"control_plane_type"`
+	ParallelJobs       int64                 `json:"parallel_jobs"`
+	FileStorageType    string                `json:"file_storage_type"`
+	StartClean         bool                  `json:"start_clean"`
+	DataFileParameters string                `json:"data_file_parameters"`
+	DataMetrics        ImportDataFileMetrics `json:"data_metrics"`
+	Error              string                `json:"error"`
+	ControlPlaneType   string                `json:"control_plane_type"`
+}
+
+type ImportDataFileMetrics struct {
+	// for the entire migration, across command runs. would be sensitive to start-clean.
+	MigrationSnapshotTotalBytes        int64 `json:"migration_snapshot_total_bytes"`
+	MigrationSnapshotLargestTableBytes int64 `json:"migration_snapshot_largest_table_bytes"`
+
+	// command run related metrics; for the current command run.
+	SnapshotTotalRows  int64 `json:"snapshot_total_rows"`
+	SnapshotTotalBytes int64 `json:"snapshot_total_bytes"`
 }
 
 type DataFileParameters struct {

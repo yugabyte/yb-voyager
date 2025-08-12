@@ -363,12 +363,34 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 		QuoteChar:  quoteChar,
 		NullString: nullString,
 	}
+	// Create ImportDataFileMetrics struct using the metrics collector
+	dataMetrics := callhome.ImportDataFileMetrics{}
+	if callhomeMetricsCollector != nil {
+		dataMetrics.SnapshotTotalRows = callhomeMetricsCollector.GetSnapshotTotalRows()
+		dataMetrics.SnapshotTotalBytes = callhomeMetricsCollector.GetSnapshotTotalBytes()
+	}
+
+	// Get migration-related metrics from existing logic
+	importSizeMap, err := getImportedSizeMap()
+	if err != nil {
+		log.Infof("callhome: error in getting the import data: %v", err)
+	} else if importSizeMap != nil {
+		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
+			dataMetrics.MigrationSnapshotTotalBytes += value
+			if value > dataMetrics.MigrationSnapshotLargestTableBytes {
+				dataMetrics.MigrationSnapshotLargestTableBytes = value
+			}
+			return true, nil
+		})
+	}
+
 	importDataFilePayload := callhome.ImportDataFilePhasePayload{
 		ParallelJobs:       int64(tconf.Parallelism),
 		StartClean:         bool(startClean),
 		DataFileParameters: callhome.MarshalledJsonString(dataFileParameters),
 		Error:              callhome.SanitizeErrorMsg(errorMsg),
 		ControlPlaneType:   getControlPlaneType(),
+		DataMetrics:        dataMetrics,
 	}
 	switch true {
 	case strings.Contains(dataDir, "s3://"):
@@ -379,18 +401,6 @@ func packAndSendImportDataFilePayload(status string, errorMsg error) {
 		importDataFilePayload.FileStorageType = AZURE_BLOBS
 	default:
 		importDataFilePayload.FileStorageType = LOCAL_DISK
-	}
-	importSizeMap, err := getImportedSizeMap()
-	if err != nil {
-		log.Infof("callhome: error in getting the import data: %v", err)
-	} else if importSizeMap != nil {
-		importSizeMap.IterKV(func(key sqlname.NameTuple, value int64) (bool, error) {
-			importDataFilePayload.TotalSize += value
-			if value > importDataFilePayload.LargestTableSize {
-				importDataFilePayload.LargestTableSize = value
-			}
-			return true, nil
-		})
 	}
 	payload.PhasePayload = callhome.MarshalledJsonString(importDataFilePayload)
 	payload.Status = status
