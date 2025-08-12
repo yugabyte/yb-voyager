@@ -2014,12 +2014,10 @@ func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) er
 		}
 
 		var prefix string
-		var skipBuiltin bool // for prefix TYPE_KIND_PREFIX
 
 		switch defElemNode.Defname {
 		case "subtype":
 			prefix = TYPE_KIND_PREFIX
-			skipBuiltin = true
 		case "subtype_opclass":
 			prefix = OPCLASS_KIND_PREFIX
 		case "collation":
@@ -2030,13 +2028,12 @@ func (a *SqlAnonymizer) anonymizeRangeTypeParameters(params []*pg_query.Node) er
 			prefix = FUNCTION_KIND_PREFIX
 		case "multirange_type_name":
 			prefix = TYPE_KIND_PREFIX
-			skipBuiltin = true
 		default:
 			continue
 		}
 
 		// Skip builtin types if required
-		if skipBuiltin && IsBuiltinType(typeName) {
+		if prefix == TYPE_KIND_PREFIX && IsBuiltinType(typeName) {
 			continue
 		}
 
