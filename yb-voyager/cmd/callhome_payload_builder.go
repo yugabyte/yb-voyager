@@ -247,7 +247,7 @@ func anonymizeIssueDetailsForCallhome(details map[string]interface{}) map[string
 	return anonymizedDetails
 }
 
-var DDL_ANONYMIZATION_FEATURE_ENABLED = false
+var DDL_ANONYMIZATION_FEATURE_ENABLED = true
 
 func getAnonymizedDDLs(sourceDBConf *srcdb.Source) []string {
 	// env var to enable sending anonymized DDLs to call home
