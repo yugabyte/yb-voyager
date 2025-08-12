@@ -1121,7 +1121,7 @@ func (a *SqlAnonymizer) handleIndexObjectNodes(msg protoreflect.Message) (err er
 }
 
 // anonymizeIndexOpclass anonymizes operator class names in index definitions
-func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) error {
+func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) (err error) {
 	if opclass == nil {
 		return nil
 	}
@@ -1133,12 +1133,13 @@ func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) error {
 		}
 
 		// Extract string value from the operator class node
-		if strNode := op.GetString_(); strNode != nil {
-			hashedName, err := a.registry.GetHash(OPCLASS_KIND_PREFIX, strNode.Sval)
-			if err != nil {
-				return fmt.Errorf("anon opclass name: %w", err)
-			}
-			strNode.Sval = hashedName
+		strNode := op.GetString_()
+		if strNode == nil {
+			continue
+		}
+		strNode.Sval, err = a.registry.GetHash(OPCLASS_KIND_PREFIX, strNode.Sval)
+		if err != nil {
+			return fmt.Errorf("anon opclass name: %w", err)
 		}
 	}
 
@@ -1146,7 +1147,7 @@ func (a *SqlAnonymizer) anonymizeIndexOpclass(opclass []*pg_query.Node) error {
 }
 
 // anonymizeIndexOpclassOptions anonymizes operator class options in index definitions
-func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) error {
+func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) (err error) {
 	if opts == nil {
 		return nil
 	}
@@ -1157,26 +1158,29 @@ func (a *SqlAnonymizer) anonymizeIndexOpclassOptions(opts []*pg_query.Node) erro
 		}
 
 		// Handle DefElem nodes (e.g., siglen='32')
-		if defElem := opt.GetDefElem(); defElem != nil {
-			// Anonymize the option name if needed
-			if defElem.Defname != "" {
-				hashedName, err := a.registry.GetHash(PARAMETER_KIND_PREFIX, defElem.Defname)
-				if err != nil {
-					return fmt.Errorf("anon opclass option name: %w", err)
-				}
-				defElem.Defname = hashedName
-			}
+		defElem := opt.GetDefElem()
+		if defElem == nil {
+			continue
+		}
 
-			// Handle the argument value (e.g., '32')
-			if defElem.Arg != nil {
-				if strNode := defElem.Arg.GetString_(); strNode != nil {
-					hashedVal, err := a.registry.GetHash(CONST_KIND_PREFIX, strNode.Sval)
-					if err != nil {
-						return fmt.Errorf("anon opclass option value: %w", err)
-					}
-					strNode.Sval = hashedVal
-				}
-			}
+		defElem.Defname, err = a.registry.GetHash(PARAMETER_KIND_PREFIX, defElem.Defname)
+		if err != nil {
+			return fmt.Errorf("anon opclass option name: %w", err)
+		}
+
+		// Handle the argument value (e.g., '32')
+		if defElem.Arg == nil {
+			continue
+		}
+
+		strNode := defElem.Arg.GetString_()
+		if strNode == nil {
+			continue
+		}
+
+		strNode.Sval, err = a.registry.GetHash(CONST_KIND_PREFIX, strNode.Sval)
+		if err != nil {
+			return fmt.Errorf("anon opclass option value: %w", err)
 		}
 	}
 
